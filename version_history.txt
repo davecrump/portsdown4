@@ -1,0 +1,255 @@
+201803181
+Adds support for Logitech C910 Webcam
+
+201803180
+Handles Logitech C525 post-transmit reset better
+Corrects USB Mic selection when Webcam connected
+
+201803061
+Adds Webcam as a separate switched video and audio source
+Logitech C920, C525 and C170 webcams work as video sources
+Makes test cards and contest numbers available for both H264 and MPEG-2
+Adds some 16:9 and 720p modes
+Enables caption on streaming modes and allows longer captions
+Adds support for native 1080p H264 and audio streaming from the Logitech C920
+SigGen supports the Elcom microwave oscillators (select ADF5355..)
+New Logo
+Keyboard improvements
+
+201802202
+Restores "save-to-USB" capability
+Enables C920 Webcam
+Instant band switching
+Decreases Attenuator spi clock frequency for reliability
+Corrects bug that did not copy presets across on upgrade
+
+201802041
+Major touchscreen menu re-write
+Introduces new gui sub-menus for parameter and config selection
+Introduces attenuator and transverter switching
+Introduces stored preset configurations
+Initialises spi GPIO ports on GUI start-up
+Corrects ADF4351 and Attenuator spi timing to improve reliability
+Corrects FileTS failure to cease transmitting 
+Adds partial support (Video only) for Logitech C525 and C270 Webcams
+
+201801220
+Introduces new gui sub-menus for parameter and config selection
+Major menu rewrite in prep for transverter switching
+Initialises spi GPIO ports on GUI start-up
+Corrects ADF4351 and Attenuator spi timing to improve reliability
+Add partial support (Video only) for Logitech C525 and C270 Webcams
+
+201801061
+Introduces attenuator option for Portsdown output in SigGen
+Adds attenuator option to Portsdown and ADF4351 modes in SigGen
+Enables DATV Express SigGen
+Enables 333KS QPSK mod for Portsdown and ADF4351 modes in SigGen
+Cures multiple overlays of receive parameters
+Single touch exit from receive to Main Menu
+
+201801012
+Introduces scheduler.sh to switch between rpidatv, siggen & FreqShow
+Adds a Display option for the Element14_7
+Resizes CAMMPEG-2 viewfinder for Element14_7 display
+Enables IPTS output for MPEG-2 modes
+Corrects higlights on Menu 2
+Introduces FreqShow Spectrum display
+
+201712181
+Complete rewrite of touchscreen touch response function
+Adds Menu Titles
+Adds Switchable 480p Output in CAMMPEG-2 and ANALOGMPEG-2
+Moves Caption and Adds Locator if 480p selected
+Fixes "Oversize test cards in Carousel"
+Enables IPTS input to DATV Express Output
+Disables option to turn the Viewfinder Off 
+
+201711270
+Adds CARDMPEG-2 and CAMHDMPEG-2 modes
+Properly scales PiCam MPEG-2 viewfinder for all resolutions
+Fixes "Mode Buttons not diabled during TX" bug
+Fixes "Test mode remains transmitting after deselection" bug
+
+201711030
+Adds Touchscreen Calibration
+Enables Boot to SigGen on
+Adds Display mode for upside down Waveshare 4
+Fixes 1 Mhz steps bug in Sig Gen
+
+201710280
+Introduces an early version of the Signal Generator
+Adds a DTX-1 Output Select button on Touchscreen Menu 2
+Adds compilation scripts for users in ~/rpidatv/scripts/utils
+
+201710081
+Include RTL-FM functions on Menu 3
+Add RTL-TCP Server
+Adds voltage monitor to Info page
+Re-enable DTX-1 Output for testing
+Experimental support for signal monitoring at 2MS
+Unattended streaming auto restarts after crashes
+Transmission can be initiated and stopped with a GPIO switch
+Makes video Snap and View modes work with no PiCam
+Improves video View mode for Waveshare users
+
+201708150
+Introduces dedicated streaming mode with hardware on/off switch
+Introduces still capture from composite video
+Introduces preview mode for composite video (about 1.1 fps)
+Introduces review of last 5 captured stills
+Relocate MPEG-2 callsign caption to top left of image
+Minor corrections to bit rates
+Add audio detection for Webcam devices
+
+201707311
+Introduces an early version of Menu 3
+Introduces a configuration information screen accessed from Menu 3
+Checks for the presence of an RTL-SDR before switching to receive
+Adds audio switching for the Grabby EasyCap
+Routes the USB Mic input to the RPi Audio output in CompVid mode
+
+201707222
+Corrects a bug in the audio switching that prevented transmit or streaming
+
+201707221
+Updates the version of ffmpeg in use
+Adds MPEG transmission (with sound) and streaming from the EasyCap
+Configures video devices so that EasyCap can always be connected
+Automatically determines video device address
+Implements auto or manual switching of audio source
+Displays viewfinder in CAMMPEG-2 mode every time
+Implements correct PIDs for MPEG-2 modes
+Optional callsign caption in MPEG-2 modes
+
+201707120
+Introduces the Composite Video Output Mode to provide an analog video source
+Sets the RPi Composite Video Output to PAL
+Changes the framing of the CAMH264 and CAMMPEG-2 viewfinders
+Correctly frames the Test Card Patterns
+Adds an audio switching option in the touchscreen, but not the functionality
+
+201706301
+Clears the Contest numbers when contest mode is deselected on the touchscreen
+Adds an audio switching option in the menu, but not the functionality
+Adds an auto option for the usb video device name, but not the functionality 
+Adds numeric entry for all PIDs in the menu, but not the functionality
+Includes the F-M testrig software in the core build
+Implements some beta functionality
+New versions of a.sh and ffmpeg in beta functionality
+
+201705301
+Introduces Touchscreen Menu 2 with shutdown and extra selection buttons
+Enables Contest mode operation from touchscreen
+Touching screen anywhere during Pattern transmission returns unit to standby
+
+201705200
+Now uses new version of pi-sdn which is not so trigger-happy
+Pi Camera uses auto shutter in H264.  Fixes dark and light images
+Touchscreen orientation corrected on exit from menu with non-waveshare
+Express Server is started on entrance to gui if required
+
+201704160
+Totally revised boot-up procedure
+Display IP Address on splash screen
+Improved wifi setup information
+Faster boot without network connection
+Offer forced update if version error detected
+
+201704080
+Added German Language Menus
+Added support for Waveshare 3.5b display
+Bug fix for display reverting to TonTec when display setting cancelled
+
+201704050
+Update package lists before updating packages
+
+201704030
+Deleted conflicting touchscreen driver in /boot/config.txt
+Added routine software upgrade to install and upgrade scripts
+Removed the need for a user decision about kernel update on install
+Tidied IPTS Input mode so that it can be used
+Added Contest Number TX facility for Console control (not touchscreen yet)
+Added facility for future German language menus. 
+
+201703060
+Added capability to configure Frequency and SR presets for LCD display
+Added Factory reset for Configuration file (not start-up action)
+Added capability to save Configuration file to USB
+Added capability to load Configuration file from USB
+Adds Console Menu command to bash history during initial install
+Repaired French install option
+Clarified PID input
+
+201702190
+Added streaming from PiCam with sound to BATC Streamer
+Added streaming from PiCam with sound to any other FMLE streamer
+Optimised MPEG-2 with sound from PiCam for IQ and DATV Express outputs
+Optimised H264 (no sound) from Analog for IQ and DATV Express outputs
+Added option to not display viewfinder on LCD (saves CPU capacity) 
+
+201702110
+Bug fix for update of DATV Express
+Bug fix for Express levels in Menu
+
+201702100
+Adds DATV Express Port Switching.  Now full functionality.
+Tidies ctrl-c exit from gui to console
+
+201702090
+Interim release to support updated DATV Express Server files.  Adds PTT Switching
+
+201702060
+Adds support for the DATV Express modulator.  See https://wiki.batc.tv/Controlling_a_DATVExpress
+Minor stability improvements
+
+201702020
+Updated to latest version of pi-sdn and suppressed error messages
+Implemented automated install of development versions if requested with -d and -s
+
+
+201701280
+Corrected a bug in the upgrade script that did not enable the new ADF4351 functionality
+
+201701270
+Changed ADF4351 control so that the reference frequency and power for each 
+band could be set from the advanced setup menu.
+Ensured that band switching was activated at switch-on and frequency change.
+Corrected the carrier and null-test mode selections.
+Added more information about current selections to the top-level console menu
+Added more detail to the Advanced set-up menu selections in preparation for future functionality.
+
+20170123
+Added Advanced Setup Menu to console
+Added script to display Micro-SD Card Details including serial number
+Added Error-checking for the EasyCap input and standard parameters
+Deleted the text for fallback IP in /etc/dhcpcd.conf
+Changed Main Menu title bar to include version
+Clarified menu descriptions
+Check for update script now diagnoses basic connection problems
+
+201701190
+Reduced bit-bang delay to 10 us in adf4351.c
+Auto-killed fbi 1 second after all calls to it
+Killed transmit processes nicely and then with -9 in menu.sh and rpidatvtouch.c
+Simplified menu.sh by deleting do_status
+Loaded Waveshare touchscreen driver by default
+Adjusted touchscreen display and touch overlay for accuracy and appearance
+Added BATC SplashScreen to touchscreen Autoboot
+
+201701020
+Added parameters in rpidatvconfig.txt to select input and TV standard for Analog Cam
+Changes in menu.sh to store analog cam parameters
+Changes in a.sh set analog cam parameters
+
+201612310
+Added installation of fbi (frame buffer imager)
+Used fbi to blank screen behind received picture
+Added BATC logo when screen not in use.
+
+201612202
+Swapped TS File button offgui for Analog cam button
+added 125 button and removed 500 BUTTON
+
+201612201
+Swapped out test cards
