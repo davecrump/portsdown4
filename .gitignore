@@ -4,6 +4,7 @@ bin/*
 scripts/portsdown_config.txt
 scripts/portsdown_presets.txt
 src/adf4351/adf4351
+src/atten/set_attenuator
 src/keyedtx/keyedtx
 src/rptr/keyedstream
 src/siggen/libshapes.so
@@ -28,8 +29,10 @@ src/gui/tcanim
 src/hello_video/hello_video.bin
 src/leansdr/
 src/rpidatv
+src/siggen/DejaVuSans.inc
+src/siggen/DejaVuSansMono.inc
+src/siggen/DejaVuSerif.inc
+src/siggen/font2openvg
 src/siggen/libshapes.o
 src/siggen/oglinit.o
 src/tstools/
-
-

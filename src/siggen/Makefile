@@ -37,7 +37,7 @@ library: oglinit.o libshapes.o
 	gcc $(LIBFLAGS) -shared -o libshapes.so oglinit.o libshapes.o 
 
 INCLUDEFLAGS2=-lpthread -I/opt/vc/include -I/opt/vc/include/interface/vmcs_host/linux -I/opt/vc/include/interface/vcos/pthreads -I..
-LIBFLAGS2=-L/opt/vc/lib -lEGL -lGLESv2 -lbcm_host -lpthread  -ljpeg -lrt -lm -ldl -lfftw3f -lwiringPi
+LIBFLAGS2=-L/opt/vc/lib -lbrcmEGL -lbrcmGLESv2 -lbcm_host -lpthread  -ljpeg -lrt -lm -ldl -lfftw3f -lwiringPi
 
 siggentouch: siggentouch.c 
 	gcc -Wall $(INCLUDEFLAGS2) -o  siggen siggentouch.c libshapes.o oglinit.o $(LIBFLAGS2) 
