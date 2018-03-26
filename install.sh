@@ -157,12 +157,13 @@ sudo cp ./waveshare35b.dtbo /boot/overlays/
 sudo bash -c 'cat /home/pi/rpidatv/scripts/configs/waveshare_mkr.txt >> /boot/config.txt'
 
 # Disable the Touchscreen Screensaver
+# Probably not required for Stretch
 
-cd /boot
-sudo sed -i -e 's/rootwait/rootwait consoleblank=0/' cmdline.txt
-cd /etc/kbd
-sudo sed -i 's/^BLANK_TIME.*/BLANK_TIME=0/' config
-sudo sed -i 's/^POWERDOWN_TIME.*/POWERDOWN_TIME=0/' config
+# cd /boot
+# sudo sed -i -e 's/rootwait/rootwait consoleblank=0/' cmdline.txt
+# cd /etc/kbd
+#  sudo sed -i 's/^BLANK_TIME.*/BLANK_TIME=0/' config
+#  sudo sed -i 's/^POWERDOWN_TIME.*/POWERDOWN_TIME=0/' config
 
 # Download, compile and install DATV Express-server
 
