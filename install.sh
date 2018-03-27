@@ -252,7 +252,7 @@ cd /home/pi
 # Install FreqShow (see https://learn.adafruit.com/freq-show-raspberry-pi-rtl-sdr-scanner/overview)
 
 # Remove the existing version of libsdl1.2debian
-sudo apt-get remove libsdl1.2debian
+sudo apt-get -y remove libsdl1.2debian
 # Then load the old (1.2.15-5) version of sdl.  Later versions do not work
 sudo gdebi --non-interactive /home/pi/rpidatv/scripts/configs/freqshow/libsdl1.2debian_1.2.15-5_armhf.deb
 # Now reload python-pygame
