@@ -1,3 +1,9 @@
+201803270
+This build forks to support Raspbian Stretch and the RPi3+
+Adds Country to Wifi Script and uses ip commands
+Change compile options for GUI apps
+Change config for pygame install
+
 201803181
 Adds support for Logitech C910 Webcam
 

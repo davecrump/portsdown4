@@ -207,8 +207,8 @@ sudo ln -fs /etc/systemd/system/autologin@.service\
  /etc/systemd/system/getty.target.wants/getty@tty1.service
 
 # Reduce the dhcp client timeout to speed off-network startup (201704160)
-sudo bash -c 'echo -e "\n# Shorten dhcpcd timeout from 30 to 15 secs" >> /etc/dhcpcd.conf'
-sudo bash -c 'echo -e "\ntimeout 15\n" >> /etc/dhcpcd.conf'
+sudo bash -c 'echo -e "\n# Shorten dhcpcd timeout from 30 to 5 secs" >> /etc/dhcpcd.conf'
+sudo bash -c 'echo -e "\ntimeout 5\n" >> /etc/dhcpcd.conf'
 
 # Enable the Video output in PAL mode (201707120)
 cd /boot
@@ -250,8 +250,13 @@ cp /home/pi/rpidatv/src/atten/set_attenuator /home/pi/rpidatv/bin/set_attenuator
 cd /home/pi
 
 # Install FreqShow (see https://learn.adafruit.com/freq-show-raspberry-pi-rtl-sdr-scanner/overview)
-# First load the old (1.2.15-5) version of sdl.  Later versions do not work (20180101)
+
+# Remove the existing version of libsdl1.2debian
+sudo apt-get remove libsdl1.2debian
+# Then load the old (1.2.15-5) version of sdl.  Later versions do not work
 sudo gdebi --non-interactive /home/pi/rpidatv/scripts/configs/freqshow/libsdl1.2debian_1.2.15-5_armhf.deb
+# Now reload python-pygame
+sudo apt-get -y install python-pygame
 # Load touchscreen configuration
 sudo cp /home/pi/rpidatv/scripts/configs/freqshow/waveshare_pointercal /etc/pointercal
 # Download FreqShow
@@ -261,6 +266,9 @@ rm /home/pi/FreqShow/freqshow.py
 cp /home/pi/rpidatv/scripts/configs/freqshow/waveshare_freqshow.py /home/pi/FreqShow/freqshow.py
 rm /home/pi/FreqShow/model.py
 cp /home/pi/rpidatv/scripts/configs/freqshow/waveshare_146_model.py /home/pi/FreqShow/model.py
+
+# Enable the WiFi by adding the country to wpa_supplicant.conf
+# sudo 
 
 # Record Version Number
 cd /home/pi/rpidatv/scripts/

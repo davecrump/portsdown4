@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Script used to set up WiFi from rpidatv menu
-
+# Stretch version
 reset  # Clear the screen
 
 # Check that wifi has not been disabled
@@ -78,9 +78,11 @@ PSK_TEXT=$(wpa_passphrase "$SSID" "$PW" | grep 'psk=' | grep -v '#psk')
 PATHCONFIGS="/home/pi/rpidatv/scripts/configs"  ## Path to config files
 
 ## Build text for supplicant file
+## Include Country (required for Stretch)
 
 rm $PATHCONFIGS"/wpa_text.txt"
 
+echo -e "country=GB" >> $PATHCONFIGS"/wpa_text.txt"
 echo -e "network={" >> $PATHCONFIGS"/wpa_text.txt"
 echo -e "    ssid="\"""$SSID"\"" >> $PATHCONFIGS"/wpa_text.txt"
 echo -e "   "$PSK_TEXT >> $PATHCONFIGS"/wpa_text.txt"
@@ -121,10 +123,11 @@ sudo rm $PATHCONFIGS"/wpa_supcopy.txt"
 
 stty echo
 
-##bring wifi down and up again
+##bring wifi down and up again, then reset
 
-sudo ifdown wlan0
-sudo ifup wlan0
+sudo ip link set wlan0 down
+sudo ip link set wlan0 up
+wpa_cli -i wlan0 reconfigure
 
 printf "WiFi Configured\n"
 

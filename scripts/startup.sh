@@ -91,7 +91,7 @@ if [ "$RESULT" -ne 0 ]; then
 fi
 
 # Facility to Disable WiFi
-# Calls .wifi_off if present and runs "sudo ifconfig wlan0 down"
+# Calls .wifi_off if present and runs "sudo ip link set wlan0 down"
 if [ -f ~/.wifi_off ]; then
     . ~/.wifi_off
 fi
@@ -190,14 +190,6 @@ case "$MODE_STARTUP" in
     fi
     return
   ;;
-  Display)
-    # Old option to be deprecated
-    return
-  ;;
-  Button)
-    # Old option to be deprecated
-    return
-  ;;
   TX_boot)
     # Flow will only have got here if menu not already running
     # So start menu in immediate transmit mode
@@ -228,13 +220,6 @@ case "$MODE_STARTUP" in
   TestRig_boot)
     # Start the touchscreen interface for the filter-mod test rig
     /home/pi/rpidatv/bin/testrig
-    return
-  ;;
-  Button_boot)
-    # If this is on boot, start the button listener
-    if [ "$SESSION_TYPE" == "boot" ]; then
-      /home/pi/rpidatv/scripts/rpibutton.sh
-    fi
     return
   ;;
   Keyed_Stream_boot)
