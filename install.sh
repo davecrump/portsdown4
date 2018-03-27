@@ -288,13 +288,9 @@ else
   echo "Completed English Install"
 fi
 
-# Offer reboot
-printf "A reboot will be required before using the software."
-printf "Do you want to reboot now? (y/n)\n"
-read -n 1
-printf "\n"
-if [[ "$REPLY" = "y" || "$REPLY" = "Y" ]]; then
-  echo "rebooting"
-  sudo reboot now
-fi
+# Reboot
+printf "\nA reboot is required before using the software\n\n"
+printf "Rebooting\n\n"
+printf "If fitted, the touchscreen will be active on reboot\n"
+sudo reboot now
 exit
