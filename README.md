@@ -3,6 +3,8 @@
 
 **Portsdown** is a DVB-S digital television transmitter for Raspberry Pi 3.  The core of the transmitter was written by Evariste Courjaud F5OEO and is maintained by him.  This BATC Version, known as the Portsdown Transmitter, has been developed by a team of BATC members for use with an external synthesized oscillator and modulator/filter board to produce a signal suitable for driving a high power amateur television transmitter on the 146, 432 or 1296 MHz bands.  The idea is that the design should be reproducible by someone who has never used Linux before.  Detailed instructions on loading the software are listed below, and further details of the complete transmitter design and build are on the BATC Wiki at https://wiki.batc.tv/The_Portsdown_Transmitter.  There is a Forum for discussion of the project here: http://www.batc.org.uk/forum/viewforum.php?f=103
 
+This version is based on Raspbian Stretch and is compatible with the Raspberry Pi 3 B+.  It is the version on which development effort will be focused.  The older Jessie version will still be supported, but may not be updated with as many new features.
+
 Our thanks to Evariste and all the other contributors to this community project.  All code within the project is GPL.
 
 # Installation for BATC Portsdown Transmitter Stretch Version
@@ -24,14 +26,6 @@ The preferred installation method only needs a Windows PC connected to the same 
 - Log in (user: pi, password: raspberry) then cut and paste the following code in, one line at a time:
 
 ```sh
-wget https://raw.githubusercontent.com/davecrump/portsdown/master/install.sh
-chmod +x install.sh
-./install.sh -d
-
-```
-When released the code to paste in will be (NOT WORKING YET!!)
-
-```sh
 wget https://raw.githubusercontent.com/BritishAmateurTelevisionClub/portsdown/master/install.sh
 chmod +x install.sh
 ./install.sh
@@ -50,7 +44,7 @@ Then reboot, and try again.  The command asks your RPi to use Google's DNS, not 
 ./install.sh fr
 ```
 
-- When it has finished, accept the reboot offered or type "sudo reboot now".  After restart, the Touchscreen should display a BATC Logo and the Pi's IP Address; log in again and the console menu should be displayed on your PC.  If not, you can start the console menu by typing:
+- When it has finished, the installation will reboot.  If you have a Waveshare touchscreen fitted, the touchscreen should be activated.  You will need to log in to the console to set up any other displays or advanced options.
 
 ```sh
 /home/pi/rpidatv/scripts/menu.sh menu
@@ -60,11 +54,10 @@ Note that you do not need to load any touchscreen drivers - if the touchscreen d
 
 After initial installation, on selecting transmit, the RPi is configured to generate a direct RF output (from GPIO pin 32) on 437 MHz at 333KS using the BATC Logo image as the source.  
 
-Advanced notes:  To load the development and staging versions, use the following lines:
+Advanced notes:  To load the development version, cut and paste in the following lines:
+
 ```sh
-wget https://raw.githubusercontent.com/davecrump/portsdown/master/install.sh  #OR#
-wget https://raw.githubusercontent.com/BritishAmateurTelevisionClub/portsdown/batc_staging/install.sh
+wget https://raw.githubusercontent.com/davecrump/portsdown/master/install.sh
 chmod +x install.sh
-./install.sh -d    #OR#
-./install.sh -s
+./install.sh -d
 ```
