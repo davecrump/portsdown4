@@ -13,6 +13,7 @@ sudo apt-get -y remove apt-listchanges
 
 # Update the distribution
 sudo apt-get -y dist-upgrade
+sudo apt-get update
 
 # Install the packages that we need
 sudo apt-get -y install apt-transport-https git rpi-update
