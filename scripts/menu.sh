@@ -1140,8 +1140,21 @@ do_stop_transmit()
   # Check if driver for Logitech C270, C525 or C910 needs to be reloaded
   dmesg | grep -E -q "046d:0825|Webcam C525|046d:0821"
   if [ $? == 0 ]; then
+    echo
+    echo "Please wait for Webcam driver to be reset"
     sleep 3
-    v4l2-ctl --list-devices > /dev/null 2> /dev/null
+    READY=0
+    while [ $READY == 0 ]
+    do
+      v4l2-ctl --list-devices >/dev/null 2>/dev/null
+      if [ $? == 1 ] ; then
+        echo
+        echo "Still waiting...."
+        sleep 3
+      else
+        READY=1
+      fi
+    done
   fi
 }
 
