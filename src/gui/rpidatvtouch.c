@@ -30,6 +30,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <string.h>
 #include <fcntl.h>
 #include <dirent.h>
+#include <ctype.h>
 
 #include "VG/openvg.h"
 #include "VG/vgu.h"
@@ -48,6 +49,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #define PATH_PCONFIG "/home/pi/rpidatv/scripts/portsdown_config.txt"
 #define PATH_PPRESETS "/home/pi/rpidatv/scripts/portsdown_presets.txt"
 #define PATH_TOUCHCAL "/home/pi/rpidatv/scripts/touchcal.txt"
+#define PATH_SGCONFIG "/home/pi/rpidatv/src/siggen/siggenconfig.txt"
 
 char ImageFolder[]="/home/pi/rpidatv/image/";
 
@@ -94,6 +96,16 @@ char ModeSTD[255];
 char ModeVidIP[255];
 char ModeOP[255];
 char Caption[255];
+char CallSign[255];
+char Locator[15];
+char PIDstart[15];
+char PIDvideo[15];
+char PIDaudio[15];
+char PIDpmt[15];
+char ADFRef[3][15];
+char CurrentADFRef[15];
+char UpdateStatus[31] = "NotAvailable";
+//char ADF5355Ref[15];
 int  scaledX, scaledY;
 VGfloat CalShiftX = 0;
 VGfloat CalShiftY = 0;
@@ -107,10 +119,10 @@ int GPIO_Atten_LE = 16;
 int GPIO_5355_LE = 15;
 
 char ScreenState[255] = "NormalMenu";  // NormalMenu SpecialMenu TXwithMenu TXwithImage RXwithImage VideoOut SnapView VideoView Snap SigGen
-char MenuTitle[31][127];
+char MenuTitle[40][127];
 
 // Values for buttons
-// May be over-written by values from from rpidatvconfig.txt:
+// May be over-written by values from from portsdown_config.txt:
 char TabBand[9][3]={"d1", "d2", "d3", "d4", "d5", "t1", "t2", "t3", "t4"};
 char TabBandLabel[9][15]={"71_MHz", "146_MHz", "70_cm", "23_cm", "13_cm", "9_cm", "6_cm", "3_cm", "1.2_cm"};
 char TabPresetLabel[4][15]={"-", "-", "-", "-"};
@@ -149,6 +161,7 @@ char CurrentAtten[255] = "NONE";
 int CurrentBand = 2; // 0 thru 8
 char KeyboardReturn[64];
 char FreqBtext[31];
+char MenuText[5][63];
 
 int Inversed=0;           //Display is inversed (Waveshare=1)
 int PresetStoreTrigger=0; //Set to 1 if awaiting preset being stored
@@ -176,6 +189,11 @@ void Start_Highlights_Menu24();
 void Start_Highlights_Menu26();
 void Start_Highlights_Menu27();
 void Start_Highlights_Menu28();
+void Start_Highlights_Menu29();
+//void Start_Highlights_Menu30();
+//void Start_Highlights_Menu31();
+void Start_Highlights_Menu32();
+void Start_Highlights_Menu33();
 void MsgBox(const char *);
 void MsgBox2(const char *, const char *);
 void MsgBox4(const char *, const char *, const char *, const char *);
@@ -191,7 +209,7 @@ int ButtonNumber(int, int);
 
 /***************************************************************************//**
  * @brief Looks up the value of Param in PathConfigFile and sets value
- *        Used to look up the configuration from rpidatvconfig.txt
+ *        Used to look up the configuration from portsdown_config.txt
  *
  * @param PatchConfigFile (str) the name of the configuration text file
  * @param Param the string labeling the parameter
@@ -200,7 +218,7 @@ int ButtonNumber(int, int);
  * @return void
 *******************************************************************************/
 
-void GetConfigParam(char *PathConfigFile,char *Param, char *Value)
+void GetConfigParam(char *PathConfigFile, char *Param, char *Value)
 {
 	char * line = NULL;
 	size_t len = 0;
@@ -228,7 +246,7 @@ void GetConfigParam(char *PathConfigFile,char *Param, char *Value)
 
 /***************************************************************************//**
  * @brief sets the value of Param in PathConfigFile froma program variable
- *        Used to store the configuration in rpidatvconfig.txt
+ *        Used to store the configuration in portsdown_config.txt
  *
  * @param PatchConfigFile (str) the name of the configuration text file
  * @param Param the string labeling the parameter
@@ -237,7 +255,7 @@ void GetConfigParam(char *PathConfigFile,char *Param, char *Value)
  * @return void
 *******************************************************************************/
 
-void SetConfigParam(char *PathConfigFile,char *Param,char *Value)
+void SetConfigParam(char *PathConfigFile, char *Param, char *Value)
 {
   char * line = NULL;
   size_t len = 0;
@@ -302,6 +320,42 @@ void GetPiAudioCard(char card[256])
   pclose(fp);
 }
 
+/***************************************************************************//**
+ * @brief Looks up the current Linux Version
+ *
+ * @param nil
+ *
+ * @return 8 for Jessie, 9 for Stretch
+*******************************************************************************/
+
+int GetLinuxVer()
+{
+  FILE *fp;
+  char version[7];
+  int ver = 0;
+
+  /* Open the command for reading. */
+  fp = popen("cat /etc/issue | grep -E -o \"8|9\"", "r");
+  if (fp == NULL) {
+    printf("Failed to run command\n" );
+    exit(1);
+  }
+
+  /* Read the output a line at a time - output it. */
+  while (fgets(version, 6, fp) != NULL)
+  {
+    //printf("%s", version);
+  }
+
+  /* close */
+  pclose(fp);
+  if ((atoi(version) == 8) || (atoi(version) == 9))
+  {
+    ver = atoi(version);
+  }
+  return ver;
+}
+
 
 /***************************************************************************//**
  * @brief Looks up the current IPV4 address
@@ -317,6 +371,34 @@ void GetIPAddr(char IPAddress[256])
 
   /* Open the command for reading. */
   fp = popen("ifconfig | grep -Eo \'inet (addr:)?([0-9]*\\.){3}[0-9]*\' | grep -Eo \'([0-9]*\\.){3}[0-9]*\' | grep -v \'127.0.0.1\' | head -1", "r");
+  if (fp == NULL) {
+    printf("Failed to run command\n" );
+    exit(1);
+  }
+
+  /* Read the output a line at a time - output it. */
+  while (fgets(IPAddress, 16, fp) != NULL)
+  {
+    //printf("%s", IPAddress);
+  }
+
+  /* close */
+  pclose(fp);
+}
+/***************************************************************************//**
+ * @brief Looks up the current second IPV4 address
+ *
+ * @param IPAddress (str) IP Address to be passed as a string
+ *
+ * @return void
+*******************************************************************************/
+
+void GetIPAddr2(char IPAddress[256])
+{
+  FILE *fp;
+
+  /* Open the command for reading. */
+  fp = popen("ifconfig | grep -Eo \'inet (addr:)?([0-9]*\\.){3}[0-9]*\' | grep -Eo \'([0-9]*\\.){3}[0-9]*\' | grep -v \'127.0.0.1\' | sed -n '2 p'", "r");
   if (fp == NULL) {
     printf("Failed to run command\n" );
     exit(1);
@@ -354,12 +436,319 @@ void GetSWVers(char SVersion[256])
   /* Read the output a line at a time - output it. */
   while (fgets(SVersion, 16, fp) != NULL)
   {
-    printf("%s", SVersion);
+    //printf("%s", SVersion);
   }
 
   /* close */
   pclose(fp);
 }
+
+/***************************************************************************//**
+ * @brief Looks up the latest Software Version from file
+ *
+ * @param SVersion (str) IP Address to be passed as a string
+ *
+ * @return void
+*******************************************************************************/
+
+void GetLatestVers(char LatestVersion[256])
+{
+  FILE *fp;
+
+  /* Open the command for reading. */
+  fp = popen("cat /home/pi/rpidatv/scripts/latest_version.txt", "r");
+  if (fp == NULL) {
+    printf("Failed to run command\n" );
+    exit(1);
+  }
+
+  /* Read the output a line at a time - output it. */
+  while (fgets(LatestVersion, 16, fp) != NULL)
+  {
+    //printf("%s", LatestVersion);
+  }
+
+  /* close */
+  pclose(fp);
+}
+
+/***************************************************************************//**
+ * @brief Checks whether a ping to google on 8.8.8.8 works
+ *
+ * @param nil
+ *
+ * @return 0 if it pings OK, 1 if it doesn't
+*******************************************************************************/
+
+int CheckGoogle()
+{
+  FILE *fp;
+  char response[127];
+
+  /* Open the command for reading. */
+  fp = popen("ping 8.8.8.8 -c1 | head -n 5 | tail -n 1 | grep -o \"1 received,\" | head -c 11", "r");
+  if (fp == NULL) {
+    printf("Failed to run command\n" );
+    exit(1);
+  }
+
+  /* Read the output a line at a time - output it. */
+  while (fgets(response, 12, fp) != NULL)
+  {
+    printf("%s", response);
+  }
+  //  printf("%s", response);
+  /* close */
+  pclose(fp);
+  if (strcmp (response, "1 received,") == 0)
+  {
+    return 0;
+  }
+  else
+  {
+    return 1;
+  }
+}
+
+/***************************************************************************//**
+ * @brief Displays a splash screen with update progress
+ *
+ * @param char Version (Latest or Developement), char Step (centre message)
+ *
+ * @return void
+*******************************************************************************/
+
+void DisplayUpdateMsg(char* Version, char* Step)
+{
+  char LinuxCommand[511];
+
+  // Delete any old image
+  strcpy(LinuxCommand, "rm /home/pi/tmp/update.jpg >/dev/null 2>/dev/null");
+  system(LinuxCommand);
+
+  // Build and run the convert command for the image
+  strcpy(LinuxCommand, "convert -size 720x576 xc:white ");
+
+  strcat(LinuxCommand, "-gravity North -pointsize 40 -annotate 0 ");
+  strcat(LinuxCommand, "\"\\nUpdating Portsdown Software\\nTo ");
+  strcat(LinuxCommand, Version);
+  strcat(LinuxCommand, " Version\" ");
+ 
+  strcat(LinuxCommand, "-gravity Center -pointsize 50 -annotate 0 \"");
+  strcat(LinuxCommand, Step);
+  strcat(LinuxCommand, "\\n\\nPlease wait\" ");
+
+  strcat(LinuxCommand, "-gravity South -pointsize 50 -annotate 0 ");
+  strcat(LinuxCommand, "\"DO NOT TURN POWER OFF\" ");
+
+  strcat(LinuxCommand, "/home/pi/tmp/update.jpg");
+
+  system(LinuxCommand);
+
+  // Display the image on the desktop
+  strcpy(LinuxCommand, "sudo fbi -T 1 -noverbose -a /home/pi/tmp/update.jpg ");
+  strcat(LinuxCommand, ">/dev/null 2>/dev/null");
+  system(LinuxCommand);
+
+  // Kill fbi
+  strcpy(LinuxCommand, "(sleep 1; sudo killall -9 fbi >/dev/null 2>/dev/null) &");
+  system(LinuxCommand);
+}
+
+/***************************************************************************//**
+ * @brief checks whether software update available
+ *
+ * @param 
+ *
+ * @return void
+*******************************************************************************/
+
+void PrepSWUpdate()
+{
+  char CurrentVersion[256];
+  char LatestVersion[256];
+  char CurrentVersion9[15];
+  char LatestVersion9[15];
+  char LinuxCommand[256];
+
+  strcpy(UpdateStatus, "NotAvailable");
+
+  // delete old latest version file
+  system("rm /home/pi/rpidatv/scripts/latest_version.txt  >/dev/null 2>/dev/null");
+
+  // Download new latest version file
+  strcpy(LinuxCommand, "wget --timeout=2 https://raw.githubusercontent.com/BritishAmateurTelevisionClub/");
+  if (GetLinuxVer() == 8)  // Jessie, so rpidatv repo
+  {
+    strcat(LinuxCommand, "rpidatv/master/scripts/latest_version.txt ");
+  }
+  else                     // Stretch, so portsdown repo
+  {
+    strcat(LinuxCommand, "portsdown/master/scripts/latest_version.txt ");
+  }
+  strcat(LinuxCommand, "-O /home/pi/rpidatv/scripts/latest_version.txt  >/dev/null 2>/dev/null");
+  system(LinuxCommand);
+
+  // Fetch the current and latest versions and make sure we have 9 characters
+  GetSWVers(CurrentVersion);
+  snprintf(CurrentVersion9, 10, "%s", CurrentVersion);
+  GetLatestVers(LatestVersion);
+  snprintf(LatestVersion9, 10, "%s", LatestVersion);
+  snprintf(MenuText[0], 40, "Current Software Version: %s", CurrentVersion);
+  strcpy(MenuText[1], " ");
+  strcpy(MenuText[2], " ");
+
+  // Check latest version starts with 20*
+  if ( !((LatestVersion[0] == 50) && (LatestVersion[1] == 48)) )
+  {
+    // Invalid response from GitHub.  Check Google ping
+    if (CheckGoogle() == 0)
+    {
+      strcpy(MenuText[2], "Unable to contact GitHub for update");
+      strcpy(MenuText[3], "Internet connection to Google seems OK");
+      strcpy(MenuText[4], "Please check BATC Wiki FAQ for advice");
+    }
+    else
+    {
+      strcpy(MenuText[2], "Unable to contact GitHub for update");
+      strcpy(MenuText[3], "There appears to be no Internet connection");
+      strcpy(MenuText[4], "Please check your connection and try again");
+    }
+  }
+  else
+  {
+    snprintf(MenuText[1], 40, "Latest Software Version:   %s", LatestVersion);
+
+    // Compare versions
+    if (atoi(LatestVersion9) > atoi(CurrentVersion9))
+    {
+      strcpy(MenuText[3], "A software update is available");
+      strcpy(MenuText[4], "Do you want to update now?");
+      strcpy(UpdateStatus, "NormalUpdate");
+    }
+    if (atoi(LatestVersion9) == atoi(CurrentVersion9))
+    {
+      strcpy(MenuText[2], "Your software is the latest version");
+      strcpy(MenuText[3], "There is no need to update");
+      strcpy(MenuText[4], "Do you want to force an update now?");
+      strcpy(UpdateStatus, "ForceUpdate");
+    }
+    if (atoi(LatestVersion9) < atoi(CurrentVersion9))
+    {
+      strcpy(MenuText[2], " ");
+      strcpy(MenuText[3], "Your software is newer than the latest version.");
+      strcpy(MenuText[4], "Do you want to force an update now?");
+      strcpy(UpdateStatus, "ForceUpdate");
+    }
+  }
+}
+
+/***************************************************************************//**
+ * @brief Acts on Software Update buttons
+ *
+ * @param int NoButton, which is 5, 6 or 7
+ *
+ * @return void
+*******************************************************************************/
+
+void ExecuteUpdate(int NoButton)
+{
+  char Step[255];
+  char LinuxCommand[256];
+
+  switch(NoButton)
+  {
+  case 5:
+    if ((strcmp(UpdateStatus, "NormalUpdate") == 0) || (strcmp(UpdateStatus, "ForceUpdate") == 0))
+
+    {
+      // code for normal update
+
+      // Display the updating message
+      finish();
+      strcpy(Step, "Step 1 of 10\\nDownloading Update\\n\\nX---------");
+      DisplayUpdateMsg("Latest" , Step);
+
+      // Delete any old update
+      strcpy(LinuxCommand, "rm /home/pi/update.sh >/dev/null 2>/dev/null");
+      system(LinuxCommand);
+
+      if (GetLinuxVer() == 8)  // Jessie, so rpidatv repo
+      {
+        printf("Downloading Normal Update Jessie Version\n");
+        strcpy(LinuxCommand, "wget https://raw.githubusercontent.com/BritishAmateurTelevisionClub/rpidatv/master/update.sh");
+        strcat(LinuxCommand, " -O /home/pi/update.sh");
+        system(LinuxCommand);
+
+        strcpy(Step, "Step 2 of 10\\nLoading Update Script\\n\\nXX--------");
+        DisplayUpdateMsg("Latest Jessie", Step);
+      }
+      else
+      {
+        printf("Downloading Normal Update Stretch Version\n");
+        strcpy(LinuxCommand, "wget https://raw.githubusercontent.com/BritishAmateurTelevisionClub/portsdown/master/update.sh");
+        strcat(LinuxCommand, " -O /home/pi/update.sh");
+        system(LinuxCommand);
+
+        strcpy(Step, "Step 2 of 10\\nLoading Update Script\\n\\nXX--------");
+        DisplayUpdateMsg("Latest Stretch", Step);
+      }
+      strcpy(LinuxCommand, "chmod +x /home/pi/update.sh");   
+      system(LinuxCommand);
+      system("reset");
+      exit(132);  // Pass control back to scheduler
+    }
+    break;
+  case 6:
+    if (strcmp(UpdateStatus, "ForceUpdate") == 0)
+    {
+        strcpy(UpdateStatus, "DevUpdate");
+    }
+    break;
+  case 7:
+    if (strcmp(UpdateStatus, "DevUpdate") == 0)
+    {
+      // Code for Dev Update
+      // Display the updating message
+      finish();
+      strcpy(Step, "Step 1 of 10\\nDownloading Update\\n\\nX---------");
+      DisplayUpdateMsg("Development", Step);
+
+      // Delete any old update
+      strcpy(LinuxCommand, "rm /home/pi/update.sh >/dev/null 2>/dev/null");
+      system(LinuxCommand);
+
+      if (GetLinuxVer() == 8)  // Jessie, so rpidatv repo
+      {
+        printf("Downloading Development Update for Jessie\n");
+        strcpy(LinuxCommand, "wget https://raw.githubusercontent.com/davecrump/rpidatv/master/update.sh");
+        strcat(LinuxCommand, " -O /home/pi/update.sh");
+        system(LinuxCommand);
+
+        strcpy(Step, "Step 2 of 10\\nLoading Update Script\\n\\nXX--------");
+        DisplayUpdateMsg("Development Jessie", Step);
+      }
+      else
+      {
+        printf("Downloading Development Update Stretch Version\n");
+        strcpy(LinuxCommand, "wget https://raw.githubusercontent.com/davecrump/portsdown/master/update.sh");
+        strcat(LinuxCommand, " -O /home/pi/update.sh");
+        system(LinuxCommand);
+
+        strcpy(Step, "Step 2 of 10\\nLoading Update Script\\n\\nXX--------");
+        DisplayUpdateMsg("Development Stretch", Step);
+      }
+      strcpy(LinuxCommand, "chmod +x /home/pi/update.sh");   
+      system(LinuxCommand);
+      system("reset");
+      exit(133);  // Pass control back to scheduler for Dev Load
+    }
+    break;
+  default:
+    break;
+  }
+}
+
 
 /***************************************************************************//**
  * @brief Looks up the GPU Temp
@@ -950,6 +1339,77 @@ void ReadBandDetails()
 }
 
 /***************************************************************************//**
+ * @brief Reads the current Call, Locator and PIDs from portsdown_presets.txt
+ *        
+ * @param nil
+ *
+ * @return void
+*******************************************************************************/
+void ReadCallLocPID()
+{
+  char Param[31];
+  char Value[255]="";
+
+  strcpy(Param, "call");
+  GetConfigParam(PATH_PCONFIG, Param, Value);
+  strcpy(CallSign, Value);
+
+  strcpy(Param, "locator");
+  GetConfigParam(PATH_PCONFIG, Param, Value);
+  strcpy(Locator, Value);
+
+  strcpy(Param, "pidstart");
+  GetConfigParam(PATH_PCONFIG, Param, Value);
+  strcpy(PIDstart, Value);
+
+  strcpy(Param, "pidvideo");
+  GetConfigParam(PATH_PCONFIG, Param, Value);
+  strcpy(PIDvideo, Value);
+
+  strcpy(Param, "pidaudio");
+  GetConfigParam(PATH_PCONFIG, Param, Value);
+  strcpy(PIDaudio, Value);
+
+  strcpy(Param, "pidpmt");
+  GetConfigParam(PATH_PCONFIG, Param, Value);
+  strcpy(PIDpmt, Value);
+}
+
+
+/***************************************************************************//**
+ * @brief Reads the current ADF Ref Freqs from portsdown_presets.txt
+ *        
+ * @param nil
+ *
+ * @return void
+*******************************************************************************/
+void ReadADFRef()
+{
+  char Param[31];
+  char Value[255]="";
+
+  strcpy(Param, "adfref1");
+  GetConfigParam(PATH_PPRESETS, Param, Value);
+  strcpy(ADFRef[0], Value);
+
+  strcpy(Param, "adfref2");
+  GetConfigParam(PATH_PPRESETS, Param, Value);
+  strcpy(ADFRef[1], Value);
+
+  strcpy(Param, "adfref3");
+  GetConfigParam(PATH_PPRESETS, Param, Value);
+  strcpy(ADFRef[2], Value);
+
+  strcpy(Param, "adfref");
+  GetConfigParam(PATH_PCONFIG, Param, Value);
+  strcpy(CurrentADFRef, Value);
+
+  //strcpy(Param, "adf5355ref");
+  //GetConfigParam(PATH_SGCONFIG, Param, Value);
+  //strcpy(ADF5355Ref, Value);
+}
+
+/***************************************************************************//**
  * @brief Looks up the SD Card Serial Number
  *
  * @param SerNo (str) Serial Number to be passed as a string
@@ -1129,7 +1589,7 @@ void GetUSBVidDev(char VidDevName[256])
 }
 
 /***************************************************************************//**
- * @brief Detects if a Logitech C525 or C270 webcam was connected since last restart
+ * @brief Detects if a Logitech C 910, C525 or C270 webcam was connected since last restart
  *
  * @param None
  *
@@ -2112,6 +2572,25 @@ int getTouchSample(int *rawX, int *rawY, int *rawPressure)
 	return 0;
 }
 
+void ShowMenuText()
+{
+  // Initialise and calculate the text display
+  int line;
+  Fontinfo font = SansTypeface;
+  int pointsize = 20;
+  VGfloat txtht = TextHeight(font, pointsize);
+  VGfloat txtdp = TextDepth(font, pointsize);
+  VGfloat linepitch = 1.1 * (txtht + txtdp);
+  Fill(255, 255, 255, 1);    // White text
+
+  // Display Text
+  for (line = 0; line < 5; line = line + 1)
+  {
+    //tw = TextWidth(MenuText[line], font, pointsize);
+    Text(wscreen / 12, hscreen - (4 + line) * linepitch, MenuText[line], font, pointsize);
+  }
+}
+
 void ShowTitle()
 {
   // Initialise and calculate the text display
@@ -2163,6 +2642,11 @@ void UpdateWindow()
     }
   }
   ShowTitle();
+  if (CurrentMenu == 33)
+  {
+    ShowMenuText();
+  }
+
   End();                      // Write the drawn buttons to the screen
 }
 
@@ -2784,7 +3268,7 @@ void SelectSTD(int NoButton)  // PAL or NTSC
   }
 }
 
-void ChangeBandDetails(NoButton)
+void ChangeBandDetails(int NoButton)
 {
   char Param[31];
   char Value[31];
@@ -3389,11 +3873,7 @@ void TransmitStart()
 
 void *Wait3Seconds(void * arg)
 {
-  printf("Waiting 3 seconds for Logitech Camera Reset\n");
-  usleep(3000000);
-  system("v4l2-ctl --list-devices > /dev/null 2> /dev/null");
-  usleep(500000);
-  printf("C525 has been reset\n");
+  system ("/home/pi/rpidatv/scripts/webcam_reset.sh");
   strcpy(ScreenState, "NormalMenu");
   return NULL;
 }
@@ -3822,9 +4302,19 @@ void MsgBox4(const char *message1, const char *message2, const char *message3, c
 void InfoScreen()
 {
   char result[256];
+  char result2[256] = " ";
 
   // Look up and format all the parameters to be displayed
+
   char swversion[256] = "Software Version: ";
+  if (GetLinuxVer() == 8)
+  {
+    strcat(swversion, "Jessie ");
+  }
+  else if (GetLinuxVer() == 9)
+  {
+    strcat(swversion, "Stretch ");
+  }
   GetSWVers(result);
   strcat(swversion, result);
 
@@ -3832,6 +4322,9 @@ void InfoScreen()
   strcpy(result, "Not connected");
   GetIPAddr(result);
   strcat(ipaddress, result);
+  strcat(ipaddress, "    ");
+  GetIPAddr2(result2);
+  strcat(ipaddress, result2);
 
   char CPUTemp[256];
   GetCPUTemp(result);
@@ -3899,7 +4392,7 @@ void InfoScreen()
   init(&wscreen, &hscreen);  // Restart the gui
   BackgroundRGB(0,0,0,255);  // Black background
   Fill(255, 255, 255, 1);    // White text
-  Fontinfo font = SerifTypeface;
+  Fontinfo font = SansTypeface;
   int pointsize = 20;
   VGfloat txtht = TextHeight(font, pointsize);
   VGfloat txtdp = TextDepth(font, pointsize);
@@ -4276,6 +4769,7 @@ void do_snapcheck()
 
 static void cleanexit(int exit_code)
 {
+  strcpy(ModeInput, "DESKTOP"); // Set input so webcam reset script is not called
   TransmitStop();
   ReceiveStop();
   finish();
@@ -4604,7 +5098,7 @@ void Keyboard(char RequestText[64], char InitText[64], int MaxLength)
   }
 }
 
-void ChangePresetFreq(NoButton)
+void ChangePresetFreq(int NoButton)
 {
   char RequestText[64];
   char InitText[64];
@@ -4704,7 +5198,7 @@ void ChangePresetFreq(NoButton)
   }
 }
 
-void ChangePresetSR(NoButton)
+void ChangePresetSR(int NoButton)
 {
   char RequestText[64];
   char InitText[64];
@@ -4774,6 +5268,182 @@ void ChangePresetSR(NoButton)
   // SetButtonStatus(ButtonNumber(28, NoButton), 0);
 }
 
+void ChangeCall()
+{
+  char RequestText[64];
+  char InitText[64];
+  int Spaces = 1;
+  int j;
+
+  while (Spaces >= 1)
+  {
+    strcpy(RequestText, "Enter new Callsign (NO SPACES ALLOWED)");
+    snprintf(InitText, 24, "%s", CallSign);
+    Keyboard(RequestText, InitText, 23);
+  
+    // Check that there are no spaces
+    Spaces = 0;
+    for (j = 0; j < strlen(KeyboardReturn); j = j + 1)
+    {
+      if (isspace(KeyboardReturn[j]))
+      {
+        Spaces = Spaces +1;
+      }
+    }
+  }
+  strcpy(CallSign, KeyboardReturn);
+  printf("Callsign set to: %s\n", CallSign);
+  SetConfigParam(PATH_PCONFIG, "call", KeyboardReturn);
+}
+
+void ChangeLocator()
+{
+  char RequestText[64];
+  char InitText[64];
+  int Spaces = 1;
+  int j;
+
+  while (Spaces >= 1)
+  {
+    strcpy(RequestText, "Enter new Locator (6, 8 or 10 char, NO SPACES)");
+    snprintf(InitText, 11, "%s", Locator);
+    Keyboard(RequestText, InitText, 10);
+  
+    // Check that there are no spaces
+    Spaces = 0;
+    for (j = 0; j < strlen(KeyboardReturn); j = j + 1)
+    {
+      if (isspace(KeyboardReturn[j]))
+      {
+        Spaces = Spaces +1;
+      }
+    }
+  }
+  strcpy(Locator, KeyboardReturn);
+  printf("Locator set to: %s\n", Locator);
+  SetConfigParam(PATH_PCONFIG, "locator", KeyboardReturn);
+}
+
+void ChangeADFRef(int NoButton)
+{
+  char RequestText[64];
+  char InitText[64];
+  char param[64];
+  int Spaces = 1;
+  int j;
+
+  switch(NoButton)
+  {
+  case 5:
+    strcpy(CurrentADFRef, ADFRef[0]);
+    SetConfigParam(PATH_PCONFIG, "adfref", CurrentADFRef);
+    break;
+  case 6:
+    strcpy(CurrentADFRef, ADFRef[1]);
+    SetConfigParam(PATH_PCONFIG, "adfref", CurrentADFRef);
+    break;
+  case 7:
+    strcpy(CurrentADFRef, ADFRef[2]);
+    SetConfigParam(PATH_PCONFIG, "adfref", CurrentADFRef);
+    break;
+  case 0:
+  case 1:
+  case 2:
+    snprintf(RequestText, 45, "Enter new ADF Reference Frequncy %d in Hz", NoButton + 1);
+    snprintf(InitText, 10, "%s", ADFRef[NoButton]);
+    while (Spaces >= 1)
+    {
+      Keyboard(RequestText, InitText, 8);
+  
+      // Check that there are no spaces or other characters
+      Spaces = 0;
+      for (j = 0; j < strlen(KeyboardReturn); j = j + 1)
+      {
+        if ( !(isdigit(KeyboardReturn[j])) )
+        {
+          Spaces = Spaces + 1;
+        }
+      }
+    }
+    strcpy(ADFRef[NoButton], KeyboardReturn);
+    snprintf(param, 8, "adfref%d", NoButton + 1);
+    SetConfigParam(PATH_PPRESETS, param, KeyboardReturn);
+    strcpy(CurrentADFRef, KeyboardReturn);
+    SetConfigParam(PATH_PCONFIG, "adfref", KeyboardReturn);
+    break;
+  default:
+    break;
+  }
+  printf("ADFRef set to: %s\n", CurrentADFRef);
+}
+
+void ChangePID(int NoButton)
+{
+  char RequestText[64];
+  char InitText[64];
+  int PIDValid = 1;  // 0 represents valid
+  int j;
+
+  while (PIDValid >= 1)
+  {
+    switch (NoButton)
+    {
+    case 0:
+      strcpy(RequestText, "Enter new Video PID (Range 16 - 8190, Rec: 256)");
+      snprintf(InitText, 5, "%s", PIDvideo);
+      break;
+    case 1:
+      strcpy(RequestText, "Enter new Audio PID (Range 16 - 8190 Rec: 257)");
+      snprintf(InitText, 5, "%s", PIDaudio);
+      break;
+    case 2:
+      strcpy(RequestText, "Enter new PMT PID (Range 16 - 8190 Rec: 4095)");
+      snprintf(InitText, 5, "%s", PIDpmt);
+      break;
+    default:
+      return;
+    }
+
+    Keyboard(RequestText, InitText, 4);
+  
+    // Check that there are no spaces and it is valid
+    PIDValid = 0;
+    for (j = 0; j < strlen(KeyboardReturn); j = j + 1)
+    {
+      if (isspace(KeyboardReturn[j]))
+      {
+        PIDValid = PIDValid + 1;
+      }
+    }
+    if ( PIDValid == 0)
+    {
+      if ((atoi(KeyboardReturn) < 16 ) || (atoi(KeyboardReturn) > 8190 ))
+      {
+        PIDValid = 1;   // Out of bounds
+      }
+    }
+  }
+  switch (NoButton)
+  {
+  case 0:
+    strcpy(PIDvideo, KeyboardReturn);
+    SetConfigParam(PATH_PCONFIG, "pidvideo", KeyboardReturn);
+    strcpy(PIDstart, KeyboardReturn);
+    SetConfigParam(PATH_PCONFIG, "pidstart", KeyboardReturn);
+    break;
+  case 1:
+    strcpy(PIDaudio, KeyboardReturn);
+    SetConfigParam(PATH_PCONFIG, "pidaudio", KeyboardReturn);
+    break;
+  case 2:
+    strcpy(PIDpmt, KeyboardReturn);
+    SetConfigParam(PATH_PCONFIG, "pidpmt", KeyboardReturn);
+    break;
+  }
+  printf("PID set to: %s\n", KeyboardReturn);
+}
+
+
 void waituntil(int w,int h)
 {
   // Wait for a screen touch and act on its position
@@ -4806,7 +5476,7 @@ void waituntil(int w,int h)
       // VideoView                                  VideoView   (not implemented yet)
       // Snap                                       Snap        (not implemented yet)
       // SigGen?                                    SigGen      (not implemented yet)
-      // WebcamWait                                 Waiting 3 secs for Webcam reset
+      // WebcamWait                                 Waiting for Webcam reset. Touch listens but does not respond
 
       //printf("Screenstate is %s \n", ScreenState);
 
@@ -4984,7 +5654,7 @@ void waituntil(int w,int h)
           Start_Highlights_Menu19();
           UpdateWindow();
           break;
-        case 14:                              // Level
+        case 14:                         // Level
           printf("Set Attenuator Level \n");
           SetAttenLevel();
           BackgroundRGB(255,255,255,255);
@@ -5069,10 +5739,14 @@ void waituntil(int w,int h)
         switch (i)
         {
         case 0:                               // Shutdown
+          MsgBox4("", "Shutting down now", "", "");
+          usleep(1000000);
           finish();
           system("sudo shutdown now");
           break;
         case 1:                               // Reboot
+          MsgBox4("", "Rebooting now", "", "");
+          usleep(1000000);
           finish();
           system("sudo reboot now");
           break;
@@ -5184,7 +5858,13 @@ void waituntil(int w,int h)
         printf("Button Event %d, Entering Menu 3 Case Statement\n",i);
         switch (i)
         {
-        case 0:                               // 
+        case 0:                              // Check for Update
+          printf("MENU 33 \n"); 
+          CurrentMenu=33;
+          BackgroundRGB(0,0,0,255);
+          PrepSWUpdate();
+          Start_Highlights_Menu33();
+          UpdateWindow();
           break;
         case 1:                               // 
           break;
@@ -5235,12 +5915,19 @@ void waituntil(int w,int h)
           Start_Highlights_Menu28();
           UpdateWindow();
           break;
-        case 18:                              // Calibrate Touch
-          //touchcal();
-          //BackgroundRGB(0,0,0,255);
-          //UpdateWindow();
+        case 18:                              // Set Call, Loc and PIDs
+          printf("MENU 29 \n"); 
+          CurrentMenu=29;
+          BackgroundRGB(0,0,0,255);
+          Start_Highlights_Menu29();
+          UpdateWindow();
           break;
-        case 19:                              // Blank
+        case 19:                               // Set ADF Reference Frequency
+          printf("MENU 32 \n"); 
+          CurrentMenu=32;
+          BackgroundRGB(0,0,0,255);
+          Start_Highlights_Menu32();
+          UpdateWindow();
           break;
         case 20:                              // Not shown
           break;
@@ -5921,7 +6608,129 @@ void waituntil(int w,int h)
         // stay in Menu 28 if SR changed
         continue;   // Completed Menu 28 action, go and wait for touch
       }
-      if (CurrentMenu == 41)  // Menu 41 Keyboard
+      if (CurrentMenu == 29)  // Menu 29 Call, Locator and PIDs
+      {
+        printf("Button Event %d, Entering Menu 29 Case Statement\n",i);
+        switch (i)
+        {
+        case 4:                               // Cancel
+          SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 1);
+          printf("Set Call/locator/PID Cancel\n");
+          UpdateWindow();
+          usleep(500000);
+          SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 0); // Reset cancel (even if not selected)
+          printf("Returning to MENU 1 from Menu 29\n");
+          CurrentMenu=1;
+          BackgroundRGB(255,255,255,255);
+          Start_Highlights_Menu1();
+          UpdateWindow();
+          break;
+        case 0:
+        case 1:
+        case 2:
+          printf("Changing PID\n");
+          ChangePID(i);
+          CurrentMenu=29;
+          BackgroundRGB(0,0,0,255);
+          Start_Highlights_Menu29();
+          UpdateWindow();
+          break;
+        case 3:
+          break;  // PCR PID can't be changed
+        case 5:
+          printf("Changing Call\n");
+          ChangeCall();
+          CurrentMenu=29;
+          BackgroundRGB(0,0,0,255);
+          Start_Highlights_Menu29();
+          UpdateWindow();
+          break;
+        case 6:
+          printf("Changing Locator\n");
+          ChangeLocator();
+          CurrentMenu=29;
+          BackgroundRGB(0,0,0,255);
+          Start_Highlights_Menu29();
+          UpdateWindow();
+          break;
+        default:
+          printf("Menu 29 Error\n");
+        }
+        // stay in Menu 29 if parameter changed
+        continue;   // Completed Menu 29 action, go and wait for touch
+      }
+
+      if (CurrentMenu == 32)  // Menu 32 Select and Change ADF Reference Frequency
+      {
+        printf("Button Event %d, Entering Menu 32 Case Statement\n",i);
+        switch (i)
+        {
+        case 4:                               // Cancel
+          SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 1);
+          printf("Set or change ADFRef\n");
+          UpdateWindow();
+          usleep(500000);
+          SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 0); // Reset cancel (even if not selected)
+          printf("Returning to MENU 1 from Menu 32\n");
+          CurrentMenu=1;
+          BackgroundRGB(255,255,255,255);
+          Start_Highlights_Menu1();
+          UpdateWindow();
+          break;
+        case 0:
+        case 1:
+        case 2:
+        //case 4:
+        case 5:
+        case 6:
+        case 7:
+          printf("Changing ADFRef\n");
+          ChangeADFRef(i);
+          CurrentMenu=32;
+          BackgroundRGB(0,0,0,255);
+          Start_Highlights_Menu32();
+          UpdateWindow();
+          break;
+        default:
+          printf("Menu 32 Error\n");
+        }
+        // stay in Menu 32 if parameter changed
+        continue;   // Completed Menu 32 action, go and wait for touch
+      }
+      if (CurrentMenu == 33)  // Menu 33 Check for Update
+      {
+        printf("Button Event %d, Entering Menu 33 Case Statement\n",i);
+        switch (i)
+        {
+        case 4:                               // Cancel
+          SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 1);
+          printf("Cancelling Check for Update\n");
+          UpdateWindow();
+          usleep(500000);
+          SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 0); // Reset cancel (even if not selected)
+          printf("Returning to MENU 1 from Menu 33\n");
+          CurrentMenu=1;
+          BackgroundRGB(255,255,255,255);
+          Start_Highlights_Menu1();
+          UpdateWindow();
+          break;
+        case 5:
+        case 6:
+        case 7:
+          printf("Checking for Update\n");
+          ExecuteUpdate(i);
+          CurrentMenu=33;
+          BackgroundRGB(0,0,0,255);
+          Start_Highlights_Menu33();
+          UpdateWindow();
+          break;
+        default:
+          printf("Menu 33 Error\n");
+        }
+        // stay in Menu 33 if parameter changed
+        continue;   // Completed Menu 33 action, go and wait for touch
+      }
+      if (CurrentMenu == 41)  // Menu 41 Keyboard (should not get here)
       {
         //break;
       }
@@ -6537,7 +7346,12 @@ void Define_Menu3()
   Green.r=0; Green.g=128; Green.b=0;
   Blue.r=0; Blue.g=0; Blue.b=128;
 
-  strcpy(MenuTitle[3], "Menu 3 Portsdown Configuration"); 
+  strcpy(MenuTitle[3], "Menu 3 Portsdown Configuration");
+
+  // Bottom Line Menu 3: Check for Update
+
+  button = CreateButton(3, 0);
+  AddButtonStatus(button, "Check for^Update", &Blue);
 
   // 4th line up Menu 3: Band Details, Preset Freqs, Preset SRs
 
@@ -6552,6 +7366,14 @@ void Define_Menu3()
   button = CreateButton(3, 17);
   AddButtonStatus(button, "Set Preset^SRs", &Blue);
   AddButtonStatus(button, "Set Preset^SRs", &Green);
+
+  button = CreateButton(3, 18);
+  AddButtonStatus(button, "Set Call,^Loc & PIDs", &Blue);
+  AddButtonStatus(button, "Set Call,^Loc & PIDs", &Green);
+
+  button = CreateButton(3, 19);
+  AddButtonStatus(button, "Set ADF^Ref Freq", &Blue);
+  AddButtonStatus(button, "Set ADF^Ref Freq", &Green);
 
   // Top of Menu 3
 
@@ -7038,7 +7860,7 @@ void Define_Menu16()
   AddButtonStatus(button, FreqLabel[4], &Green);
 }
 
-void MakeFreqText(index)
+void MakeFreqText(int index)
 {
   char Param[255];
   char Value[255];
@@ -7889,6 +8711,250 @@ void Start_Highlights_Menu28()
   // SR
 }
 
+void Define_Menu29()
+{
+  int button;
+  color_t Blue;
+  color_t LBlue;
+  color_t DBlue;
+  color_t Grey;
+  Blue.r=0; Blue.g=0; Blue.b=128;
+  LBlue.r=64; LBlue.g=64; LBlue.b=192;
+  DBlue.r=0; DBlue.g=0; DBlue.b=64;
+  Grey.r=127; Grey.g=127; Grey.b=127;
+
+  strcpy(MenuTitle[29], "Call, Locator and PID Setting Menu (29)"); 
+
+  // Bottom Row, Menu 29
+
+  button = CreateButton(29, 0);
+  AddButtonStatus(button, "Video PID", &Blue);
+
+  button = CreateButton(29, 1);
+  AddButtonStatus(button, "Audio PID", &Blue);
+
+  button = CreateButton(29, 2);
+  AddButtonStatus(button, "PMT PID", &Blue);
+
+  button = CreateButton(29, 3);
+  AddButtonStatus(button, "PCR PID", &Grey);
+
+  button = CreateButton(29, 4);
+  AddButtonStatus(button, "Exit", &DBlue);
+  AddButtonStatus(button, "Exit", &LBlue);
+
+  // 2nd Row, Menu 29
+
+  button = CreateButton(29, 5);
+  AddButtonStatus(button, "Call", &Blue);
+
+  button = CreateButton(29, 6);
+  AddButtonStatus(button, "Locator", &Blue);
+}
+
+void Start_Highlights_Menu29()
+{
+  // Call, locator and PID
+
+  char Buttext[31];
+  color_t Grey;
+  color_t Blue;
+  Blue.r=0; Blue.g=0; Blue.b=128;
+  Grey.r=127; Grey.g=127; Grey.b=127;
+
+  snprintf(Buttext, 13, "Call^%s", CallSign);
+  AmendButtonStatus(ButtonNumber(29, 5), 0, Buttext, &Blue);
+
+  snprintf(Buttext, 16, "Locator^%s", Locator);
+  AmendButtonStatus(ButtonNumber(29, 6), 0, Buttext, &Blue);
+
+  snprintf(Buttext, 17, "Video PID^%s", PIDvideo);
+  AmendButtonStatus(ButtonNumber(29, 0), 0, Buttext, &Blue);
+
+  snprintf(Buttext, 17, "Audio PID^%s", PIDaudio);
+  AmendButtonStatus(ButtonNumber(29, 1), 0, Buttext, &Blue);
+
+  snprintf(Buttext, 17, "PMT PID^%s", PIDpmt);
+  AmendButtonStatus(ButtonNumber(29, 2), 0, Buttext, &Blue);
+
+  snprintf(Buttext, 17, "PCR PID^%s", PIDstart);
+  AmendButtonStatus(ButtonNumber(29, 3), 0, Buttext, &Grey);
+}
+
+void Define_Menu32()
+{
+  int button;
+  color_t Blue;
+  color_t LBlue;
+  color_t DBlue;
+  color_t Green;
+  Blue.r=0; Blue.g=0; Blue.b=128;
+  LBlue.r=64; LBlue.g=64; LBlue.b=192;
+  DBlue.r=0; DBlue.g=0; DBlue.b=64;
+  Green.r=0; Green.g=128; Green.b=0;
+
+  strcpy(MenuTitle[32], "Select and Set ADF Ref Frequency Menu (32)"); 
+
+  // Bottom Row, Menu 32
+
+  button = CreateButton(32, 0);
+  AddButtonStatus(button, "Set Ref 1", &Blue);
+
+  button = CreateButton(32, 1);
+  AddButtonStatus(button, "Set Ref 2", &Blue);
+
+  button = CreateButton(32, 2);
+  AddButtonStatus(button, "Set Ref 3", &Blue);
+
+  //button = CreateButton(32, 3);
+  //AddButtonStatus(button, "Set 5355", &Blue);
+
+  button = CreateButton(32, 4);
+  AddButtonStatus(button, "Exit", &DBlue);
+  AddButtonStatus(button, "Exit", &LBlue);
+
+  // 2nd Row, Menu 32
+
+  button = CreateButton(32, 5);
+  AddButtonStatus(button, "Use Ref 1", &Blue);
+  AddButtonStatus(button, "Use Ref 1", &Green);
+
+  button = CreateButton(32, 6);
+  AddButtonStatus(button, "Use Ref 2", &Blue);
+  AddButtonStatus(button, "Use Ref 2", &Green);
+
+  button = CreateButton(32, 7);
+  AddButtonStatus(button, "Use Ref 3", &Blue);
+  AddButtonStatus(button, "Use Ref 3", &Green);
+
+  //button = CreateButton(32, 6);
+  //AddButtonStatus(button, "Switch", &Blue);
+}
+
+void Start_Highlights_Menu32()
+{
+  // Call, locator and PID
+
+  char Buttext[31];
+  color_t Green;
+  color_t Blue;
+  Blue.r=0; Blue.g=0; Blue.b=128;
+  Green.r=0; Green.g=128; Green.b=0;
+
+  snprintf(Buttext, 20, "Use Ref 1^%s", ADFRef[0]);
+  AmendButtonStatus(ButtonNumber(32, 5), 0, Buttext, &Blue);
+  AmendButtonStatus(ButtonNumber(32, 5), 1, Buttext, &Green);
+
+  snprintf(Buttext, 20, "Use Ref 2^%s", ADFRef[1]);
+  AmendButtonStatus(ButtonNumber(32, 6), 0, Buttext, &Blue);
+  AmendButtonStatus(ButtonNumber(32, 6), 1, Buttext, &Green);
+
+  snprintf(Buttext, 20, "Use Ref 3^%s", ADFRef[2]);
+  AmendButtonStatus(ButtonNumber(32, 7), 0, Buttext, &Blue);
+  AmendButtonStatus(ButtonNumber(32, 7), 1, Buttext, &Green);
+
+  if (strcmp(ADFRef[0], CurrentADFRef) == 0)
+  {
+    SelectInGroupOnMenu(CurrentMenu, 5, 7, 5, 1);
+  }
+  else if (strcmp(ADFRef[1], CurrentADFRef) == 0)
+  {
+    SelectInGroupOnMenu(CurrentMenu, 5, 7, 6, 1);
+  }
+  else if (strcmp(ADFRef[2], CurrentADFRef) == 0)
+  {
+    SelectInGroupOnMenu(CurrentMenu, 5, 7, 7, 1);
+  }
+  else
+  {
+    SelectInGroupOnMenu(CurrentMenu, 5, 7, 7, 0);
+  }
+  
+  snprintf(Buttext, 20, "Set Ref 1^%s", ADFRef[0]);
+  AmendButtonStatus(ButtonNumber(32, 0), 0, Buttext, &Blue);
+
+  snprintf(Buttext, 20, "Set Ref 2^%s", ADFRef[1]);
+  AmendButtonStatus(ButtonNumber(32, 1), 0, Buttext, &Blue);
+
+  snprintf(Buttext, 20, "Set Ref 3^%s", ADFRef[2]);
+  AmendButtonStatus(ButtonNumber(32, 2), 0, Buttext, &Blue);
+
+  //snprintf(Buttext, 20, "Set 5355^%s", ADF5355Ref);
+  //AmendButtonStatus(ButtonNumber(32, 3), 0, Buttext, &Blue);
+}
+
+void Define_Menu33()
+{
+  int button;
+  color_t Blue;
+  color_t LBlue;
+  color_t DBlue;
+  color_t Green;
+  Blue.r=0; Blue.g=0; Blue.b=128;
+  LBlue.r=64; LBlue.g=64; LBlue.b=192;
+  DBlue.r=0; DBlue.g=0; DBlue.b=64;
+  Green.r=0; Green.g=128; Green.b=0;
+
+  strcpy(MenuTitle[33], "Check for Software Update Menu (33)"); 
+
+  // Bottom Row, Menu 33
+
+  button = CreateButton(33, 4);
+  AddButtonStatus(button, "Exit", &DBlue);
+  AddButtonStatus(button, "Exit", &LBlue);
+
+  // 2nd Row, Menu 33
+
+  button = CreateButton(33, 5);
+  AddButtonStatus(button, "Update", &Blue);
+  AddButtonStatus(button, "Update", &Green);
+
+  button = CreateButton(33, 6);
+  AddButtonStatus(button, "Dev Update", &Blue);
+  AddButtonStatus(button, "Dev Update", &Green);
+
+  button = CreateButton(33, 7);
+  AddButtonStatus(button, " ", &Blue);
+  AddButtonStatus(button, " ", &Green);
+}
+
+void Start_Highlights_Menu33()
+{
+  // Check for update
+
+  color_t Red;
+  color_t Blue;
+  color_t Grey;
+  Blue.r=0; Blue.g=0; Blue.b=128;
+  Red.r=128; Red.g=0; Red.b=0;
+  Grey.r=127; Grey.g=127; Grey.b=127;
+
+  if (strcmp(UpdateStatus, "NotAvailable") == 0)
+  {
+    AmendButtonStatus(ButtonNumber(33, 5), 0, " ", &Grey);
+    AmendButtonStatus(ButtonNumber(33, 6), 0, " ", &Grey);
+    AmendButtonStatus(ButtonNumber(33, 7), 0, " ", &Grey);
+  }
+  if (strcmp(UpdateStatus, "NormalUpdate") == 0)
+  {
+    AmendButtonStatus(ButtonNumber(33, 5), 0, "Update^Now", &Blue);
+    AmendButtonStatus(ButtonNumber(33, 6), 0, " ", &Grey);
+    AmendButtonStatus(ButtonNumber(33, 7), 0, " ", &Grey);
+  }
+  if (strcmp(UpdateStatus, "ForceUpdate") == 0)
+  {
+    AmendButtonStatus(ButtonNumber(33, 5), 0, "Force^Update", &Blue);
+    AmendButtonStatus(ButtonNumber(33, 6), 0, "Dev^Update", &Blue);
+    AmendButtonStatus(ButtonNumber(33, 7), 0, " ", &Grey);
+  }
+  if (strcmp(UpdateStatus, "DevUpdate") == 0)
+  {
+    AmendButtonStatus(ButtonNumber(33, 5), 0, " ", &Grey);
+    AmendButtonStatus(ButtonNumber(33, 6), 0, " ", &Grey);
+    AmendButtonStatus(ButtonNumber(33, 7), 0, "Confirm^Dev Update", &Red);
+  }
+}
+
 void Define_Menu41()
 {
   int button;
@@ -8148,10 +9214,10 @@ void Define_Menu41()
   AddButtonStatus(button, "0", &LBlue);
 }
 
-
 static void
 terminate(int dummy)
 {
+  strcpy(ModeInput, "DESKTOP"); // Set input so webcam reset script is not called
   TransmitStop();
   ReceiveStop();
   finish();
@@ -8288,6 +9354,8 @@ int main(int argc, char **argv)
   ReadAttenState();
   ReadBand();
   ReadBandDetails();
+  ReadCallLocPID();
+  ReadADFRef();
 
   // Initialise all the button Status Indexes to 0
   InitialiseButtons();
@@ -8314,6 +9382,11 @@ int main(int argc, char **argv)
   Define_Menu26();
   Define_Menu27();
   Define_Menu28();
+  Define_Menu29();
+  //Define_Menu30();
+  //Define_Menu31();
+  Define_Menu32();
+  Define_Menu33();
 
   Define_Menu41();
 

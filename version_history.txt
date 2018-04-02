@@ -1,3 +1,12 @@
+201804021
+Adds support for Logitech C270 Webcam
+Adds variable reset delay for webcams
+Updated Test Rig software
+Info screen improvements
+Set Call, locator and PIDs from touchscreen
+Set and select ADF Ref from touchscreen
+Commence software update from touchscreen
+
 201803270
 This build forks to support Raspbian Stretch and the RPi3+
 Adds Country to Wifi Script and uses ip commands

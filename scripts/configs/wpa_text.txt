@@ -1,3 +1,4 @@
+country=GB
 network={
     ssid="YourNetwork"
     psk=e42f561de26d672eb2b74a6c70a7a124e042b65a4273e73ea59fc678be829479

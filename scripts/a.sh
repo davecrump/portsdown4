@@ -148,18 +148,34 @@ detect_audio()
       WC_VIDEO_FPS=30
     fi
 
-    # Check for the presence of a Webcam with mono audio
+    # Check for the presence of a C525 or C170 with mono audio
     arecord -l | grep -E -q \
-      "Webcam C525|U0x46d0x825|Webcam C170"
+      "Webcam C525|Webcam C170"
     if [ $? == 0 ]; then   ## Present
       # Look for the video dongle, select the line and take
       # the 6th character.  Max card number = 8 !!
       WCAM="$(arecord -l | grep -E \
-        "Webcam C525|U0x46d0x825|Webcam C170" \
+        "Webcam C525|Webcam C170" \
         | head -c 6 | tail -c 1)"
       WC_AUDIO_CHANNELS=1
       WC_AUDIO_SAMPLE=48000
       WC_VIDEO_FPS=24
+    fi
+
+    # Check for the presence of a C270 with mono audio
+    C270Present=0
+    arecord -l | grep -E -q \
+      "U0x46d0x825"
+    if [ $? == 0 ]; then   ## Present
+      C270Present=1
+      # Look for the video dongle, select the line and take
+      # the 6th character.  Max card number = 8 !!
+      WCAM="$(arecord -l | grep -E \
+        "U0x46d0x825" \
+        | head -c 6 | tail -c 1)"
+      WC_AUDIO_CHANNELS=1
+      WC_AUDIO_SAMPLE=48000
+      WC_VIDEO_FPS=25
     fi
 
     printf "MIC = $MIC\n"
@@ -1127,15 +1143,24 @@ fi
   #============================================ INCLUDES STREAMING OUTPUTS (H264)    ======================================================
   "ANALOGMPEG-2" | "ANALOG16MPEG-2" | "WEBCAMMPEG-2" | "WEBCAM16MPEG-2" | "WEBCAMHDMPEG-2")
 
-    # Sort out image size and scaling
+    # Set the default sound/video lipsync
+    # If sound arrives first, decrease the numeric number to delay it
+    # "-00:00:0.?" works well at SR1000 on IQ mode
+    # "-00:00:0.2" works well at SR2000 on IQ mode
+    ITS_OFFSET="-00:00:0.2"
+
+    # Sort out image size, video delay and scaling
     SCALE=""
     case "$MODE_INPUT" in
     ANALOG16MPEG-2)
       SCALE="scale=512:288,"
     ;;
     WEBCAMMPEG-2)
-       if [ $C920Present == 1 ]; then
+      if [ $C920Present == 1 ]; then
          v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=640,height=480,pixelformat=0
+      fi
+      if [ $C270Present == 1 ]; then
+        ITS_OFFSET="-00:00:1.8"
       fi
       VIDEO_WIDTH="640"
       VIDEO_HEIGHT="480"
@@ -1145,6 +1170,9 @@ fi
       if [ $C920Present == 1 ]; then
          v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=1280,height=720,pixelformat=0
       fi
+      if [ $C270Present == 1 ]; then
+        ITS_OFFSET="-00:00:1.8"
+      fi
       VIDEO_WIDTH="1280"
       VIDEO_HEIGHT="720"
       VIDEO_FPS=$WC_VIDEO_FPS
@@ -1153,6 +1181,9 @@ fi
     WEBCAMHDMPEG-2)
       if [ $C920Present == 1 ]; then
          v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=1280,height=720,pixelformat=0
+      fi
+      if [ $C270Present == 1 ]; then
+        ITS_OFFSET="-00:00:2.0"
       fi
       VIDEO_WIDTH="1280"
       VIDEO_HEIGHT="720"
@@ -1196,12 +1227,6 @@ fi
     else
       VID_USB=$VID_WEBCAM
     fi
-
-    # Set the sound/video lipsync
-    # If sound arrives first, decrease the numeric number to delay it
-    # "-00:00:0.?" works well at SR1000 on IQ mode
-    # "-00:00:0.2" works well at SR2000 on IQ mode
-    ITS_OFFSET="-00:00:0.2"
 
     # Set up the means to transport the stream out of the unit
     case "$MODE_OUTPUT" in
