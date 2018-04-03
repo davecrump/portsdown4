@@ -129,6 +129,10 @@ sudo ip link set wlan0 down
 sudo ip link set wlan0 up
 wpa_cli -i wlan0 reconfigure
 
+## Make sure that it is not soft-blocked
+sleep 1
+sudo rfkill unblock 0
+
 printf "WiFi Configured\n"
 
 sleep 2
