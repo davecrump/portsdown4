@@ -123,7 +123,8 @@ if [ "$RESULT" -eq 0 ]; then
   sudo modprobe usbtv           # Load the EasyCap driver
   sudo modprobe em28xx        # Load the EasyCap driver
   sudo modprobe stk1160        # Load the EasyCap driver
-  sudo modprobe uvcvideo        # Load the EasyCap driver
+# Comment out reload of uvcvideo as it causes shutdown to hang
+#  sudo modprobe uvcvideo        # Load the EasyCap driver
 # replace usbtv with your EasyCap driver name
 fi
 
