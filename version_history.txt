@@ -1,3 +1,11 @@
+201804060
+Repairs the linkage between frequency and band in the Console Menu
+Element 14 7 inch Display improvements:
+Does not erroneously load TonTec driver
+Implements VideoView without flicker (but at 1.5 fps)
+Allows cursor operation similar to a touchpad in FreqShow
+Reduces info text size to fit
+
 201804021
 Adds support for Logitech C270 Webcam
 Adds variable reset delay for webcams

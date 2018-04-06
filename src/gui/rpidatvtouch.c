@@ -4388,12 +4388,22 @@ void InfoScreen()
   char Device2[256]=" ";
   GetDevices(Device1, Device2);
 
+  char Param[31];
+  char Value[31];
+  int pointsize = 20;
+
+  strcpy(Param,"display");
+  GetConfigParam(PATH_PCONFIG,Param,Value);
+  if (strcmp(Value,"Element14_7")==0)  // Reduce text size for 7 inch screen
+  {
+    pointsize = 15;
+  }
+
   // Initialise and calculate the text display
   init(&wscreen, &hscreen);  // Restart the gui
   BackgroundRGB(0,0,0,255);  // Black background
   Fill(255, 255, 255, 1);    // White text
   Fontinfo font = SansTypeface;
-  int pointsize = 20;
   VGfloat txtht = TextHeight(font, pointsize);
   VGfloat txtdp = TextDepth(font, pointsize);
   VGfloat linepitch = 1.1 * (txtht + txtdp);
@@ -4696,7 +4706,27 @@ void do_videoview()
       system("fbcp &");
       system("sudo rm /home/pi/tmp/* >/dev/null 2>/dev/null");
     }
-    else  // not a waveshare display so write to the main framebuffer
+    else if (strcmp(Value,"Element14_7")==0)
+    // Write directly to the touchscreen framebuffer for 7 inch displays
+    {
+      USBVidDevice[strcspn(USBVidDevice, "\n")] = 0;  //remove the newline
+      strcpy(ffmpegCMD, "/home/pi/rpidatv/bin/ffmpeg -hide_banner -loglevel panic -f v4l2 -i ");
+      strcat(ffmpegCMD, USBVidDevice);
+      strcat(ffmpegCMD, " -vf \"yadif=0:1:0,scale=800:480\" -f rawvideo -pix_fmt rgb32 -vframes 2 /home/pi/tmp/frame.raw");
+      system("sudo killall fbcp");
+      // Refresh image until display touched
+      while ( FinishedButton == 0 )
+      {
+        system("sudo rm /home/pi/tmp/* >/dev/null 2>/dev/null");
+        system(ffmpegCMD);
+        system("split -b 1536000 -d -a 1 /home/pi/tmp/frame.raw /home/pi/tmp/frame");
+        system("cat /home/pi/tmp/frame1>/dev/fb0");
+      }
+      // Screen has been touched so stop and tidy up
+      system("fbcp &");
+      system("sudo rm /home/pi/tmp/* >/dev/null 2>/dev/null");
+    }
+    else  // not a waveshare or 7 inch display so write to the main framebuffer
     {
       while ( FinishedButton == 0 )
       {
@@ -4780,6 +4810,26 @@ static void cleanexit(int exit_code)
   sprintf(Commnd,"reset");
   system(Commnd);
   exit(exit_code);
+}
+
+void do_freqshow()
+{
+  char Param[31];
+  char Value[31];
+
+  strcpy(Param,"display");
+  GetConfigParam(PATH_PCONFIG,Param,Value);
+  if (strcmp(Value,"Element14_7")==0)  // load modified freqshow.py
+  {
+    system("cp -f /home/pi/rpidatv/scripts/configs/freqshow/freqshow.py.7inch /home/pi/FreqShow/freqshow.py");
+  }
+  else   // load orignal freqshow.py
+  {
+    system("cp -f /home/pi/rpidatv/scripts/configs/freqshow/waveshare_freqshow.py /home/pi/FreqShow/freqshow.py");
+  }
+
+  // Exit and load freqshow
+  cleanexit(131);
 }
 
 void Keyboard(char RequestText[64], char InitText[64], int MaxLength)
@@ -5803,7 +5853,8 @@ void waituntil(int w,int h)
         case 15:                               // Select FreqShow
           if(CheckRTL()==0)
           {
-            cleanexit(131);
+            do_freqshow();
+            //cleanexit(131);
           }
           else
           {

@@ -798,9 +798,9 @@ do_PID_setup()
 do_freq_setup()
 {
   FREQ_OUTPUT=$(get_config_var freqoutput $PCONFIGFILE)
-  FREQ=$(whiptail --inputbox "$StrOutputRFFreqContext" 8 78 $FREQ_OUTPUT --title "$StrOutputRFFreqTitle" 3>&1 1>&2 2>&3)
+  FREQ_OUTPUT=$(whiptail --inputbox "$StrOutputRFFreqContext" 8 78 $FREQ_OUTPUT --title "$StrOutputRFFreqTitle" 3>&1 1>&2 2>&3)
   if [ $? -eq 0 ]; then
-    set_config_var freqoutput "$FREQ" $PCONFIGFILE
+    set_config_var freqoutput "$FREQ_OUTPUT" $PCONFIGFILE
   fi
 
   # Now select transverters
@@ -852,7 +852,8 @@ do_freq_setup()
     "t4" "Transverter 4" $Radio5 \
     3>&2 2>&1 1>&3)
 
-  if [ "$BAND" == "Direct" ]; then         ## If direct, look up which band
+  if [[ "$BAND" == "Direct" || "$BAND" == "d1" || "$BAND" == "d2" || "$BAND" == "d3" || "$BAND" == "d4" || "$BAND" == "d5" ]]; then 
+    ## If direct, look up which band
 
     INT_FREQ_OUTPUT=${FREQ_OUTPUT%.*}       # Change frequency to integer
 
@@ -1379,7 +1380,7 @@ do_display_setup()
       WaveshareB) INSERTFILE=$PATHCONFIGS"/waveshareb.txt" ;;
       Waveshare4) INSERTFILE=$PATHCONFIGS"/waveshare.txt" ;;
       Console)   INSERTFILE=$PATHCONFIGS"/console.txt" ;;
-      Element14_7)  INSERTFILE=$PATHCONFIGS"/tontec35.txt" ;;
+      Element14_7)  INSERTFILE=$PATHCONFIGS"/element14_7.txt" ;;
     esac
 
     ## Replace whatever is between the markers with the driver text
