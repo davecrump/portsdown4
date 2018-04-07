@@ -115,6 +115,15 @@ make
 cp adf4351 ../../bin/
 cd /home/pi
 
+#install H264 Decoder : hello_video
+#compile ilcomponet first
+cd /opt/vc/src/hello_pi/
+sudo ./rebuild.sh
+cd /home/pi/rpidatv/src/hello_video
+touch video.c
+make
+cp hello_video.bin ../../bin/
+
 # There is no step 7!
 
 # Disable fallback IP (201701230)
