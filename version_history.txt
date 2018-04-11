@@ -1,3 +1,7 @@
+201804110
+Adds comprehensive RTL_FM voice receiver selected from Menu 2
+Corrects Testrig for Stretch build
+
 201804060
 Repairs the linkage between frequency and band in the Console Menu
 Element 14 7 inch Display improvements:

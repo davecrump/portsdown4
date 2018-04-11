@@ -50,6 +50,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #define PATH_PPRESETS "/home/pi/rpidatv/scripts/portsdown_presets.txt"
 #define PATH_TOUCHCAL "/home/pi/rpidatv/scripts/touchcal.txt"
 #define PATH_SGCONFIG "/home/pi/rpidatv/src/siggen/siggenconfig.txt"
+#define PATH_RTLPRESETS "/home/pi/rpidatv/scripts/rtl-fm_presets.txt"
 
 char ImageFolder[]="/home/pi/rpidatv/image/";
 
@@ -163,6 +164,17 @@ char KeyboardReturn[64];
 char FreqBtext[31];
 char MenuText[5][63];
 
+// RTL FM Parameters. [0] is current
+char RTLfreq[10][15];       // String with frequency in MHz
+char RTLlabel[10][15];      // String for label
+char RTLmode[10][15];       // String for mode: fm, wbfm, am, usb, lsb
+int RTLsquelch[10];         // between 0 and 1000.  0 is off
+int RTLsquelchoveride = 1;  // if 0, squelch has been over-riden
+int RTLppm = 0;             // RTL frequency correction in integer ppm
+int RTLStoreTrigger = 0;    // Set to 1 if ready to store RTL preset
+int RTLdetected = 0;        // Set to 1 at first entry to Menu 6 if RTL detected
+int RTLactive = 0;          // Set to 1 if RTL_FM receiver running
+
 int Inversed=0;           //Display is inversed (Waveshare=1)
 int PresetStoreTrigger=0; //Set to 1 if awaiting preset being stored
 
@@ -173,6 +185,7 @@ pthread_t thfft,thbutton,thview,thwait3;
 void Start_Highlights_Menu1();
 void Start_Highlights_Menu2();
 void Start_Highlights_Menu3();
+void Start_Highlights_Menu6();
 void Start_Highlights_Menu11();
 void Start_Highlights_Menu12();
 void Start_Highlights_Menu13();
@@ -1661,6 +1674,31 @@ int CheckC920()
   return 0;
 }
 
+/***************************************************************************//**
+ * @brief Initialises all the GPIOs at startup
+ *
+ * @param None
+ *
+ * @return void
+*******************************************************************************/
+
+void InitialiseGPIO()
+{
+  // Called on startup to initialise the GPIO so that it works correctly
+  // for spi commands when first used (it didn't always before)
+  pinMode(GPIO_PTT, OUTPUT);
+  digitalWrite(GPIO_PTT, LOW);
+  pinMode(GPIO_SPI_CLK, OUTPUT);
+  digitalWrite(GPIO_SPI_CLK, LOW);
+  pinMode(GPIO_SPI_DATA, OUTPUT);
+  digitalWrite(GPIO_SPI_DATA, LOW);
+  pinMode(GPIO_4351_LE, OUTPUT);
+  digitalWrite(GPIO_4351_LE, HIGH);
+  pinMode(GPIO_Atten_LE, OUTPUT);
+  digitalWrite(GPIO_Atten_LE, HIGH);
+  pinMode(GPIO_5355_LE, OUTPUT);
+  digitalWrite(GPIO_5355_LE, HIGH);
+}
 
 /***************************************************************************//**
  * @brief Reads the Presets from portsdown_config.txt and formats them for
@@ -1782,22 +1820,348 @@ int CheckRTL()
   pclose(fp);
 }
 
-void InitialiseGPIO()
+/***************************************************************************//**
+ * @brief Saves RTL-FM Freq, Mode, squelch and label
+ *        
+ * @param Preset button number 0-9, but not 4
+ *
+ * @return void
+*******************************************************************************/
+
+void SaveRTLPreset(int PresetButton)
 {
-  // Called on startup to initialise the GPIO so that it works correctly
-  // for spi commands when first used (it didn't always before)
-  pinMode(GPIO_PTT, OUTPUT);
-  digitalWrite(GPIO_PTT, LOW);
-  pinMode(GPIO_SPI_CLK, OUTPUT);
-  digitalWrite(GPIO_SPI_CLK, LOW);
-  pinMode(GPIO_SPI_DATA, OUTPUT);
-  digitalWrite(GPIO_SPI_DATA, LOW);
-  pinMode(GPIO_4351_LE, OUTPUT);
-  digitalWrite(GPIO_4351_LE, HIGH);
-  pinMode(GPIO_Atten_LE, OUTPUT);
-  digitalWrite(GPIO_Atten_LE, HIGH);
-  pinMode(GPIO_5355_LE, OUTPUT);
-  digitalWrite(GPIO_5355_LE, HIGH);
+  char Param[255];
+  char Value[255];
+  char Prompt[63];
+  int index;
+  int Spaces;
+  int j;
+
+  // Transform button number into preset index
+  index = PresetButton + 6;  // works for bottom row
+  if (PresetButton > 4)      // second row
+  {
+    index = PresetButton - 4;
+  }
+
+  if (index != 0)
+  {
+    // Read the current preset label and ask for a new value
+    snprintf(Prompt, 62, "Enter the new label for RTL Preset %d (no spaces):", index);
+
+    // Check that there are no spaces
+    while (Spaces >= 1)
+    {
+      Keyboard(Prompt, RTLlabel[index], 10);
+
+      // Check that there are no spaces
+      Spaces = 0;
+      for (j = 0; j < strlen(KeyboardReturn); j = j + 1)
+      {
+        if (isspace(KeyboardReturn[j]))
+        {
+          Spaces = Spaces +1;
+        }
+      }
+    }
+    strcpy(RTLlabel[index], KeyboardReturn);
+    snprintf(Param, 10, "r%dtitle", index);
+    SetConfigParam(PATH_RTLPRESETS, Param, KeyboardReturn);
+  }
+
+  // Copy the current values into the presets arrays
+
+
+  strcpy(RTLfreq[index], RTLfreq[0]);
+  strcpy(RTLmode[index], RTLmode[0]);
+  RTLsquelch[index] = RTLsquelch[0];
+
+  // Save the current values into the presets File
+
+  snprintf(Param, 10, "r%dfreq", index);
+  SetConfigParam(PATH_RTLPRESETS, Param, RTLfreq[0]);
+
+  snprintf(Param, 10, "r%dmode", index);
+  SetConfigParam(PATH_RTLPRESETS, Param, RTLmode[index]);
+
+  snprintf(Param, 10, "r%dsquelch", index);
+  snprintf(Value, 4, "%d", RTLsquelch[0]);
+  SetConfigParam(PATH_RTLPRESETS, Param, Value);
+}
+
+/***************************************************************************//**
+ * @brief Loads RTL-FM Freq, Mode, squelch and label from in-use variables
+ *        
+ * @param Preset button number 0-9, but not 4
+ *
+ * @return void
+*******************************************************************************/
+
+void RecallRTLPreset(int PresetButton)
+{
+  int index;
+
+  // Transform button number into preset index
+  index = PresetButton + 6;  // works for bottom row
+  if (PresetButton > 4)      // second row
+  {
+    index = PresetButton - 4;
+  }
+
+  // Copy stored parameters into in-use parameters
+  strcpy(RTLfreq[0], RTLfreq[index]);
+  strcpy(RTLlabel[0], RTLlabel[index]);
+  strcpy(RTLmode[0], RTLmode[index]);
+  RTLsquelch[0] = RTLsquelch[index];
+}
+
+/***************************************************************************//**
+ * @brief Uses keyboard to ask for a new RTL-FM frequency
+ *        
+ * @param none
+ *
+ * @return void.  Sets global RTLfreq[0]
+*******************************************************************************/
+
+void ChangeRTLFreq()
+{
+  char RequestText[64];
+  char InitText[64];
+
+  //Define request string 
+  strcpy(RequestText, "Enter new frequency in MHz:");
+  strcpy(InitText, RTLfreq[0]);
+
+  // Ask for response and check validity
+  strcpy(KeyboardReturn, "2500");
+  while ((atof(KeyboardReturn) < 1) || (atof(KeyboardReturn) > 2000))
+  {
+    Keyboard(RequestText, InitText, 11);
+  }
+
+  // Store Response
+  strcpy(RTLfreq[0], KeyboardReturn);
+}
+
+/***************************************************************************//**
+ * @brief Uses keyboard to ask for a new RTL-FM Squelch setting
+ *        
+ * @param none
+ *
+ * @return void.  Sets global int RTLsquelch[0] in range 0 - 1000
+*******************************************************************************/
+
+void ChangeRTLSquelch()
+{
+  char RequestText[64];
+  char InitText[64];
+
+  //Define request string 
+  strcpy(RequestText, "Enter new squelch setting 0 (off) to 1000 (fully on):");
+  snprintf(InitText, 4, "%d", RTLsquelch[0]);
+
+  // Ask for response and check validity
+  strcpy(KeyboardReturn, "2000");
+  while ((atoi(KeyboardReturn) < 0) || (atoi(KeyboardReturn) > 1000))
+  {
+    Keyboard(RequestText, InitText, 3);
+  }
+
+  // Store Response
+  RTLsquelch[0] = atoi(KeyboardReturn);
+}
+
+/***************************************************************************//**
+ * @brief Uses keyboard to ask for a new RTL-FM ppm setting
+ *        
+ * @param none
+ *
+ * @return void.  Sets global int RTLppm in range -1000 - 1000
+*******************************************************************************/
+
+void ChangeRTLppm()
+{
+  char RequestText[64];
+  char InitText[64];
+  char Value[15];
+  char Param[15];
+
+  //Define request string 
+  strcpy(RequestText, "Enter new ppm setting -1000 to 1000:");
+  snprintf(InitText, 4, "%d", RTLppm);
+
+  // Ask for response and check validity
+  strcpy(KeyboardReturn, "2000");
+  while ((atoi(KeyboardReturn) < -1000) || (atoi(KeyboardReturn) > 1000))
+  {
+    Keyboard(RequestText, InitText, 4);
+  }
+
+  // Store Response in global variable
+  RTLppm = atoi(KeyboardReturn);
+
+  // Save Response in file
+  strcpy(Param, "roffset");
+  snprintf(Value, 6, "%d", RTLppm);
+  SetConfigParam(PATH_RTLPRESETS, Param, Value);
+}
+
+
+/***************************************************************************//**
+ * @brief Reads the Presets from rtl-fm_config.txt and formats them for
+ *        Display and switching
+ *
+ * @param None.  Works on global variables
+ *
+ * @return void
+*******************************************************************************/
+
+void ReadRTLPresets()
+{
+  int n;
+  char Value[15] = "";
+  char Param[15];
+
+  for(n = 0; n < 10; n = n + 1)
+  {
+    // Title
+    snprintf(Param, 10, "r%dtitle", n);
+    GetConfigParam(PATH_RTLPRESETS, Param, Value);
+    strcpy(RTLlabel[n], Value);
+
+    // Frequency
+    snprintf(Param, 10, "r%dfreq", n);
+    GetConfigParam(PATH_RTLPRESETS, Param, Value);
+    strcpy(RTLfreq[n], Value);
+
+    // Mode
+    snprintf(Param, 10, "r%dmode", n);
+    GetConfigParam(PATH_RTLPRESETS, Param, Value);
+    strcpy(RTLmode[n], Value);
+
+    // Squelch
+    snprintf(Param, 10, "r%dsquelch", n);
+    GetConfigParam(PATH_RTLPRESETS, Param, Value);
+    RTLsquelch[n] = atoi(Value);
+  }
+
+  // Frequency correction ppm
+  strcpy(Param, "roffset");
+  GetConfigParam(PATH_RTLPRESETS, Param, Value);
+  RTLppm = atoi(Value);
+}
+
+/***************************************************************************//**
+ * @brief Sets the RTLmode after a button press
+ *
+ * @param NoButton = button pressed in range 10 - 14  
+ *
+ * @return void. Works on the global variable RTLmode[0]
+*******************************************************************************/
+
+void SelectRTLmode(int NoButton)
+{
+  switch (NoButton)
+  {
+  case 10:
+    strcpy(RTLmode[0], "am");
+    break;
+  case 11:
+    strcpy(RTLmode[0], "fm");
+    break;
+  case 12:
+    strcpy(RTLmode[0], "wbfm");
+    break;
+  case 13:
+    strcpy(RTLmode[0], "usb");
+    break;
+  case 14:
+    strcpy(RTLmode[0], "lsb");
+    break;
+  }
+}
+
+/***************************************************************************//**
+ * @brief Starts the RTL Receiver using the stored parameters
+ *
+ * @param nil.  Works on Globals
+ *
+ * @return void. 
+*******************************************************************************/
+
+void RTLstart()
+{
+  char fragment[15];
+
+  if(RTLdetected == 1)
+  {
+    char rtlcall[256];
+    char card[256];
+    GetPiAudioCard(card);
+    strcpy(rtlcall, "(rtl_fm");
+    snprintf(fragment, 12, " -M %s", RTLmode[0]);  // -M mode
+    strcat(rtlcall, fragment);
+    snprintf(fragment, 12, " -f %sM", RTLfreq[0]); // -f frequencyM
+    strcat(rtlcall, fragment);
+    if (strcmp(RTLmode[0], "am") == 0)
+    {
+      strcat(rtlcall, " -s 12k");
+    }
+    if (strcmp(RTLmode[0], "fm") == 0)
+    {
+      strcat(rtlcall, " -s 12k");
+    }
+    if (RTLsquelchoveride == 1)
+    {
+      snprintf(fragment, 12, " -l %d", RTLsquelch[0]); // -l squelch
+      strcat(rtlcall, fragment);
+    }
+    snprintf(fragment, 12, " -p %d", RTLppm); // -p ppm_error
+    strcat(rtlcall, fragment);
+    strcpy(fragment, " -E pad"); // -E pad so that aplay does not crash
+    strcat(rtlcall, fragment);
+    strcat(rtlcall, " | aplay -D plughw:");
+    strcat(rtlcall, card);
+    if (strcmp(RTLmode[0], "am") == 0)
+    {
+      strcat(rtlcall, ",0 -f S16_LE -r12) &"); // 12 KHz for AM
+    }
+    if (strcmp(RTLmode[0], "fm") == 0)
+    {
+      strcat(rtlcall, ",0 -f S16_LE -r12) &"); // 12 KHz for FM
+    }
+    if (strcmp(RTLmode[0], "wbfm") == 0)
+    {
+      strcat(rtlcall, ",0 -f S16_LE -r32) &"); // 32 KHz for WBFM
+    }
+    if ((strcmp(RTLmode[0], "usb") == 0) || (strcmp(RTLmode[0], "lsb") == 0))
+    {
+      strcat(rtlcall, ",0 -f S16_LE -r6) &"); // 6 KHz for SSB
+    }
+    system(rtlcall);
+  }
+  else
+  {
+    MsgBox("No RTL-SDR Connected");
+    wait_touch();
+  }
+}
+
+/***************************************************************************//**
+ * @brief Stops the RTL Receiver and cleans up
+ *
+ * @param nil
+ *
+ * @return void. 
+*******************************************************************************/
+
+void RTLstop()
+{
+  system("sudo killall rtl_fm >/dev/null 2>/dev/null");
+  system("sudo killall aplay >/dev/null 2>/dev/null");
+  usleep(1000);
+  system("sudo killall -9 rtl_fm >/dev/null 2>/dev/null");
+  system("sudo killall -9 aplay >/dev/null 2>/dev/null");
 }
 
 int mymillis()
@@ -3209,9 +3573,6 @@ void SelectSR(int NoButton)  // Symbol Rate
 
 void SelectFec(int NoButton)  // FEC
 {
-//  SelectInGroup(10, 14 ,NoButton ,1);
-//  fec = TabFec[NoButton - 10];
-//  SelectInGroup(10, 14 ,NoButton ,1);
   SelectInGroupOnMenu(CurrentMenu, 5, 9, NoButton, 1);
   fec = TabFec[NoButton - 5];
   char Param[]="fec";
@@ -4458,145 +4819,6 @@ void InfoScreen()
   wait_touch();
 }
 
-void rtlradio1()
-{
-  if(CheckRTL()==0)
-  {
-    char rtlcall[256];
-    char card[256];
-    GetPiAudioCard(card);
-    strcpy(rtlcall, "(rtl_fm -M wbfm -f 92.9M | aplay -D plughw:");
-    strcat(rtlcall, card);
-    strcat(rtlcall, ",0 -f S16_LE -r32) &");
-    system(rtlcall);
-
-    MsgBox("Radio 4 92.9 FM");
-    wait_touch();
-
-    system("sudo killall rtl_fm >/dev/null 2>/dev/null");
-    system("sudo killall aplay >/dev/null 2>/dev/null");
-    usleep(1000);
-    system("sudo killall -9 rtl_fm >/dev/null 2>/dev/null");
-    system("sudo killall -9 aplay >/dev/null 2>/dev/null");
-  }
-  else
-  {
-    MsgBox("No RTL-SDR Connected");
-    wait_touch();
-  }
-}
-
-void rtlradio2()
-{
-  if(CheckRTL()==0)
-  {
-    char rtlcall[256];
-    char card[256];
-    GetPiAudioCard(card);
-    strcpy(rtlcall, "(rtl_fm -M wbfm -f 106.0M | aplay -D plughw:");
-    strcat(rtlcall, card);
-    strcat(rtlcall, ",0 -f S16_LE -r32) &");
-    system(rtlcall);
-
-    MsgBox("SAM FM 106.0");
-    wait_touch();
-
-    system("sudo killall rtl_fm >/dev/null 2>/dev/null");
-    system("sudo killall aplay >/dev/null 2>/dev/null");
-    usleep(1000);
-    system("sudo killall -9 rtl_fm >/dev/null 2>/dev/null");
-    system("sudo killall -9 aplay >/dev/null 2>/dev/null");
-  }
-  else
-  {
-    MsgBox("No RTL-SDR Connected");
-    wait_touch();
-  }
-}
-
-void rtlradio3()
-{
-  if(CheckRTL()==0)
-  {
-    char rtlcall[256];
-    char card[256];
-    GetPiAudioCard(card);
-    strcpy(rtlcall, "(rtl_fm -M fm -f 144.75M -s 20k -g 50 -l 0 -E pad | aplay -D plughw:");
-    strcat(rtlcall, card);
-    strcat(rtlcall, ",0 -f S16_LE -r20 -t raw) &");
-    system(rtlcall);
-
-    MsgBox("ATV Calling Channel 144.75 MHz FM");
-    wait_touch();
-
-    system("sudo killall rtl_fm >/dev/null 2>/dev/null");
-    system("sudo killall aplay >/dev/null 2>/dev/null");
-    usleep(1000);
-    system("sudo killall -9 rtl_fm >/dev/null 2>/dev/null");
-    system("sudo killall -9 aplay >/dev/null 2>/dev/null");
-  }
-  else
-  {
-    MsgBox("No RTL-SDR Connected");
-    wait_touch();
-  }
-}
-void rtlradio4()
-{
-  if(CheckRTL()==0)
-  {
-    char rtlcall[256];
-    char card[256];
-    GetPiAudioCard(card);
-    strcpy(rtlcall, "(rtl_fm -M fm -f 145.7875M -s 20k -g 50 -l 0 -E pad | aplay -D plughw:");
-    strcat(rtlcall, card);
-    strcat(rtlcall, ",0 -f S16_LE -r20 -t raw) &");
-    system(rtlcall);
-
-    MsgBox("GB3BF Bedford 145.7875");
-    wait_touch();
-
-    system("sudo killall rtl_fm >/dev/null 2>/dev/null");
-    system("sudo killall aplay >/dev/null 2>/dev/null");
-    usleep(1000);
-    system("sudo killall -9 rtl_fm >/dev/null 2>/dev/null");
-    system("sudo killall -9 aplay >/dev/null 2>/dev/null");
-  }
-  else
-  {
-    MsgBox("No RTL-SDR Connected");
-    wait_touch();
-  }
-}
-
-void rtlradio5()
-{
-  if(CheckRTL()==0)
-  {
-    char rtlcall[256];
-    char card[256];
-    GetPiAudioCard(card);
-    strcpy(rtlcall, "(rtl_fm -M fm -f 145.8M -s 20k -g 50 -l 0 -E pad | aplay -D plughw:");
-    strcat(rtlcall, card);
-    strcat(rtlcall, ",0 -f S16_LE -r20 -t raw) &");
-    system(rtlcall);
-
-    MsgBox("ISS Downlink 145.8 MHz FM");
-    wait_touch();
-
-    system("sudo killall rtl_fm >/dev/null 2>/dev/null");
-    system("sudo killall aplay >/dev/null 2>/dev/null");
-    usleep(1000);
-    system("sudo killall -9 rtl_fm >/dev/null 2>/dev/null");
-    system("sudo killall -9 aplay >/dev/null 2>/dev/null");
-  }
-  else
-  {
-    MsgBox("No RTL-SDR Connected");
-    wait_touch();
-  }
-}
-
 void rtl_tcp()
 {
   if(CheckRTL()==0)
@@ -5605,10 +5827,8 @@ void waituntil(int w,int h)
           UpdateWindow();
           continue;
         }
-
         switch (i)
         {
-
         case 0:
         case 1:
         case 2:
@@ -5813,14 +6033,10 @@ void waituntil(int w,int h)
         case 4:                               //  
           UpdateWindow();
           break;
-        case 5:                             // RTL Radio 144.75
-          rtlradio3();
-          BackgroundRGB(0,0,0,255);
+        case 5:                               // 
           UpdateWindow();
           break;
-        case 6:                             // RTL Radio 145.8
-          rtlradio5();
-          BackgroundRGB(0,0,0,255);
+        case 6:                               // 
           UpdateWindow();
           break;
         case 7:                               // 
@@ -5854,7 +6070,6 @@ void waituntil(int w,int h)
           if(CheckRTL()==0)
           {
             do_freqshow();
-            //cleanexit(131);
           }
           else
           {
@@ -5868,11 +6083,33 @@ void waituntil(int w,int h)
           cleanexit(130);
           break;
         case 17:                               // Start RTL-TCP server
-          rtl_tcp();
+          if(CheckRTL()==0)
+          {
+            rtl_tcp();
+          }
+          else
+          {
+            MsgBox("No RTL-SDR Connected");
+            wait_touch();
+          }
           BackgroundRGB(0,0,0,255);
           UpdateWindow();
           break;
-        case 18:                              // (SpyServer?)
+        case 18:                              // RTL-FM
+          if(CheckRTL()==0)
+          {
+            RTLdetected = 1;
+          }
+          else
+          {
+            RTLdetected = 0;
+            MsgBox2("No RTL-SDR Connected", "Connect RTL-SDR to enable RX");
+            wait_touch();
+          }
+          printf("MENU 6 \n");
+          CurrentMenu=6;
+          BackgroundRGB(0,0,0,255);
+          Start_Highlights_Menu6();
           UpdateWindow();
           break;
         case 19:                              // (Locator Calc?)
@@ -5998,6 +6235,195 @@ void waituntil(int w,int h)
         }
         continue;   // Completed Menu 3 action, go and wait for touch
       }
+
+      if (CurrentMenu == 6)  // Menu 6 RTL-FM
+      {
+        printf("Button Event %d, Entering Menu 6 Case Statement\n",i);
+
+        // Clear RTL Preset store trigger if not a preset
+        if ((i > 9) && (RTLStoreTrigger == 1))
+        {
+          RTLStoreTrigger = 0;
+          SetButtonStatus(ButtonNumber(CurrentMenu, 4), 0);
+          UpdateWindow();
+          continue;
+        }
+        switch (i)
+        {
+        case 0:                              // Preset 6
+        case 1:                              // Preset 7
+        case 2:                              // Preset 8
+        case 3:                              // Preset 9
+          if (RTLStoreTrigger == 0)
+          {
+            RecallRTLPreset(i);  // Recall preset
+            // and start/restart RX
+          }
+          else
+          {
+            SaveRTLPreset(i);  // Set preset
+            RTLStoreTrigger = 0;
+            SetButtonStatus(ButtonNumber(CurrentMenu, 4), 0);
+            BackgroundRGB(0,0,0,255);
+          }
+          RTLstop();
+          RTLstart();
+          RTLactive = 1;
+          SetButtonStatus(i, 1);
+          Start_Highlights_Menu6();    // Refresh button labels
+          UpdateWindow();
+          usleep(500000);
+          SetButtonStatus(i, 0); 
+          UpdateWindow();
+          break;
+        case 4:                              // Store RTL Preset
+          if (RTLStoreTrigger == 0)
+          {
+            RTLStoreTrigger = 1;
+            SetButtonStatus(ButtonNumber(CurrentMenu, 4),1);
+          }
+          else
+          {
+            RTLStoreTrigger = 0;
+            SetButtonStatus(ButtonNumber(CurrentMenu, 4),0);
+          }
+          UpdateWindow();
+          break;
+        case 5:                              // Preset 1
+        case 6:                              // Preset 2
+        case 7:                              // Preset 3
+        case 8:                              // Preset 4
+        case 9:                              // Preset 5
+          if (RTLStoreTrigger == 0)
+          {
+            RecallRTLPreset(i);  // Recall preset
+            // and start/restart RX
+          }
+          else
+          {
+            SaveRTLPreset(i);  // Set preset
+            RTLStoreTrigger = 0;
+            SetButtonStatus(ButtonNumber(CurrentMenu, 4), 0);
+            BackgroundRGB(0,0,0,255);
+          }
+          RTLstop();
+          RTLstart();
+          RTLactive = 1;
+          SetButtonStatus(ButtonNumber(CurrentMenu, i), 1);
+          Start_Highlights_Menu6();    // Refresh button labels
+          UpdateWindow();
+          usleep(500000);
+          SetButtonStatus(ButtonNumber(CurrentMenu, i), 0); 
+          Start_Highlights_Menu6();          // Refresh button labels
+          UpdateWindow();
+          break;
+        case 10:                             // AM
+        case 11:                             // FM
+        case 12:                             // WBFM
+        case 13:                             // USB
+        case 14:                             // LSB
+          SelectRTLmode(i);
+          if (RTLactive == 1)
+          {
+            RTLstop();
+            RTLstart();
+          }
+          Start_Highlights_Menu6();          // Refresh button labels
+          UpdateWindow();
+          break;
+        case 15:                             // Frequency
+          ChangeRTLFreq();
+          if (RTLactive == 1)
+          {
+            RTLstop();
+            RTLstart();
+          }
+          BackgroundRGB(0,0,0,255);
+          Start_Highlights_Menu6();          // Refresh button labels
+          UpdateWindow();
+          break;
+        case 16:                             // Set Squelch Level
+          ChangeRTLSquelch();
+          if (RTLactive == 1)
+          {
+            RTLstop();
+            RTLstart();
+          }
+          BackgroundRGB(0,0,0,255);
+          Start_Highlights_Menu6();          // Refresh button labels
+          UpdateWindow();
+          break;
+        case 17:                             // Squelch on/off
+          if (RTLsquelchoveride == 1)
+          {
+            RTLsquelchoveride = 0;
+            SetButtonStatus(ButtonNumber(CurrentMenu, 17),1);
+          }
+          else
+          {
+            RTLsquelchoveride = 1;
+            SetButtonStatus(ButtonNumber(CurrentMenu, 17),0);
+          }
+          if (RTLactive == 1)
+          {
+            RTLstop();
+            RTLstart();
+          }
+          UpdateWindow();
+          break;
+        case 18:                             // Save
+          SaveRTLPreset(-6);                 // Saves current state
+          SetButtonStatus(ButtonNumber(CurrentMenu, i), 1);
+          Start_Highlights_Menu6();    // Refresh button labels
+          UpdateWindow();
+          usleep(500000);
+          SetButtonStatus(ButtonNumber(CurrentMenu, i), 0); 
+          UpdateWindow();
+          break;
+        case 19:                             // Set ppm offset
+          ChangeRTLppm();
+          if (RTLactive == 1)
+          {
+            RTLstop();
+            RTLstart();
+          }
+          BackgroundRGB(0,0,0,255);
+          Start_Highlights_Menu6();          // Refresh button labels
+          UpdateWindow();
+          break;
+        case 20:                            // Not shown
+          break;
+        case 21:                            // RX on
+          if (RTLactive == 1)
+          {
+            RTLstop();
+            RTLactive = 0;
+          }
+          else
+          {
+            RTLactive = 1;
+            RTLstart();
+          }
+          Start_Highlights_Menu6();          // Refresh button labels
+          UpdateWindow();
+          break;
+         case 22:                            // Exit
+          RTLstop();
+          RTLactive = 0;
+          printf("MENU 1 \n");
+          CurrentMenu=1;
+          BackgroundRGB(255,255,255,255);
+          Start_Highlights_Menu1();
+          UpdateWindow();
+          break;
+        case 23:                            // Blank
+          break;
+        default:
+          printf("Menu 6 Error\n");
+        }
+        continue;   // Completed Menu 6 action, go and wait for touch
+      }
+
       if (CurrentMenu == 11)  // Menu 11 TX RF Output Mode
       {
         printf("Button Event %d, Entering Menu 11 Case Statement\n",i);
@@ -7280,13 +7706,13 @@ void Define_Menu2()
 
   // 2nd Row, Menu 2
 
-  button = CreateButton(2, 5);
-  AddButtonStatus(button, "Receive^144.75", &Blue);
-  AddButtonStatus(button, " ", &Green);
+  //button = CreateButton(2, 5);
+  //AddButtonStatus(button, "Receive^144.75", &Blue);
+  //AddButtonStatus(button, " ", &Green);
 
-  button = CreateButton(2, 6);
-  AddButtonStatus(button, "Receive^145.8", &Blue);
-  AddButtonStatus(button, " ", &Green);
+  //button = CreateButton(2, 6);
+  //AddButtonStatus(button, "Receive^145.8", &Blue);
+  //AddButtonStatus(button, " ", &Green);
 
   //button = CreateButton(2, 7);
   //AddButtonStatus(button, " ", &Blue);
@@ -7336,13 +7762,13 @@ void Define_Menu2()
   AddButtonStatus(button, "RTL-TCP^Server", &Blue);
   //AddButtonStatus(button, " ", &Green);
 
-  //button = CreateButton(2, 18);
-  AddButtonStatus(button, " ", &Blue);
-  AddButtonStatus(button, " ", &Green);
+  button = CreateButton(2, 18);
+  AddButtonStatus(button, "RTL-FM^Receiver", &Blue);
+  AddButtonStatus(button, "RTL-FM^Receiver", &Green);
 
   //button = CreateButton(2, 19);
-  AddButtonStatus(button, " ", &Blue);
-  AddButtonStatus(button, " ", &Green);
+  //AddButtonStatus(button, " ", &Blue);
+  //AddButtonStatus(button, " ", &Green);
 
   // Top of Menu 2
 
@@ -7365,27 +7791,7 @@ void Start_Highlights_Menu2()
 // Retrieves stored value for each group of buttons
 // and then sets the correct highlight
 {
-  /* char Param[255];
-  char Value[255];
-
-  // Audio Input
-
-  strcpy(Param,"audio");
-  strcpy(Value,"");
-  GetConfigParam(PATH_PCONFIG,Param,Value);
-  printf("Value=%s %s\n",Value,"Audio");
-  if(strcmp(Value,"mic")==0)
-  {
-    SelectInGroup(25 + 5, 25 + 7, 25 + 5, 1);
-  }
-  if(strcmp(Value, "auto") == 0)
-  {
-    SelectInGroup(25 + 5, 25 + 7, 25 + 6, 1);
-  }
-  if(strcmp(Value,"video") == 0)
-  {
-    SelectInGroup(25 + 5, 25 + 7, 25 + 7, 1);
-  } */
+ 
 }
 
 void Define_Menu3()
@@ -7440,6 +7846,207 @@ void Start_Highlights_Menu3()
   //char Param[255];
   //char Value[255];
   //int STD=1;
+}
+
+void Define_Menu6()
+{
+  int button = 0;
+  color_t Green;
+  color_t Blue;
+  color_t Red;
+  color_t Grey;
+  strcpy(MenuTitle[6], "RTL-FM Audio Receiver Menu (6)"); 
+
+  Green.r=0; Green.g=96; Green.b=0;
+  Blue.r=0; Blue.g=0; Blue.b=128;
+  Red.r=255; Red.g=0; Red.b=0;
+  Grey.r=127; Grey.g=127; Grey.b=127;
+
+  // Presets - Bottom Row, Menu 6
+
+  button = CreateButton(6, 0);
+  AddButtonStatus(button, " ", &Blue);
+  AddButtonStatus(button, " ", &Green);
+
+  button = CreateButton(6, 1);
+  AddButtonStatus(button, " ", &Blue);
+  AddButtonStatus(button, " ", &Green);
+
+  button = CreateButton(6, 2);
+  AddButtonStatus(button, " ", &Blue);
+  AddButtonStatus(button, " ", &Green);
+
+  button = CreateButton(6, 3);
+  AddButtonStatus(button, " ", &Blue);
+  AddButtonStatus(button, " ", &Green);
+
+  button = CreateButton(6, 4);
+  AddButtonStatus(button, "Store^Preset", &Blue);
+  AddButtonStatus(button, "Store^Preset", &Red);
+
+  // 2nd Row, Menu 6.  Presets
+
+  button = CreateButton(6, 5);
+  AddButtonStatus(button, " ", &Blue);
+  AddButtonStatus(button, " ", &Green);
+
+  button = CreateButton(6, 6);
+  AddButtonStatus(button, " ", &Blue);
+  AddButtonStatus(button, " ", &Green);
+
+  button = CreateButton(6, 7);
+  AddButtonStatus(button, " ", &Blue);
+  AddButtonStatus(button, " ", &Green);
+
+  button = CreateButton(6, 8);
+  AddButtonStatus(button, " ", &Blue);
+  AddButtonStatus(button, " ", &Green);
+
+  button = CreateButton(6, 9);
+  AddButtonStatus(button, " ", &Blue);
+  AddButtonStatus(button, " ", &Green);
+
+  // AM, FM, WBFM, USB, LSB - 3rd line up Menu 6
+
+  button = CreateButton(6, 10);                        // AM
+  AddButtonStatus(button, "  AM  ", &Blue);
+  AddButtonStatus(button, "  AM  ", &Green);
+
+  button = CreateButton(6, 11);                        // FM
+  AddButtonStatus(button, " NBFM ", &Blue);
+  AddButtonStatus(button, " NBFM ", &Green);
+
+  button = CreateButton(6, 12);                        // WBFM
+  AddButtonStatus(button, " WBFM ", &Blue);
+  AddButtonStatus(button, " WBFM ", &Green);
+
+  button = CreateButton(6, 13);                        // USB
+  AddButtonStatus(button," USB  ",&Blue);
+  AddButtonStatus(button," USB  ",&Green);
+
+  button = CreateButton(6, 14);                        // LSB
+  AddButtonStatus(button," LSB  ",&Blue);
+  AddButtonStatus(button," LSB  ",&Green);
+
+  // Freq, Squelch setting, Squelch on/off, blank, freq ppm. 4th line up Menu 6
+
+  button = CreateButton(6, 15);
+  AddButtonStatus(button, " Freq ^not set", &Blue);
+  AddButtonStatus(button, " Freq ^not set", &Green);
+
+  button = CreateButton(6, 16);
+  AddButtonStatus(button, "Squelch^Level   ", &Blue);
+  AddButtonStatus(button, "Squelch^Level   ", &Green);
+  AddButtonStatus(button, "Squelch^Level   ", &Grey);
+
+  button = CreateButton(6, 17);
+  AddButtonStatus(button, "Squelch^  ON  ", &Blue);
+  AddButtonStatus(button, "Squelch^  OFF  ", &Blue);
+
+  button = CreateButton(6, 18);
+  AddButtonStatus(button, "Save^Settings", &Blue);
+  AddButtonStatus(button, "Save^Settings", &Green);
+
+  button = CreateButton(6, 19);
+  AddButtonStatus(button, "Freq Corrn^ppm", &Blue);
+  AddButtonStatus(button, "Freq Corrn^ppm", &Green);
+
+  //RECEIVE and Exit - Top of Menu 6
+
+  button = CreateButton(6, 21);
+  AddButtonStatus(button," RX  ",&Blue);
+  AddButtonStatus(button,"RX ON",&Red);
+
+  button = CreateButton(6, 22);
+  AddButtonStatus(button,"EXIT",&Blue);
+  AddButtonStatus(button,"EXIT",&Green);
+}
+
+void Start_Highlights_Menu6()
+{
+  color_t Green;
+  color_t Blue;
+  //color_t Red;
+  //color_t Grey;
+
+  Green.r=0; Green.g=96; Green.b=0;
+  Blue.r=0; Blue.g=0; Blue.b=128;
+//  Red.r=255; Red.g=0; Red.b=0;
+//  Grey.r=127; Grey.g=127; Grey.b=127;
+  int index;
+  char RTLBtext[21];
+  int NoButton;
+
+  // Display the frequency
+  strcpy(RTLBtext, " Freq ^");
+  strcat(RTLBtext, RTLfreq[0]);
+  AmendButtonStatus(ButtonNumber(6, 15), 0, RTLBtext, &Blue);
+  AmendButtonStatus(ButtonNumber(6, 15), 1, RTLBtext, &Green);
+
+  // Display the Squelch level
+  snprintf(RTLBtext, 20, "Squelch^Level %d", RTLsquelch[0]);
+  AmendButtonStatus(ButtonNumber(6, 16), 0, RTLBtext, &Blue);
+  AmendButtonStatus(ButtonNumber(6, 16), 1, RTLBtext, &Green);
+
+  // Display Squelch off/on
+  if (RTLsquelchoveride == 1) // squelch on
+  {
+      SelectInGroupOnMenu(6, 17, 17, 17, 0);
+  }
+  else // squelch off
+  {
+      SelectInGroupOnMenu(6, 17, 17, 17, 1);
+  }
+
+  // Display Freq adjustment
+  snprintf(RTLBtext, 20, "Freq Corrn^%d ppm", RTLppm);
+  AmendButtonStatus(ButtonNumber(6, 19), 0, RTLBtext, &Blue);
+  AmendButtonStatus(ButtonNumber(6, 19), 1, RTLBtext, &Green);
+
+  // Highlight the current mode
+  if (strcmp(RTLmode[0], "am") == 0)
+  {
+    SelectInGroupOnMenu(6, 10, 14, 10, 1);
+  }
+  else if (strcmp(RTLmode[0], "fm") == 0)
+  {
+    SelectInGroupOnMenu(6, 10, 14, 11, 1);
+  }
+  else if (strcmp(RTLmode[0], "wbfm") == 0)
+  {
+    SelectInGroupOnMenu(6, 10, 14, 12, 1);
+  }
+  else if (strcmp(RTLmode[0], "usb") == 0)
+  {
+    SelectInGroupOnMenu(6, 10, 14, 13, 1);
+  }
+  else if (strcmp(RTLmode[0], "lsb") == 0)
+  {
+    SelectInGroupOnMenu(6, 10, 14, 14, 1);
+  }
+ 
+  // Highlight current preset by comparing frequency
+  for(index = 1; index < 10 ; index = index + 1)
+  {
+    // Define the button text
+    snprintf(RTLBtext, 20, "%s^%s", RTLlabel[index], RTLfreq[index]);
+
+    NoButton = index + 4;   // Valid for second row
+    if (index > 5)          // Overwrite for bottom row
+    {
+      NoButton = index - 6;
+    }
+    AmendButtonStatus(ButtonNumber(6, NoButton), 0, RTLBtext, &Blue);
+    AmendButtonStatus(ButtonNumber(6, NoButton), 1, RTLBtext, &Green);
+    if (atof(RTLfreq[index]) == atof(RTLfreq[0]))
+    {
+      SelectInGroupOnMenu(6, 0, 3, NoButton, 1);
+      SelectInGroupOnMenu(6, 5, 9, NoButton, 1);
+    }
+  }
+
+  // Make the RX button red if RX on
+  SetButtonStatus(ButtonNumber(6, 21), RTLactive); 
 }
 
 void Define_Menu11()
@@ -9271,6 +9878,7 @@ terminate(int dummy)
   strcpy(ModeInput, "DESKTOP"); // Set input so webcam reset script is not called
   TransmitStop();
   ReceiveStop();
+  RTLstop();
   finish();
   printf("Terminate\n");
   char Commnd[255];
@@ -9407,6 +10015,7 @@ int main(int argc, char **argv)
   ReadBandDetails();
   ReadCallLocPID();
   ReadADFRef();
+  ReadRTLPresets();
 
   // Initialise all the button Status Indexes to 0
   InitialiseButtons();
@@ -9415,6 +10024,8 @@ int main(int argc, char **argv)
   Define_Menu1();
   Define_Menu2();
   Define_Menu3();
+
+  Define_Menu6();
 
   Define_Menu11();
   Define_Menu12();
