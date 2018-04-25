@@ -2274,6 +2274,7 @@ int StartExpressServer()
       MsgBox4("Failed to load", "DATV Express firmware.", "Please check connections", "and try again");
       wait_touch();
     }
+    BackgroundRGB(0,0,0,255);
   }
   else
   {
@@ -2299,6 +2300,7 @@ void CheckExpress()
     {
       MsgBox2("DATV Express Not connected", "Connect it now or select another mode");
       wait_touch();
+      BackgroundRGB(0,0,0,255);
     }
     if (CheckExpressConnect() != 1)   // Connected
     {
@@ -3135,10 +3137,6 @@ void UpdateWindow()
   if (CurrentMenu == 1)
   {
     BackgroundRGB(255,255,255,255);
-  }
-  else
-  {
-    BackgroundRGB(0,0,0,255);
   }
 
   first = ButtonNumber(CurrentMenu, 0);
