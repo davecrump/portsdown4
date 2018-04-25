@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# set -x
+
 ########## ctlfilter.sh ############
 
 # Called by a.sh in IQ and DATVEXPRESS modes to switch in correct

@@ -1,8 +1,10 @@
-# Run rpidatv gui
+#! /bin/bash
+
+# Run gui
 
 cd /home/pi
 reset
 sudo killall fbcp >/dev/null 2>/dev/null
 fbcp &
-/home/pi/rpidatv/bin/rpidatvgui
 
+/home/pi/rpidatv/scripts/scheduler.sh

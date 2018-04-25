@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+# set -x
+
 # Return Codes
 #
 # 128  Commanded exit to Linux prompt

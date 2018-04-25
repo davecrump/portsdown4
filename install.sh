@@ -197,9 +197,6 @@ cd /home/pi
 # Create directory for Autologin link
 sudo mkdir -p /etc/systemd/system/getty.target.wants
 
-# Add the console menu to the bash history
-/home/pi/rpidatv/scripts/configs/add_menu_to_history.sh
-
 # Load new .bashrc to source the startup script at boot and log-on (201704160)
 cp /home/pi/rpidatv/scripts/configs/startup.bashrc /home/pi/.bashrc
 

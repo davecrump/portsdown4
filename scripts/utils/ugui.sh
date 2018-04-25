@@ -1,3 +1,5 @@
+#! /bin/bash
+
 # Compile rpidatv gui
 cd /home/pi/rpidatv/src/gui
 make clean
