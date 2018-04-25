@@ -1,3 +1,5 @@
+#! /bin/bash
+
 # Compile Signal Generator
 cd /home/pi/rpidatv/src/siggen
 make clean

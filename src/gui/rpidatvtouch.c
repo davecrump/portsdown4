@@ -2164,6 +2164,149 @@ void RTLstop()
   system("sudo killall -9 aplay >/dev/null 2>/dev/null");
 }
 
+/***************************************************************************//**
+ * @brief Checks whether the DATV Express is connected
+ *
+ * @param 
+ *
+ * @return 0 if present, 1 if absent
+*******************************************************************************/
+
+int CheckExpressConnect()
+{
+  FILE *fp;
+  char response[255];
+  int responseint;
+
+  /* Open the command for reading. */
+  fp = popen("lsusb | grep -q 'CY7C68013' ; echo $?", "r");
+  if (fp == NULL) {
+    printf("Failed to run command\n" );
+    exit(1);
+  }
+
+  /* Read the output a line at a time - output it. */
+  while (fgets(response, 7, fp) != NULL)
+  {
+    responseint = atoi(response);
+  }
+
+  /* close */
+  pclose(fp);
+  return responseint;
+}
+
+/***************************************************************************//**
+ * @brief Checks whether the DATV Express Server is Running
+ *
+ * @param 
+ *
+ * @return 0 if running, 1 if not running
+*******************************************************************************/
+
+int CheckExpressRunning()
+{
+  FILE *fp;
+  char response[255];
+  int responseint;
+
+  /* Open the command for reading. */
+  fp = popen("pgrep -x 'express_server' ; echo $?", "r");
+  if (fp == NULL) {
+    printf("Failed to run command\n" );
+    exit(1);
+  }
+
+  /* Read the output a line at a time - output it. */
+  while (fgets(response, 7, fp) != NULL)
+  {
+    responseint = atoi(response);
+  }
+
+  /* close */
+  pclose(fp);
+  return responseint;
+}
+
+
+/***************************************************************************//**
+ * @brief Called to start the DATV Express Server
+ *
+ * @param 
+ *
+ * @return 0 if running OK, 1 if not running
+*******************************************************************************/
+
+int StartExpressServer()
+{
+  char BashText[255];
+  int responseint;
+  // Check if DATV Express is connected
+  if (CheckExpressConnect() == 1)   // Not connected
+  {
+    MsgBox2("DATV Express Not connected", "Connect it or select another mode");
+    wait_touch();
+  }
+
+  // Check if the server is already running
+  if (CheckExpressRunning() == 1)   // Not running, so start it
+  {
+    // Make sure the control file is not locked by deleting it
+    strcpy(BashText, "sudo rm /tmp/expctrl >/dev/null 2>/dev/null");
+    system(BashText);
+
+    // Start the server
+    strcpy(BashText, "cd /home/pi/express_server; ");
+    strcat(BashText, "sudo nice -n -40 /home/pi/express_server/express_server  >/dev/null 2>/dev/null &");
+    system(BashText);
+    strcpy(BashText, "cd /home/pi");
+    system(BashText);
+    MsgBox4("Please wait 5 seconds", "while the DATV Express firmware", "is loaded", "");
+    usleep(5000000);
+    responseint = CheckExpressRunning();
+    if (responseint == 0)  // Running OK
+    {
+      MsgBox4("", "", "", "DATV Express Firmware Loaded");
+      usleep(1000000);
+    }
+    else
+    {
+      MsgBox4("Failed to load", "DATV Express firmware.", "Please check connections", "and try again");
+      wait_touch();
+    }
+  }
+  else
+  {
+    responseint = 0;
+  }
+  return responseint;
+}
+
+/***************************************************************************//**
+ * @brief Called on GUI start to check if the DATV Express Server needs to be started
+ *
+ * @param nil
+ *
+ * @return nil
+*******************************************************************************/
+
+void CheckExpress()
+{
+  //Check if DATV Express Required
+  if (strcmp(CurrentModeOP, TabModeOP[2]) == 0)  // Startup mode is DATV Express
+  {
+    if (CheckExpressConnect() == 1)   // Not connected
+    {
+      MsgBox2("DATV Express Not connected", "Connect it now or select another mode");
+      wait_touch();
+    }
+    if (CheckExpressConnect() != 1)   // Connected
+    {
+      StartExpressServer();
+    }
+  }
+}
+
 int mymillis()
 {
   struct timeval tv;
@@ -2983,10 +3126,20 @@ void ShowTitle()
 void UpdateWindow()
 // Paint each defined button and the title on the current Menu
 {
-  //int ButtonNumber(int MenuIndex, int Button)
   int i;
   int first;
   int last;
+
+  // Set the background colour
+  // Maybe a select statement here in future?
+  if (CurrentMenu == 1)
+  {
+    BackgroundRGB(255,255,255,255);
+  }
+  else
+  {
+    BackgroundRGB(0,0,0,255);
+  }
 
   first = ButtonNumber(CurrentMenu, 0);
   last = ButtonNumber(CurrentMenu + 1 , 0) - 1;
@@ -3496,6 +3649,13 @@ void SelectEncoding(int NoButton)  // Encoding
 
 void SelectOP(int NoButton)      // Output device
 {
+  // Stop or reset DATV Express Server if required
+  if (strcmp(CurrentModeOP, TabModeOP[2]) == 0)  // mode was DATV Express
+  {
+    system("sudo killall express_server >/dev/null 2>/dev/null");
+    system("sudo rm /tmp/expctrl >/dev/null 2>/dev/null");
+  }
+
   SelectInGroupOnMenu(CurrentMenu, 5, 9, NoButton, 1);
   SelectInGroupOnMenu(CurrentMenu, 0, 3, NoButton, 1);
   if (NoButton < 4) // allow for reverse numbering of rows
@@ -3510,6 +3670,12 @@ void SelectOP(int NoButton)      // Output device
   // Set the Current Mode Output variable
   strcpy(CurrentModeOP, TabModeOP[NoButton - 5]);
   strcpy(CurrentModeOPtext, TabModeOPtext[NoButton - 5]);
+
+  // Start DATV Express if required
+  if (strcmp(CurrentModeOP, TabModeOP[2]) == 0)  // new mode is DATV Express
+  {
+    StartExpressServer();
+  }
 }
 
 void SelectFormat(int NoButton)  // Video Format
@@ -5562,6 +5728,12 @@ void ChangeCall()
         Spaces = Spaces +1;
       }
     }
+
+    // Check call length which must be > 0
+    if (strlen(KeyboardReturn) == 0)
+    {
+        Spaces = Spaces +1;
+    }
   }
   strcpy(CallSign, KeyboardReturn);
   printf("Callsign set to: %s\n", CallSign);
@@ -6010,12 +6182,18 @@ void waituntil(int w,int h)
         {
         case 0:                               // Shutdown
           MsgBox4("", "Shutting down now", "", "");
+          system("sudo killall express_server >/dev/null 2>/dev/null");
+          system("sudo rm /tmp/expctrl >/dev/null 2>/dev/null");
+          sync();  // Prevents shutdown hang in Stretch
           usleep(1000000);
           finish();
           system("sudo shutdown now");
           break;
         case 1:                               // Reboot
           MsgBox4("", "Rebooting now", "", "");
+          system("sudo killall express_server >/dev/null 2>/dev/null");
+          system("sudo rm /tmp/expctrl >/dev/null 2>/dev/null");
+          sync();  // Prevents shutdown hang in Stretch
           usleep(1000000);
           finish();
           system("sudo reboot now");
@@ -9875,13 +10053,16 @@ void Define_Menu41()
 static void
 terminate(int dummy)
 {
+  char Commnd[255];
+
   strcpy(ModeInput, "DESKTOP"); // Set input so webcam reset script is not called
   TransmitStop();
   ReceiveStop();
   RTLstop();
   finish();
   printf("Terminate\n");
-  char Commnd[255];
+  sprintf(Commnd,"sudo killall express_server >/dev/null 2>/dev/null");
+  system(Commnd);
   sprintf(Commnd,"stty echo");
   system(Commnd);
   sprintf(Commnd,"reset");
@@ -9938,11 +10119,6 @@ int main(int argc, char **argv)
     Inversed=1;
   if(strcmp(Value,"Waveshare4")==0)
     Inversed=1;
-
-  // Set the Band (and filter) Switching
-  system ("sudo /home/pi/rpidatv/scripts/ctlfilter.sh");
-  // and wait for it to finish using rpidatvconfig.txt
-  usleep(100000);
 
   // Set the Analog Capture (input) Standard
   GetUSBVidDev(USBVidDevice);
@@ -10055,6 +10231,15 @@ int main(int argc, char **argv)
 
   // Start the button Menu
   Start(wscreen,hscreen);
+
+  // Check if DATV Express Server required and, if so, start it
+  CheckExpress();
+
+  // Set the Band (and filter) Switching
+  // Must be done after (not before) starting DATV Express Server
+  system ("sudo /home/pi/rpidatv/scripts/ctlfilter.sh");
+  // and wait for it to finish using rpidatvconfig.txt
+  usleep(100000);
 
   // Determine button highlights
   Start_Highlights_Menu1();

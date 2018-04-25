@@ -1,6 +1,11 @@
-201804110
-Adds comprehensive RTL_FM voice receiver selected from Menu 2
+201804250
+Adds comprehensive RTL_FM voice receiver (see Menu 2)
 Corrects Testrig for Stretch build
+Corrects SigGen Express Cal above 2000 MHz
+Rejects zero-length callsign
+More visibility of DATV Express start-up
+Reduces occurences of 90-sec shutdown wait in Stretch
+Improves utils compile scripts
 
 201804060
 Repairs the linkage between frequency and band in the Console Menu
