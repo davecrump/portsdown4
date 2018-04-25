@@ -123,9 +123,15 @@ if [ "$RESULT" -eq 0 ]; then
   sudo modprobe usbtv           # Load the EasyCap driver
   sudo modprobe em28xx        # Load the EasyCap driver
   sudo modprobe stk1160        # Load the EasyCap driver
-# Comment out reload of uvcvideo as it causes shutdown to hang
-#  sudo modprobe uvcvideo        # Load the EasyCap driver
-# replace usbtv with your EasyCap driver name
+  # Comment out reload of uvcvideo as it causes shutdown to hang
+  #  sudo modprobe uvcvideo        # Load the EasyCap driver
+
+  # Reload uvcvideo if Webcam C170 present
+  lsusb | grep 'Webcam C170' >/dev/null 2>/dev/null
+  RESULT="$?"
+  if [ "$RESULT" -eq 0 ]; then
+    sudo modprobe uvcvideo
+  fi
 fi
 
 # Map the touchscreen event to /dev/input/touchscreen
