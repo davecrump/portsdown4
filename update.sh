@@ -235,7 +235,7 @@ fi
 
 # Restore the user's original portsdown_locators.txt if required
 if [ -f "/home/pi/portsdown_locators.txt" ]; then
-  cp -f -r /home/pi/touchcal.txt /home/pi/rpidatv/scripts/portsdown_locators.txt
+  cp -f -r /home/pi/portsdown_locators.txt /home/pi/rpidatv/scripts/portsdown_locators.txt
 fi
 
 DisplayUpdateMsg "Step 9 of 10\nInstalling FreqShow SW\n\nXXXXXXXXX-"
