@@ -13,11 +13,11 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-  shapedemo: testbed for OpenVG APIs
-  by Anthony Starks (ajstarks@gmail.com)
+shapedemo: testbed for OpenVG APIs
+by Anthony Starks (ajstarks@gmail.com)
 
-  Initial code by Evariste F5OEO
-  Rewitten by Dave, G8GKQ
+Initial code by Evariste F5OEO
+Rewitten by Dave, G8GKQ
 */
 //
 #include <linux/input.h>
@@ -31,6 +31,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <fcntl.h>
 #include <dirent.h>
 #include <ctype.h>
+#include <stdbool.h>
 
 #include "VG/openvg.h"
 #include "VG/vgu.h"
@@ -51,8 +52,13 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #define PATH_TOUCHCAL "/home/pi/rpidatv/scripts/touchcal.txt"
 #define PATH_SGCONFIG "/home/pi/rpidatv/src/siggen/siggenconfig.txt"
 #define PATH_RTLPRESETS "/home/pi/rpidatv/scripts/rtl-fm_presets.txt"
+#define PATH_LOCATORS "/home/pi/rpidatv/scripts/portsdown_locators.txt"
 
-char ImageFolder[]="/home/pi/rpidatv/image/";
+#define PI 3.14159265358979323846
+#define deg2rad(DEG) ((DEG)*((PI)/(180.0)))
+#define rad2deg(RAD) ((RAD)*180/PI)
+
+char ImageFolder[63]="/home/pi/rpidatv/image/";
 
 int fd=0;
 int wscreen, hscreen;
@@ -71,7 +77,7 @@ typedef struct {
 
 #define MAX_STATUS 10
 typedef struct {
-	int x,y,w,h;                   // Position and size
+	int x,y,w,h;                   // Position and size of button
 	status_t Status[MAX_STATUS];   // Array of text and required colour for each status
 	int IndexStatus;               // The number of valid status definitions.  0 = do not display
 	int NoStatus;                  // This is the active status (colour and text)
@@ -118,6 +124,10 @@ int GPIO_SPI_DATA = 22;
 int GPIO_4351_LE = 30;
 int GPIO_Atten_LE = 16;
 int GPIO_5355_LE = 15;
+int GPIO_Band_LSB = 31;
+int GPIO_Band_MSB = 24;
+int GPIO_Tverter = 7;
+
 
 char ScreenState[255] = "NormalMenu";  // NormalMenu SpecialMenu TXwithMenu TXwithImage RXwithImage VideoOut SnapView VideoView Snap SigGen
 char MenuTitle[40][127];
@@ -129,12 +139,15 @@ char TabBandLabel[9][15]={"71_MHz", "146_MHz", "70_cm", "23_cm", "13_cm", "9_cm"
 char TabPresetLabel[4][15]={"-", "-", "-", "-"};
 float TabBandAttenLevel[9]={-10, -10, -10, -10, -10, -10, -10, -10, -10};
 int TabBandExpLevel[9]={30, 30, 30, 30, 30, 30, 30, 30, 30};
+int TabBandLimeGain[9]={90, 90, 90, 90, 90, 90, 90, 90, 90};
 int TabBandExpPorts[9]={2, 2, 2, 2, 2, 2, 2, 2, 2};
 float TabBandLO[9]={0, 0, 0, 0, 0, 3024, 5328, 9936, 23616};
 char TabBandNumbers[9][10]={"1111", "2222", "3333", "4444", "5555", "6666", "7777", "8888", "9999"};
 int TabSR[9]={125,333,1000,2000,4000, 88, 250, 500, 3000};
 char SRLabel[9][255]={"SR 125","SR 333","SR1000","SR2000","SR4000", "SR 88", "SR 250", "SR 500", "SR3000"};
-int TabFec[5]={1,2,3,5,7};
+int TabFec[5]={1, 2, 3, 5, 7};
+int TabS2Fec[9]={14, 13, 12, 35, 23, 34, 56, 89, 91};
+char S2FECLabel[9][7]={"1/4", "1/3", "1/2", "3/5", "2/3", "3/4", "5/6", "8/9", "9/10"};
 char TabModeInput[12][255]={"CAMMPEG-2","CAMH264","PATERNAUDIO","ANALOGCAM","CARRIER","CONTEST"\
   ,"IPTSIN","ANALOGMPEG-2", "CARDMPEG-2", "CAMHDMPEG-2", "DESKTOP", "FILETS"};
 char TabFreq[9][255]={"71", "146.5", "437", "1249", "1255", "436", "436.5", "437.5", "438"};
@@ -142,12 +155,12 @@ char FreqLabel[31][255];
 char TabModeAudio[6][15]={"auto", "mic", "video", "bleeps", "no_audio", "webcam"};
 char TabModeSTD[2][7]={"6","0"};
 char TabModeVidIP[2][7]={"0","1"};
-char TabModeOP[8][31]={"IQ", "QPSKRF", "DATVEXPRESS", "BATC", "STREAMER", "COMPVID", "DTX1", "IP"};
-char TabModeOPtext[8][31]={"Portsdown", " UGLY ", "EXPRESS", " BATC ", "STREAM", "ANALOG", " DTX1 ", "IPTS out"};
+char TabModeOP[9][31]={"IQ", "QPSKRF", "DATVEXPRESS", "BATC", "STREAMER", "COMPVID", "DTX1", "IP", "LIME"};
+char TabModeOPtext[9][31]={"Portsdown", " UGLY ", "EXPRESS", " BATC ", "STREAM", "Comp Vid", " DTX1 ", "IPTS out", "Lime Mini"};
 char TabAtten[4][15] = {"NONE", "PE4312", "PE43713", "HMC1119"};
 char CurrentModeOP[31] = "QPSKRF";
 char CurrentModeOPtext[31] = " UGLY ";
-char TabTXMode[2][255] = {"DVB-S", "Carrier"};
+char TabTXMode[6][255] = {"DVB-S", "Carrier", "S2QPSK", "8PSK", "16APSK", "32APSK"};
 char CurrentTXMode[255] = "DVB-S";
 char CurrentModeInput[255] = "DESKTOP";
 char TabEncoding[4][255] = {"H264", "MPEG-2", "IPTS in", "TS File"};
@@ -156,13 +169,21 @@ char TabSource[8][15] = {"Pi Cam", "CompVid", "TCAnim", "TestCard", "PiScreen", 
 char CurrentSource[15] = "PiScreen";
 char TabFormat[4][15] = {"4:3", "16:9","720p", "1080p"};
 char CurrentFormat[15] = "4:3";
-char CurrentCaptionState[255] = "on";
+char CurrentCaptionState[15] = "on";
 char CurrentAudioState[255] = "auto";
 char CurrentAtten[255] = "NONE";
 int CurrentBand = 2; // 0 thru 8
 char KeyboardReturn[64];
 char FreqBtext[31];
 char MenuText[5][63];
+
+// Composite Video Output variables
+char TabVidSource[8][15] = {"Pi Cam", "CompVid", "TCAnim", "TestCard", "Snap", "Contest", "Webcam", "Movie"};
+char CurrentVidSource[15] = "TestCard";
+int VidPTT = 0;             // 0 is off, 1 is on
+int CompVidBand = 2;        // Band used for Comp Vid Contest numbers
+int ImageIndex = 0;         // Test Card selection number
+int ImageRange = 5;         // Number of Test Cards
 
 // RTL FM Parameters. [0] is current
 char RTLfreq[10][15];       // String with frequency in MHz
@@ -185,6 +206,7 @@ pthread_t thfft,thbutton,thview,thwait3;
 void Start_Highlights_Menu1();
 void Start_Highlights_Menu2();
 void Start_Highlights_Menu3();
+void Start_Highlights_Menu4();
 void Start_Highlights_Menu6();
 void Start_Highlights_Menu11();
 void Start_Highlights_Menu12();
@@ -195,16 +217,18 @@ void Start_Highlights_Menu16();
 void Start_Highlights_Menu17();
 void Start_Highlights_Menu18();
 void Start_Highlights_Menu19();
+//void Start_Highlights_Menu20();
 void Start_Highlights_Menu21();
 void Start_Highlights_Menu22();
 void Start_Highlights_Menu23();
 void Start_Highlights_Menu24();
+void Start_Highlights_Menu25();
 void Start_Highlights_Menu26();
 void Start_Highlights_Menu27();
 void Start_Highlights_Menu28();
 void Start_Highlights_Menu29();
-//void Start_Highlights_Menu30();
-//void Start_Highlights_Menu31();
+void Start_Highlights_Menu30();
+void Start_Highlights_Menu31();
 void Start_Highlights_Menu32();
 void Start_Highlights_Menu33();
 void MsgBox(const char *);
@@ -214,7 +238,14 @@ void wait_touch();
 void waituntil(int, int);
 void Keyboard(char *, char *, int);
 void DoFreqChange();
-
+void CompVidStart();
+int GcBearing(const float, const float, const float, const float);
+float GcDistance(const float, const float, const float, const float, const char *);
+float Locator_To_Lat(char *);
+float Locator_To_Lon(char *);
+int CalcBearing(char *, char *);
+int CalcRange(char *, char *);
+bool CheckLocator(char *);
 
 int getTouchSample(int *, int *, int *);
 void TransformTouchMap(int, int);
@@ -303,7 +334,6 @@ void SetConfigParam(char *PathConfigFile, char *Param, char *Value)
   }
 }
 
-
 /***************************************************************************//**
  * @brief Looks up the card number for the RPi Audio Card
  *
@@ -312,7 +342,7 @@ void SetConfigParam(char *PathConfigFile, char *Param, char *Value)
  * @return void
 *******************************************************************************/
 
-void GetPiAudioCard(char card[256])
+void GetPiAudioCard(char card[15])
 {
   FILE *fp;
 
@@ -327,6 +357,35 @@ void GetPiAudioCard(char card[256])
   while (fgets(card, 7, fp) != NULL)
   {
     sprintf(card, "%d", atoi(card));
+  }
+
+  /* close */
+  pclose(fp);
+}
+
+/***************************************************************************//**
+ * @brief Looks up the card number for the USB Microphone Card
+ *
+ * @param mic (str) as a single character string with no <CR>
+ *
+ * @return void
+*******************************************************************************/
+
+void GetMicAudioCard(char mic[15])
+{
+  FILE *fp;
+
+  /* Open the command for reading. */
+  fp = popen("cat /proc/asound/modules | grep \"usb_audio\" | head -c 2 | tail -c 1", "r");
+  if (fp == NULL) {
+    printf("Failed to run command\n" );
+    exit(1);
+  }
+
+  /* Read the output a line at a time - output it. */
+  while (fgets(mic, 7, fp) != NULL)
+  {
+    sprintf(mic, "%d", atoi(mic));
   }
 
   /* close */
@@ -757,6 +816,13 @@ void ExecuteUpdate(int NoButton)
       exit(133);  // Pass control back to scheduler for Dev Load
     }
     break;
+  case 0:  // Install Lime Mini
+    // Display the update message
+    finish();
+    system("/home/pi/rpidatv/scripts/install_lime.sh");
+    init(&wscreen, &hscreen);
+    Start(wscreen, hscreen);
+    break;
   default:
     break;
   }
@@ -860,8 +926,19 @@ void GetThrottled(char Throttled[256])
 
 void ReadModeInput(char coding[256], char vsource[256])
 {
-  char ModeInput[256];
+  char ModeInput[31];
   GetConfigParam(PATH_PCONFIG,"modeinput", ModeInput);
+
+  char ModulationMode[31];
+  GetConfigParam(PATH_PCONFIG,"modulation", ModulationMode);
+  if (strlen(ModulationMode) < 1)
+  {
+    strcpy(CurrentTXMode, "DVB-S");
+  }
+  else
+  {
+    strcpy(CurrentTXMode, ModulationMode);
+  }
 
   strcpy(coding, "notset");
   strcpy(vsource, "notset");
@@ -870,7 +947,6 @@ void ReadModeInput(char coding[256], char vsource[256])
   {
     strcpy(coding, "H264");
     strcpy(vsource, "RPi Camera");
-    strcpy(CurrentTXMode, "DVB-S");
     strcpy(CurrentEncoding, "H264");
     strcpy(CurrentFormat, "4:3");
     strcpy(CurrentSource, TabSource[0]); // Pi Cam
@@ -879,7 +955,6 @@ void ReadModeInput(char coding[256], char vsource[256])
   {
     strcpy(coding, "H264");
     strcpy(vsource, "Ext Video Input");
-    strcpy(CurrentTXMode, "DVB-S");
     strcpy(CurrentEncoding, "H264");
     strcpy(CurrentFormat, "4:3");
     strcpy(CurrentSource, TabSource[1]); // EasyCap
@@ -888,7 +963,6 @@ void ReadModeInput(char coding[256], char vsource[256])
   {
     strcpy(coding, "H264");
     strcpy(vsource, "Webcam");
-    strcpy(CurrentTXMode, "DVB-S");
     strcpy(CurrentEncoding, "H264");
     strcpy(CurrentFormat, "4:3");
     strcpy(CurrentSource, TabSource[6]); // Webcam
@@ -897,7 +971,6 @@ void ReadModeInput(char coding[256], char vsource[256])
   {
     strcpy(coding, "H264");
     strcpy(vsource, "Static Test Card F");
-    strcpy(CurrentTXMode, "DVB-S");
     strcpy(CurrentEncoding, "H264");
     strcpy(CurrentFormat, "4:3");
     strcpy(CurrentSource, TabSource[3]); // TestCard
@@ -906,7 +979,6 @@ void ReadModeInput(char coding[256], char vsource[256])
   {
     strcpy(coding, "H264");
     strcpy(vsource, "Test Card");
-    strcpy(CurrentTXMode, "DVB-S");
     strcpy(CurrentEncoding, "H264");
     strcpy(CurrentFormat, "4:3");
     strcpy(CurrentSource, TabSource[2]); // TCAnim
@@ -915,7 +987,6 @@ void ReadModeInput(char coding[256], char vsource[256])
   {
     strcpy(coding, "H264");
     strcpy(vsource, "Contest Numbers");
-    strcpy(CurrentTXMode, "DVB-S");
     strcpy(CurrentEncoding, "H264");
     strcpy(CurrentFormat, "4:3");
     strcpy(CurrentSource, TabSource[5]); // Contest
@@ -924,7 +995,6 @@ void ReadModeInput(char coding[256], char vsource[256])
   {
     strcpy(coding, "H264");
     strcpy(vsource, "Screen");
-    strcpy(CurrentTXMode, "DVB-S");
     strcpy(CurrentEncoding, "H264");
     strcpy(CurrentFormat, "4:3");
     strcpy(CurrentSource, TabSource[4]); // Desktop
@@ -939,14 +1009,12 @@ void ReadModeInput(char coding[256], char vsource[256])
   {
     strcpy(coding, "Square Wave");
     strcpy(vsource, "Test");
-    strcpy(CurrentTXMode, "DVB-S");
     strcpy(CurrentEncoding, "H264");
   }
   else if (strcmp(ModeInput, "FILETS") == 0)
   {
     strcpy(coding, "Native");
     strcpy(vsource, "TS File");
-    strcpy(CurrentTXMode, "DVB-S");
     strcpy(CurrentFormat, "4:3");
     strcpy(CurrentEncoding, "TS File");
   }
@@ -954,14 +1022,12 @@ void ReadModeInput(char coding[256], char vsource[256])
   {
     strcpy(coding, "Native");
     strcpy(vsource, "IP Transport Stream");
-    strcpy(CurrentTXMode, "DVB-S");
     strcpy(CurrentEncoding, "IPTS in");
   }
   else if (strcmp(ModeInput, "VNC") == 0)
   {
     strcpy(coding, "H264");
     strcpy(vsource, "VNC");
-    strcpy(CurrentTXMode, "DVB-S");
     strcpy(CurrentEncoding, "H264");
     strcpy(CurrentFormat, "4:3");
   }
@@ -969,7 +1035,6 @@ void ReadModeInput(char coding[256], char vsource[256])
   {
     strcpy(coding, "MPEG-2");
     strcpy(vsource, "RPi Camera");
-    strcpy(CurrentTXMode, "DVB-S");
     strcpy(CurrentEncoding, "MPEG-2");
     strcpy(CurrentFormat, "4:3");
     strcpy(CurrentSource, TabSource[0]); // Pi Cam
@@ -978,7 +1043,6 @@ void ReadModeInput(char coding[256], char vsource[256])
   {
     strcpy(coding, "MPEG-2");
     strcpy(vsource, "Ext Video Input");
-    strcpy(CurrentTXMode, "DVB-S");
     strcpy(CurrentEncoding, "MPEG-2");
     strcpy(CurrentFormat, "4:3");
     strcpy(CurrentSource, TabSource[1]); // EasyCap
@@ -987,7 +1051,6 @@ void ReadModeInput(char coding[256], char vsource[256])
   {
     strcpy(coding, "MPEG-2");
     strcpy(vsource, "Webcam");
-    strcpy(CurrentTXMode, "DVB-S");
     strcpy(CurrentEncoding, "MPEG-2");
     strcpy(CurrentSource, TabSource[6]); // Webcam
   }
@@ -995,7 +1058,6 @@ void ReadModeInput(char coding[256], char vsource[256])
   {
     strcpy(coding, "MPEG-2");
     strcpy(vsource, "Static Test Card");
-    strcpy(CurrentTXMode, "DVB-S");
     strcpy(CurrentEncoding, "MPEG-2");
     strcpy(CurrentFormat, "4:3");
     strcpy(CurrentSource, TabSource[3]); // Desktop
@@ -1004,7 +1066,6 @@ void ReadModeInput(char coding[256], char vsource[256])
   {
     strcpy(coding, "MPEG-2");
     strcpy(vsource, "Contest Numbers");
-    strcpy(CurrentTXMode, "DVB-S");
     strcpy(CurrentEncoding, "MPEG-2");
     strcpy(CurrentFormat, "4:3");
     strcpy(CurrentSource, TabSource[5]); // Contest
@@ -1013,7 +1074,6 @@ void ReadModeInput(char coding[256], char vsource[256])
   {
     strcpy(coding, "MPEG-2");
     strcpy(vsource, "RPi Cam 16:9");
-    strcpy(CurrentTXMode, "DVB-S");
     strcpy(CurrentEncoding, "MPEG-2");
     strcpy(CurrentFormat, "16:9");
     strcpy(CurrentSource, TabSource[0]); // Pi Cam
@@ -1022,7 +1082,6 @@ void ReadModeInput(char coding[256], char vsource[256])
   {
     strcpy(coding, "MPEG-2");
     strcpy(vsource, "RPi Cam HD");
-    strcpy(CurrentTXMode, "DVB-S");
     strcpy(CurrentEncoding, "MPEG-2");
     strcpy(CurrentFormat, "720p");
     strcpy(CurrentSource, TabSource[0]); // Pi Cam
@@ -1031,7 +1090,6 @@ void ReadModeInput(char coding[256], char vsource[256])
   {
     strcpy(coding, "MPEG-2");
     strcpy(vsource, "Ext Video Input");
-    strcpy(CurrentTXMode, "DVB-S");
     strcpy(CurrentEncoding, "MPEG-2");
     strcpy(CurrentFormat, "16:9");
     strcpy(CurrentSource, TabSource[1]); // EasyCap
@@ -1040,7 +1098,6 @@ void ReadModeInput(char coding[256], char vsource[256])
   {
     strcpy(coding, "MPEG-2");
     strcpy(vsource, "Webcam");
-    strcpy(CurrentTXMode, "DVB-S");
     strcpy(CurrentEncoding, "MPEG-2");
     strcpy(CurrentFormat, "16:9");
     strcpy(CurrentSource, TabSource[6]); // Webcam
@@ -1049,7 +1106,6 @@ void ReadModeInput(char coding[256], char vsource[256])
   {
     strcpy(coding, "MPEG-2");
     strcpy(vsource, "Webcam");
-    strcpy(CurrentTXMode, "DVB-S");
     strcpy(CurrentEncoding, "MPEG-2");
     strcpy(CurrentFormat, "720p");
     strcpy(CurrentSource, TabSource[6]); // Webcam
@@ -1058,7 +1114,6 @@ void ReadModeInput(char coding[256], char vsource[256])
   {
     strcpy(coding, "MPEG-2");
     strcpy(vsource, "Static Test Card");
-    strcpy(CurrentTXMode, "DVB-S");
     strcpy(CurrentEncoding, "MPEG-2");
     strcpy(CurrentFormat, "16:9");
     strcpy(CurrentSource, TabSource[3]); // TestCard
@@ -1067,7 +1122,6 @@ void ReadModeInput(char coding[256], char vsource[256])
   {
     strcpy(coding, "MPEG-2");
     strcpy(vsource, "Static Test Card");
-    strcpy(CurrentTXMode, "DVB-S");
     strcpy(CurrentEncoding, "MPEG-2");
     strcpy(CurrentFormat, "720p");
     strcpy(CurrentSource, TabSource[3]); // TestCard
@@ -1076,7 +1130,6 @@ void ReadModeInput(char coding[256], char vsource[256])
   {
     strcpy(coding, "H264");
     strcpy(vsource, "C920 Webcam");
-    strcpy(CurrentTXMode, "DVB-S");
     strcpy(CurrentEncoding, "H264");
     strcpy(CurrentFormat, "4:3");
     strcpy(CurrentSource, TabSource[7]); // C920
@@ -1085,7 +1138,6 @@ void ReadModeInput(char coding[256], char vsource[256])
   {
     strcpy(coding, "H264");
     strcpy(vsource, "C920 Webcam");
-    strcpy(CurrentTXMode, "DVB-S");
     strcpy(CurrentEncoding, "H264");
     strcpy(CurrentFormat, "720p");
     strcpy(CurrentSource, TabSource[7]); // C920
@@ -1094,7 +1146,6 @@ void ReadModeInput(char coding[256], char vsource[256])
   {
     strcpy(coding, "H264");
     strcpy(vsource, "C920 Webcam");
-    strcpy(CurrentTXMode, "DVB-S");
     strcpy(CurrentEncoding, "H264");
     strcpy(CurrentFormat, "1080p");
     strcpy(CurrentSource, TabSource[7]); // C920
@@ -1164,6 +1215,11 @@ void ReadModeOutput(char Moutput[256])
   else if (strcmp(ModeOutput, "DIGITHIN") == 0) 
   {
     strcpy(Moutput, "DigiThin Board");
+  } 
+  else if (strcmp(ModeOutput, "LIME") == 0) 
+  {
+    strcpy(Moutput, "LimeSDR Mini");
+    strcpy(CurrentModeOPtext, TabModeOPtext[8]);
   } 
   else
   {
@@ -1698,6 +1754,9 @@ void InitialiseGPIO()
   digitalWrite(GPIO_Atten_LE, HIGH);
   pinMode(GPIO_5355_LE, OUTPUT);
   digitalWrite(GPIO_5355_LE, HIGH);
+  pinMode(GPIO_Band_LSB, OUTPUT);
+  pinMode(GPIO_Band_MSB, OUTPUT);
+  pinMode(GPIO_Tverter, OUTPUT);
 }
 
 /***************************************************************************//**
@@ -2096,8 +2155,18 @@ void RTLstart()
   if(RTLdetected == 1)
   {
     char rtlcall[256];
-    char card[256];
-    GetPiAudioCard(card);
+    char card[15];
+    char mic[15];
+
+    GetMicAudioCard(mic);
+    if (strlen(mic) == 1)   // Use USB audio output if present
+    {
+      strcpy(card, mic);
+    }
+    else                    // Use RPi audio if no USB
+    {
+      GetPiAudioCard(card);
+    }
     strcpy(rtlcall, "(rtl_fm");
     snprintf(fragment, 12, " -M %s", RTLmode[0]);  // -M mode
     strcat(rtlcall, fragment);
@@ -2305,6 +2374,90 @@ void CheckExpress()
     if (CheckExpressConnect() != 1)   // Connected
     {
       StartExpressServer();
+    }
+  }
+}
+
+/***************************************************************************//**
+ * @brief Checks whether LimeSuite is installed
+ *
+ * @param 
+ *
+ * @return 0 if installed, 1 if not
+*******************************************************************************/
+
+int CheckLimeInstalled()
+{
+  FILE *fp;
+  char response[255];
+  int responseint;
+
+  /* Open the command for reading. */
+  fp = popen("if [ ! -d \"/home/pi/LimeSuite/\" ]; then echo \"1\"; else echo \"0\"; fi", "r");
+  if (fp == NULL) {
+    printf("Failed to run command\n" );
+    exit(1);
+  }
+
+  /* Read the output a line at a time - output it. */
+  while (fgets(response, 7, fp) != NULL)
+  {
+    responseint = atoi(response);
+  }
+
+  /* close */
+  pclose(fp);
+  return responseint;
+}
+
+/***************************************************************************//**
+ * @brief Checks whether a Lime Mini is connected
+ *
+ * @param 
+ *
+ * @return 0 if present, 1 if absent
+*******************************************************************************/
+
+int CheckLimeConnect()
+{
+  FILE *fp;
+  char response[255];
+  int responseint;
+
+  /* Open the command for reading. */
+  fp = popen("lsusb | grep -q '0403:601f' ; echo $?", "r");
+  if (fp == NULL) {
+    printf("Failed to run command\n" );
+    exit(1);
+  }
+
+  /* Read the output a line at a time - output it. */
+  while (fgets(response, 7, fp) != NULL)
+  {
+    responseint = atoi(response);
+  }
+
+  /* close */
+  pclose(fp);
+  return responseint;
+}
+
+/***************************************************************************//**
+ * @brief Checks whether a Lime Mini is connected if selected
+ *        and displays error message if not
+ * @param 
+ *
+ * @return void
+*******************************************************************************/
+
+void CheckLimeReady()
+{
+  if (strcmp(CurrentModeOP, TabModeOP[8]) == 0)  // Lime Output selected
+  {
+    if (CheckLimeConnect() == 1)
+    {
+      MsgBox2("No LimeMini Detected", "Check Connections");
+      wait_touch();
     }
   }
 }
@@ -2682,6 +2835,31 @@ int IsMenuButtonPushed(int x,int y)
   return NbButton;
 }
 
+int IsImageToBeChanged(int x,int y)
+{
+  // Returns -1 for LHS touch, 0 for centre and 1 for RHS
+
+  TransformTouchMap(x,y);       // Sorts out orientation and approx scaling of the touch map
+  CorrectTouchMap();            // Calibrates each individual screen
+
+  if (scaledY >= hscreen/2)
+  {
+    return 0;
+  }
+  if (scaledX <= wscreen/8)
+  {
+    return -1;
+  }
+  else if (scaledX >= 7 * wscreen/8)
+  {
+    return 1;
+  }
+  else
+  {
+    return 0;
+  }
+}
+
 int InitialiseButtons()
 {
   // Writes 0 to IndexStatus of each button to signify that it should not
@@ -2907,8 +3085,8 @@ void DrawButton(int ButtonIndex)
     TextMid(Button->x+Button->w/2, Button->y+Button->h*11/16, line1, SansTypeface, 18);	
     TextMid(Button->x+Button->w/2, Button->y+Button->h* 3/16, line2, SansTypeface, 18);
   
-    // Draw overlay button.  Menu 1, 2 lines and Button status = 0 only
-    if ((CurrentMenu == 1) && (Button->NoStatus == 0))
+    // Draw overlay button.  Menus 1 or 4, 2 lines and Button status = 0 only
+    if (((CurrentMenu == 1) || (CurrentMenu == 4)) && (Button->NoStatus == 0))
     {
       Fill(Button->Status[1].Color.r, Button->Status[1].Color.g, Button->Status[1].Color.b, 1);
       Roundrect(Button->x,Button->y,Button->w,Button->h/2, Button->w/10, Button->w/10);
@@ -2918,13 +3096,13 @@ void DrawButton(int ButtonIndex)
   }
   else                                              // One line only
   {
-    if (CurrentMenu <= 10)
+    if ((CurrentMenu <= 10) && (CurrentMenu != 4))
     {
       TextMid(Button->x+Button->w/2, Button->y+Button->h/2, label, SansTypeface, Button->w/strlen(label));
     }
     else if (CurrentMenu == 41)
     {
-       TextMid(Button->x+Button->w/2, Button->y+Button->h/2 - hscreen / 64, label, SansTypeface, 24);
+      TextMid(Button->x+Button->w/2, Button->y+Button->h/2 - hscreen / 64, label, SansTypeface, 24);
     }
     else // fix text size at 18
     {
@@ -3151,7 +3329,7 @@ void UpdateWindow()
   for(i=first; i<=last; i++)
   {
     // printf("Looking at button %d\n", i);
-    if (ButtonArray[i].IndexStatus > 0)  // If button needs to be drwan
+    if (ButtonArray[i].IndexStatus > 0)  // If button needs to be drawn
     {
       DrawButton(i);                     // Draw the button
     }
@@ -3473,6 +3651,76 @@ void ApplyTXConfig()
   system("(sleep 1; sudo killall -9 fbi >/dev/null 2>/dev/null) &");
 }
 
+void EnforceValidTXMode()
+{
+  char Param[15]="modulation";
+
+  if (strcmp(CurrentModeOP, TabModeOP[8]) != 0)  // not Lime
+  {
+    if ((strcmp(CurrentTXMode, TabTXMode[0]) != 0) && (strcmp(CurrentTXMode, TabTXMode[1]) != 0))  // Not DVB-S and not Carrier
+    {
+      strcpy(CurrentTXMode, TabTXMode[0]);
+      printf("************** Set TXMode = %s\n", CurrentTXMode);
+      SetConfigParam(PATH_PCONFIG, Param, CurrentTXMode);
+    }
+  }
+}
+
+void EnforceValidFEC()
+{
+  int FECChanged = 0;
+  char Param[7]="fec";
+  char Value[7];
+
+  if ((strcmp(CurrentTXMode, TabTXMode[0]) == 0) || (strcmp(CurrentTXMode, TabTXMode[1]) == 0)) // Carrier or DVB-S
+  {
+    if (fec > 10)
+    {
+      fec = 7;
+      FECChanged = 1;
+    }
+  }
+  if (strcmp(CurrentTXMode, TabTXMode[2]) == 0)  // DVB-S2 QPSK
+  {
+    if (fec < 9)
+    {
+      fec = 91;
+      FECChanged = 1;
+    }
+  }
+  if (strcmp(CurrentTXMode, TabTXMode[3]) == 0)  // 8PSK
+  {
+    if (fec < 20)
+    {
+      fec = 91;
+      FECChanged = 1;
+    }
+  }
+  if (strcmp(CurrentTXMode, TabTXMode[4]) == 0)  // 16APSK
+  {
+    if ((fec < 20) || (fec == 35))
+    {
+      fec = 91;
+      FECChanged = 1;
+    }
+  }
+  if (strcmp(CurrentTXMode, TabTXMode[5]) == 0)  // 32APSK
+  {
+    if ((fec < 30) || (fec == 35))
+    {
+      fec = 91;
+      FECChanged = 1;
+    }
+  }
+  // and save to config
+  if (FECChanged == 1)
+  {
+    sprintf(Value, "%d", fec);
+    printf("************** Set FEC = %s\n",Value);
+    SetConfigParam(PATH_PCONFIG, Param, Value);
+  }
+}
+
 void GreyOut1()
 {
   // Called at the top of any StartHighlight1 to grey out inappropriate selections
@@ -3541,7 +3789,7 @@ void GreyOut1()
       SetButtonStatus(ButtonNumber(CurrentMenu, 10), 0); // Frequency
       SetButtonStatus(ButtonNumber(CurrentMenu, 13), 0); // Band
       SetButtonStatus(ButtonNumber(CurrentMenu, 8), 0);  // Attenuator Type
-      if ((strcmp(CurrentAtten, "NONE") == 0) && (strcmp(CurrentModeOP, "DATVEXPRESS") != 0))
+      if ((strcmp(CurrentAtten, "NONE") == 0) && (strcmp(CurrentModeOP, "DATVEXPRESS") != 0) && (strcmp(CurrentModeOP, TabModeOP[8]) != 0))
       {
         SetButtonStatus(ButtonNumber(CurrentMenu, 14), 2); // Attenuator Level
       }
@@ -3550,6 +3798,38 @@ void GreyOut1()
         SetButtonStatus(ButtonNumber(CurrentMenu, 14), 0); // Attenuator Level
       }
     }
+  }
+}
+
+void GreyOutReset11()
+{
+  SetButtonStatus(ButtonNumber(CurrentMenu, 0), 0); // S2 QPSK
+  SetButtonStatus(ButtonNumber(CurrentMenu, 1), 0); // 8PSK
+  SetButtonStatus(ButtonNumber(CurrentMenu, 2), 0); // 16 APSK
+  SetButtonStatus(ButtonNumber(CurrentMenu, 3), 0); // 32APSK
+}
+
+void GreyOut11()
+{
+  if (strcmp(CurrentModeOP, TabModeOP[8]) != 0)  // not Lime
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 0), 2); // S2 QPSK
+    SetButtonStatus(ButtonNumber(CurrentMenu, 1), 2); // 8PSK
+    SetButtonStatus(ButtonNumber(CurrentMenu, 2), 2); // 16 APSK
+    SetButtonStatus(ButtonNumber(CurrentMenu, 3), 2); // 32APSK
+  }
+}
+
+void GreyOutReset13()
+{
+  SetButtonStatus(ButtonNumber(CurrentMenu, 3), 0); // Lime Mini
+}
+
+void GreyOut13()
+{
+  if (CheckLimeInstalled() == 1)  // Lime not installed so GreyOut
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 3), 2); // Lime Mini
   }
 }
 
@@ -3596,6 +3876,40 @@ void GreyOut15()
   }
 }
 
+void GreyOutReset25()
+{
+  SetButtonStatus(ButtonNumber(CurrentMenu, 5), 0); // FEC 1/4
+  SetButtonStatus(ButtonNumber(CurrentMenu, 6), 0); // FEC 1/3
+  SetButtonStatus(ButtonNumber(CurrentMenu, 7), 0); // FEC 1/2
+  SetButtonStatus(ButtonNumber(CurrentMenu, 8), 0); // FEC 3/5
+  SetButtonStatus(ButtonNumber(CurrentMenu, 9), 0); // FEC 2/3
+}
+
+void GreyOut25()
+{
+  if (strcmp(CurrentTXMode, TabTXMode[3]) == 0)  // 8PSK
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 5), 2); // FEC 1/4
+    SetButtonStatus(ButtonNumber(CurrentMenu, 6), 2); // FEC 1/3
+    SetButtonStatus(ButtonNumber(CurrentMenu, 7), 2); // FEC 1/2
+  }
+  if (strcmp(CurrentTXMode, TabTXMode[4]) == 0)  // 16APSK
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 5), 2); // FEC 1/4
+    SetButtonStatus(ButtonNumber(CurrentMenu, 6), 2); // FEC 1/3
+    SetButtonStatus(ButtonNumber(CurrentMenu, 7), 2); // FEC 1/2
+    SetButtonStatus(ButtonNumber(CurrentMenu, 8), 2); // FEC 3/5
+  }
+  if (strcmp(CurrentTXMode, TabTXMode[5]) == 0)  // 32APSK
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 5), 2); // FEC 1/4
+    SetButtonStatus(ButtonNumber(CurrentMenu, 6), 2); // FEC 1/3
+    SetButtonStatus(ButtonNumber(CurrentMenu, 7), 2); // FEC 1/2
+    SetButtonStatus(ButtonNumber(CurrentMenu, 8), 2); // FEC 3/5
+    SetButtonStatus(ButtonNumber(CurrentMenu, 9), 2); // FEC 2/3
+  }
+}
+
 void SelectInGroup(int StartButton,int StopButton,int NoButton,int Status)
 {
   int i;
@@ -3634,7 +3948,20 @@ void SelectInGroupOnMenu(int Menu, int StartButton, int StopButton, int NumberBu
 void SelectTX(int NoButton)  // TX RF Output Mode
 {
   SelectInGroupOnMenu(CurrentMenu, 5, 6, NoButton, 1);
-  strcpy(CurrentTXMode, TabTXMode[NoButton - 5]);
+  SelectInGroupOnMenu(CurrentMenu, 0, 3, NoButton, 1);
+  if (NoButton > 3)  // Correct numbering
+  {
+    NoButton = NoButton - 5;
+  }
+  else
+  {
+    NoButton = NoButton + 2;
+  }
+  strcpy(CurrentTXMode, TabTXMode[NoButton]);
+  char Param[15]="modulation";
+  SetConfigParam(PATH_PCONFIG, Param, CurrentTXMode);
+  EnforceValidTXMode();
+  EnforceValidFEC();
   ApplyTXConfig();
 }
 
@@ -3662,7 +3989,7 @@ void SelectOP(int NoButton)      // Output device
   }
   strcpy(ModeOP, TabModeOP[NoButton - 5]);
   printf("************** Set Output Mode = %s\n",ModeOP);
-  char Param[]="modeoutput";
+  char Param[15]="modeoutput";
   SetConfigParam(PATH_PCONFIG, Param, ModeOP);
 
   // Set the Current Mode Output variable
@@ -3674,6 +4001,10 @@ void SelectOP(int NoButton)      // Output device
   {
     StartExpressServer();
   }
+  EnforceValidTXMode();
+
+  // Check Lime Connected if selected
+  CheckLimeReady();
 }
 
 void SelectFormat(int NoButton)  // Video Format
@@ -3739,7 +4070,28 @@ void SelectFec(int NoButton)  // FEC
 {
   SelectInGroupOnMenu(CurrentMenu, 5, 9, NoButton, 1);
   fec = TabFec[NoButton - 5];
-  char Param[]="fec";
+  char Param[7]="fec";
+  char Value[255];
+  sprintf(Value, "%d", fec);
+  printf("************** Set FEC = %s\n",Value);
+  SetConfigParam(PATH_PCONFIG, Param, Value);
+}
+
+void SelectS2Fec(int NoButton)  // DVB-S2 FEC
+{
+  SelectInGroupOnMenu(CurrentMenu, 5, 9, NoButton, 1);
+  SelectInGroupOnMenu(CurrentMenu, 0, 3, NoButton, 1);
+  if (NoButton > 3)  // Correct numbering
+  {
+    NoButton = NoButton - 5;
+  }
+  else
+  {
+    NoButton = NoButton + 5;
+  }
+  fec = TabS2Fec[NoButton];
+  EnforceValidFEC();
+  char Param[7]="fec";
   char Value[255];
   sprintf(Value, "%d", fec);
   printf("************** Set FEC = %s\n",Value);
@@ -3801,6 +4153,7 @@ void ChangeBandDetails(int NoButton)
   float AttenLevel = 1;
   int ExpLevel = -1;
   int ExpPorts = -1;
+  int LimeGain = -1;
   float LO = 1000001;
   char Numbers[10] ="";
   //char PromptBand[15];
@@ -3860,6 +4213,22 @@ void ChangeBandDetails(int NoButton)
   }
   TabBandExpPorts[band] = ExpPorts;
   SetConfigParam(PATH_PPRESETS ,Param, KeyboardReturn);
+
+  // Lime Gain
+  if (CheckLimeInstalled() == 0)
+  {
+    strcpy(Param, TabBand[band]);
+    strcat(Param, "limegain");
+    GetConfigParam(PATH_PPRESETS, Param, Value);
+    while ((LimeGain < 0) || (LimeGain > 100))
+    {
+      snprintf(Prompt, 63, "Set the Lime Gain for the %s Band:", TabBandLabel[band]);
+      Keyboard(Prompt, Value, 3);
+      LimeGain = atoi(KeyboardReturn);
+    }
+    TabBandLimeGain[band] = LimeGain;
+    SetConfigParam(PATH_PPRESETS ,Param, KeyboardReturn);
+  }
 
   // LO frequency
   strcpy(Param, TabBand[band]);
@@ -3951,6 +4320,10 @@ void DoFreqChange()
   // Then set Current variables and
   // write correct values to portsdown_config.txt
 
+  // Set the Modulation in portsdown_config.txt
+  strcpy(Param,"modulation");    
+  SetConfigParam(PATH_PCONFIG, Param, CurrentTXMode);
+
   // Band Label
   strcpy(Param, TabBand[CurrentBand]);
   strcat(Param, "label");
@@ -3988,6 +4361,19 @@ void DoFreqChange()
 
   strcpy(Param, "expports");
   SetConfigParam(PATH_PCONFIG ,Param, Value);
+
+  // Lime Gain
+  if (CheckLimeInstalled() == 0)
+  {
+    strcpy(Param, TabBand[CurrentBand]);
+    strcat(Param, "limegain");
+    GetConfigParam(PATH_PPRESETS, Param, Value);
+ 
+    TabBandLimeGain[CurrentBand] = atoi(Value);
+
+    strcpy(Param, "limegain");
+    SetConfigParam(PATH_PCONFIG ,Param, Value);
+  }
 
   // LO frequency
   strcpy(Param, TabBand[CurrentBand]);
@@ -4138,8 +4524,9 @@ void SetAttenLevel()
   char Param[15];
   int ExpLevel = -1;
   float AttenLevel = 1;
+  int LimeGain = -1;
 
-  if (strcmp(CurrentModeOP, "DATVEXPRESS") == 0)
+  if (strcmp(CurrentModeOP, TabModeOP[2]) == 0)  // DATV Express
   {
     while ((ExpLevel < 0) || (ExpLevel > 44))
     {
@@ -4153,6 +4540,22 @@ void SetAttenLevel()
     strcat(Param, "explevel");
     SetConfigParam(PATH_PPRESETS, Param, KeyboardReturn);
     strcpy(Param, "explevel");
+    SetConfigParam(PATH_PCONFIG, Param, KeyboardReturn);
+  }
+  else if (strcmp(CurrentModeOP, TabModeOP[8]) == 0)  // Lime
+  {
+    while ((LimeGain < 0) || (LimeGain > 100))
+    {
+      snprintf(Prompt, 62, "Set the Lime Gain for the %s Band:", TabBandLabel[CurrentBand]);
+      snprintf(Value, 4, "%d", TabBandLimeGain[CurrentBand]);
+      Keyboard(Prompt, Value, 3);
+      LimeGain = atoi(KeyboardReturn);
+    }
+    TabBandLimeGain[CurrentBand] = LimeGain;
+    strcpy(Param, TabBand[CurrentBand]);
+    strcat(Param, "limegain");
+    SetConfigParam(PATH_PPRESETS, Param, KeyboardReturn);
+    strcpy(Param, "limegain");
     SetConfigParam(PATH_PCONFIG, Param, KeyboardReturn);
   }
   else
@@ -4202,7 +4605,7 @@ void SavePreset(int PresetButton)
   snprintf(Param, 10, "p%dband", PresetButton + 1);
   SetConfigParam(PATH_PPRESETS, Param, Value);
 
-  // Save the current mode to Preset
+  // Save the current modulation to Preset
   strcpy(Value, CurrentTXMode);
   snprintf(Param, 10, "p%dmode", PresetButton + 1);
   SetConfigParam(PATH_PPRESETS, Param, Value);
@@ -4327,6 +4730,265 @@ void RecallPreset(int PresetButton)
   DoFreqChange();
 }
 
+void SelectVidSource(int NoButton)  // Video Source
+{
+  SelectInGroupOnMenu(CurrentMenu, 5, 9, NoButton, 1);
+  SelectInGroupOnMenu(CurrentMenu, 0, 2, NoButton, 1);
+  if (NoButton < 4) // allow for reverse numbering of rows
+  {
+    NoButton = NoButton + 10;
+  }
+  strcpy(CurrentVidSource, TabVidSource[NoButton - 5]);
+  CompVidStart();
+}
+
+void ChangeVidBand(int NoButton)
+{
+  if (NoButton < 4) // Bottom row
+  {
+    CompVidBand = NoButton + 5;
+  }
+  else // second row
+  {
+    CompVidBand = NoButton - 5;
+  }
+}
+
+void CompVidInitialise()
+{
+  VidPTT = 1;
+  digitalWrite(GPIO_Band_LSB, LOW);
+  digitalWrite(GPIO_Band_MSB, LOW);
+  digitalWrite(GPIO_Tverter, LOW);
+  digitalWrite(GPIO_PTT, HIGH);
+  char mic[15] = "xx";
+  // char card[15];
+  char commnd[255];
+
+  // Start the audio pipe from mic to USB Audio out socket
+  GetMicAudioCard(mic);
+  if (strlen(mic) == 1)
+  {
+    // GetPiAudioCard(card);
+    strcpy(commnd, "arecord -D plughw:");
+    strcat(commnd, mic);
+  //strcat(commnd, ",0 -f cd - | /dev/null &");
+  strcat(commnd, ",0 -f cd - | aplay -D plughw:");
+  //strcat(commnd, card);
+  strcat(commnd, mic);
+  strcat(commnd, ",0 - &");
+  system(commnd);
+  //printf("%s\n", commnd);
+  }
+  else
+  {
+    printf("mic = %s, so not starting arecord\n", mic);
+  }
+}
+
+void CompVidStart()
+{
+  char fbicmd[255];
+  int TCDisplay = 1;
+  int rawX, rawY, rawPressure;
+  FILE *fp;
+  char SnapIndex[256];
+  int SnapNumber;
+  int Snap;
+
+  if (strcmp(CurrentVidSource, "Pi Cam") == 0)
+  {
+    finish();
+    system("v4l2-ctl --set-fmt-overlay=left=0,top=0,width=656,height=512");
+    system("v4l2-ctl --overlay=1 >/dev/null 2>/dev/null");
+    //system("v4l2-ctl -p 25"); // Set framerate??
+    strcpy(ScreenState, "VideoOut");
+    wait_touch();
+    system("v4l2-ctl --overlay=0");
+  }
+
+  if (strcmp(CurrentVidSource, "TCAnim") == 0)
+  {
+    finish();
+    strcpy(fbicmd, "/home/pi/rpidatv/bin/tcanim1v16 \"/home/pi/rpidatv/video/*10\" ");
+    strcat(fbicmd, " \"48\" \"72\" \"CQ\" \"CQ CQ CQ de ");
+    strcat(fbicmd, CallSign);
+    strcat(fbicmd, " - ATV on ");
+    strcat(fbicmd, TabBandLabel[CompVidBand]);
+    strcat(fbicmd, " \" &");
+    system(fbicmd);
+    strcpy(ScreenState, "VideoOut");
+    wait_touch();
+    system("sudo killall tcanim1v16");
+  }
+
+  if (strcmp(CurrentVidSource, "Contest") == 0)
+  {
+    // Delete any previous Contest image
+    system("rm /home/pi/tmp/contest.jpg >/dev/null 2>/dev/null");
+
+    // Create the new image
+    strcpy(fbicmd, "convert -size 720x576 xc:white ");
+    strcat(fbicmd, "-gravity North -pointsize 125 -annotate 0 ");
+    strcat(fbicmd, CallSign); 
+    strcat(fbicmd, " -gravity Center -pointsize 200 -annotate 0 ");
+    strcat(fbicmd, TabBandNumbers[CompVidBand]);
+    strcat(fbicmd, " -gravity South -pointsize 75 -annotate 0 \"");
+    strcat(fbicmd, Locator);
+    strcat(fbicmd, "    ");
+    strcat(fbicmd, TabBandLabel[CompVidBand]);
+    strcat(fbicmd, "\" /home/pi/tmp/contest.jpg");
+    system(fbicmd);
+
+    // Make the display ready
+    strcpy(ScreenState, "VideoOut");
+    finish();
+
+    strcpy(fbicmd, "sudo fbi -T 1 -noverbose -a /home/pi/tmp/contest");
+    strcat(fbicmd, ".jpg >/dev/null 2>/dev/null");
+    system(fbicmd);
+    wait_touch();
+  }
+
+  if (strcmp(CurrentVidSource, "TestCard") == 0)
+  {
+    // Make the display ready
+    strcpy(ScreenState, "VideoOut");
+    finish();
+
+    // Delete any old test card with caption
+    system("rm /home/pi/tmp/caption.png >/dev/null 2>/dev/null");
+    system("rm /home/pi/tmp/tcf2.jpg >/dev/null 2>/dev/null");
+
+    if (strcmp(CurrentCaptionState, "on") == 0)
+    {
+      // Compose the new card
+      strcpy(fbicmd, "convert -size 720x80 xc:transparent -fill white -gravity Center -pointsize 40 -annotate 0 ");
+      strcat(fbicmd, CallSign); 
+      strcat(fbicmd, " /home/pi/tmp/caption.png");
+      system(fbicmd);
+
+      strcpy(fbicmd, "convert /home/pi/rpidatv/scripts/images/tcf.jpg /home/pi/tmp/caption.png ");
+      strcat(fbicmd, "-geometry +0+475 -composite /home/pi/tmp/tcf2.jpg");
+      system(fbicmd);
+    }
+    else
+    {
+      system("cp /home/pi/rpidatv/scripts/images/tcf.jpg /home/pi/tmp/tcf2.jpg");
+    }
+
+    while ((TCDisplay == 1) || (TCDisplay == -1))
+    {
+      switch(ImageIndex)
+      {
+      case 0:
+        system("sudo fbi -T 1 -noverbose -a /home/pi/tmp/tcf2.jpg >/dev/null 2>/dev/null");
+        break;
+      case 1:
+        system("sudo fbi -T 1 -noverbose -a /home/pi/rpidatv/scripts/images/tcc.jpg >/dev/null 2>/dev/null");
+        break;
+      case 2:
+        system("sudo fbi -T 1 -noverbose -a /home/pi/rpidatv/scripts/images/pm5544.jpg >/dev/null 2>/dev/null");
+        break;
+      case 3:
+        system("sudo fbi -T 1 -noverbose -a /home/pi/rpidatv/scripts/images/75cb.jpg >/dev/null 2>/dev/null");
+        break;
+      case 4:
+        system("sudo fbi -T 1 -noverbose -a /home/pi/rpidatv/scripts/images/11g.jpg >/dev/null 2>/dev/null");
+        break;
+      case 5:
+        system("sudo fbi -T 1 -noverbose -a /home/pi/rpidatv/scripts/images/pb.jpg >/dev/null 2>/dev/null");
+        break;
+      }
+      if (getTouchSample(&rawX, &rawY, &rawPressure)==0) continue;
+      TCDisplay = IsImageToBeChanged(rawX, rawY);
+      if (TCDisplay != 0)
+      {
+        ImageIndex = ImageIndex + TCDisplay;
+        if (ImageIndex > ImageRange)
+        {
+          ImageIndex = 0;
+        }
+        if (ImageIndex < 0)
+        {
+          ImageIndex = ImageRange;
+        }
+      }
+    }
+  }
+
+  if (strcmp(CurrentVidSource, "Snap") == 0)
+  {
+    // Make the display ready
+    strcpy(ScreenState, "VideoOut");
+    finish();
+
+    // Fetch the Next Snap serial number
+    fp = popen("cat /home/pi/snaps/snap_index.txt", "r");
+    if (fp == NULL) 
+    {
+      printf("Failed to run command\n" );
+      exit(1);
+    }
+    /* Read the output a line at a time - output it. */
+    while (fgets(SnapIndex, 20, fp) != NULL)
+    {
+      printf("%s", SnapIndex);
+    }
+    /* close */
+    pclose(fp);
+
+    // Make the display ready
+    finish();
+
+    SnapNumber=atoi(SnapIndex);
+    Snap = SnapNumber - 1;
+
+    while (((TCDisplay == 1) || (TCDisplay == -1)) && (SnapNumber != 0))
+      {
+        sprintf(SnapIndex, "%d", Snap);
+        strcpy(fbicmd, "sudo fbi -T 1 -noverbose -a /home/pi/snaps/snap");
+        strcat(fbicmd, SnapIndex);
+        strcat(fbicmd, ".jpg >/dev/null 2>/dev/null");
+        system(fbicmd);
+
+        if (getTouchSample(&rawX, &rawY, &rawPressure)==0) continue;
+
+        TCDisplay = IsImageToBeChanged(rawX, rawY);
+        if (TCDisplay != 0)
+        {
+        Snap = Snap + TCDisplay;
+        if (Snap >= SnapNumber)
+        {
+          Snap = 0;
+        }
+        if (Snap < 0)
+        {
+          Snap = SnapNumber - 1;
+        }
+      }
+    }
+  }
+  system("(sleep 1; sudo killall -9 fbi >/dev/null 2>/dev/null) &");
+}
+
+void CompVidStop()
+{
+  // Set PTT low
+  VidPTT = 0;
+  digitalWrite(GPIO_PTT, LOW);
+
+  // Stop the audio relay
+  system("killall arecord >/dev/null 2>/dev/null");
+  system("killall aplay >/dev/null 2>/dev/null");
+
+  // Reset the Band Switching
+  system ("sudo /home/pi/rpidatv/scripts/ctlfilter.sh");
+  // and wait for it to finish using rpidatvconfig.txt
+  usleep(100000);
+
+}
+
 void TransmitStart()
 {
   // printf("Transmit Start\n");
@@ -4354,7 +5016,6 @@ void TransmitStart()
   // Check if H264 Camera selected
   if(strcmp(ModeInput,"CAMH264") == 0)
   {
-    // Start the viewfinder 
     finish();
     strcpy(ScreenState, "TXwithImage");
   }
@@ -4725,7 +5386,9 @@ void ProcessLeandvb()
 	line=NULL;
     }
   printf("End Lean - Clean\n");
-  system("sudo killall rtl_sdr >/dev/null 2>/dev/null");
+  system("(sudo killall rtl_sdr >/dev/null 2>/dev/null) &");
+  system("(sudo killall leandvb >/dev/null 2>/dev/null) &");
+
   system("sudo killall fbi >/dev/null 2>/dev/null");  // kill any previous images
   system("sudo fbi -T 1 -noverbose -a /home/pi/rpidatv/scripts/images/BATC_Black.png");  // Add logo image
 
@@ -4842,6 +5505,10 @@ void InfoScreen()
   }
   GetSWVers(result);
   strcat(swversion, result);
+  if (CheckLimeInstalled() == 0)
+  {
+    strcat(swversion, " + Lime");
+  }
 
   char ipaddress[256] = "IP: ";
   strcpy(result, "Not connected");
@@ -4981,6 +5648,512 @@ void InfoScreen()
 
   printf("Info Screen called and waiting for touch\n");
   wait_touch();
+}
+
+void RangeBearing()
+{
+  char Param[31];
+  char Value[31];
+  char IntValue[31];
+  int pointsize = 20;
+  char DispName[10][20];
+  char Locator[10][11];
+  char MyLocator[11]="IO90LU";
+  int Bearing[10];
+  int Range[10];
+  int i, j;
+  int offset;
+  char Prompt[63];
+  bool IsValid = FALSE;
+
+  // read which entry is currently top of the list
+  GetConfigParam(PATH_LOCATORS, "index", Value);
+  offset = atoi(Value);
+  
+  // Calculate the bottom of the list
+  offset = offset - 1;
+  if (offset < 0)
+  {
+    offset = offset + 10;
+  }
+
+  sprintf(Prompt, "Enter the callsign (select enter to view list)");
+  Keyboard(Prompt, "", 19);
+
+  if (strlen(KeyboardReturn) > 0)
+  {
+    sprintf(Param, "callsign%d", offset);
+    SetConfigParam(PATH_LOCATORS, Param, KeyboardReturn);
+
+    strcpy(KeyboardReturn, "");
+    while (IsValid == FALSE)
+    {
+      sprintf(Prompt, "Enter the Locator (6, 8 or 10 chars)");
+      Keyboard(Prompt, KeyboardReturn, 10);
+      IsValid = CheckLocator(KeyboardReturn);
+    }
+
+    sprintf(Param, "locator%d", offset);
+    SetConfigParam(PATH_LOCATORS, Param, KeyboardReturn);
+
+    snprintf(Value, 2, "%d", offset);
+    SetConfigParam(PATH_LOCATORS, "index", Value);
+  }
+  else
+  {
+    offset = offset + 1;
+    if (offset > 9)
+    {
+      offset = offset - 10;
+    }
+  }
+
+  // Reduce text size for 7 inch screen
+  strcpy(Param,"display");
+  GetConfigParam(PATH_PCONFIG, Param, Value);
+  if (strcmp(Value,"Element14_7")==0)  
+  {
+    pointsize = 15;
+  }
+
+  // Initialise and calculate the text display
+  init(&wscreen, &hscreen);  // Restart the gui
+  BackgroundRGB(0,0,0,255);  // Black background
+  Fill(255, 255, 255, 1);    // White text
+  Fontinfo font = SansTypeface;
+  VGfloat txtht = TextHeight(font, pointsize);
+  VGfloat txtdp = TextDepth(font, pointsize);
+  VGfloat linepitch = 1.2 * (txtht + txtdp);
+
+  // Read my locator
+  strcpy(Param,"mylocator");
+  GetConfigParam(PATH_LOCATORS, Param, MyLocator);
+
+  // Read Callsigns and Locators from file, and calculate each r/b
+  for(i = 0; i < 10 ;i++)
+  {
+    sprintf(Param, "callsign%d", i);
+    GetConfigParam(PATH_LOCATORS, Param, DispName[i]);
+    sprintf(Param, "locator%d", i);
+    GetConfigParam(PATH_LOCATORS, Param, Locator[i]);
+
+    Bearing[i] = CalcBearing(MyLocator, Locator[i]);
+    Range[i] = CalcRange(MyLocator, Locator[i]);
+  }
+
+  // Display Title Text
+  sprintf(Value, "From %s", CallSign);
+  Text(wscreen * 1.0 / 40.0, hscreen - linepitch, Value, font, pointsize);
+  Text(wscreen * 15.0 / 40.0, hscreen - linepitch, MyLocator, font, pointsize);
+  Text(wscreen * 27.0 / 40.0, hscreen - linepitch, "Bearing", font, pointsize);
+  Text(wscreen * 34.0 / 40.0, hscreen - linepitch, "Range", font, pointsize);
+
+  // Display each row in turn
+  for(i = 0; i < 10 ; i++)
+  {
+    // Correct for offset
+    j = i + offset;
+    if (j > 9)
+    {
+      j = j - 10;
+    }
+
+    Text(wscreen * 1.0 /40.0, hscreen - (i + 3) * linepitch, DispName[j], font, pointsize);
+    Text(wscreen * 15.0 /40.0, hscreen - (i + 3) * linepitch, Locator[j], font, pointsize);
+    snprintf(IntValue, 4, "%d", Bearing[j]);
+    if (strlen(IntValue) == 3)
+    {
+       strcpy(Value, IntValue);
+    }
+    if (strlen(IntValue) == 2)
+    {
+      strcpy(Value, "0");
+      strcat(Value, IntValue);
+    }
+    if (strlen(IntValue) == 1)
+    {
+      strcpy(Value, "00");
+      strcat(Value, IntValue);
+    }
+    strcat(Value, " deg");
+    Text(wscreen * 27.0 / 40.0, hscreen - (i + 3) * linepitch, Value, font, pointsize);
+    sprintf(Value, "%d km", Range[j]);
+    Text(wscreen * 34.0 / 40.0, hscreen - (i + 3) * linepitch, Value, font, pointsize);
+  }
+
+  TextMid(wscreen/2, 20, "Touch Screen to Continue",  font, pointsize);
+
+  // Push text to screen
+  End();
+
+  printf("Locator Bearing called and waiting for touch\n");
+  wait_touch();
+}
+
+void BeaconBearing()
+{
+  char Param[31];
+  char Value[31];
+  char IntValue[31];
+  int pointsize = 20;
+  char DispName[10][20];
+  char Locator[10][11];
+  char MyLocator[11]="IO90LU";
+  int Bearing[10];
+  int Range[10];
+  int i;
+
+  // Reduce text size for 7 inch screen
+  strcpy(Param,"display");
+  GetConfigParam(PATH_PCONFIG, Param, Value);
+  if (strcmp(Value,"Element14_7")==0)  
+  {
+    pointsize = 15;
+  }
+
+  // Initialise and calculate the text display
+  init(&wscreen, &hscreen);  // Restart the gui
+  BackgroundRGB(0,0,0,255);  // Black background
+  Fill(255, 255, 255, 1);    // White text
+  Fontinfo font = SansTypeface;
+  VGfloat txtht = TextHeight(font, pointsize);
+  VGfloat txtdp = TextDepth(font, pointsize);
+  VGfloat linepitch = 1.2 * (txtht + txtdp);
+
+  // Read Callsigns and Locators from file, and calculate each r/b
+  strcpy(Param,"mylocator");
+  GetConfigParam(PATH_LOCATORS, Param, MyLocator);
+  for(i = 0; i < 10 ;i++)
+  {
+    sprintf(Param, "bcallsign%d", i);
+    GetConfigParam(PATH_LOCATORS, Param, DispName[i]);
+    sprintf(Param, "blocator%d", i);
+    GetConfigParam(PATH_LOCATORS, Param, Locator[i]);
+
+    Bearing[i] = CalcBearing(MyLocator, Locator[i]);
+    Range[i] = CalcRange(MyLocator, Locator[i]);
+  }
+
+  // Display Title Text
+  sprintf(Value, "From %s", CallSign);
+  Text(wscreen * 1.0 / 40.0, hscreen - linepitch, Value, font, pointsize);
+  Text(wscreen * 15.0 / 40.0, hscreen - linepitch, MyLocator, font, pointsize);
+  Text(wscreen * 27.0 / 40.0, hscreen - linepitch, "Bearing", font, pointsize);
+  Text(wscreen * 34.0 / 40.0, hscreen - linepitch, "Range", font, pointsize);
+
+  // Display each row in turn
+  for(i=0; i<10 ;i++)
+  {
+    Text(wscreen * 1.0 /40.0, hscreen - (i + 3) * linepitch, DispName[i], font, pointsize);
+    Text(wscreen * 15.0 /40.0, hscreen - (i + 3) * linepitch, Locator[i], font, pointsize);
+    snprintf(IntValue, 4, "%d", Bearing[i]);
+    if (strlen(IntValue) == 3)
+    {
+       strcpy(Value, IntValue);
+    }
+    if (strlen(IntValue) == 2)
+    {
+      strcpy(Value, "0");
+      strcat(Value, IntValue);
+    }
+    if (strlen(IntValue) == 1)
+    {
+      strcpy(Value, "00");
+      strcat(Value, IntValue);
+    }
+    strcat(Value, " deg");
+    Text(wscreen * 27.0 / 40.0, hscreen - (i + 3) * linepitch, Value, font, pointsize);
+    sprintf(Value, "%d km", Range[i]);
+    Text(wscreen * 34.0 / 40.0, hscreen - (i + 3) * linepitch, Value, font, pointsize);
+  }
+
+  TextMid(wscreen/2, 20, "Touch Screen to Continue",  font, pointsize);
+
+  // Push to screen
+  End();
+
+  printf("Beacon Bearing called and waiting for touch\n");
+  wait_touch();
+}
+
+void AmendBeacon(int i)
+{
+  char Param[15];
+  char Value[31];
+  char Prompt[63];
+  bool IsValid = FALSE;
+
+  // Correct button number to site number 
+  i = i - 5;
+  if (i < 0)
+  {
+    i = i + 10;
+  }
+  printf("Amend Beacon %d\n", i);
+
+  // Retrieve amend and save the details
+  sprintf(Param, "bcallsign%d", i);
+  GetConfigParam(PATH_LOCATORS, Param, Value);
+  sprintf(Prompt, "Enter the new name for the site/beacon (no spaces)");
+  Keyboard(Prompt, Value, 19);
+  SetConfigParam(PATH_LOCATORS, Param, KeyboardReturn);
+
+  sprintf(Param, "blocator%d", i);
+  GetConfigParam(PATH_LOCATORS, Param, Value);
+  sprintf(Prompt, "Enter the locator for this new Site/beacon");
+
+  while (IsValid == FALSE)
+  {
+    Keyboard(Prompt, Value, 10);
+    IsValid = CheckLocator(KeyboardReturn);
+  }
+  SetConfigParam(PATH_LOCATORS, Param, KeyboardReturn);
+}
+
+int CalcBearing(char *myLocator, char *remoteLocator)
+{
+  float myLat;
+  float myLong;
+  float remoteLat;
+  float remoteLong;
+  int Bearing;
+
+  myLat = Locator_To_Lat(myLocator);
+  myLong = Locator_To_Lon(myLocator);
+  remoteLat = Locator_To_Lat(remoteLocator);
+  remoteLong = Locator_To_Lon(remoteLocator);
+
+  //printf(" Calc Bearing: My Locator %s, myLat %f, myLong %f\n", myLocator, myLat, myLong);
+
+  Bearing =  GcBearing(myLat, myLong, remoteLat, remoteLong);
+  return Bearing;
+}
+
+int CalcRange(char *myLocator, char *remoteLocator)
+{
+  float myLat;
+  float myLong;
+  float remoteLat;
+  float remoteLong;
+  int Range;
+
+  myLat = Locator_To_Lat(myLocator);
+  myLong = Locator_To_Lon(myLocator);
+  remoteLat = Locator_To_Lat(remoteLocator);
+  remoteLong = Locator_To_Lon(remoteLocator);
+  Range = (int)GcDistance(myLat, myLong, remoteLat, remoteLong, "K");
+
+  return Range;
+}
+
+bool CheckLocator(char *Loc)
+{
+  // Returns false if locator not valid format
+
+  char szLoc[32] = {0};
+  int V;
+  int n;
+  bool bRet = TRUE;
+  int LocLength;
+
+  strcpy(szLoc, Loc);
+  LocLength = strlen(szLoc);
+  if ((LocLength < 4) || (LocLength > 10))
+  {
+    bRet = FALSE;
+    return bRet;
+  }
+  switch(LocLength)
+  {
+  case 4:
+    strcat(szLoc, "LL55AA");
+    break;
+  case 6:
+    strcat(szLoc, "55AA");
+    break;
+  case 8:
+    strcat(szLoc, "LL");
+    break;
+  case 5:
+  case 7:
+  case 9:
+    bRet = FALSE;
+    return bRet;
+  }
+
+  for( n = 0; n <= strlen(szLoc) ; n++ )
+  {
+    V = szLoc[n];
+
+    // Check Values
+    if ((n==0) || (n==1) || (n==4) || (n==5) || (n==8) || (n==9))
+    {
+      if( (V < 'A') || (V > 'X') )
+      {
+        bRet = FALSE;
+      }
+    }
+    else
+    {
+      if( V > '9' )
+      {
+        bRet = FALSE;
+      }
+    }
+  }
+  return bRet;
+}
+
+float Locator_To_Lat(char *Loc)
+{
+  char szLoc[32] = {0};
+  int V;
+  float P[10] = {0};
+  float Lat;
+  unsigned int n;
+  bool bRet = TRUE;
+
+  strcpy(szLoc,Loc);
+
+  if (strlen(szLoc) < 4 )
+  {
+    bRet = FALSE;
+    return bRet;
+  }
+  if( (strlen(szLoc) == 4) )
+  {
+    strcat(szLoc, "LL55AA");
+  }
+  if( (strlen(szLoc) == 6) )
+  {
+    strcat(szLoc, "55AA");
+  }
+  if( (strlen(szLoc) == 8) )
+  {
+    strcat(szLoc, "LL");
+  }
+
+  bRet = CheckLocator(szLoc);
+
+  for( n = 0; n <= strlen(szLoc) ; n++ )
+  {
+    V = szLoc[n];
+    if( V < 'A' )
+    {
+      P[n] = V - '0';
+    }
+    else
+    {
+      P[n] = V - 'A';
+    }
+  }
+
+  if ( bRet )
+  {
+    Lat = (P[1]*10) + P[3] + (P[5]/24) + (P[7]/240) + (P[9]/5760) - 90;
+  }
+  return Lat;
+}
+
+float Locator_To_Lon(char *Loc)
+{
+  char szLoc[32] = {0};
+  int V;
+  float P[10] = {0};
+  float Lon;
+  unsigned int n;
+  bool bRet = TRUE;
+
+  strcpy(szLoc, Loc);
+
+  if (strlen(szLoc) < 4 )
+  {
+    bRet = FALSE;
+    return bRet;
+  }
+  if( (strlen(szLoc) == 4) )
+  {
+    strcat(szLoc, "LL55AA");
+  }
+  if( (strlen(szLoc) == 6) )
+  {
+    strcat(szLoc, "55AA");
+  }
+  if( (strlen(szLoc) == 8) )
+  {
+    strcat(szLoc, "LL");
+  }
+
+  bRet = CheckLocator(szLoc);
+
+  for( n = 0; n <= strlen(szLoc) ; n++ )
+  {
+    V = szLoc[n];
+    if( V < 'A' )
+    {
+      P[n] = V - '0';
+    }
+    else
+    {
+      P[n] = V - 'A';
+    }
+  }
+
+  if ( bRet )
+  {
+    Lon = (P[0]*20) + (P[2]*2) + (P[4]/12) + (P[6]/120) + (P[8]/2880) - 180;
+  }
+  return Lon;
+}
+
+
+float GcDistance( const float lat1, const float lon1, const float lat2, const float lon2, const char *unit )
+{
+  // Units:
+  // "K" = Kilometers, "N" = Nautical Miles, "M" = Miles
+
+  float theta;
+  float dist;
+  float miles;
+
+  theta = lon1 - lon2;
+  dist = sin(deg2rad(lat1)) * sin(deg2rad(lat2)) +  cos(deg2rad(lat1)) * cos(deg2rad(lat2)) * cos(deg2rad(theta));
+  dist = acos(dist);
+  dist = rad2deg(dist);
+  miles = dist * 60 * 1.1515;
+
+  if( strcmp(unit, "K") == 0 )
+  {
+    return (miles * 1.609344);
+  }
+  else if (strcmp(unit, "N") == 0 )
+  {
+    return (miles * 0.8684);
+  }
+  else
+  {
+    return miles;
+  }
+
+    return 0;
+}
+
+int GcBearing( const float lat1, const float lon1, const float lat2, const float lon2 )
+{
+  float theta;
+  float x, y;
+  float brng;
+
+  // printf("lat %f lon %f, lat %f lon %f\n", lat1, lon1, lat2, lon2);
+
+  theta = lon2 - lon1;
+  y = sin(deg2rad(theta)) * cos(deg2rad(lat2));
+  x = cos(deg2rad(lat1)) * sin(deg2rad(lat2)) - sin(deg2rad(lat1)) * cos(deg2rad(lat2)) * cos(deg2rad(theta));
+
+  brng = atan2(y, x);
+  brng = rad2deg(brng);
+
+  return ((int) brng + 360) % 360;
 }
 
 void rtl_tcp()
@@ -5141,6 +6314,9 @@ void do_snapcheck()
   char SnapIndex[256];
   int SnapNumber;
   int Snap;
+  int rawX, rawY, rawPressure;
+  int TCDisplay = -1;
+
   char fbicmd[256];
 
   // Fetch the Next Snap serial number
@@ -5162,16 +6338,31 @@ void do_snapcheck()
   finish();
 
   SnapNumber=atoi(SnapIndex);
+  Snap = SnapNumber - 1;
 
-  // Show the last 5 snaps
-  for( Snap = SnapNumber - 1; Snap > SnapNumber - 6 && Snap >= 0; Snap = Snap - 1 )
+  while (((TCDisplay == 1) || (TCDisplay == -1)) && (SnapNumber != 0))
   {
     sprintf(SnapIndex, "%d", Snap);
     strcpy(fbicmd, "sudo fbi -T 1 -noverbose -a /home/pi/snaps/snap");
     strcat(fbicmd, SnapIndex);
     strcat(fbicmd, ".jpg >/dev/null 2>/dev/null");
     system(fbicmd);
-    wait_touch();
+
+    if (getTouchSample(&rawX, &rawY, &rawPressure)==0) continue;
+
+    TCDisplay = IsImageToBeChanged(rawX, rawY);
+    if (TCDisplay != 0)
+    {
+      Snap = Snap + TCDisplay;
+      if (Snap >= SnapNumber)
+      {
+        Snap = 0;
+      }
+      if (Snap < 0)
+      {
+        Snap = SnapNumber - 1;
+      }
+    }
   }
 
   // Tidy up and display touch menu
@@ -5742,28 +6933,27 @@ void ChangeLocator()
 {
   char RequestText[64];
   char InitText[64];
-  int Spaces = 1;
-  int j;
+  bool IsValid = FALSE;
 
-  while (Spaces >= 1)
+  while (IsValid == FALSE)
   {
-    strcpy(RequestText, "Enter new Locator (6, 8 or 10 char, NO SPACES)");
+    strcpy(RequestText, "Enter new Locator (6, 8 or 10 char)");
     snprintf(InitText, 11, "%s", Locator);
     Keyboard(RequestText, InitText, 10);
   
-    // Check that there are no spaces
-    Spaces = 0;
-    for (j = 0; j < strlen(KeyboardReturn); j = j + 1)
-    {
-      if (isspace(KeyboardReturn[j]))
-      {
-        Spaces = Spaces +1;
-      }
-    }
+    // Check locator is valid
+    IsValid = CheckLocator(KeyboardReturn);
   }
   strcpy(Locator, KeyboardReturn);
   printf("Locator set to: %s\n", Locator);
+
+  // Save Full locator to Locators file
+  SetConfigParam(PATH_LOCATORS, "mylocator", KeyboardReturn);
+
+  //Truncate to 6 Characters for Contest display
+  KeyboardReturn[6] = '\0';
   SetConfigParam(PATH_PCONFIG, "locator", KeyboardReturn);
+  snprintf(Locator, 11, "%s", KeyboardReturn);
 }
 
 void ChangeADFRef(int NoButton)
@@ -5896,7 +7086,7 @@ void waituntil(int w,int h)
   // Start the main loop for the Touchscreen
   for (;;)
   {
-    if (strcmp(ScreenState, "RXwithImage") != 0) // Don't wait for touch if returning from recieve
+    if ((strcmp(ScreenState, "RXwithImage") != 0) && (strcmp(ScreenState, "VideoOut") != 0)) // Don't wait for touch if returning from recieve
     {
       // Wait here until screen touched
       if (getTouchSample(&rawX, &rawY, &rawPressure)==0) continue;
@@ -5913,7 +7103,7 @@ void waituntil(int w,int h)
         // with image displayed                     TXwithImage (implemented)
         // with menu displayed but not active       TXwithMenu  (implemented)
       // Receiving                                  RXwithImage (implemented)
-      // Video Output                               VideoOut    (not implemented yet)
+      // Video Output                               VideoOut    (implemented)
       // Snap View                                  SnapView    (not implemented yet)
       // VideoView                                  VideoView   (not implemented yet)
       // Snap                                       Snap        (not implemented yet)
@@ -5968,6 +7158,30 @@ void waituntil(int w,int h)
       Start(wscreen, hscreen);
       BackgroundRGB(255,255,255,255);
       SelectPTT(21,0);
+      strcpy(ScreenState, "NormalMenu");
+      UpdateWindow();
+      continue;
+    }
+
+    if (strcmp(ScreenState, "VideoOut") == 0)
+    {
+      system("sudo fbi -T 1 -noverbose -a /home/pi/rpidatv/scripts/images/BATC_Black.png  >/dev/null 2>/dev/null");  // Add logo image
+      system("(sleep 1; sudo killall -9 fbi >/dev/null 2>/dev/null) &");
+      init(&wscreen, &hscreen);
+      Start(wscreen, hscreen);
+      BackgroundRGB(63, 63, 127, 255);
+      strcpy(ScreenState, "NormalMenu");
+      UpdateWindow();
+      continue;
+    }
+
+    if (strcmp(ScreenState, "SnapView") == 0)
+    {
+      system("sudo fbi -T 1 -noverbose -a /home/pi/rpidatv/scripts/images/BATC_Black.png  >/dev/null 2>/dev/null");  // Add logo image
+      system("(sleep 1; sudo killall -9 fbi >/dev/null 2>/dev/null) &");
+      init(&wscreen, &hscreen);
+      Start(wscreen, hscreen);
+      BackgroundRGB(0, 0, 0, 255);
       strcpy(ScreenState, "NormalMenu");
       UpdateWindow();
       continue;
@@ -6081,10 +7295,19 @@ void waituntil(int w,int h)
           UpdateWindow();
           break;
         case 12:
-          printf("MENU 18 \n");       // FEC
-          CurrentMenu=18;
           BackgroundRGB(0,0,0,255);
-          Start_Highlights_Menu18();
+          if ((strcmp(CurrentTXMode, TabTXMode[0]) == 0) || (strcmp(CurrentTXMode, TabTXMode[1]) == 0)) // DVB-S
+          {
+            printf("MENU 18 \n");       // FEC
+            CurrentMenu=18;
+            Start_Highlights_Menu18();
+          }
+          else  // DVB-S2
+          {
+            printf("MENU 25 \n");       // DVB-S2 FEC
+            CurrentMenu=25;
+            Start_Highlights_Menu25();
+          }
           UpdateWindow();
           break;
         case 13:                      // Transverter
@@ -6137,10 +7360,22 @@ void waituntil(int w,int h)
           UpdateWindow();
           break;
         case 20:                       // TX PTT
-          //usleep(500000);
-          SelectPTT(i,1);
-          UpdateWindow();
-          TransmitStart();
+          if (strcmp(CurrentModeOP, "COMPVID") == 0) // Comp Vid OP
+          {
+            printf("MENU 4 \n");        // Source
+            CurrentMenu=4;
+            BackgroundRGB(63, 63, 127,255);
+            CompVidInitialise();
+            Start_Highlights_Menu4();
+            UpdateWindow();
+            //CompVidStart();
+          }
+          else
+          {
+            SelectPTT(i,1);
+            UpdateWindow();
+            TransmitStart();
+          }
           break;
         case 21:                       // RX
           if(CheckRTL()==0)
@@ -6209,10 +7444,14 @@ void waituntil(int w,int h)
         case 4:                               //  
           UpdateWindow();
           break;
-        case 5:                               // 
+        case 5:                               // Locator Bearings
+          RangeBearing();
+          BackgroundRGB(0,0,0,255);
           UpdateWindow();
           break;
-        case 6:                               // 
+        case 6:                               // Sites and Beacons Bearing
+          BeaconBearing();
+          BackgroundRGB(0,0,0,255);
           UpdateWindow();
           break;
         case 7:                               // 
@@ -6348,7 +7587,12 @@ void waituntil(int w,int h)
           break;
         case 9:                              // 
           break;
-        case 10:                               // Blank
+        case 10:                               // Amend Sites/Beacons
+          printf("MENU 31 \n"); 
+          CurrentMenu=31;
+          BackgroundRGB(0,0,0,255);
+          Start_Highlights_Menu31();
+          UpdateWindow();
           break;
         case 11:                               // Blank
           break;
@@ -6410,6 +7654,62 @@ void waituntil(int w,int h)
           printf("Menu 3 Error\n");
         }
         continue;   // Completed Menu 3 action, go and wait for touch
+      }
+
+      if (CurrentMenu == 4)  // Menu 4 Composite Video Output
+      {
+        printf("Button Event %d, Entering Menu 4 Case Statement\n",i);
+        switch (i)
+        {
+        case 5:                               // PiCam
+        case 6:                               // CompVid
+        case 7:                               // TCAnim
+        case 8:                               // TestCard
+        case 9:                               // Snap
+        case 0:                               // Contest
+        case 1:                               // Webcam
+        case 2:                               // Movie
+          // temporary code to put buttons in a line:
+          if (i == 6)
+          {
+            i = 0;
+          }
+          SelectVidSource(i);
+          printf("%s\n", CurrentVidSource);
+          break;
+        case 13:                             // Select Vid Band
+          printf("MENU 30 \n");
+          CurrentMenu=30;
+          BackgroundRGB(0, 0, 0,255);
+          Start_Highlights_Menu30();
+          UpdateWindow();
+          break;
+        case 20:                       // PTT ON/OFF
+          if (VidPTT == 1)
+          {
+            VidPTT = 0;
+            digitalWrite(GPIO_PTT, LOW);
+          }
+          else
+          {
+            VidPTT = 1;
+            digitalWrite(GPIO_PTT, HIGH);
+          }
+          Start_Highlights_Menu4();
+          UpdateWindow();
+          break;
+        case 22:                       // Exit
+          CompVidStop();
+          printf("MENU 1 \n");
+          CurrentMenu=1;
+          BackgroundRGB(255,255,255,255);
+          Start_Highlights_Menu1();
+          UpdateWindow();
+          break;
+        default:
+          printf("Menu 4 Error\n");
+        }
+        continue;   // Completed Menu 4 action, go and wait for touch
       }
 
       if (CurrentMenu == 6)  // Menu 6 RTL-FM
@@ -6617,6 +7917,22 @@ void waituntil(int w,int h)
           SelectTX(i);
           printf("Carrier\n");
           break;
+        case 0:                               // QPSK
+          SelectTX(i);
+          printf("S2 QPSK\n");
+          break;
+        case 1:                               // S2 8PSK
+          SelectTX(i);
+          printf("S2 8PSK\n");
+          break;
+        case 2:                               // S2 16APSK
+          SelectTX(i);
+          printf("S2 16APSK\n");
+          break;
+        case 3:                               // S2 32APSK
+          SelectTX(i);
+          printf("S2 32APSK\n");
+          break;
         default:
           printf("Menu 11 Error\n");
         }
@@ -6708,6 +8024,10 @@ void waituntil(int w,int h)
         case 2:                               // IPTS
           SelectOP(i);
           printf("IPTS\n");
+          break;
+        case 3:                               // LIME
+          SelectOP(i);
+          printf("LIME\n");
           break;
         default:
           printf("Menu 13 Error\n");
@@ -7143,6 +8463,66 @@ void waituntil(int w,int h)
         UpdateWindow();
         continue;   // Completed Menu 24 action, go and wait for touch
       }
+
+      if (CurrentMenu == 25)  // Menu 25 DVB-S2 FEC
+      {
+        printf("Button Event %d, Entering Menu 25 Case Statement\n",i);
+        switch (i)
+        {
+        case 4:                               // Cancel
+          SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 1);
+          printf("FEC Cancel\n");
+          break;
+        case 5:                               // FEC 1/4
+          SelectS2Fec(i);
+          printf("FEC 1/4\n");
+          break;
+        case 6:                               // FEC 1/3
+          SelectS2Fec(i);
+          printf("FEC 1/3\n");
+          break;
+        case 7:                               // FEC 1/2
+          SelectS2Fec(i);
+          printf("FEC 1/2\n");
+          break;
+        case 8:                               // FEC 3/5
+          SelectS2Fec(i);
+          printf("FEC 3/5\n");
+          break;
+        case 9:                               // FEC 2/3
+          SelectS2Fec(i);
+          printf("FEC 2/3\n");
+          break;
+        case 0:                               // FEC 3/4
+          SelectS2Fec(i);
+          printf("FEC 3/4\n");
+          break;
+        case 1:                               // FEC 5/6
+          SelectS2Fec(i);
+          printf("FEC 5/6\n");
+          break;
+        case 2:                               // FEC 8/9
+          SelectS2Fec(i);
+          printf("FEC 8/9\n");
+          break;
+        case 3:                               // FEC 9/10
+          SelectS2Fec(i);
+          printf("FEC 9/10\n");
+          break;
+        default:
+          printf("Menu 25 Error\n");
+        }
+        UpdateWindow();
+        usleep(500000);
+        SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 0); // Reset cancel (even if not selected)
+        printf("Returning to MENU 1 from Menu 25\n");
+        CurrentMenu=1;
+        BackgroundRGB(255,255,255,255);
+        Start_Highlights_Menu1();
+        UpdateWindow();
+        continue;   // Completed Menu 25 action, go and wait for touch
+      }
+
       if (CurrentMenu == 26)  // Menu 26 Band Details
       {
         printf("Button Event %d, Entering Menu 26 Case Statement\n",i);
@@ -7313,6 +8693,60 @@ void waituntil(int w,int h)
         continue;   // Completed Menu 29 action, go and wait for touch
       }
 
+      if (CurrentMenu == 30)  // Menu 30 Comp Vid Band
+      {
+        printf("Button Event %d, Entering Menu 30 Case Statement\n",i);
+        switch (i)
+        {
+        case 4:                               // Cancel
+          SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 1);
+          printf("Set Band Details Cancel\n");
+          UpdateWindow();
+          usleep(500000);
+          SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 0); // Reset cancel (even if not selected)
+          printf("Returning to MENU 4 from Menu 30\n");
+          CurrentMenu=4;
+          BackgroundRGB(63, 63, 127, 255);
+          Start_Highlights_Menu4();
+          UpdateWindow();
+          break;
+        case 0:
+        case 1:
+        case 2:
+        case 3:
+        case 5:
+        case 6:
+        case 7:
+        case 8:
+        case 9:
+          printf("Changing Vid Band to Button %d\n", i);
+          ChangeVidBand(i);
+          CurrentMenu=4;
+          BackgroundRGB(63, 63, 127, 255);
+          Start_Highlights_Menu4();
+          UpdateWindow();
+          break;
+        default:
+          printf("Menu 30 Error\n");
+        }
+        // stay in Menu 30 to set another band
+        continue;
+      }
+
+      if (CurrentMenu == 31)  // Menu 31 Change Beacon/site details
+      {
+        printf("Button Event %d, Entering Menu 31 Case Statement\n",i);
+        AmendBeacon(i);
+        // No exit button, so go straight to menu 3
+        printf("Completed band/site change, going to Menu 3 %d\n", i);
+        CurrentMenu=3;
+        BackgroundRGB(0, 0, 0, 255);
+        Start_Highlights_Menu3();
+        UpdateWindow();
+        continue;   // Completed Menu 33 action, go and wait for touch
+      }
+
+ 
       if (CurrentMenu == 32)  // Menu 32 Select and Change ADF Reference Frequency
       {
         printf("Button Event %d, Entering Menu 32 Case Statement\n",i);
@@ -7367,6 +8801,7 @@ void waituntil(int w,int h)
           Start_Highlights_Menu1();
           UpdateWindow();
           break;
+        case 0:
         case 5:
         case 6:
         case 7:
@@ -7731,6 +9166,16 @@ void Start_Highlights_Menu1()
     case 3:strcpy(FECtext, "  FEC  ^  3/4 ") ;break;
     case 5:strcpy(FECtext, "  FEC  ^  5/6 ") ;break;
     case 7:strcpy(FECtext, "  FEC  ^  7/8 ") ;break;
+    case 14:strcpy(FECtext, "  FEC  ^  1/4 ") ;break;
+    case 13:strcpy(FECtext, "  FEC  ^  1/3 ") ;break;
+    case 12:strcpy(FECtext, "  FEC  ^  1/2 ") ;break;
+    case 35:strcpy(FECtext, "  FEC  ^  3/5 ") ;break;
+    case 23:strcpy(FECtext, "  FEC  ^  2/3 ") ;break;
+    case 34:strcpy(FECtext, "  FEC  ^  3/4 ") ;break;
+    case 56:strcpy(FECtext, "  FEC  ^  5/6 ") ;break;
+    case 89:strcpy(FECtext, "  FEC  ^  8/9 ") ;break;
+    case 91:strcpy(FECtext, "  FEC  ^  9/10 ") ;break;
+    default:strcpy(FECtext, "  FEC  ^Error") ;break;
   }
   AmendButtonStatus(12, 0, FECtext, &Blue);
   AmendButtonStatus(12, 1, FECtext, &Green);
@@ -7784,13 +9229,17 @@ void Start_Highlights_Menu1()
 
   // Level, Button 14
   char Leveltext[15];
-  if (strcmp(CurrentModeOP, "DATVEXPRESS") != 0)
+  if (strcmp(CurrentModeOP, TabModeOP[2]) == 0)  // DATV Express
   {
-    snprintf(Leveltext, 20, "Att Level^%.2f", TabBandAttenLevel[CurrentBand]);
+    snprintf(Leveltext, 20, "Exp Level^%d", TabBandExpLevel[CurrentBand]);
+  }
+  else if (strcmp(CurrentModeOP, TabModeOP[8]) == 0)  // Lime
+  {
+    snprintf(Leveltext, 20, "Lime Gain^%d", TabBandLimeGain[CurrentBand]);
   }
   else
   {
-    snprintf(Leveltext, 20, "Exp Level^%d", TabBandExpLevel[CurrentBand]);
+    snprintf(Leveltext, 20, "Att Level^%.2f", TabBandAttenLevel[CurrentBand]);
   }
   AmendButtonStatus(14, 0, Leveltext, &Blue);
   AmendButtonStatus(14, 1, Leveltext, &Green);
@@ -7882,13 +9331,11 @@ void Define_Menu2()
 
   // 2nd Row, Menu 2
 
-  //button = CreateButton(2, 5);
-  //AddButtonStatus(button, "Receive^144.75", &Blue);
-  //AddButtonStatus(button, " ", &Green);
+  button = CreateButton(2, 5);
+  AddButtonStatus(button, "Locator^Bearings", &Blue);
 
-  //button = CreateButton(2, 6);
-  //AddButtonStatus(button, "Receive^145.8", &Blue);
-  //AddButtonStatus(button, " ", &Green);
+  button = CreateButton(2, 6);
+  AddButtonStatus(button, "Sites/Bcns^Bearings", &Blue);
 
   //button = CreateButton(2, 7);
   //AddButtonStatus(button, " ", &Blue);
@@ -7986,7 +9433,12 @@ void Define_Menu3()
   button = CreateButton(3, 0);
   AddButtonStatus(button, "Check for^Update", &Blue);
 
-  // 4th line up Menu 3: Band Details, Preset Freqs, Preset SRs
+  // 3rd line up Menu 3: Amend Sites/Beacons, 
+
+  button = CreateButton(3, 10);
+  AddButtonStatus(button, "Amend^Sites/Bcns", &Blue);
+
+  // 4th line up Menu 3: Band Details, Preset Freqs, Preset SRs, Call and ADFRef
 
   button = CreateButton(3, 15);
   AddButtonStatus(button, "Set Band^Details", &Blue);
@@ -8022,6 +9474,108 @@ void Start_Highlights_Menu3()
   //char Param[255];
   //char Value[255];
   //int STD=1;
+}
+
+void Define_Menu4()
+{
+  int button;
+  color_t Green;
+  color_t Blue;
+  color_t Grey;
+  color_t LBlue;
+  color_t DBlue;
+  color_t Red;
+  Green.r=0; Green.g=128; Green.b=0;
+  Blue.r=0; Blue.g=0; Blue.b=128;
+  Grey.r=127; Grey.g=127; Grey.b=127;
+  LBlue.r=64; LBlue.g=64; LBlue.b=192;
+  DBlue.r=0; DBlue.g=0; DBlue.b=64;
+  Red.r=255; Red.g=0; Red.b=0;
+
+  strcpy(MenuTitle[4], "Composite Video Output Menu (4)"); 
+
+  // Bottom Row, Menu 4
+  //button = CreateButton(4, 0);
+  //AddButtonStatus(button, TabVidSource[5], &Blue);
+  //AddButtonStatus(button, TabVidSource[5], &Green);
+  //AddButtonStatus(button, TabVidSource[5], &Grey);
+
+  //button = CreateButton(4, 1);
+  //AddButtonStatus(button, TabVidSource[6], &Blue);
+  //AddButtonStatus(button, TabVidSource[6], &Green);
+  //AddButtonStatus(button, TabVidSource[6], &Grey);
+
+  //button = CreateButton(4, 2);
+  //AddButtonStatus(button, TabVidSource[7], &Blue);
+  //AddButtonStatus(button, TabVidSource[7], &Green);
+  //AddButtonStatus(button, TabVidSource[7], &Grey);
+
+  // 2nd Row, Menu 4
+
+  button = CreateButton(4, 5);
+  AddButtonStatus(button, TabVidSource[0], &Blue);
+  AddButtonStatus(button, TabVidSource[0], &Green);
+  AddButtonStatus(button, TabVidSource[0], &Grey);
+
+  //button = CreateButton(4, 6);
+  //AddButtonStatus(button, TabVidSource[1], &Blue);
+  //AddButtonStatus(button, TabVidSource[1], &Green);
+  //AddButtonStatus(button, TabVidSource[1], &Grey);
+
+  // Temporary entry to put buttons in a line
+  button = CreateButton(4, 6);
+  AddButtonStatus(button, TabVidSource[5], &Blue);
+  AddButtonStatus(button, TabVidSource[5], &Green);
+  AddButtonStatus(button, TabVidSource[5], &Grey);
+
+  button = CreateButton(4, 7);
+  AddButtonStatus(button, TabVidSource[2], &Blue);
+  AddButtonStatus(button, TabVidSource[2], &Green);
+  AddButtonStatus(button, TabVidSource[2], &Grey);
+
+  button = CreateButton(4, 8);
+  AddButtonStatus(button, TabVidSource[3], &Blue);
+  AddButtonStatus(button, TabVidSource[3], &Green);
+  AddButtonStatus(button, TabVidSource[3], &Grey);
+
+  button = CreateButton(4, 9);
+  AddButtonStatus(button, TabVidSource[4], &Blue);
+  AddButtonStatus(button, TabVidSource[4], &Green);
+  AddButtonStatus(button, TabVidSource[4], &Grey);
+
+  // 3rd Row, Menu 4
+
+  button = CreateButton(4, 13);
+  AddButtonStatus(button, "Band^", &Blue);
+  AddButtonStatus(button, "Band^", &Green);
+
+  // Top of Menu 4
+
+  button = CreateButton(4, 20);
+  AddButtonStatus(button,"PTT", &Blue);
+  AddButtonStatus(button,"PTT ON", &Red);
+
+  button = CreateButton(4, 22);
+  AddButtonStatus(button," Exit ", &DBlue);
+  AddButtonStatus(button," Exit ", &LBlue);
+}
+
+void Start_Highlights_Menu4()
+{
+  color_t Green;
+  color_t Blue;
+  Green.r=0; Green.g=96; Green.b=0;
+  Blue.r=0; Blue.g=0; Blue.b=128;
+
+  char CompVidBandText[256];
+
+  // Display the Comp Vid Band
+  strcpy(CompVidBandText, "Band^");
+  strcat(CompVidBandText, TabBandLabel[CompVidBand]);
+  AmendButtonStatus(ButtonNumber(4, 13), 0, CompVidBandText, &Blue);
+  AmendButtonStatus(ButtonNumber(4, 13), 1, CompVidBandText, &Green);
+
+  SelectInGroupOnMenu(4, 20, 20, 20, VidPTT);
 }
 
 void Define_Menu6()
@@ -8230,10 +9784,12 @@ void Define_Menu11()
   int button;
   color_t Green;
   color_t Blue;
+  color_t Grey;
   color_t LBlue;
   color_t DBlue;
   Green.r=0; Green.g=128; Green.b=0;
   Blue.r=0; Blue.g=0; Blue.b=128;
+  Grey.r=127; Grey.g=127; Grey.b=127;
   LBlue.r=64; LBlue.g=64; LBlue.b=192;
   DBlue.r=0; DBlue.g=0; DBlue.b=64;
 
@@ -8244,6 +9800,26 @@ void Define_Menu11()
   button = CreateButton(11, 4);
   AddButtonStatus(button, "Cancel", &DBlue);
   AddButtonStatus(button, "Cancel", &LBlue);
+
+  button = CreateButton(11, 0);
+  AddButtonStatus(button, TabTXMode[2], &Blue);
+  AddButtonStatus(button, TabTXMode[2], &Green);
+  AddButtonStatus(button, TabTXMode[2], &Grey);
+
+  button = CreateButton(11, 1);
+  AddButtonStatus(button, TabTXMode[3], &Blue);
+  AddButtonStatus(button, TabTXMode[3], &Green);
+  AddButtonStatus(button, TabTXMode[3], &Grey);
+
+  button = CreateButton(11, 2);
+  AddButtonStatus(button, TabTXMode[4], &Blue);
+  AddButtonStatus(button, TabTXMode[4], &Green);
+  AddButtonStatus(button, TabTXMode[4], &Grey);
+
+  button = CreateButton(11, 3);
+  AddButtonStatus(button, TabTXMode[5], &Blue);
+  AddButtonStatus(button, TabTXMode[5], &Green);
+  AddButtonStatus(button, TabTXMode[5], &Grey);
 
   // 2nd Row, Menu 11
 
@@ -8262,14 +9838,38 @@ void Start_Highlights_Menu11()
   char vsource[256];
   ReadModeInput(vcoding, vsource);
 
+  GreyOutReset11();
   if(strcmp(CurrentTXMode, TabTXMode[0])==0)
   {
     SelectInGroupOnMenu(11, 5, 6, 5, 1);
+    SelectInGroupOnMenu(11, 0, 3, 5, 1);
   }
   if(strcmp(CurrentTXMode, TabTXMode[1])==0)
   {
     SelectInGroupOnMenu(11, 5, 6, 6, 1);
+    SelectInGroupOnMenu(11, 0, 3, 6, 1);
   }
+  if(strcmp(CurrentTXMode, TabTXMode[2])==0)
+  {
+    SelectInGroupOnMenu(11, 5, 6, 0, 1);
+    SelectInGroupOnMenu(11, 0, 3, 0, 1);
+  }
+  if(strcmp(CurrentTXMode, TabTXMode[3])==0)
+  {
+    SelectInGroupOnMenu(11, 5, 6, 1, 1);
+    SelectInGroupOnMenu(11, 0, 3, 1, 1);
+  }
+  if(strcmp(CurrentTXMode, TabTXMode[4])==0)
+  {
+    SelectInGroupOnMenu(11, 5, 6, 2, 1);
+    SelectInGroupOnMenu(11, 0, 3, 2, 1);
+  }
+  if(strcmp(CurrentTXMode, TabTXMode[5])==0)
+  {
+    SelectInGroupOnMenu(11, 5, 6, 3, 1);
+    SelectInGroupOnMenu(11, 0, 3, 3, 1);
+  }
+  GreyOut11();
 }
 
 void Define_Menu12()
@@ -8340,10 +9940,12 @@ void Define_Menu13()
   int button;
   color_t Green;
   color_t Blue;
+  color_t Grey;
   color_t LBlue;
   color_t DBlue;
   Green.r=0; Green.g=128; Green.b=0;
   Blue.r=0; Blue.g=0; Blue.b=128;
+  Grey.r=127; Grey.g=127; Grey.b=127;
   LBlue.r=64; LBlue.g=64; LBlue.b=192;
   DBlue.r=0; DBlue.g=0; DBlue.b=64;
 
@@ -8366,6 +9968,11 @@ void Define_Menu13()
   button = CreateButton(13, 2);
   AddButtonStatus(button, TabModeOPtext[7], &Blue);
   AddButtonStatus(button, TabModeOPtext[7], &Green);
+
+  button = CreateButton(13, 3);
+  AddButtonStatus(button, TabModeOPtext[8], &Blue);
+  AddButtonStatus(button, TabModeOPtext[8], &Green);
+  AddButtonStatus(button, TabModeOPtext[8], &Grey);
 
   // 2nd Row, Menu 13
 
@@ -8392,6 +9999,7 @@ void Define_Menu13()
 
 void Start_Highlights_Menu13()
 {
+  GreyOutReset13();
   if(strcmp(CurrentModeOP, TabModeOP[0]) == 0)
   {
     SelectInGroupOnMenu(13, 5, 9, 5, 1);
@@ -8432,6 +10040,12 @@ void Start_Highlights_Menu13()
     SelectInGroupOnMenu(13, 5, 9, 2, 1);
     SelectInGroupOnMenu(13, 0, 2, 2, 1);
   }
+  if(strcmp(CurrentModeOP, TabModeOP[8]) == 0)
+  {
+    SelectInGroupOnMenu(13, 5, 9, 2, 1);
+    SelectInGroupOnMenu(13, 0, 3, 3, 1);
+  }
+  GreyOut13();
 }
 
 void Define_Menu14()
@@ -9304,6 +10918,132 @@ void Start_Highlights_Menu24()
   }
 }
 
+void Define_Menu25()
+{
+  int button;
+  color_t Green;
+  color_t Blue;
+  color_t LBlue;
+  color_t DBlue;
+  color_t Grey;
+  Green.r=0; Green.g=128; Green.b=0;
+  Blue.r=0; Blue.g=0; Blue.b=128;
+  LBlue.r=64; LBlue.g=64; LBlue.b=192;
+  DBlue.r=0; DBlue.g=0; DBlue.b=64;
+  Grey.r=127; Grey.g=127; Grey.b=127;
+
+  strcpy(MenuTitle[25], "DVB-S2 FEC Selection Menu (25)"); 
+
+  // Bottom Row, Menu 25
+
+  button = CreateButton(25, 4);
+  AddButtonStatus(button, "Cancel", &DBlue);
+  AddButtonStatus(button, "Cancel", &LBlue);
+
+  button = CreateButton(25, 0);
+  AddButtonStatus(button,"FEC 3/4",&Blue);
+  AddButtonStatus(button,"FEC 3/4",&Green);
+  AddButtonStatus(button,"FEC 3/4",&Grey);
+
+  button = CreateButton(25, 1);
+  AddButtonStatus(button,"FEC 5/6",&Blue);
+  AddButtonStatus(button,"FEC 5/6",&Green);
+  AddButtonStatus(button,"FEC 5/6",&Grey);
+
+  button = CreateButton(25, 2);
+  AddButtonStatus(button,"FEC 8/9",&Blue);
+  AddButtonStatus(button,"FEC 8/9",&Green);
+  AddButtonStatus(button,"FEC 8/9",&Grey);
+
+  button = CreateButton(25, 3);
+  AddButtonStatus(button,"FEC 9/10",&Blue);
+  AddButtonStatus(button,"FEC 9/10",&Green);
+  AddButtonStatus(button,"FEC 9/10",&Grey);
+
+  // 2nd Row, Menu 25
+
+  button = CreateButton(25, 5);
+  AddButtonStatus(button,"FEC 1/4",&Blue);
+  AddButtonStatus(button,"FEC 1/4",&Green);
+  AddButtonStatus(button,"FEC 1/4",&Grey);
+
+  button = CreateButton(25, 6);
+  AddButtonStatus(button,"FEC 1/3",&Blue);
+  AddButtonStatus(button,"FEC 1/3",&Green);
+  AddButtonStatus(button,"FEC 1/3",&Grey);
+
+  button = CreateButton(25, 7);
+  AddButtonStatus(button,"FEC 1/2",&Blue);
+  AddButtonStatus(button,"FEC 1/2",&Green);
+  AddButtonStatus(button,"FEC 1/2",&Grey);
+
+  button = CreateButton(25, 8);
+  AddButtonStatus(button,"FEC 3/5",&Blue);
+  AddButtonStatus(button,"FEC 3/5",&Green);
+  AddButtonStatus(button,"FEC 3/5",&Grey);
+
+  button = CreateButton(25, 9);
+  AddButtonStatus(button,"FEC 2/3",&Blue);
+  AddButtonStatus(button,"FEC 2/3",&Green);
+  AddButtonStatus(button,"FEC 2/3",&Grey);
+}
+
+void Start_Highlights_Menu25()
+{
+  // DVB-S2 FEC
+  char Param[255];
+  char Value[255];
+  int fec;
+
+  strcpy(Param,"fec");
+  strcpy(Value,"");
+  GetConfigParam(PATH_PCONFIG,Param,Value);
+  printf("Value=%s %s\n",Value,"Fec");
+  fec=atoi(Value);
+  GreyOutReset25();  // Un-grey all FECs
+  switch(fec)
+  {
+    case 14:
+      SelectInGroupOnMenu(25, 5, 9, 5, 1);
+      SelectInGroupOnMenu(25, 0, 3, 5, 1);
+      break;
+    case 13:
+      SelectInGroupOnMenu(25, 5, 9, 6, 1);
+      SelectInGroupOnMenu(25, 0, 3, 6, 1);
+      break;
+    case 12:
+      SelectInGroupOnMenu(25, 5, 9, 7, 1);
+      SelectInGroupOnMenu(25, 0, 3, 7, 1);
+      break;
+    case 35:
+      SelectInGroupOnMenu(25, 5, 9, 8, 1);
+      SelectInGroupOnMenu(25, 0, 3, 8, 1);
+      break;
+    case 23:
+      SelectInGroupOnMenu(25, 5, 9, 9, 1);
+      SelectInGroupOnMenu(25, 0, 3, 9, 1);
+      break;
+    case 34:
+      SelectInGroupOnMenu(25, 5, 9, 0, 1);
+      SelectInGroupOnMenu(25, 0, 3, 0, 1);
+      break;
+    case 56:
+      SelectInGroupOnMenu(25, 5, 9, 1, 1);
+      SelectInGroupOnMenu(25, 0, 3, 1, 1);
+      break;
+    case 89:
+      SelectInGroupOnMenu(25, 5, 9, 2, 1);
+      SelectInGroupOnMenu(25, 0, 3, 2, 1);
+      break;
+    case 91:
+      SelectInGroupOnMenu(25, 5, 9, 3, 1);
+      SelectInGroupOnMenu(25, 0, 3, 3, 1);
+      break;
+  }
+  GreyOut25();  // Grey out illegal FECs
+}
+
+
 void Define_Menu26()
 {
   int button;
@@ -9615,6 +11355,113 @@ void Start_Highlights_Menu29()
   AmendButtonStatus(ButtonNumber(29, 3), 0, Buttext, &Grey);
 }
 
+void Define_Menu30()
+{
+  int button;
+  color_t Green;
+  color_t Blue;
+  color_t LBlue;
+  Green.r=0; Green.g=128; Green.b=0;
+  Blue.r=0; Blue.g=0; Blue.b=128;
+  LBlue.r=64; LBlue.g=64; LBlue.b=192;
+  char BandLabel[31];
+
+  strcpy(MenuTitle[30], "Comp Video Band Selection Menu (30)"); 
+
+  // Bottom Row, Menu 30
+
+  button = CreateButton(30, 0);
+  AddButtonStatus(button, TabBandLabel[5], &Blue);
+  AddButtonStatus(button, TabBandLabel[5], &Green);
+
+  button = CreateButton(30, 1);
+  AddButtonStatus(button, TabBandLabel[6], &Blue);
+  AddButtonStatus(button, TabBandLabel[6], &Green);
+
+  button = CreateButton(30, 2);
+  AddButtonStatus(button, TabBandLabel[7], &Blue);
+  AddButtonStatus(button, TabBandLabel[7], &Green);
+
+  button = CreateButton(30, 3);
+  strcpy(BandLabel, "Transvtr^");
+  strcat(BandLabel, TabBandLabel[8]);
+  AddButtonStatus(button, TabBandLabel[8], &Blue);
+  AddButtonStatus(button, TabBandLabel[8], &Green);
+
+  button = CreateButton(30, 4);
+  AddButtonStatus(button, "Exit", &Blue);
+  AddButtonStatus(button, "Exit", &LBlue);
+
+  // 2nd Row, Menu 30
+
+  button = CreateButton(30, 5);
+  AddButtonStatus(button, TabBandLabel[0], &Blue);
+  AddButtonStatus(button, TabBandLabel[0], &Green);
+
+  button = CreateButton(30, 6);
+  AddButtonStatus(button, TabBandLabel[1], &Blue);
+  AddButtonStatus(button, TabBandLabel[1], &Green);
+
+  button = CreateButton(30, 7);
+  AddButtonStatus(button, TabBandLabel[2], &Blue);
+  AddButtonStatus(button, TabBandLabel[2], &Green);
+
+  button = CreateButton(30, 8);
+  AddButtonStatus(button, TabBandLabel[3], &Blue);
+  AddButtonStatus(button, TabBandLabel[3], &Green);
+
+  button = CreateButton(30, 9);
+  AddButtonStatus(button, TabBandLabel[4], &Blue);
+  AddButtonStatus(button, TabBandLabel[4], &Green);
+}
+
+void Start_Highlights_Menu30()
+{
+  // Set Band for Comp Vid out Contest Captions
+
+  printf("Entering Start Highlights Menu30\n");
+
+  SelectInGroupOnMenu(CurrentMenu, 5, 9, CompVidBand + 5, 1);
+  SelectInGroupOnMenu(CurrentMenu, 0, 3, CompVidBand + 5, 1);
+  if (CompVidBand > 4) // Bottom row selected
+  {
+    SelectInGroupOnMenu(CurrentMenu, 0, 3, CompVidBand - 5, 1);
+    SelectInGroupOnMenu(CurrentMenu, 5, 9, CompVidBand - 5, 1);
+  }
+}
+
+void Define_Menu31()
+{
+  int button;
+  color_t Blue;
+  Blue.r=0; Blue.g=0; Blue.b=128;
+  int i;
+  int j;
+  char Param[15];
+  char DispName[10][20];
+
+  strcpy(MenuTitle[31], "Amend Site Name and Locator (31)"); 
+  
+  for(i = 0; i < 10 ;i++)
+  {
+    sprintf(Param, "bcallsign%d", i);
+    GetConfigParam(PATH_LOCATORS, Param, DispName[i]);
+    DispName[i][8] = '\0';
+    j = i + 5;
+    if (i > 4)
+    {
+      j = i - 5;
+    }
+    button = CreateButton(31, j);
+    AddButtonStatus(button, DispName[i], &Blue);
+  }
+}
+
+void Start_Highlights_Menu31()
+{
+  //
+}
+
 void Define_Menu32()
 {
   int button;
@@ -9733,6 +11580,13 @@ void Define_Menu33()
 
   // Bottom Row, Menu 33
 
+  if ((CheckLimeInstalled() == 1) && (GetLinuxVer() == 9))
+  {
+    button = CreateButton(33, 0);
+    AddButtonStatus(button, "Install^Lime Mini", &Blue);
+    AddButtonStatus(button, "Install^Lime Mini", &Green);
+  }
+
   button = CreateButton(33, 4);
   AddButtonStatus(button, "Exit", &DBlue);
   AddButtonStatus(button, "Exit", &LBlue);
@@ -9763,6 +11617,11 @@ void Start_Highlights_Menu33()
   Red.r=128; Red.g=0; Red.b=0;
   Grey.r=127; Grey.g=127; Grey.b=127;
 
+  if ((ButtonArray[ButtonNumber(CurrentMenu, 0)].IndexStatus > 0) && (CheckLimeInstalled() == 0))  // Lime was not installed, but now is
+  {
+    AmendButtonStatus(ButtonNumber(33, 0), 0, "Lime Mini^Installed", &Grey);
+  }
+
   if (strcmp(UpdateStatus, "NotAvailable") == 0)
   {
     AmendButtonStatus(ButtonNumber(33, 5), 0, " ", &Grey);
@@ -9792,10 +11651,8 @@ void Start_Highlights_Menu33()
 void Define_Menu41()
 {
   int button;
-  //color_t Green;
   color_t Blue;
   color_t LBlue;
-  //Green.r=0; Green.g=128; Green.b=0;
   Blue.r=0; Blue.g=0; Blue.b=128;
   LBlue.r=64; LBlue.g=64; LBlue.b=192;
 
@@ -10198,6 +12055,7 @@ int main(int argc, char **argv)
   Define_Menu1();
   Define_Menu2();
   Define_Menu3();
+  Define_Menu4();
 
   Define_Menu6();
 
@@ -10215,23 +12073,26 @@ int main(int argc, char **argv)
   Define_Menu22();
   Define_Menu23();
   Define_Menu24();
+  Define_Menu25();
   Define_Menu26();
   Define_Menu27();
   Define_Menu28();
   Define_Menu29();
-  //Define_Menu30();
-  //Define_Menu31();
+  Define_Menu30();
+  Define_Menu31();
   Define_Menu32();
   Define_Menu33();
 
   Define_Menu41();
-
 
   // Start the button Menu
   Start(wscreen,hscreen);
 
   // Check if DATV Express Server required and, if so, start it
   CheckExpress();
+
+  // Check Lime connected if selected
+  CheckLimeReady();
 
   // Set the Band (and filter) Switching
   // Must be done after (not before) starting DATV Express Server

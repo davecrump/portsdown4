@@ -1,3 +1,12 @@
+201805150
+Added new menu for Composite Video Output
+More test cards and all video snaps available from video output
+Sound pass-through for Comp Video out is routed to USB Audio
+RTL-FM audio is routed to USB Audio if present (else RPi audio)
+SnapView modified to access all video snaps
+Added Locator range and bearing calculator
+Menu modifications in preparation for future LimeSDR Mini support
+
 201804250
 Adds comprehensive RTL_FM voice receiver (see Menu 2)
 Corrects Testrig for Stretch build

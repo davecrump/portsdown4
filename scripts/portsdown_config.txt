@@ -1,3 +1,4 @@
+modulation=DVB-S
 modeinput=DESKTOP
 modeoutput=QPSKRF
 freqoutput=437
@@ -7,7 +8,8 @@ band=d3
 labelofband=70_cm
 attenlevel=-10.0
 explevel=30
-expports=4
+limegain=90
+expports=3
 rfpower=7
 analogcamname=auto
 analogcaminput=0
