@@ -4,7 +4,7 @@ LIBFLAGS=-L/opt/vc/lib -lbrcmEGL -lbrcmGLESv2 -ljpeg
 FONTLIB=/usr/share/fonts/truetype/ttf-dejavu
 FONTFILES=DejaVuSans.inc  DejaVuSansMono.inc DejaVuSerif.inc
 FFT_C = ./hello_fft/mailbox.c ./hello_fft/gpu_fft.c ./hello_fft/gpu_fft_base.c ./hello_fft/gpu_fft_twiddles.c ./hello_fft/gpu_fft_shaders.c
-all:	font2openvg fonts library rpidatvtouch tcanim	
+all:	font2openvg fonts library rpidatvtouch tcanim tcanim1v16
 
 libshapes.o:	libshapes.c shapes.h fontinfo.h fonts 
 	gcc -O2 -Wall $(INCLUDEFLAGS) -c libshapes.c
@@ -46,10 +46,14 @@ rpidatvtouch: rpidatvtouch.c
 tcanim: tcanim.c
 	gcc -Wall $(INCLUDEFLAGS2) -o  tcanim tcanim.c  libshapes.o oglinit.o $(LIBFLAGS2)
 
+tcanim1v16: tcanim1v16.c
+	gcc -Wall $(INCLUDEFLAGS2) -o  tcanim1v16 tcanim1v16.c  libshapes.o oglinit.o $(LIBFLAGS2)
+
 install:
 	install -m 755 -p font2openvg /usr/bin/
 	cp rpidatvgui ../../bin/
 	cp tcanim ../../bin
+	cp tcanim1v16 ../../bin
 	install -m 755 -p libshapes.so /usr/lib/libshapes.so.1.0.0
 	strip --strip-unneeded /usr/lib/libshapes.so.1.0.0
 	ln -f -s /usr/lib/libshapes.so.1.0.0 /usr/lib/libshapes.so
