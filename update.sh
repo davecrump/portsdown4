@@ -163,20 +163,20 @@ fi
 
 if ! grep -q d1limegain /home/pi/rpidatv/scripts/portsdown_presets.txt; then
   # File needs updating
-  printf "Adding new entries to user's portsdown_config.txt\n"
+  printf "Adding new entries to user's portsdown_presets.txt\n"
   # Delete any blank lines
-  sed -i -e '$a\' /home/pi/rpidatv/scripts/portsdown_config.txt
+  sed -i -e '$a\' /home/pi/rpidatv/scripts/portsdown_presets.txt
   # Add the 9 new entries and a new line 
-  echo "d1limegain=90" >> /home/pi/rpidatv/scripts/portsdown_config.txt
-  echo "d2limegain=90" >> /home/pi/rpidatv/scripts/portsdown_config.txt
-  echo "d3limegain=90" >> /home/pi/rpidatv/scripts/portsdown_config.txt
-  echo "d4limegain=90" >> /home/pi/rpidatv/scripts/portsdown_config.txt
-  echo "d5limegain=90" >> /home/pi/rpidatv/scripts/portsdown_config.txt
-  echo "t1limegain=90" >> /home/pi/rpidatv/scripts/portsdown_config.txt
-  echo "t2limegain=90" >> /home/pi/rpidatv/scripts/portsdown_config.txt
-  echo "t3limegain=90" >> /home/pi/rpidatv/scripts/portsdown_config.txt
-  echo "t4limegain=90" >> /home/pi/rpidatv/scripts/portsdown_config.txt
-  echo "" >> /home/pi/rpidatv/scripts/portsdown_config.txt
+  echo "d1limegain=90" >> /home/pi/rpidatv/scripts/portsdown_presets.txt
+  echo "d2limegain=90" >> /home/pi/rpidatv/scripts/portsdown_presets.txt
+  echo "d3limegain=90" >> /home/pi/rpidatv/scripts/portsdown_presets.txt
+  echo "d4limegain=90" >> /home/pi/rpidatv/scripts/portsdown_presets.txt
+  echo "d5limegain=90" >> /home/pi/rpidatv/scripts/portsdown_presets.txt
+  echo "t1limegain=90" >> /home/pi/rpidatv/scripts/portsdown_presets.txt
+  echo "t2limegain=90" >> /home/pi/rpidatv/scripts/portsdown_presets.txt
+  echo "t3limegain=90" >> /home/pi/rpidatv/scripts/portsdown_presets.txt
+  echo "t4limegain=90" >> /home/pi/rpidatv/scripts/portsdown_presets.txt
+  echo "" >> /home/pi/rpidatv/scripts/portsdown_presets.txt
 fi
 
 # Load new .bashrc to source the startup script at boot and log-on (201704160)
