@@ -37,6 +37,12 @@ cp -f -r /home/pi/rpidatv/src/siggen/siggencal.txt /home/pi/siggencal.txt
 # Make a safe copy of touchcal.txt if required
 cp -f -r /home/pi/rpidatv/scripts/touchcal.txt /home/pi/touchcal.txt
 
+# Make a safe copy of rtl-fm_presets.txt if required
+cp -f -r /home/pi/rpidatv/scripts/rtl-fm_presets.txt /home/pi/rtl-fm_presets.txt
+
+# Make a safe copy of portsdown_locators.txt if required
+cp -f -r /home/pi/rpidatv/scripts/portsdown_locators.txt /home/pi/portsdown_locators.txt
+
 # Delete any old update message image  201802040
 rm /home/pi/tmp/update.jpg >/dev/null 2>/dev/null
 
@@ -144,6 +150,35 @@ cp -f -r /home/pi/portsdown_presets.txt /home/pi/rpidatv/scripts/portsdown_prese
 rm -f /home/pi/portsdown_config.txt
 rm -f /home/pi/portsdown_presets.txt
 
+if ! grep -q modulation /home/pi/rpidatv/scripts/portsdown_config.txt; then
+  # File needs updating
+  printf "Adding new entries to user's portsdown_config.txt\n"
+  # Delete any blank lines
+  sed -i -e '$a\' /home/pi/rpidatv/scripts/portsdown_config.txt
+  # Add the 2 new entries and a new line 
+  echo "modulation=DVB-S" >> /home/pi/rpidatv/scripts/portsdown_config.txt
+  echo "limegain=90" >> /home/pi/rpidatv/scripts/portsdown_config.txt
+  echo "" >> /home/pi/rpidatv/scripts/portsdown_config.txt
+fi
+
+if ! grep -q d1limegain /home/pi/rpidatv/scripts/portsdown_presets.txt; then
+  # File needs updating
+  printf "Adding new entries to user's portsdown_presets.txt\n"
+  # Delete any blank lines
+  sed -i -e '$a\' /home/pi/rpidatv/scripts/portsdown_presets.txt
+  # Add the 9 new entries and a new line 
+  echo "d1limegain=90" >> /home/pi/rpidatv/scripts/portsdown_presets.txt
+  echo "d2limegain=90" >> /home/pi/rpidatv/scripts/portsdown_presets.txt
+  echo "d3limegain=90" >> /home/pi/rpidatv/scripts/portsdown_presets.txt
+  echo "d4limegain=90" >> /home/pi/rpidatv/scripts/portsdown_presets.txt
+  echo "d5limegain=90" >> /home/pi/rpidatv/scripts/portsdown_presets.txt
+  echo "t1limegain=90" >> /home/pi/rpidatv/scripts/portsdown_presets.txt
+  echo "t2limegain=90" >> /home/pi/rpidatv/scripts/portsdown_presets.txt
+  echo "t3limegain=90" >> /home/pi/rpidatv/scripts/portsdown_presets.txt
+  echo "t4limegain=90" >> /home/pi/rpidatv/scripts/portsdown_presets.txt
+  echo "" >> /home/pi/rpidatv/scripts/portsdown_presets.txt
+fi
+
 # Load new .bashrc to source the startup script at boot and log-on (201704160)
 cp -f /home/pi/rpidatv/scripts/configs/startup.bashrc /home/pi/.bashrc
 
@@ -193,6 +228,16 @@ if [ -f "/home/pi/touchcal.txt" ]; then
   cp -f -r /home/pi/touchcal.txt /home/pi/rpidatv/scripts/touchcal.txt
 fi
 
+# Restore the user's original rtl-fm_presets.txt if required
+if [ -f "/home/pi/rtl-fm_presets.txt" ]; then
+  cp -f -r /home/pi/rtl-fm_presets.txt /home/pi/rpidatv/scripts/rtl-fm_presets.txt
+fi
+
+# Restore the user's original portsdown_locators.txt if required
+if [ -f "/home/pi/portsdown_locators.txt" ]; then
+  cp -f -r /home/pi/touchcal.txt /home/pi/rpidatv/scripts/portsdown_locators.txt
+fi
+
 DisplayUpdateMsg "Step 9 of 10\nInstalling FreqShow SW\n\nXXXXXXXXX-"
 
 # Downgrade the sdl version so FreqShow works
@@ -219,7 +264,7 @@ rm -rf /home/pi/prev_installed_version.txt
 # Reboot
 DisplayUpdateMsg "Step 10 of 10\nRebooting\n\nXXXXXXXXXX"
 printf "\nRebooting\n"
-sleep 2
+sleep 1
 sudo reboot now
 
 exit
