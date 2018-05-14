@@ -230,7 +230,7 @@ fi
 
 # Restore the user's original rtl-fm_presets.txt if required
 if [ -f "/home/pi/rtl-fm_presets.txt" ]; then
-  cp -f -r /home/pi/rtl-fm_presets.txt /home/pi/rpidatv/src/rtl-fm_presets.txt
+  cp -f -r /home/pi/rtl-fm_presets.txt /home/pi/rpidatv/scripts/rtl-fm_presets.txt
 fi
 
 # Restore the user's original portsdown_locators.txt if required
