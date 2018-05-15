@@ -154,7 +154,7 @@ if ! grep -q modulation /home/pi/rpidatv/scripts/portsdown_config.txt; then
   # File needs updating
   printf "Adding new entries to user's portsdown_config.txt\n"
   # Delete any blank lines
-  sed -i -e '$a\' /home/pi/rpidatv/scripts/portsdown_config.txt
+  sed -i -e '/^$/d' /home/pi/rpidatv/scripts/portsdown_config.txt
   # Add the 2 new entries and a new line 
   echo "modulation=DVB-S" >> /home/pi/rpidatv/scripts/portsdown_config.txt
   echo "limegain=90" >> /home/pi/rpidatv/scripts/portsdown_config.txt
@@ -165,7 +165,7 @@ if ! grep -q d1limegain /home/pi/rpidatv/scripts/portsdown_presets.txt; then
   # File needs updating
   printf "Adding new entries to user's portsdown_presets.txt\n"
   # Delete any blank lines
-  sed -i -e '$a\' /home/pi/rpidatv/scripts/portsdown_presets.txt
+  sed -i -e '/^$/d' /home/pi/rpidatv/scripts/portsdown_presets.txt
   # Add the 9 new entries and a new line 
   echo "d1limegain=90" >> /home/pi/rpidatv/scripts/portsdown_presets.txt
   echo "d2limegain=90" >> /home/pi/rpidatv/scripts/portsdown_presets.txt
