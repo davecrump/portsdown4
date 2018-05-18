@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Updated by davecrump 201804021
+# Updated by davecrump 201805150
 
 DisplayUpdateMsg() {
   # Delete any old update message image  201802040
@@ -236,6 +236,9 @@ fi
 # Restore the user's original portsdown_locators.txt if required
 if [ -f "/home/pi/portsdown_locators.txt" ]; then
   cp -f -r /home/pi/portsdown_locators.txt /home/pi/rpidatv/scripts/portsdown_locators.txt
+else
+  # Over-write the default locator with the user's locator
+  source /home/pi/rpidatv/scripts/copy_locator.sh
 fi
 
 DisplayUpdateMsg "Step 9 of 10\nInstalling FreqShow SW\n\nXXXXXXXXX-"
