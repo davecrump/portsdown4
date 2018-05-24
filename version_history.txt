@@ -1,3 +1,6 @@
+201805152
+Bugfix for the "Boot to stream" startup problem in Stretch
+
 201805150
 Added new menu for Composite Video Output
 More test cards and all video snaps available from video output
