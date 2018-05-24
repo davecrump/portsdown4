@@ -104,7 +104,7 @@ int main( int argc, char *argv[] )
   
   /* Set up commands in buffers */
   snprintf(sdnCommand,32,"shutdown -h now");
-  snprintf(startCommand,64,"sudo /home/pi/rpidatv/scripts/a.sh >/dev/null 2>/dev/null");
+  snprintf(startCommand,64,"/home/pi/rpidatv/scripts/a.sh >/dev/null 2>/dev/null");
   snprintf(stopCommand1,64,"sudo killall ffmpeg >/dev/null 2>/dev/null");
     
   if(KeyGPIO > 0)
@@ -128,20 +128,34 @@ int main( int argc, char *argv[] )
     /* Set initial state */
     if(digitalRead(KeyGPIO) == HIGH)
     {
-      /* Turn the stream on */
+      // Delay 5 seconds for .bashrc to finish
+      usleep(5000000);
+      // Run the stream for 5 seconds in a jumpy mode (don't know why)
       Start_Function();
+      usleep(5000000);
+      Stop_Function();
+      // let it stabilise
+      usleep(5000000);
       if(IndicationGPIO >= 0)
       {
         digitalWrite(IndicationGPIO, HIGH);
       }
+      // Set the demanded stream state on so that it is started in the while loop
+      strcpy(stream_state, "on");
     }
   }
   else
   {
-    /* Start the always-on stream */
-    printf("Starting Always on streamer ....\n");
-    printf("Use ctrl-C to exit \n");
+    // Delay 5 seconds for .bashrc to finish
+    usleep(5000000);
+    // Run the stream for 5 seconds in a jumpy mode (don't know why)
     Start_Function();
+    usleep(5000000);
+    Stop_Function();
+    // let it stabilise
+    usleep(5000000);
+    // Set the demanded stream state on so that it is started in the while loop
+    strcpy(stream_state, "on");
   }
 
   /* Now wait here for interrupts - forever! */

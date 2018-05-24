@@ -1,4 +1,3 @@
-#!/usr/bin/env bash
 
 # set -x
 
@@ -189,21 +188,21 @@ case "$MODE_STARTUP" in
   Keyed_Stream_boot)
     # Start the Switched stream with the default GPIO Pins
     if [ "$SESSION_TYPE" == "boot" ]; then
-      /home/pi/rpidatv/bin/keyedstream 1 7
+      /home/pi/rpidatv/bin/keyedstream 1 7 &
     fi
     return
   ;;
   Cont_Stream_boot)
     # Start a continuous stream
     if [ "$SESSION_TYPE" == "boot" ]; then
-      /home/pi/rpidatv/bin/keyedstream 0
+      /home/pi/rpidatv/bin/keyedstream 0 &
     fi
     return
   ;;
   Keyed_TX_boot)
     # Start the Switched transmitter with the default GPIO Pins
     if [ "$SESSION_TYPE" == "boot" ]; then
-      /home/pi/rpidatv/bin/keyedtx 1 7
+      (sleep 10; /home/pi/rpidatv/bin/keyedtx 1 7) &
     fi
     return
   ;;
