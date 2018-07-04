@@ -53,6 +53,7 @@ Rewitten by Dave, G8GKQ
 #define PATH_SGCONFIG "/home/pi/rpidatv/src/siggen/siggenconfig.txt"
 #define PATH_RTLPRESETS "/home/pi/rpidatv/scripts/rtl-fm_presets.txt"
 #define PATH_LOCATORS "/home/pi/rpidatv/scripts/portsdown_locators.txt"
+#define PATH_RXPRESETS "/home/pi/rpidatv/scripts/rx_presets.txt"
 
 #define PI 3.14159265358979323846
 #define deg2rad(DEG) ((DEG)*((PI)/(180.0)))
@@ -89,7 +90,8 @@ typedef struct {
 int IndexButtonInArray=0;
 button_t ButtonArray[MAX_BUTTON];
 #define TIME_ANTI_BOUNCE 500
-int CurrentMenu=1;
+int CurrentMenu = 1;
+int CallingMenu = 1;
 
 //GLOBAL PARAMETERS
 
@@ -128,6 +130,8 @@ int GPIO_Band_LSB = 31;
 int GPIO_Band_MSB = 24;
 int GPIO_Tverter = 7;
 
+int FinishedButton = 0;  // Used to indicate screentouch during TX or RX
+
 
 char ScreenState[255] = "NormalMenu";  // NormalMenu SpecialMenu TXwithMenu TXwithImage RXwithImage VideoOut SnapView VideoView Snap SigGen
 char MenuTitle[40][127];
@@ -156,7 +160,7 @@ char TabModeAudio[6][15]={"auto", "mic", "video", "bleeps", "no_audio", "webcam"
 char TabModeSTD[2][7]={"6","0"};
 char TabModeVidIP[2][7]={"0","1"};
 char TabModeOP[9][31]={"IQ", "QPSKRF", "DATVEXPRESS", "BATC", "STREAMER", "COMPVID", "DTX1", "IP", "LIME"};
-char TabModeOPtext[9][31]={"Portsdown", " UGLY ", "EXPRESS", " BATC ", "STREAM", "Comp Vid", " DTX1 ", "IPTS out", "Lime Mini"};
+char TabModeOPtext[9][31]={"Portsdown", " UGLY ", "EXPRESS", "Lime USB", "BATC^STREAM", "Comp Vid", " DTX1 ", "IPTS out", "Lime Mini"};
 char TabAtten[4][15] = {"NONE", "PE4312", "PE43713", "HMC1119"};
 char CurrentModeOP[31] = "QPSKRF";
 char CurrentModeOPtext[31] = " UGLY ";
@@ -196,10 +200,26 @@ int RTLStoreTrigger = 0;    // Set to 1 if ready to store RTL preset
 int RTLdetected = 0;        // Set to 1 at first entry to Menu 6 if RTL detected
 int RTLactive = 0;          // Set to 1 if RTL_FM receiver running
 
+// LeanDVB RX Parameters. [0] is current. 1-4 are presets
+char RXfreq[5][15];         // String with frequency in MHz
+char RXlabel[5][15];        // String for label
+int RXsr[5];                // Symbol rate in K
+char RXfec[5][7];           // FEC as String
+int RXsamplerate[5];        // Samplerate in K. 0 = auto
+int RXgain[5];              // Gain
+char RXmodulation[5][15];   // Modulation
+char RXencoding[5][15];     // Encoding
+char RXsdr[5][15];          // SDR Type
+char RXgraphics[5][7];      // Graphics on/off
+char RXparams[5][7];        // Parameters on/off
+char RXsound[5][7];         // Sound on/off
+char RXfastlock[5][7];      // Fastlock on/off
+int RXStoreTrigger = 0;     // Set to 1 if ready to store RX preset
+
 int Inversed=0;           //Display is inversed (Waveshare=1)
 int PresetStoreTrigger=0; //Set to 1 if awaiting preset being stored
 
-pthread_t thfft,thbutton,thview,thwait3;
+pthread_t thfft, thbutton, thview, thwait3;
 
 // Function Prototypes
 
@@ -207,6 +227,7 @@ void Start_Highlights_Menu1();
 void Start_Highlights_Menu2();
 void Start_Highlights_Menu3();
 void Start_Highlights_Menu4();
+void Start_Highlights_Menu5();
 void Start_Highlights_Menu6();
 void Start_Highlights_Menu11();
 void Start_Highlights_Menu12();
@@ -830,6 +851,181 @@ void ExecuteUpdate(int NoButton)
 
 
 /***************************************************************************//**
+ * @brief Checks if valid MPEG-2 decoder license is loaded
+ *
+ * @param nil
+ *
+ * @return 0 if not enabled, 1 if enabled
+*******************************************************************************/
+
+int CheckMPEG2()
+{
+  FILE *fp;
+  int check = 0;
+  char response[63];
+
+  /* Open the command for reading. */
+  fp = popen("vcgencmd codec_enabled MPG2", "r");
+  if (fp == NULL) {
+    printf("Failed to run command\n" );
+    exit(1);
+  }
+
+  /* Read the output a line at a time - output it. */
+  while ((fgets(response, 16, fp) != NULL) && (check == 0))
+  {
+    //printf("%s\n", response);
+    if(strcmp(response, "MPG2=enabled\n") == 0)
+    {
+      check = 1;
+    }
+  }
+
+  /* close */
+  pclose(fp);
+  return check;
+}
+
+/***************************************************************************//**
+ * @brief Gets the RPi Serial number for the MPEG-2 Key
+ *
+ * @param SerialString (str) RPi Serial Number
+ *
+ * @return void
+*******************************************************************************/
+
+void GetRPiSerial(char* SerialString)
+{
+  FILE *fp;
+  int check = 0;
+  char response[63];
+  char cutresponse[31];
+
+  /* Open the command for reading. */
+  fp = popen("cat /proc/cpuinfo", "r");
+  if (fp == NULL) {
+    printf("Failed to run command\n" );
+    exit(1);
+  }
+
+  /* Read the output a line at a time - output it. */
+  while ((fgets(response, 32, fp) != NULL) && (check == 0))
+  {
+    //printf("%s\n", response);
+    strcpy(cutresponse, response);
+    cutresponse[6]='\0';
+    //printf("%s\n", cutresponse);
+    if(strcmp(cutresponse, "Serial") == 0)
+    {
+      strcpy(SerialString, response);
+      check = 1;
+    }
+  }
+
+  /* close */
+  pclose(fp);
+}
+
+/***************************************************************************//**
+ * @brief Gets the MPEG-2 Key if loaded.  If not, 0x.
+ *
+ * @param KeyString (str) MPEG-2 Key
+ *
+ * @return void
+*******************************************************************************/
+
+void GetMPEGKey(char* KeyString)
+{
+  FILE *fp;
+  int check = 0;
+  char response[63];
+  char cutresponse[31];
+  strcpy(KeyString, "0x");
+
+  /* Open the command for reading. */
+  fp = popen("cat /boot/config.txt", "r");
+  if (fp == NULL) {
+    printf("Failed to run command\n" );
+    exit(1);
+  }
+
+  /* Read the output a line at a time - output it. */
+  while ((fgets(response, 32, fp) != NULL) && (check == 0))
+  {
+    //printf("%s\n", response);
+    strcpy(cutresponse, response);
+    cutresponse[12]='\0';
+    //printf("%s\n", cutresponse);
+    if(strcmp(cutresponse, "decode_MPG2=") == 0)
+    {
+      strcpy(KeyString, &response[12]); // Remove first 12 characters of the string
+      KeyString[10] = '\0';             // remove trailing <cr>
+      check = 1;
+    }
+  }
+
+  /* close */
+  pclose(fp);
+}
+
+/***************************************************************************//**
+ * @brief If key line exists in /boot/config.txt, overwrite with new entry
+ *        If key line does not exist, add it
+ *
+ * @param KeyString (str) 10 character MPEG-2 Key
+ *
+ * @return void
+*******************************************************************************/
+
+void NewMPEGKey(char* KeyString)
+{
+  FILE *fp;
+  int check = 0;
+  char response[63];
+  char cutresponse[31];
+  char CommandString[127];
+
+  /* Open the command for reading. */
+  fp = popen("cat /boot/config.txt", "r");
+  if (fp == NULL) {
+    printf("Failed to run command\n" );
+    exit(1);
+  }
+
+  /* Read the output a line at a time - output it. */
+  while ((fgets(response, 32, fp) != NULL) && (check == 0))
+  {
+    strcpy(cutresponse, response);
+    cutresponse[12]='\0';
+    if(strcmp(cutresponse, "decode_MPG2=") == 0)
+    {
+      check = 1;
+    }
+  }
+
+  if (check == 1) // key line already exists
+  {
+    snprintf(CommandString, 100, "sudo sh -c \"sed -i.bak \'/decode_MPG2/d\' /boot/config.txt\"");
+    //printf("%s\n", CommandString);
+    system(CommandString);
+  }
+  else  // Add the title
+  {
+    snprintf(CommandString, 100, "sudo sh -c \"echo \\\"# MPEG-2 Decoder Key\\\" >> /boot/config.txt\"");
+    //printf("%s\n", CommandString);
+    system(CommandString);
+  }
+
+  // Now add the new key
+  snprintf(CommandString, 100, "sudo sh -c \"echo \\\"decode_MPG2=%s\\\" >> /boot/config.txt\"", KeyString);
+  //printf("%s\n", CommandString);
+  system(CommandString);
+
+  /* close */
+  pclose(fp);
+}
+
+/***************************************************************************//**
  * @brief Looks up the GPU Temp
  *
  * @param GPUTemp (str) GPU Temp to be passed as a string max 20 char
@@ -1187,14 +1383,19 @@ void ReadModeOutput(char Moutput[256])
     strcpy(Moutput, "DATV Express by USB");
     strcpy(CurrentModeOPtext, TabModeOPtext[2]);
   } 
+  else if (strcmp(ModeOutput, "LIMEUSB") == 0) 
+  {
+    strcpy(Moutput, "LimeSDR USB");
+    strcpy(CurrentModeOPtext, TabModeOPtext[3]);
+  } 
   else if (strcmp(ModeOutput, "BATC") == 0) 
   {
     strcpy(Moutput, "BATC Streaming");
-    strcpy(CurrentModeOPtext, TabModeOPtext[3]);
+    strcpy(CurrentModeOPtext, TabModeOPtext[4]);
   } 
   else if (strcmp(ModeOutput, "STREAMER") == 0) 
   {
-    strcpy(Moutput, "Bespoke Streaming");
+    strcpy(Moutput, "BATC Streaming");
     strcpy(CurrentModeOPtext, TabModeOPtext[4]);
   } 
   else if (strcmp(ModeOutput, "COMPVID") == 0) 
@@ -2111,6 +2312,319 @@ void ReadRTLPresets()
 }
 
 /***************************************************************************//**
+ * @brief Reads the Presets from rx_config.txt and formats them for
+ *        Display and switching
+ *
+ * @param None.  Works on global variables
+ *
+ * @return void
+*******************************************************************************/
+
+void ReadRXPresets()
+{
+  int n;
+  char Value[15] = "";
+  char Param[20];
+
+  for(n = 0; n < 5; n = n + 1)
+  {
+    // Frequency
+    snprintf(Param, 15, "rx%dfrequency", n);
+    GetConfigParam(PATH_RXPRESETS, Param, Value);
+    strcpy(RXfreq[n], Value);
+
+    // SR
+    snprintf(Param, 15, "rx%dsr", n);
+    GetConfigParam(PATH_RXPRESETS, Param, Value);
+    RXsr[n] = atoi(Value);
+
+    // FEC
+    snprintf(Param, 15, "rx%dfec", n);
+    GetConfigParam(PATH_RXPRESETS, Param, Value);
+    strcpy(RXfec[n], Value);
+
+    // Sample Rate
+    snprintf(Param, 15, "rx%dsamplerate", n);
+    GetConfigParam(PATH_RXPRESETS, Param, Value);
+    RXsamplerate[n] = atoi(Value);
+
+    // Gain
+    snprintf(Param, 15, "rx%dgain", n);
+    GetConfigParam(PATH_RXPRESETS, Param, Value);
+    RXgain[n] = atoi(Value);
+
+    // Modulation
+    snprintf(Param, 15, "rx%dmodulation", n);
+    GetConfigParam(PATH_RXPRESETS, Param, Value);
+    strcpy(RXmodulation[n], Value);
+
+    // Encoding
+    snprintf(Param, 15, "rx%dencoding", n);
+    GetConfigParam(PATH_RXPRESETS, Param, Value);
+    strcpy(RXencoding[n], Value);
+
+    // SDR Type
+    snprintf(Param, 15, "rx%dsdr", n);
+    GetConfigParam(PATH_RXPRESETS, Param, Value);
+    strcpy(RXsdr[n], Value);
+
+    // Graphics on/off
+    snprintf(Param, 15, "rx%dgraphics", n);
+    GetConfigParam(PATH_RXPRESETS, Param, Value);
+    strcpy(RXgraphics[n], Value);
+
+    // Parameters on/off
+    snprintf(Param, 15, "rx%dparameters", n);
+    GetConfigParam(PATH_RXPRESETS, Param, Value);
+    strcpy(RXparams[n], Value);
+
+    // Sound on/off
+    snprintf(Param, 15, "rx%dsound", n);
+    GetConfigParam(PATH_RXPRESETS, Param, Value);
+    strcpy(RXsound[n], Value);
+
+    // Fastlock on/off
+    snprintf(Param, 15, "rx%dfastlock", n);
+    GetConfigParam(PATH_RXPRESETS, Param, Value);
+    strcpy(RXfastlock[n], Value);
+
+    // Label
+    snprintf(Param, 12, "rx%dlabel", n);
+    GetConfigParam(PATH_RXPRESETS, Param, Value);
+    strcpy(RXlabel[n], Value);
+  }
+}
+
+/***************************************************************************//**
+ * @brief Saves Current LeanDVB Config to file as Preset 0
+ *        
+ * @param nil
+ *
+ * @return void
+*******************************************************************************/
+
+void SaveCurrentRX()
+{
+  char Param[255];
+  char Value[255];
+  int index = 0;
+
+  // Save the current values into the presets File
+  snprintf(Param, 15, "rx%dfrequency", index);          // Frequency
+  SetConfigParam(PATH_RXPRESETS, Param, RXfreq[0]);
+
+  snprintf(Param, 15, "rx%dlabel", index);              // Label
+  SetConfigParam(PATH_RXPRESETS, Param, RXlabel[0]);
+    
+  snprintf(Param, 15, "rx%dsr", index);                 // SR
+  snprintf(Value, 5, "%d", RXsr[0]);
+  SetConfigParam(PATH_RXPRESETS, Param, Value);
+
+  snprintf(Param, 15, "rx%dfec", index);                // FEC
+  SetConfigParam(PATH_RXPRESETS, Param, RXfec[0]);
+
+  snprintf(Param, 15, "rx%dsamplerate", index);         // Sample Rate
+  snprintf(Value, 5, "%d", RXsamplerate[0]);
+  SetConfigParam(PATH_RXPRESETS, Param, Value);
+
+  snprintf(Param, 15, "rx%dgain", index);               // Gain
+  snprintf(Value, 5, "%d", RXgain[0]);
+  SetConfigParam(PATH_RXPRESETS, Param, Value);
+
+  snprintf(Param, 15, "rx%dmodulation", index);         // Modulation
+  SetConfigParam(PATH_RXPRESETS, Param, RXmodulation[0]);
+
+  snprintf(Param, 15, "rx%dencoding", index);           // Encoding
+  SetConfigParam(PATH_RXPRESETS, Param, RXencoding[0]);
+
+  snprintf(Param, 15, "rx%dsdr", index);                // SDR Type
+  SetConfigParam(PATH_RXPRESETS, Param, RXsdr[0]);
+
+  snprintf(Param, 15, "rx%dgraphics", index);           // Graphics on/off
+  SetConfigParam(PATH_RXPRESETS, Param, RXgraphics[0]);
+
+  snprintf(Param, 15, "rx%dparameters", index);         // Parameters on/off
+  SetConfigParam(PATH_RXPRESETS, Param, RXparams[0]);
+
+  snprintf(Param, 15, "rx%dsound", index);              // Sound on/off
+  SetConfigParam(PATH_RXPRESETS, Param, RXsound[0]);
+
+  snprintf(Param, 15, "rx%dfastlock", index);           // Fastlock on/off
+  SetConfigParam(PATH_RXPRESETS, Param, RXfastlock[0]);
+}
+
+/***************************************************************************//**
+ * @brief Saves Current LeanDVB Config as a Preset
+ *        
+ * @param Preset button number 0-9, but not 4
+ *
+ * @return void
+*******************************************************************************/
+
+void SaveRXPreset(int PresetButton)
+{
+  char Param[255];
+  char Value[255];
+  char Prompt[63];
+  int index;
+  int Spaces;
+  int j;
+
+  // Transform button number into preset index
+  index = PresetButton + 1;  // works for bottom row
+
+  // Read the current preset label and ask for a new value
+  snprintf(Prompt, 62, "Enter the new label for LeanDVB Preset %d (no spaces):", index);
+
+  // Check that there are no spaces
+  while (Spaces >= 1)
+  {
+    Keyboard(Prompt, RXlabel[index], 10);
+
+    // Check that there are no spaces
+    Spaces = 0;
+    for (j = 0; j < strlen(KeyboardReturn); j = j + 1)
+    {
+      if (isspace(KeyboardReturn[j]))
+      {
+        Spaces = Spaces +1;
+      }
+    }
+  }
+  strcpy(RXlabel[index], KeyboardReturn);
+  snprintf(Param, 10, "rx%dlabel", index);
+  SetConfigParam(PATH_RXPRESETS, Param, KeyboardReturn);
+
+  // Copy the current values into the presets arrays
+  strcpy(RXfreq[index], RXfreq[0]);               // String with frequency in MHz
+  RXsr[index] = RXsr[0];                          // Symbol rate in K
+  strcpy(RXfec[index], RXfec[0]);                 // FEC as String
+  RXsamplerate[index] = RXsamplerate[0];          // Samplerate in K. 0 = auto
+  RXgain[index] = RXgain[0];                      // Gain
+  strcpy(RXmodulation[index], RXmodulation[0]);   // Modulation
+  strcpy(RXencoding[index], RXencoding[0]);       // Encoding
+  strcpy(RXsdr[index], RXsdr[0]);                 // SDR Type
+  strcpy(RXgraphics[index], RXgraphics[0]);       // Graphics on/off
+  strcpy(RXparams[index], RXparams[0]);           // Parameters on/off
+  strcpy(RXsound[index], RXsound[0]);             // Sound on/off
+  strcpy(RXfastlock[index], RXfastlock[0]);       // Fastlock on/off
+
+  // Save the current values into the presets File for the preset
+  snprintf(Param, 15, "rx%dfrequency", index);          // Frequency
+  SetConfigParam(PATH_RXPRESETS, Param, RXfreq[0]);
+    
+  snprintf(Param, 15, "rx%dsr", index);                 // SR
+  snprintf(Value, 5, "%d", RXsr[0]);
+  SetConfigParam(PATH_RXPRESETS, Param, Value);
+
+  snprintf(Param, 15, "rx%dfec", index);                // FEC
+  SetConfigParam(PATH_RXPRESETS, Param, RXfec[0]);
+
+  snprintf(Param, 15, "rx%dsamplerate", index);         // Sample Rate
+  snprintf(Value, 5, "%d", RXsamplerate[0]);
+  SetConfigParam(PATH_RXPRESETS, Param, Value);
+
+  snprintf(Param, 15, "rx%dgain", index);               // Gain
+  snprintf(Value, 5, "%d", RXgain[0]);
+  SetConfigParam(PATH_RXPRESETS, Param, Value);
+
+  snprintf(Param, 15, "rx%dmodulation", index);         // Modulation
+  SetConfigParam(PATH_RXPRESETS, Param, RXmodulation[0]);
+
+  snprintf(Param, 15, "rx%dencoding", index);           // Encoding
+  SetConfigParam(PATH_RXPRESETS, Param, RXencoding[0]);
+
+  snprintf(Param, 15, "rx%dsdr", index);                // SDR Type
+  SetConfigParam(PATH_RXPRESETS, Param, RXsdr[0]);
+
+  snprintf(Param, 15, "rx%dgraphics", index);           // Graphics on/off
+  SetConfigParam(PATH_RXPRESETS, Param, RXgraphics[0]);
+
+  snprintf(Param, 15, "rx%dparameters", index);         // Parameters on/off
+  SetConfigParam(PATH_RXPRESETS, Param, RXparams[0]);
+
+  snprintf(Param, 15, "rx%dsound", index);              // Sound on/off
+  SetConfigParam(PATH_RXPRESETS, Param, RXsound[0]);
+
+  snprintf(Param, 15, "rx%dfastlock", index);           // Fastlock on/off
+  SetConfigParam(PATH_RXPRESETS, Param, RXfastlock[0]);
+}
+
+/***************************************************************************//**
+ * @brief Loads LeanDVB settings from in-use variables which store preset
+ *  and saves them to file as Preset 0    
+ * @param Preset button number 0-3
+ *
+ * @return void
+*******************************************************************************/
+
+void RecallRXPreset(int PresetButton)
+{
+  int index;
+
+  // Transform button number into preset index
+  index = PresetButton + 1;  // works for bottom row
+
+  // Copy stored parameters into in-use parameters
+  strcpy(RXfreq[0], RXfreq[index]);               // String with frequency in MHz
+  strcpy(RXlabel[0], RXlabel[index]);             // String for label
+  RXsr[0] = RXsr[index];                          // Symbol rate in K
+  strcpy(RXfec[0], RXfec[index]);                 // FEC as String
+  RXsamplerate[0] = RXsamplerate[index];          // Samplerate in K. 0 = auto
+  RXgain[0] = RXgain[index];                      // Gain
+  strcpy(RXmodulation[0], RXmodulation[index]);   // Modulation
+  strcpy(RXencoding[0], RXencoding[index]);       // Encoding
+  strcpy(RXsdr[0], RXsdr[index]);                 // SDR Type
+  strcpy(RXgraphics[0], RXgraphics[index]);       // Graphics on/off
+  strcpy(RXparams[0], RXparams[index]);           // Parameters on/off
+  strcpy(RXsound[0], RXsound[index]);             // Sound on/off
+  strcpy(RXfastlock[0], RXfastlock[index]);       // Fastlock on/off
+
+  // Save the new values as preset 0
+  SaveCurrentRX();
+}
+
+/***************************************************************************//**
+ * @brief Loads the current transmit settings to LeanDVB
+ *  and saves them to file as Preset 0    
+ * @param Preset button number 0-3
+ *
+ * @return void
+*******************************************************************************/
+
+void SetRXLikeTX()
+{
+  char Param[255];
+  char Value[255];
+
+  // Copy TX parameters into in-use LeanDVB parameters
+
+  strcpy(Param, "freqoutput");
+  GetConfigParam(PATH_PCONFIG, Param, Value);
+  strcpy(RXfreq[0], Value);                       // String with frequency in MHz
+  strcpy(RXlabel[0], "As_TX");                    // String for label
+  strcpy(Param, "symbolrate");
+  GetConfigParam(PATH_PCONFIG, Param, Value);
+  RXsr[0] = atoi(Value);                          // Symbol rate in K
+  strcpy(Param, "fec");
+  GetConfigParam(PATH_PCONFIG, Param, Value);
+  strcpy(RXfec[0], Value);                        // FEC as String
+  RXsamplerate[0] = 0;                            // Samplerate: 0 = auto
+  RXgain[0] = 0;                                  // Gain: 0 = auto
+  strcpy(RXmodulation[0], "DVB-S");               // Modulation = DVB-S
+  strcpy(RXencoding[0], CurrentEncoding);         // Encoding
+  strcpy(RXsdr[0], "RTLSDR");                     // SDR Type
+  strcpy(RXgraphics[0], "ON");                    // Graphics on/off
+  strcpy(RXparams[0], "ON");                      // Parameters on/off
+  strcpy(RXsound[0], "OFF");                      // Sound on/off
+  strcpy(RXfastlock[0], "ON");                    // Fastlock on/off
+
+  // Save the new values as preset 0
+  SaveCurrentRX();
+}
+
+
+/***************************************************************************//**
  * @brief Sets the RTLmode after a button press
  *
  * @param NoButton = button pressed in range 10 - 14  
@@ -2452,7 +2966,7 @@ int CheckLimeConnect()
 
 void CheckLimeReady()
 {
-  if (strcmp(CurrentModeOP, TabModeOP[8]) == 0)  // Lime Output selected
+  if (strcmp(CurrentModeOP, TabModeOP[8]) == 0)  // Lime mini Output selected
   {
     if (CheckLimeConnect() == 1)
     {
@@ -2460,6 +2974,47 @@ void CheckLimeReady()
       wait_touch();
     }
   }
+  if (strcmp(CurrentModeOP, TabModeOP[3]) == 0)  // Lime USB Output selected
+  {
+    if (CheckLimeConnect() == 1)
+    {
+      MsgBox2("No Lime USB Detected", "Check Connections");
+      wait_touch();
+    }
+  }
+}
+
+void MPEG2License()
+{
+  //char Param[31];
+  //char Value[31];
+  char Prompt[63];
+  char serialstring[63];
+  char keystring[63];
+
+  // Check and display validity here
+
+  // Compose the prompt
+  GetRPiSerial(serialstring);
+  strcpy(Prompt, "Enter key for ");
+  strcat(Prompt, serialstring);
+
+  // Look for existing key
+  GetMPEGKey(keystring);
+  
+  Keyboard(Prompt, keystring, 15);
+
+  // If key is unchanged, return without doing anything
+  if(strcmp(KeyboardReturn, keystring) == 0)
+  {
+    return;
+  }
+
+  // If key line exists in /boot/config.txt, overwrite with new entry
+
+  // If key line does not exist, add it.
+  NewMPEGKey(KeyboardReturn);
+
 }
 
 int mymillis()
@@ -2980,9 +3535,10 @@ int CreateButton(int MenuIndex, int ButtonPosition)
           y = 0;
           x = wscreen * 11 / 12;
           break;
-      case 5:                  // Not used
+      case 5:                  // Clear
           y = 0;
-          x = wscreen * 8 / 12;
+          x = 0;
+          w = 2 * wscreen/12;
           break;
       case 6:                 // Left Shift
           y = hscreen/8;
@@ -3830,6 +4386,7 @@ void GreyOut13()
   if (CheckLimeInstalled() == 1)  // Lime not installed so GreyOut
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 3), 2); // Lime Mini
+    SetButtonStatus(ButtonNumber(CurrentMenu, 8), 2); // Lime USB
   }
 }
 
@@ -4037,44 +4594,68 @@ void SelectFreq(int NoButton)  //Frequency
     NoButton = NoButton + 10;
   }
   strcpy(freqtxt, TabFreq[NoButton - 5]);
-  char Param[] = "freqoutput";
-  printf("************** Set Frequency = %s\n",freqtxt);
-  SetConfigParam(PATH_PCONFIG, Param, freqtxt);
 
-  DoFreqChange();
+  if (CallingMenu == 1)  // Transmit Frequency
+  {
+    char Param[] = "freqoutput";
+    printf("************** Set Frequency = %s\n",freqtxt);
+    SetConfigParam(PATH_PCONFIG, Param, freqtxt);
 
-  // **** Not required - now in DoFreqChange() ******
-  // Set the Band (and filter) Switching
-  // system ("sudo /home/pi/rpidatv/scripts/ctlfilter.sh");
-  // And wait for it to finish using portsdown_config.txt
-  // usleep(100000);
+    DoFreqChange();
+  }
+  else                    // Lean DVB Receive frequency
+  {
+    strcpy(RXfreq[0], freqtxt);              
+    SetConfigParam(PATH_RXPRESETS, "rx0frequency", RXfreq[0]);
+  }
 }
 
 void SelectSR(int NoButton)  // Symbol Rate
 {
+  char Value[255];
+
   SelectInGroupOnMenu(CurrentMenu, 5, 9, NoButton, 1);
   SelectInGroupOnMenu(CurrentMenu, 0, 3, NoButton, 1);
   if (NoButton < 4)
   {
     NoButton = NoButton + 10;
   }
-  SR = TabSR[NoButton - 5];
-  char Param[] = "symbolrate";
-  char Value[255];
-  sprintf(Value, "%d", SR);
-  printf("************** Set SR = %s\n",Value);
-  SetConfigParam(PATH_PCONFIG, Param, Value);
+
+  if (CallingMenu == 1)  // Transmit SR
+  {
+    SR = TabSR[NoButton - 5];
+    sprintf(Value, "%d", SR);
+    printf("************** Set Transmit SR = %s\n",Value);
+    SetConfigParam(PATH_PCONFIG, "symbolrate", Value);
+  }
+  else                    // Lean DVB Receive SR
+  {
+    RXsr[0] = TabSR[NoButton - 5];
+    sprintf(Value, "%d", RXsr[0]);
+    printf("************** Set Receive SR = %s\n",Value);
+    SetConfigParam(PATH_RXPRESETS, "rx0sr", Value);
+  }
 }
 
 void SelectFec(int NoButton)  // FEC
 {
-  SelectInGroupOnMenu(CurrentMenu, 5, 9, NoButton, 1);
-  fec = TabFec[NoButton - 5];
   char Param[7]="fec";
   char Value[255];
-  sprintf(Value, "%d", fec);
-  printf("************** Set FEC = %s\n",Value);
-  SetConfigParam(PATH_PCONFIG, Param, Value);
+  SelectInGroupOnMenu(CurrentMenu, 5, 9, NoButton, 1);
+  if (CallingMenu == 1)  // Transmit FEC
+  {
+    fec = TabFec[NoButton - 5];
+    sprintf(Value, "%d", fec);
+    printf("************** Set Transmit FEC = %s\n",Value);
+    SetConfigParam(PATH_PCONFIG, Param, Value);
+  }
+  else                    // Lean DVB Receive SR
+  {
+    sprintf(Value, "%d", TabFec[NoButton - 5]);
+    strcpy(RXfec[0], Value);
+    printf("************** Set Receive FEC = %s\n",Value);
+    SetConfigParam(PATH_RXPRESETS, "rx0fec", Value);
+  }
 }
 
 void SelectS2Fec(int NoButton)  // DVB-S2 FEC
@@ -4576,6 +5157,89 @@ void SetAttenLevel()
   }
 }
 
+void SetReceiveLOFreq(int NoButton)
+{
+  char Param[31];
+  char Value[31];
+  char Prompt[63];
+  int band;
+
+  // Convert button number to band number
+  band = NoButton + 5;  // this is correct only for lower line of buttons
+  if (NoButton > 4)     // Upper line of buttons
+  {
+    band = NoButton - 5;
+  }
+
+  // Compose the prompt
+  strcpy(Param, TabBand[band]);
+  strcat(Param, "label");
+  GetConfigParam(PATH_PPRESETS, Param, Value);
+  snprintf(Prompt, 63, "Enter LO Freq (MHz) for %s Band (0 for off)", Value);
+  
+  // Look up the current value
+  strcpy(Param, TabBand[band]);
+  strcat(Param, "lo");
+  GetConfigParam(PATH_RXPRESETS, Param, Value);
+
+  Keyboard(Prompt, Value, 15);
+
+  SetConfigParam(PATH_RXPRESETS ,Param, KeyboardReturn);
+}
+
+void SetSampleRate()
+{
+  char Prompt[63];
+  char Value[15];
+  int NewSampleRate = -1;
+  snprintf(Value, 6, "%d", RXsamplerate[0]); 
+  while ((NewSampleRate < 0) || (NewSampleRate > 2400))
+  {
+    snprintf(Prompt, 63, "Set the LeanDVB Sample Rate in KSamples/sec (0 = auto)");
+    Keyboard(Prompt, Value, 6);
+    NewSampleRate = atoi(KeyboardReturn);
+  }
+  RXsamplerate[0] = NewSampleRate;
+  SetConfigParam(PATH_RXPRESETS, "rx0samplerate", KeyboardReturn);
+}
+
+void SetRXGain()
+{
+  char Prompt[63];
+  char Value[15];
+  int NewGain = -1;
+  snprintf(Value, 6, "%d", RXgain[0]); 
+  while ((NewGain < 0) || (NewGain > 100))
+  {
+    snprintf(Prompt, 63, "Set the LeanDVB Gain in the range 0 to 100 dB");
+    Keyboard(Prompt, Value, 6);
+    NewGain = atoi(KeyboardReturn);
+  }
+  RXgain[0] = NewGain;
+  SetConfigParam(PATH_RXPRESETS, "rx0gain", KeyboardReturn);
+}
+
+void ToggleEncoding()
+{
+  if (strcmp(RXencoding[0], "H264") == 0)
+  {
+     if (CheckMPEG2() == 1)
+    {
+      strcpy(RXencoding[0], "MPEG-2");
+    }
+    else
+    {
+      MsgBox2("Please purchase and install the", "MPEG-2 decoder licence");
+      wait_touch();
+    }
+  }
+  else
+  {
+    strcpy(RXencoding[0], "H264");
+  }
+  SetConfigParam(PATH_RXPRESETS, "rx0encoding", RXencoding[0]);
+}
+
 void SavePreset(int PresetButton)
 {
   char Param[255];
@@ -4751,6 +5415,27 @@ void ChangeVidBand(int NoButton)
   else // second row
   {
     CompVidBand = NoButton - 5;
+  }
+}
+
+void ReceiveLOStart()
+{
+  char Param[15];
+  char Value[15];
+  char bashCall[127];
+
+  strcpy(Param, TabBand[CurrentBand]);
+  strcat(Param, "lo");
+  GetConfigParam(PATH_RXPRESETS, Param, Value);
+  if(strcmp(Value, "0") != 0)
+  {
+    strcpy(bashCall, "sudo /home/pi/rpidatv/bin/adf4351 ");
+    strcat(bashCall, Value);
+    strcat(bashCall, " ");
+    strcat(bashCall, CurrentADFRef);
+    strcat(bashCall, " 3"); //max level
+
+    system(bashCall);
   }
 }
 
@@ -4995,8 +5680,10 @@ void TransmitStart()
 
   char Param[255];
   char Value[255];
-//  #define PATH_SCRIPT_A "sudo /home/pi/rpidatv/scripts/a.sh >/dev/null 2>/dev/null"
   #define PATH_SCRIPT_A "/home/pi/rpidatv/scripts/a.sh >/dev/null 2>/dev/null"
+
+  // Turn the VCO off in case it has been used for receive
+  system("sudo /home/pi/rpidatv/bin/adf4351 off");
 
   strcpy(Param,"modeinput");
   GetConfigParam(PATH_PCONFIG,Param,Value);
@@ -5116,6 +5803,9 @@ void TransmitStop()
   pinMode(GPIO_PTT, OUTPUT);
   digitalWrite(GPIO_PTT, LOW);
 
+  // Start the Receive LO Here
+  ReceiveLOStart();
+
   // Wait a further 3 seconds and reset v42l-ctl if Logitech C910, C270 or C525 present
   if (WebcamPresent == 1)
   {
@@ -5140,8 +5830,6 @@ void coordpoint(VGfloat x, VGfloat y, VGfloat size, VGfloat pcolor[4]) {
 
 fftwf_complex *fftout=NULL;
 #define FFT_SIZE 256
-
-int FinishedButton=0;
 
 void *DisplayFFT(void * arg)
 {
@@ -5407,12 +6095,229 @@ void ProcessLeandvb()
   strcpy(ScreenState, "RXwithImage");            //  Signal to display touch menu without further touch
 }
 
+
+
+void ProcessLeandvb2()
+{
+  #define PATH_SCRIPT_LEAN2 "sudo /home/pi/rpidatv/scripts/leandvbgui2.sh 2>&1"
+  char *line=NULL;
+  size_t len = 0;
+  ssize_t read;
+  FILE *fp;
+  VGfloat shapecolor[4];
+  RGBA(255, 255, 128, 1, shapecolor);
+
+  printf("Entering LeanDVB Process\n");
+  FinishedButton=0;
+
+  if((strcmp(RXgraphics[0], "ON") == 0))
+  {
+    // create FFT Thread 
+    pthread_create (&thfft, NULL, &DisplayFFT, NULL);
+  }
+
+  // Create Wait Button thread
+  pthread_create (&thbutton, NULL, &WaitButtonEvent, NULL);
+
+  // Start RTL-SDR, LeanDVB and HelloVideo from BASH
+  fp=popen(PATH_SCRIPT_LEAN2, "r");
+  if(fp==NULL) printf("Process error\n");
+
+  
+  // While there is data, display it
+  while (((read = getline(&line, &len, fp)) != -1) && (FinishedButton == 0))
+  {
+    char  strTag[20];
+    int NbData;
+    static int Decim = 0;
+    sscanf(line,"%s ",strTag);
+    char * token;
+    static int Lock = 0;
+    static float SignalStrength = 0;
+    static float MER = 0;
+    static float FREQ = 0;
+
+    // Deal with the Symbol Data
+    if(strcmp(strTag, "SYMBOLS")==0)
+    {
+      token = strtok(line, " ");
+      token = strtok(NULL, " ");
+      sscanf(token,"%d",&NbData);
+
+      if(Decim%25==0)  // Lock, signal strength and MER
+      {
+        //Start(wscreen,hscreen);
+        //Fill(255, 255, 255, 1);  // Not sure about commenting this out
+        //Roundrect(0, 0, 256, hscreen, 10, 10); // Not sure about commenting this out
+        BackgroundRGB(0, 0, 0, 0);
+
+        if(strcmp(RXparams[0], "ON") == 0)
+        {
+          // Lock status Rectangle (red/green with white text)
+          char sLock[100];
+          if(Lock == 1)
+          {
+            strcpy(sLock,"Lock");
+            Fill(0,255,0, 1);
+          }
+          else
+          {
+            strcpy(sLock,"----");
+            Fill(255,0,0, 1);
+          }
+          Roundrect(200,0,100,50, 10, 10);
+          Fill(255, 255, 255, 1);
+          Text(200, 20, sLock, SerifTypeface, 25);
+
+          // Signal Strength: White text to right of Lock status
+          char sSignalStrength[100];
+          sprintf(sSignalStrength, "%3.0f", SignalStrength);
+          Fill(255-SignalStrength, SignalStrength, 0, 1);
+          Roundrect(350, 0, 20+SignalStrength/2, 50, 10, 10);
+          Fill(255, 255, 255, 1);
+          Text(350, 20, sSignalStrength, SerifTypeface, 25);
+
+          //MER: 2-30 to right of Sig Stength.  Bar length indicative.
+          char sMER[100];
+          sprintf(sMER, "%2.1fdB", MER);
+          Fill(255-MER*8, (MER*8), 0, 1);
+          Roundrect(500, 0, (MER*8), 50, 10, 10);
+          Fill(255, 255, 255, 1);
+          Text(500, 20, sMER, SerifTypeface, 25);
+
+          // Frequency indicator bar
+          Stroke(0, 0, 255, 0.8);
+          Line(FFT_SIZE/2, 0, FFT_SIZE/2, 10);
+          Stroke(0, 0, 255, 0.8);
+          Line(0,hscreen-300,256,hscreen-300);
+          StrokeWidth(10);
+          Line(128+(FREQ/40000.0)*256.0,hscreen-300-20,128+(FREQ/40000.0)*256.0,hscreen-300+20);
+
+          // Frequency text
+          char sFreq[100];
+          sprintf(sFreq,"%2.1fkHz",FREQ/1000.0);
+          Text(0,hscreen-300+25, sFreq, SerifTypeface, 20);
+        }
+      }
+
+      if(Decim%25==0)
+      {
+        if(strcmp(RXgraphics[0], "ON") == 0)
+        {
+          // Draw FFT
+          static VGfloat PowerFFTx[FFT_SIZE];
+          static VGfloat PowerFFTy[FFT_SIZE];
+          StrokeWidth(2);
+          Stroke(150, 150, 200, 0.8);
+          int i;
+          if(fftout != NULL)
+          {
+            for(i = 0; i < FFT_SIZE; i += 2)
+            {
+              PowerFFTx[i] = (i<FFT_SIZE/2)?(FFT_SIZE+i)/2:i/2;
+              PowerFFTy[i] = log10f(sqrt(fftout[i][0]*fftout[i][0]+fftout[i][1]*fftout[i][1])/FFT_SIZE)*100;	
+              Line(PowerFFTx[i], 0, PowerFFTx[i], PowerFFTy[i]);
+            }
+          }
+
+          // Draw Constellation
+          int x, y;
+          Decim++;
+          StrokeWidth(2);
+          Stroke(255, 255, 128, 0.8);
+          for(i = 0; i < NbData ; i++)
+          {
+            token = strtok(NULL, " ");
+            sscanf(token, "%d, %d", &x, &y);
+            coordpoint(x+128, hscreen-(y+128), 5, shapecolor); // dots
+
+            Stroke(0, 255, 255, 0.8);
+            Line(0, hscreen-128, 256, hscreen-128);
+            Line(128, hscreen, 128, hscreen-256);  // Axis
+          }
+        }
+        End();
+      }
+      else
+      {
+        Decim++;
+      }
+    }
+
+    if((strcmp(strTag, "SS") == 0))
+    {
+      token = strtok(line," ");
+      token = strtok(NULL," ");
+      sscanf(token,"%f",&SignalStrength);
+    }
+
+    if((strcmp(strTag, "MER") == 0))
+    {
+      token = strtok(line," ");
+      token = strtok(NULL," ");
+      sscanf(token,"%f",&MER);
+    }
+
+    if((strcmp(strTag,"FREQ")==0))
+    {
+      token = strtok(line," ");
+      token = strtok(NULL," ");
+      sscanf(token,"%f",&FREQ);
+    }
+
+    if((strcmp(strTag,"LOCK")==0))
+    {
+      token = strtok(line," ");
+      token = strtok(NULL," ");
+      sscanf(token,"%d",&Lock);
+    }
+
+    free(line);
+    line=NULL;
+
+    if(FinishedButton == 1)
+    {
+      printf("Trying to kill LeanDVB\n");
+      system("(sudo killall -9 leandvb >/dev/null 2>/dev/null) &");
+
+    }
+
+  
+  }
+ 
+  system("(sudo killall -9 leandvb >/dev/null 2>/dev/null) &");
+  system("(sudo killall rtl_sdr >/dev/null 2>/dev/null) &");
+
+  system("sudo killall fbi >/dev/null 2>/dev/null");  // kill any previous images
+  system("sudo fbi -T 1 -noverbose -a /home/pi/rpidatv/scripts/images/BATC_Black.png");  // Add logo image
+
+  pthread_join(thfft, NULL);
+  pclose(fp);
+  pthread_join(thbutton, NULL);
+ 
+  system("sudo killall hello_video.bin >/dev/null 2>/dev/null");
+  system("sudo killall fbi >/dev/null 2>/dev/null");
+  system("sudo killall leandvb >/dev/null 2>/dev/null");
+  system("sudo killall ts2es >/dev/null 2>/dev/null");
+  finish();
+}
+
+
+
 void ReceiveStart()
 {
   strcpy(ScreenState, "RXwithImage");
   system("sudo killall hello_video.bin >/dev/null 2>/dev/null");
   ProcessLeandvb();
 }
+
+void ReceiveStart2()
+{
+  strcpy(ScreenState, "RXwithImage");  //  Signal to display touch menu without further touch
+  system("sudo killall hello_video.bin >/dev/null 2>/dev/null");
+  ProcessLeandvb2();
+}
+
 
 void ReceiveStop()
 {
@@ -6496,7 +7401,7 @@ void Keyboard(char RequestText[64], char InitText[64], int MaxLength)
     printf("Keyboard Token %d\n", token);
 
     // Highlight special keys when touched
-    if ((token == 8) || (token == 9) || (token == 2) || (token == 3)) // Enter, backspace, L and R arrows
+    if ((token == 5) || (token == 8) || (token == 9) || (token == 2) || (token == 3)) // Clear, Enter, backspace, L and R arrows
     {
         SetButtonStatus(ButtonNumber(41, token), 1);
         DrawButton(ButtonNumber(41, token));
@@ -6664,6 +7569,11 @@ void Keyboard(char RequestText[64], char InitText[64], int MaxLength)
           CursorPos = CursorPos - 1;
         }
       }
+      else if (token == 5)   // Clear
+      {
+        EditText[0]='\0';
+        CursorPos = 0;
+      }
       else if (token == 2)   // left arrow
       {
         CursorPos = CursorPos - 1;
@@ -6746,7 +7656,7 @@ void ChangePresetFreq(int NoButton)
   }
 
   //Define request string depending on transverter or not
-  if ((TabBandLO[CurrentBand] < 0.1) && (TabBandLO[CurrentBand] > -0.1))
+  if (((TabBandLO[CurrentBand] < 0.1) && (TabBandLO[CurrentBand] > -0.1)) || (CallingMenu == 5))
   {
     strcpy(RequestText, "Enter new frequency for Button ");
   }
@@ -6759,7 +7669,7 @@ void ChangePresetFreq(int NoButton)
   strcat(RequestText, " in MHz:");
 
   // Calulate initial value
-  if ((TabBandLO[CurrentBand] < 0.1) && (TabBandLO[CurrentBand] > -0.1))
+  if (((TabBandLO[CurrentBand] < 0.1) && (TabBandLO[CurrentBand] > -0.1)) || (CallingMenu == 5))
   {
     snprintf(InitText, 10, "%s", TabFreq[FreqIndex]);
   }
@@ -6776,7 +7686,7 @@ void ChangePresetFreq(int NoButton)
   Keyboard(RequestText, InitText, 10);
 
   // Correct freq for transverter offset
-  if ((TabBandLO[CurrentBand] < 0.1) && (TabBandLO[CurrentBand] > -0.1))
+  if (((TabBandLO[CurrentBand] < 0.1) && (TabBandLO[CurrentBand] > -0.1)) || (CallingMenu == 5))
   {
     ;
   }
@@ -6934,11 +7844,15 @@ void ChangeLocator()
   char RequestText[64];
   char InitText[64];
   bool IsValid = FALSE;
+  char Locator10[15];
+
+  //Retrieve (10 char) Current Locator from locator file
+  GetConfigParam(PATH_LOCATORS, "mylocator", Locator10);
 
   while (IsValid == FALSE)
   {
     strcpy(RequestText, "Enter new Locator (6, 8 or 10 char)");
-    snprintf(InitText, 11, "%s", Locator);
+    snprintf(InitText, 11, "%s", Locator10);
     Keyboard(RequestText, InitText, 10);
   
     // Check locator is valid
@@ -7156,8 +8070,15 @@ void waituntil(int w,int h)
       system("(sleep 1; sudo killall -9 fbi >/dev/null 2>/dev/null) &");
       init(&wscreen, &hscreen);
       Start(wscreen, hscreen);
-      BackgroundRGB(255,255,255,255);
-      SelectPTT(21,0);
+      if (CallingMenu == 1)
+      {
+        BackgroundRGB(255,255,255,255);
+        SelectPTT(21,0);
+      }
+      else
+      {
+        BackgroundRGB(0, 0, 0,255);
+      }
       strcpy(ScreenState, "NormalMenu");
       UpdateWindow();
       continue;
@@ -7202,6 +8123,7 @@ void waituntil(int w,int h)
       if (CurrentMenu == 1)  // Main Menu
       {
         printf("Button Event %d, Entering Menu 1 Case Statement\n",i);
+        CallingMenu = 1;
 
         // Clear Preset store trigger if not a preset
         if ((i > 4) && (PresetStoreTrigger == 1))
@@ -7378,7 +8300,7 @@ void waituntil(int w,int h)
           }
           break;
         case 21:                       // RX
-          if(CheckRTL()==0)
+/*          if(CheckRTL()==0)
           {
             BackgroundRGB(0,0,0,255);
             Start(wscreen,hscreen);
@@ -7393,7 +8315,12 @@ void waituntil(int w,int h)
             UpdateWindow();
           }
           break;
-        case 22:                      // Not shown
+        case 22:                      // Temp receive Menu
+*/          printf("MENU 5 \n");
+          CurrentMenu=5;
+          BackgroundRGB(0,0,0,255);
+          Start_Highlights_Menu5();
+          UpdateWindow();
           break;
         case 23:                      // Select Menu 2
           printf("MENU 2 \n");
@@ -7594,7 +8521,13 @@ void waituntil(int w,int h)
           Start_Highlights_Menu31();
           UpdateWindow();
           break;
-        case 11:                               // Blank
+        case 11:                               // Set Receive LO
+          CallingMenu = 302;
+          printf("MENU 26 \n"); 
+          CurrentMenu=26;
+          BackgroundRGB(0,0,0,255);
+          Start_Highlights_Menu26();
+          UpdateWindow();
           break;
         case 12:                               // Blank
           break;
@@ -7603,6 +8536,7 @@ void waituntil(int w,int h)
         case 14:                               // Blank
           break;
         case 15:                              // Set Band Details
+          CallingMenu = 301;
           printf("MENU 26 \n"); 
           CurrentMenu=26;
           BackgroundRGB(0,0,0,255);
@@ -7712,6 +8646,181 @@ void waituntil(int w,int h)
         continue;   // Completed Menu 4 action, go and wait for touch
       }
 
+      if (CurrentMenu == 5)  // Menu 5 LeanDVB
+      {
+        printf("Button Event %d, Entering Menu 5 Case Statement\n",i);
+        CallingMenu = 5;
+
+        // Clear RX Preset store trigger if not a preset
+        if ((i > 3) && (RXStoreTrigger == 1))
+        {
+          RXStoreTrigger = 0;
+          SetButtonStatus(ButtonNumber(CurrentMenu, 4), 0);
+          UpdateWindow();
+          continue;
+        }
+        switch (i)
+        {
+        case 0:                              // Preset 1
+        case 1:                              // Preset 2
+        case 2:                              // Preset 3
+        case 3:                              // Preset 4
+          if (RXStoreTrigger == 0)
+          {
+            RecallRXPreset(i);  // Recall preset
+          }
+          else
+          {
+            SaveRXPreset(i);  // Set preset
+            RXStoreTrigger = 0;
+            SetButtonStatus(ButtonNumber(CurrentMenu, 4), 0);
+            BackgroundRGB(0,0,0,255);
+          }
+          Start_Highlights_Menu5();    // Refresh button labels
+          UpdateWindow();
+          break;
+        case 4:                              // Store RX Preset
+          if (RXStoreTrigger == 0)
+          {
+            RXStoreTrigger = 1;
+            SetButtonStatus(ButtonNumber(CurrentMenu, 4),1);
+          }
+          else
+          {
+            RXStoreTrigger = 0;
+            SetButtonStatus(ButtonNumber(CurrentMenu, 4),0);
+          }
+          UpdateWindow();
+          break;
+        case 5:                                            // Fastlock on/off
+          if (strcmp(RXfastlock[0], "ON") == 0)
+          {
+            strcpy(RXfastlock[0], "OFF");
+          }
+          else
+          {
+            strcpy(RXfastlock[0], "ON");
+          }
+          Start_Highlights_Menu5();    // Refresh button labels
+          UpdateWindow();
+          SetConfigParam(PATH_RXPRESETS, "rx0fastlock", RXfastlock[0]);
+          break;
+        case 7:                                            // Audio on/off
+          if (strcmp(RXsound[0], "ON") == 0)
+          {
+            strcpy(RXsound[0], "OFF");
+          }
+          else
+          {
+            strcpy(RXsound[0], "ON");
+          }
+          Start_Highlights_Menu5();    // Refresh button labels
+          UpdateWindow();
+          SetConfigParam(PATH_RXPRESETS, "rx0sound", RXsound[0]);
+          break;
+        case 9:                                            // SetRXLikeTX
+          SetButtonStatus(ButtonNumber(CurrentMenu, i), 1);
+          SetRXLikeTX();
+          Start_Highlights_Menu5();    // Refresh button labels
+          UpdateWindow();
+          usleep(500000);
+          SetButtonStatus(ButtonNumber(CurrentMenu, i), 0); 
+          UpdateWindow();
+          break;
+        case 10:
+          printf("MENU 16 \n");        // Frequency
+          CurrentMenu=16;
+          BackgroundRGB(0,0,0,255);
+          Start_Highlights_Menu16();
+          UpdateWindow();
+          break;
+        case 11:
+          printf("MENU 17 \n");        // SR
+          CurrentMenu=17;
+          BackgroundRGB(0,0,0,255);
+          Start_Highlights_Menu17();
+          UpdateWindow();
+          break;
+        case 12:
+          printf("MENU 18 \n");        // FEC
+          CurrentMenu=18;
+          BackgroundRGB(0,0,0,255);
+          Start_Highlights_Menu18();
+          UpdateWindow();
+          break;
+        case 13:                       // Sample Rate
+          SetSampleRate();
+          BackgroundRGB(0,0,0,255);
+          Start_Highlights_Menu5();
+          UpdateWindow();
+          break;
+        case 14:                       // Gain
+          SetRXGain();
+          BackgroundRGB(0,0,0,255);
+          Start_Highlights_Menu5();
+          UpdateWindow();
+          break;
+        case 16:                       // Encoding
+          ToggleEncoding();
+          BackgroundRGB(0,0,0,255);
+          Start_Highlights_Menu5();
+          UpdateWindow();
+          break;
+        case 18:                                            // Constellation on/off
+          if (strcmp(RXgraphics[0], "ON") == 0)
+          {
+            strcpy(RXgraphics[0], "OFF");
+          }
+          else
+          {
+            strcpy(RXgraphics[0], "ON");
+          }
+          Start_Highlights_Menu5();    // Refresh button labels
+          UpdateWindow();
+          SetConfigParam(PATH_RXPRESETS, "rx0graphics", RXgraphics[0]);
+          break;
+        case 19:                                            // Parameters on/off
+          if (strcmp(RXparams[0], "ON") == 0)
+          {
+            strcpy(RXparams[0], "OFF");
+          }
+          else
+          {
+            strcpy(RXparams[0], "ON");
+          }
+          Start_Highlights_Menu5();    // Refresh button labels
+          UpdateWindow();
+          SetConfigParam(PATH_RXPRESETS, "rx0parameters", RXparams[0]);
+          break;
+        case 21:                       // RX
+          if(CheckRTL()==0)
+          {
+            BackgroundRGB(0,0,0,255);
+            Start(wscreen,hscreen);
+            ReceiveStart2();
+            break;
+          }
+          else
+          {
+            MsgBox("No RTL-SDR Connected");
+            wait_touch();
+            BackgroundRGB(0, 0, 0, 255);
+            UpdateWindow();
+          }
+          break;
+        case 22:                                          // Back to Menu 1
+          printf("MENU 1 \n");
+          CurrentMenu=1;
+          BackgroundRGB(255,255,255,255);
+          Start_Highlights_Menu1();
+          UpdateWindow();
+          break;
+        default:
+          printf("Menu 5 Error\n");
+        }
+        continue;   // Completed Menu 5 action, go and wait for touch
+      }
+
       if (CurrentMenu == 6)  // Menu 6 RTL-FM
       {
         printf("Button Event %d, Entering Menu 6 Case Statement\n",i);
@@ -7745,11 +8854,11 @@ void waituntil(int w,int h)
           RTLstop();
           RTLstart();
           RTLactive = 1;
-          SetButtonStatus(i, 1);
+          SetButtonStatus(ButtonNumber(CurrentMenu, i), 1);
           Start_Highlights_Menu6();    // Refresh button labels
           UpdateWindow();
           usleep(500000);
-          SetButtonStatus(i, 0); 
+          SetButtonStatus(ButtonNumber(CurrentMenu, i), 0); 
           UpdateWindow();
           break;
         case 4:                              // Store RTL Preset
@@ -8005,9 +9114,9 @@ void waituntil(int w,int h)
           SelectOP(i);
           printf("EXPRESS\n");
           break;
-        case 8:                               // BATC
+        case 8:                               // Lime USB
           SelectOP(i);
-          printf("BATC\n");
+          printf("LIME USB\n");
           break;
         case 9:                               // STREAMER
           SelectOP(i);
@@ -8025,9 +9134,9 @@ void waituntil(int w,int h)
           SelectOP(i);
           printf("IPTS\n");
           break;
-        case 3:                               // LIME
+        case 3:                               // LIME Mini
           SelectOP(i);
-          printf("LIME\n");
+          printf("LIME Mini\n");
           break;
         default:
           printf("Menu 13 Error\n");
@@ -8146,12 +9255,16 @@ void waituntil(int w,int h)
         case 0:                               // Freq 6
         case 1:                               // Freq 7
         case 2:                               // Freq 8
-        case 3:                               // Freq 9
         case 5:                               // Freq 1
         case 6:                               // Freq 2
         case 7:                               // Freq 3
         case 8:                               // Freq 4
         case 9:                               // Freq 5
+          SelectFreq(i);
+          printf("Frequency Button %d\n", i);
+          break;
+        case 3:                               // Freq 9 Direct Entry
+          ChangePresetFreq(i);
           SelectFreq(i);
           printf("Frequency Button %d\n", i);
           break;
@@ -8161,10 +9274,20 @@ void waituntil(int w,int h)
         UpdateWindow();
         usleep(500000);
         SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 0); // Reset cancel (even if not selected)
-        printf("Returning to MENU 1 from Menu 16\n");
-        CurrentMenu=1;
-        BackgroundRGB(255,255,255,255);
-        Start_Highlights_Menu1();
+        if (CallingMenu == 1)
+        {
+          printf("Returning to MENU 1 from Menu 16\n");
+          CurrentMenu=1;
+          BackgroundRGB(255,255,255,255);
+          Start_Highlights_Menu1();
+        }
+        else
+        {
+          printf("Returning to MENU 5 from Menu 16\n");
+          CurrentMenu=5;
+          BackgroundRGB(0, 0, 0, 255);
+          Start_Highlights_Menu5();
+        }
         UpdateWindow();
         continue;   // Completed Menu 16 action, go and wait for touch
       }
@@ -8219,10 +9342,20 @@ void waituntil(int w,int h)
         UpdateWindow();
         usleep(500000);
         SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 0); // Reset cancel (even if not selected)
-        printf("Returning to MENU 1 from Menu 17\n");
-        CurrentMenu=1;
-        BackgroundRGB(255,255,255,255);
-        Start_Highlights_Menu1();
+        if (CallingMenu == 1)
+        {
+          printf("Returning to MENU 1 from Menu 17\n");
+          CurrentMenu=1;
+          BackgroundRGB(255,255,255,255);
+          Start_Highlights_Menu1();
+        }
+        else
+        {
+          printf("Returning to MENU 5 from Menu 17\n");
+          CurrentMenu=5;
+          BackgroundRGB(0, 0, 0, 255);
+          Start_Highlights_Menu5();
+        }
         UpdateWindow();
         continue;   // Completed Menu 17 action, go and wait for touch
       }
@@ -8261,10 +9394,20 @@ void waituntil(int w,int h)
         UpdateWindow();
         usleep(500000);
         SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 0); // Reset cancel (even if not selected)
-        printf("Returning to MENU 1 from Menu 18\n");
-        CurrentMenu=1;
-        BackgroundRGB(255,255,255,255);
-        Start_Highlights_Menu1();
+        if (CallingMenu == 1)
+        {
+          printf("Returning to MENU 1 from Menu 18\n");
+          CurrentMenu=1;
+          BackgroundRGB(255,255,255,255);
+          Start_Highlights_Menu1();
+        }
+        else
+        {
+          printf("Returning to MENU 5 from Menu 18\n");
+          CurrentMenu=5;
+          BackgroundRGB(0, 0, 0, 255);
+          Start_Highlights_Menu5();
+        }
         UpdateWindow();
         continue;   // Completed Menu 18 action, go and wait for touch
       }
@@ -8549,12 +9692,22 @@ void waituntil(int w,int h)
         case 7:
         case 8:
         case 9:
-          printf("Changing Band Details %d\n", i);
-          ChangeBandDetails(i);
-          CurrentMenu=26;
-          BackgroundRGB(0,0,0,255);
-          Start_Highlights_Menu26();
-          printf("Calling UpdateWindow\n");
+          if(CallingMenu == 301) // Set Band Details
+          {
+            printf("Changing Band Details %d\n", i);
+            ChangeBandDetails(i);
+            CurrentMenu=26;
+            BackgroundRGB(0,0,0,255);
+            Start_Highlights_Menu26();
+          }
+          else  // 302, Set Receive LO
+          {
+            SetReceiveLOFreq(i);
+            printf("Returning to MENU 1 from Menu 26\n");
+            CurrentMenu=1;
+            BackgroundRGB(255,255,255,255);
+            Start_Highlights_Menu1();
+          }
           UpdateWindow();
           break;
         default:
@@ -8801,6 +9954,13 @@ void waituntil(int w,int h)
           Start_Highlights_Menu1();
           UpdateWindow();
           break;
+        case 1:
+          MPEG2License();
+          CurrentMenu=1;
+          BackgroundRGB(255,255,255,255);
+          Start_Highlights_Menu1();
+          UpdateWindow();
+          break;
         case 0:
         case 5:
         case 6:
@@ -8952,8 +10112,10 @@ void Define_Menu1()
   AddButtonStatus(button," RX  ",&Blue);
   AddButtonStatus(button,"RX ON",&Green);
 
-  // Button 22 not used
-
+/*  // Button 22 Temp RX
+  button = CreateButton(1, 22);
+  AddButtonStatus(button," RX 2 ",&Blue);
+*/
   button = CreateButton(1, 23);
   AddButtonStatus(button," M2  ",&Blue);
   AddButtonStatus(button," M2  ",&Green);
@@ -9438,6 +10600,10 @@ void Define_Menu3()
   button = CreateButton(3, 10);
   AddButtonStatus(button, "Amend^Sites/Bcns", &Blue);
 
+  button = CreateButton(3, 11);
+  AddButtonStatus(button, "Set Receive^LOs", &Blue);
+  AddButtonStatus(button, "Set Receive^LOs", &Green);
+
   // 4th line up Menu 3: Band Details, Preset Freqs, Preset SRs, Call and ADFRef
 
   button = CreateButton(3, 15);
@@ -9576,6 +10742,267 @@ void Start_Highlights_Menu4()
   AmendButtonStatus(ButtonNumber(4, 13), 1, CompVidBandText, &Green);
 
   SelectInGroupOnMenu(4, 20, 20, 20, VidPTT);
+}
+
+void Define_Menu5()
+{
+  int button = 0;
+  color_t Green;
+  color_t Blue;
+  color_t Red;
+  color_t Grey;
+  strcpy(MenuTitle[5], "LeanDVB DATV Receiver Menu (5)"); 
+
+  Green.r=0; Green.g=96; Green.b=0;
+  Blue.r=0; Blue.g=0; Blue.b=128;
+  Red.r=255; Red.g=0; Red.b=0;
+  Grey.r=127; Grey.g=127; Grey.b=127;
+
+  // Presets - Bottom Row, Menu 5
+
+  button = CreateButton(5, 0);
+  AddButtonStatus(button, " ", &Blue);
+  AddButtonStatus(button, " ", &Green);
+
+  button = CreateButton(5, 1);
+  AddButtonStatus(button, " ", &Blue);
+  AddButtonStatus(button, " ", &Green);
+
+  button = CreateButton(5, 2);
+  AddButtonStatus(button, " ", &Blue);
+  AddButtonStatus(button, " ", &Green);
+
+  button = CreateButton(5, 3);
+  AddButtonStatus(button, " ", &Blue);
+  AddButtonStatus(button, " ", &Green);
+
+  button = CreateButton(5, 4);
+  AddButtonStatus(button, "Store^Preset", &Blue);
+  AddButtonStatus(button, "Store^Preset", &Red);
+
+  // 2nd Row, Menu 5.  
+
+  button = CreateButton(5, 5);
+  AddButtonStatus(button, "FastLock^ON", &Blue);
+  AddButtonStatus(button, "FastLock^ON", &Green);
+
+  //button = CreateButton(5, 6);
+  //AddButtonStatus(button, " ", &Blue);
+  //AddButtonStatus(button, " ", &Green);
+
+  button = CreateButton(5, 7);
+  AddButtonStatus(button, "Audio^OFF", &Blue);
+  AddButtonStatus(button, "Audio^OFF", &Green);
+
+  //button = CreateButton(5, 8);
+  //AddButtonStatus(button, " ", &Blue);
+  //AddButtonStatus(button, " ", &Green);
+
+  button = CreateButton(5, 9);
+  AddButtonStatus(button, "Set as^TX", &Blue);
+  AddButtonStatus(button, "Set as^TX", &Green);
+
+  // Freq, SR, FEC, Samp Rate, Gain - 3rd line up Menu 5
+
+  button = CreateButton(5, 10);                        // AM
+  AddButtonStatus(button, "Freq^not set", &Blue);
+  AddButtonStatus(button, "Freq^not set", &Green);
+
+  button = CreateButton(5, 11);                        // FM
+  AddButtonStatus(button, "Sym Rate^not set", &Blue);
+  AddButtonStatus(button, "Sym Rate^not set", &Green);
+
+  button = CreateButton(5, 12);                        // WBFM
+  AddButtonStatus(button, "FEC^not set", &Blue);
+  AddButtonStatus(button, "FEC^not set", &Green);
+
+  button = CreateButton(5, 13);                        // USB
+  AddButtonStatus(button,"Samp Rate^not set",&Blue);
+  AddButtonStatus(button,"Samp Rate^not set",&Green);
+
+  button = CreateButton(5, 14);                        // LSB
+  AddButtonStatus(button,"Gain^not set",&Blue);
+  AddButtonStatus(button,"Gain^not set",&Green);
+
+  // 4th line up Menu 5
+
+  button = CreateButton(5, 15);
+  AddButtonStatus(button, "Modulation^not set", &Blue);
+  AddButtonStatus(button, "Modulation^not set", &Green);
+
+  button = CreateButton(5, 16);
+  AddButtonStatus(button, "Encoding^   ", &Blue);
+  AddButtonStatus(button, "Encoding^   ", &Green);
+  AddButtonStatus(button, "Encoding^   ", &Grey);
+
+  button = CreateButton(5, 17);
+  AddButtonStatus(button, "SDR^RTL-SDR", &Blue);
+  AddButtonStatus(button, "SDR^RTL-SDR", &Blue);
+
+  button = CreateButton(5, 18);
+  AddButtonStatus(button, "Constel'n^ON", &Blue);
+  AddButtonStatus(button, "Constel'n^ON", &Green);
+
+  button = CreateButton(5, 19);
+  AddButtonStatus(button, "Params^ON", &Blue);
+  AddButtonStatus(button, "Params^ON", &Green);
+
+  //RECEIVE and Exit - Top of Menu 5
+
+  button = CreateButton(5, 21);
+  AddButtonStatus(button," RX  ",&Blue);
+  AddButtonStatus(button,"RX ON",&Red);
+
+  button = CreateButton(5, 22);
+  AddButtonStatus(button,"EXIT",&Blue);
+  AddButtonStatus(button,"EXIT",&Green);
+}
+
+void Start_Highlights_Menu5()
+{
+  color_t Green;
+  color_t Blue;
+  color_t Red;
+  color_t Grey;
+
+  Green.r=0; Green.g=96; Green.b=0;
+  Blue.r=0; Blue.g=0; Blue.b=128;
+  Red.r=255; Red.g=0; Red.b=0;
+  Grey.r=127; Grey.g=127; Grey.b=127;
+  int index;
+  char RXBtext[31];
+  int NoButton;
+
+  // Buttons 0 to 3: Presets
+  for(index = 1; index < 5 ; index = index + 1)
+  {
+    // Define the button text
+    snprintf(RXBtext, 20, "%s^%s", RXlabel[index], RXfreq[index]);
+    NoButton = index - 1;
+    AmendButtonStatus(ButtonNumber(5, NoButton), 0, RXBtext, &Blue);
+    AmendButtonStatus(ButtonNumber(5, NoButton), 1, RXBtext, &Green);
+
+    // Highlight current preset by comparing frequency and SR
+
+    if (((strcmp(RXfreq[0], RXfreq[index]) == 0) && (RXsr[0] == RXsr[index])))
+    {
+      SelectInGroupOnMenu(5, 0, 3, NoButton, 1);
+    }
+  }
+
+  // Set Preset Button 4
+  strcpy(RXBtext, "Store^Preset");
+  AmendButtonStatus(4, 0, RXBtext, &Blue);
+  AmendButtonStatus(4, 1, RXBtext, &Blue);
+  AmendButtonStatus(4, 2, RXBtext, &Red);
+  AmendButtonStatus(4, 3, RXBtext, &Red);
+
+  // Fastlock Button 5
+  strcpy(RXBtext, "FastLock^");
+  strcat(RXBtext, RXfastlock[0]);
+  AmendButtonStatus(ButtonNumber(5, 5), 0, RXBtext, &Blue);
+  AmendButtonStatus(ButtonNumber(5, 5), 1, RXBtext, &Green);
+
+  // Audio Button 7
+  strcpy(RXBtext, "Audio^");
+  strcat(RXBtext, RXsound[0]);
+  AmendButtonStatus(ButtonNumber(5, 7), 0, RXBtext, &Blue);
+  AmendButtonStatus(ButtonNumber(5, 7), 1, RXBtext, &Green);
+
+  // Frequency button 10
+  strcpy(RXBtext, "Freq^");
+  strcat(RXBtext, RXfreq[0]);
+  AmendButtonStatus(ButtonNumber(5, 10), 0, RXBtext, &Blue);
+  AmendButtonStatus(ButtonNumber(5, 10), 1, RXBtext, &Green);
+
+  // SR button 11
+  strcpy(RXBtext, "Sym Rate");
+  strcat(RXBtext, RXfreq[0]);
+  snprintf(RXBtext, 20, "Sym Rate^%d", RXsr[0]);
+  AmendButtonStatus(ButtonNumber(5, 11), 0, RXBtext, &Blue);
+  AmendButtonStatus(ButtonNumber(5, 11), 1, RXBtext, &Green);
+
+  // FEC Button 12
+  index = atoi(RXfec[0]);
+  switch(index)
+  {
+    case 1:strcpy(RXBtext, "  FEC  ^  1/2 ") ;break;
+    case 2:strcpy(RXBtext, "  FEC  ^  2/3 ") ;break;
+    case 3:strcpy(RXBtext, "  FEC  ^  3/4 ") ;break;
+    case 5:strcpy(RXBtext, "  FEC  ^  5/6 ") ;break;
+    case 7:strcpy(RXBtext, "  FEC  ^  7/8 ") ;break;
+    case 14:strcpy(RXBtext, "  FEC  ^  1/4 ") ;break;
+    case 13:strcpy(RXBtext, "  FEC  ^  1/3 ") ;break;
+    case 12:strcpy(RXBtext, "  FEC  ^  1/2 ") ;break;
+    case 35:strcpy(RXBtext, "  FEC  ^  3/5 ") ;break;
+    case 23:strcpy(RXBtext, "  FEC  ^  2/3 ") ;break;
+    case 34:strcpy(RXBtext, "  FEC  ^  3/4 ") ;break;
+    case 56:strcpy(RXBtext, "  FEC  ^  5/6 ") ;break;
+    case 89:strcpy(RXBtext, "  FEC  ^  8/9 ") ;break;
+    case 91:strcpy(RXBtext, "  FEC  ^  9/10 ") ;break;
+    default:strcpy(RXBtext, "  FEC  ^Error") ;break;
+  }
+  AmendButtonStatus(ButtonNumber(5, 12), 0, RXBtext, &Blue);
+  AmendButtonStatus(ButtonNumber(5, 12), 1, RXBtext, &Green);
+  AmendButtonStatus(ButtonNumber(5, 12), 2, RXBtext, &Grey);
+
+  // Sample Rate button 13
+  if(RXsamplerate[0] == 0)
+  {
+    strcpy(RXBtext, "Samp Rate^Auto");
+  }
+  else
+  {
+    snprintf(RXBtext, 20, "Samp Rate^%d", RXsamplerate[0]);
+  }
+  AmendButtonStatus(ButtonNumber(5, 13), 0, RXBtext, &Blue);
+  AmendButtonStatus(ButtonNumber(5, 13), 1, RXBtext, &Green);
+
+  // Gain button 14
+  if(RXgain[0] == 0)
+  {
+    strcpy(RXBtext, "Gain^Auto");
+  }
+  else
+  {
+    snprintf(RXBtext, 20, "Gain^%d", RXgain[0]);
+  }
+  AmendButtonStatus(ButtonNumber(5, 14), 0, RXBtext, &Blue);
+  AmendButtonStatus(ButtonNumber(5, 14), 1, RXBtext, &Green);
+
+  // Modulation button 15
+  strcpy(RXBtext, "Modulation^");
+  strcat(RXBtext, RXmodulation[0]);
+  AmendButtonStatus(ButtonNumber(5, 15), 0, RXBtext, &Blue);
+  AmendButtonStatus(ButtonNumber(5, 15), 1, RXBtext, &Green);
+
+  // Encoding button 16
+  strcpy(RXBtext, "Encoding^");
+  strcat(RXBtext, RXencoding[0]);
+  AmendButtonStatus(ButtonNumber(5, 16), 0, RXBtext, &Blue);
+  AmendButtonStatus(ButtonNumber(5, 16), 1, RXBtext, &Green);
+
+  // SDR Type button 17
+  strcpy(RXBtext, "SDR^");
+  strcat(RXBtext, RXsdr[0]);
+  AmendButtonStatus(ButtonNumber(5, 17), 0, RXBtext, &Blue);
+  AmendButtonStatus(ButtonNumber(5, 17), 1, RXBtext, &Green);
+
+  // Constellation on/off button 18
+  strcpy(RXBtext, "Constel'n^");
+  strcat(RXBtext, RXgraphics[0]);
+  AmendButtonStatus(ButtonNumber(5, 18), 0, RXBtext, &Blue);
+  AmendButtonStatus(ButtonNumber(5, 18), 1, RXBtext, &Green);
+
+  // Parameters on/off button 19
+  strcpy(RXBtext, "Params^");
+  strcat(RXBtext, RXparams[0]);
+  AmendButtonStatus(ButtonNumber(5, 19), 0, RXBtext, &Blue);
+  AmendButtonStatus(ButtonNumber(5, 19), 1, RXBtext, &Green);
+
+  // Make the RX button red if RX on
+  SetButtonStatus(ButtonNumber(5, 21), RTLactive); 
+
 }
 
 void Define_Menu6()
@@ -9991,6 +11418,7 @@ void Define_Menu13()
   button = CreateButton(13, 8);
   AddButtonStatus(button, TabModeOPtext[3], &Blue);
   AddButtonStatus(button, TabModeOPtext[3], &Green);
+  AddButtonStatus(button, TabModeOPtext[3], &Grey);
 
   button = CreateButton(13, 9);
   AddButtonStatus(button, TabModeOPtext[4], &Blue);
@@ -10246,7 +11674,6 @@ void Define_Menu16()
 
   // Bottom Row, Menu 16
 
-
   if ((TabBandLO[5] < 0.1) && (TabBandLO[5] > -0.1))
   {
     strcpy(Freqtext, FreqLabel[5]);
@@ -10318,20 +11745,42 @@ void MakeFreqText(int index)
   GetConfigParam(PATH_PCONFIG,Param,Value);
   if ((TabBandLO[CurrentBand] < 0.1) && (TabBandLO[CurrentBand] > -0.1))
   {
-    strcpy(FreqBtext, FreqLabel[index]);
+    if (index == 8)
+    {
+      strcpy(FreqBtext, "Keyboard^");
+      strcat(FreqBtext, FreqLabel[index]);
+    }
+    else
+    {
+      strcpy(FreqBtext, FreqLabel[index]);
+    }
   }
   else
   {
-    strcpy(FreqBtext, "F: ");
-    strcat(FreqBtext, TabFreq[index]);
-    strcat(FreqBtext, "^T:");
-    TvtrFreq = atof(TabFreq[index]) + TabBandLO[CurrentBand];
-    if (TvtrFreq < 0)
+    if (index == 8)
     {
-      TvtrFreq = TvtrFreq * -1;
+      strcpy(FreqBtext, "Keyboard^T");
+      TvtrFreq = atof(TabFreq[index]) + TabBandLO[CurrentBand];
+      if (TvtrFreq < 0)
+      {
+        TvtrFreq = TvtrFreq * -1;
+      }
+      snprintf(Value, 10, "%.1f", TvtrFreq);
+      strcat(FreqBtext, Value);
     }
-    snprintf(Value, 10, "%.1f", TvtrFreq);
-    strcat(FreqBtext, Value);
+    else
+    {
+      strcpy(FreqBtext, "F: ");
+      strcat(FreqBtext, TabFreq[index]);
+      strcat(FreqBtext, "^T:");
+      TvtrFreq = atof(TabFreq[index]) + TabBandLO[CurrentBand];
+      if (TvtrFreq < 0)
+      {
+        TvtrFreq = TvtrFreq * -1;
+      }
+      snprintf(Value, 10, "%.1f", TvtrFreq);
+      strcat(FreqBtext, Value);
+    }
   }
 }
 
@@ -10347,12 +11796,22 @@ void Start_Highlights_Menu16()
   Green.r=0; Green.g=128; Green.b=0;
   Blue.r=0; Blue.g=0; Blue.b=128;
 
+  if (CallingMenu == 1)
+  {
+    strcpy(MenuTitle[16], "Transmit Frequency Selection Menu (16)"); 
+  }
+  else if (CallingMenu == 5)
+  {
+    strcpy(MenuTitle[16], " Receive Frequency Selection Menu (16)"); 
+  }
+
+
   // Update info in memory
   ReadPresets();
 
-  // Look up current frequency for highlighting
+  // Look up current transmit frequency for highlighting
   strcpy(Param,"freqoutput");
-  GetConfigParam(PATH_PCONFIG,Param,Value);
+  GetConfigParam(PATH_PCONFIG, Param, Value);
 
   for(index = 0; index < 9 ; index = index + 1)
   {
@@ -10363,11 +11822,13 @@ void Start_Highlights_Menu16()
     {
       NoButton = index - 5;
     }
+
     AmendButtonStatus(ButtonNumber(16, NoButton), 0, FreqBtext, &Blue);
     AmendButtonStatus(ButtonNumber(16, NoButton), 1, FreqBtext, &Green);
 
     //Highlight the Current Button
-    if(strcmp(Value, TabFreq[index]) == 0)
+    if(((strcmp(Value, TabFreq[index]) == 0) && (CallingMenu == 1)) 
+      || ((strcmp(RXfreq[0], TabFreq[index]) == 0) && (CallingMenu == 5)))
     {
       SelectInGroupOnMenu(16, 5, 9, NoButton, 1);
       SelectInGroupOnMenu(16, 0, 3, NoButton, 1);
@@ -10386,8 +11847,6 @@ void Define_Menu17()
   Blue.r=0; Blue.g=0; Blue.b=128;
   LBlue.r=64; LBlue.g=64; LBlue.b=192;
   DBlue.r=0; DBlue.g=0; DBlue.b=64;
-
-  strcpy(MenuTitle[17], "Symbol Rate Selection Menu (17)"); 
 
   // Bottom Row, Menu 17
 
@@ -10441,55 +11900,109 @@ void Start_Highlights_Menu17()
   char Value[255];
   int SR;
 
-  strcpy(Param,"symbolrate");
-  GetConfigParam(PATH_PCONFIG,Param,Value);
-  SR=atoi(Value);
-  printf("Value=%s %s\n",Value,"SR");
+  if (CallingMenu == 1)
+  {
+    strcpy(MenuTitle[17], "Transmit Symbol Rate Selection Menu (17)"); 
+    strcpy(Param,"symbolrate");
+    GetConfigParam(PATH_PCONFIG,Param,Value);
+    SR=atoi(Value);
+    printf("Value=%s %s\n",Value,"SR");
 
-  if ( SR == TabSR[0] )
-  {
-    SelectInGroupOnMenu(17, 0, 3, 5, 1);
-    SelectInGroupOnMenu(17, 5, 9, 5, 1);
+    if ( SR == TabSR[0] )
+    {
+      SelectInGroupOnMenu(17, 0, 3, 5, 1);
+      SelectInGroupOnMenu(17, 5, 9, 5, 1);
+    }
+    else if ( SR == TabSR[1] )
+    {
+      SelectInGroupOnMenu(17, 0, 3, 6, 1);
+      SelectInGroupOnMenu(17, 5, 9, 6, 1);
+    }
+    else if ( SR == TabSR[2] )
+    {
+      SelectInGroupOnMenu(17, 0, 3, 7, 1);
+      SelectInGroupOnMenu(17, 5, 9, 7, 1);
+    }
+    else if ( SR == TabSR[3] )
+    {
+      SelectInGroupOnMenu(17, 0, 3, 8, 1);
+      SelectInGroupOnMenu(17, 5, 9, 8, 1);
+    }
+    else if ( SR == TabSR[4] )
+    {
+      SelectInGroupOnMenu(17, 0, 3, 9, 1);
+      SelectInGroupOnMenu(17, 5, 9, 9, 1);
+    }
+    else if ( SR == TabSR[5] )
+    {
+      SelectInGroupOnMenu(17, 0, 3, 0, 1);
+      SelectInGroupOnMenu(17, 5, 9, 0, 1);
+    }
+    else if ( SR == TabSR[6] )
+    {
+      SelectInGroupOnMenu(17, 0, 3, 1, 1);
+      SelectInGroupOnMenu(17, 5, 9, 1, 1);
+    }
+    else if ( SR == TabSR[7] )
+    {
+      SelectInGroupOnMenu(17, 0, 3, 2, 1);
+      SelectInGroupOnMenu(17, 5, 9, 2, 1);
+    }
+    else if ( SR == TabSR[8] )
+    {
+      SelectInGroupOnMenu(17, 0, 3, 3, 1);
+      SelectInGroupOnMenu(17, 5, 9, 3, 1);
+    }
   }
-  else if ( SR == TabSR[1] )
+  else if (CallingMenu == 5)
   {
-    SelectInGroupOnMenu(17, 0, 3, 6, 1);
-    SelectInGroupOnMenu(17, 5, 9, 6, 1);
-  }
-  else if ( SR == TabSR[2] )
-  {
-    SelectInGroupOnMenu(17, 0, 3, 7, 1);
-    SelectInGroupOnMenu(17, 5, 9, 7, 1);
-  }
-  else if ( SR == TabSR[3] )
-  {
-    SelectInGroupOnMenu(17, 0, 3, 8, 1);
-    SelectInGroupOnMenu(17, 5, 9, 8, 1);
-  }
-  else if ( SR == TabSR[4] )
-  {
-    SelectInGroupOnMenu(17, 0, 3, 9, 1);
-    SelectInGroupOnMenu(17, 5, 9, 9, 1);
-  }
-  else if ( SR == TabSR[5] )
-  {
-    SelectInGroupOnMenu(17, 0, 3, 0, 1);
-    SelectInGroupOnMenu(17, 5, 9, 0, 1);
-  }
-  else if ( SR == TabSR[6] )
-  {
-    SelectInGroupOnMenu(17, 0, 3, 1, 1);
-    SelectInGroupOnMenu(17, 5, 9, 1, 1);
-  }
-  else if ( SR == TabSR[7] )
-  {
-    SelectInGroupOnMenu(17, 0, 3, 2, 1);
-    SelectInGroupOnMenu(17, 5, 9, 2, 1);
-  }
-  else if ( SR == TabSR[8] )
-  {
-    SelectInGroupOnMenu(17, 0, 3, 3, 1);
-    SelectInGroupOnMenu(17, 5, 9, 3, 1);
+    strcpy(MenuTitle[17], " Receive Symbol Rate Selection Menu (17)"); 
+
+    if ( RXsr[0] == TabSR[0] )
+    {
+      SelectInGroupOnMenu(17, 0, 3, 5, 1);
+      SelectInGroupOnMenu(17, 5, 9, 5, 1);
+    }
+    else if ( RXsr[0] == TabSR[1] )
+    {
+      SelectInGroupOnMenu(17, 0, 3, 6, 1);
+      SelectInGroupOnMenu(17, 5, 9, 6, 1);
+    }
+    else if ( RXsr[0] == TabSR[2] )
+    {
+      SelectInGroupOnMenu(17, 0, 3, 7, 1);
+      SelectInGroupOnMenu(17, 5, 9, 7, 1);
+    }
+    else if ( RXsr[0] == TabSR[3] )
+    {
+      SelectInGroupOnMenu(17, 0, 3, 8, 1);
+      SelectInGroupOnMenu(17, 5, 9, 8, 1);
+    }
+    else if ( RXsr[0] == TabSR[4] )
+    {
+      SelectInGroupOnMenu(17, 0, 3, 9, 1);
+      SelectInGroupOnMenu(17, 5, 9, 9, 1);
+    }
+    else if ( RXsr[0] == TabSR[5] )
+    {
+      SelectInGroupOnMenu(17, 0, 3, 0, 1);
+      SelectInGroupOnMenu(17, 5, 9, 0, 1);
+    }
+    else if ( RXsr[0] == TabSR[6] )
+    {
+      SelectInGroupOnMenu(17, 0, 3, 1, 1);
+      SelectInGroupOnMenu(17, 5, 9, 1, 1);
+    }
+    else if ( RXsr[0] == TabSR[7] )
+    {
+      SelectInGroupOnMenu(17, 0, 3, 2, 1);
+      SelectInGroupOnMenu(17, 5, 9, 2, 1);
+    }
+    else if ( RXsr[0] == TabSR[8] )
+    {
+      SelectInGroupOnMenu(17, 0, 3, 3, 1);
+      SelectInGroupOnMenu(17, 5, 9, 3, 1);
+    }
   }
 }
 
@@ -10504,8 +12017,6 @@ void Define_Menu18()
   Blue.r=0; Blue.g=0; Blue.b=128;
   LBlue.r=64; LBlue.g=64; LBlue.b=192;
   DBlue.r=0; DBlue.g=0; DBlue.b=64;
-
-  strcpy(MenuTitle[18], "FEC Selection Menu (18)"); 
 
   // Bottom Row, Menu 18
 
@@ -10542,16 +12053,22 @@ void Start_Highlights_Menu18()
   char Param[255];
   char Value[255];
   int fec;
-
-  strcpy(Param,"fec");
-  strcpy(Value,"");
-  GetConfigParam(PATH_PCONFIG,Param,Value);
-  printf("Value=%s %s\n",Value,"Fec");
-  fec=atoi(Value);
+  if (CallingMenu == 1)
+  {
+    strcpy(MenuTitle[18], "Transmit FEC Selection Menu (18)"); 
+    strcpy(Param,"fec");
+    strcpy(Value,"");
+    GetConfigParam(PATH_PCONFIG,Param,Value);
+    printf("Value=%s %s\n",Value,"Fec");
+    fec=atoi(Value);
+  }
+  else
+  {
+    strcpy(MenuTitle[18], "Receive FEC Selection Menu (18)"); 
+    fec = atoi(RXfec[0]);
+  }
   switch(fec)
   {
-    //void SelectInGroupOnMenu(int Menu, int StartButton, int StopButton, int NumberButton, int Status)
-
     case 1:SelectInGroupOnMenu(18, 5, 9, 5, 1);
     break;
     case 2:SelectInGroupOnMenu(18, 5, 9, 6, 1);
@@ -11050,12 +12567,12 @@ void Define_Menu26()
   color_t Green;
   color_t Blue;
   color_t LBlue;
+  color_t DBlue;
   Green.r=0; Green.g=128; Green.b=0;
   Blue.r=0; Blue.g=0; Blue.b=128;
   LBlue.r=64; LBlue.g=64; LBlue.b=192;
+  DBlue.r=0; DBlue.g=0; DBlue.b=64;
   char BandLabel[31];
-
-  strcpy(MenuTitle[26], "Band Details Setting Menu (26)"); 
 
   // Bottom Row, Menu 26
 
@@ -11084,7 +12601,7 @@ void Define_Menu26()
   AddButtonStatus(button, BandLabel, &Green);
 
   button = CreateButton(26, 4);
-  AddButtonStatus(button, "Exit", &Blue);
+  AddButtonStatus(button, "Exit", &DBlue);
   AddButtonStatus(button, "Exit", &LBlue);
 
   // 2nd Row, Menu 26
@@ -11117,10 +12634,17 @@ void Start_Highlights_Menu26()
   char BandLabel[31];
   color_t Green;
   color_t Blue;
-  //color_t LBlue;
   Green.r=0; Green.g=128; Green.b=0;
   Blue.r=0; Blue.g=0; Blue.b=128;
-  //LBlue.r=64; LBlue.g=64; LBlue.b=192;
+
+  if(CallingMenu == 301)
+  {
+    strcpy(MenuTitle[26], "Band Details Setting Menu (26)");
+  }
+  else
+  {
+    strcpy(MenuTitle[26], "Receiver LO Setting Menu (26)");
+  }
 
   printf("Entering Start Highlights Menu26\n");
 
@@ -11587,6 +13111,10 @@ void Define_Menu33()
     AddButtonStatus(button, "Install^Lime Mini", &Green);
   }
 
+  button = CreateButton(33, 1);
+  AddButtonStatus(button, "MPEG-2^License", &Blue);
+  AddButtonStatus(button, "MPEG-2^License", &Green);
+
   button = CreateButton(33, 4);
   AddButtonStatus(button, "Exit", &DBlue);
   AddButtonStatus(button, "Exit", &LBlue);
@@ -11681,9 +13209,11 @@ void Define_Menu41()
   AddButtonStatus(button, "-", &LBlue);
   AddButtonStatus(button, "_", &Blue);
   AddButtonStatus(button, "_", &LBlue);
-  //button = CreateButton(41, 5);
-  //AddButtonStatus(button, "N", &Blue);
-  //AddButtonStatus(button, "N", &LBlue);
+  button = CreateButton(41, 5);
+  AddButtonStatus(button, "Clear", &Blue);
+  AddButtonStatus(button, "Clear", &LBlue);
+  AddButtonStatus(button, "Clear", &Blue);
+  AddButtonStatus(button, "Clear", &LBlue);
   button = CreateButton(41, 6);
   AddButtonStatus(button, "^", &LBlue);
   AddButtonStatus(button, "^", &Blue);
@@ -12047,6 +13577,7 @@ int main(int argc, char **argv)
   ReadCallLocPID();
   ReadADFRef();
   ReadRTLPresets();
+  ReadRXPresets();
 
   // Initialise all the button Status Indexes to 0
   InitialiseButtons();
@@ -12056,7 +13587,7 @@ int main(int argc, char **argv)
   Define_Menu2();
   Define_Menu3();
   Define_Menu4();
-
+  Define_Menu5();
   Define_Menu6();
 
   Define_Menu11();

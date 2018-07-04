@@ -61,6 +61,13 @@ sudo apt-get update
 sudo apt-get -y dist-upgrade
 sudo apt-get update
 
+# Enable USB Storage automount in Stretch (only) 20180704
+cd /lib/systemd/system/
+if ! grep -q MountFlags=shared systemd-udevd.service; then
+  sudo sed -i -e 's/MountFlags=slave/MountFlags=shared/' systemd-udevd.service
+fi
+cd /home/pi
+
 # ---------- Update rpidatv -----------
 
 DisplayUpdateMsg "Step 5 of 10\nDownloading Portsdown SW\n\nXXXXX-----"
@@ -125,10 +132,18 @@ cd /home/pi
 #compile ilcomponet first
 cd /opt/vc/src/hello_pi/
 sudo ./rebuild.sh
+
+# install H264 player
 cd /home/pi/rpidatv/src/hello_video
 touch video.c
 make
 cp hello_video.bin ../../bin/
+
+# install MPEG-2 player
+cd /home/pi/rpidatv/src/hello_video2
+touch video.c
+make
+cp hello_video2.bin ../../bin/
 
 # There is no step 7!
 
