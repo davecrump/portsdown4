@@ -25,6 +25,11 @@ sudo apt-get -y install python-pip pandoc python-numpy pandoc python-pygame gdeb
 
 sudo pip install pyrtlsdr  #20180101 FreqShow
 
+# Enable USB Storage automount in Stretch (only) 20180704
+cd /lib/systemd/system/
+if ! grep -q MountFlags=shared systemd-udevd.service; then
+  sudo sed -i -e 's/MountFlags=slave/MountFlags=shared/' systemd-udevd.service
+fi
 cd /home/pi
 
 # Check which source to download.  Default is production
@@ -125,9 +130,15 @@ cp bin/ts2es ../../bin/
 cd /opt/vc/src/hello_pi/
 sudo ./rebuild.sh
 
+# Compile H264 player
 cd /home/pi/rpidatv/src/hello_video
 make
 cp hello_video.bin ../../bin/
+
+# Compile MPEG-2 player
+cd /home/pi/rpidatv/src/hello_video2
+make
+cp hello_video2.bin ../../bin/
 
 # TouchScreen GUI
 # FBCP : Duplicate Framebuffer 0 -> 1

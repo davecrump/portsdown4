@@ -1,3 +1,13 @@
+201807040
+New receive menu to allow independent selection of DATV receive parameters
+MPEG-2 DATV receive capability after purchase and installation of key
+Programmable ADF4351 output during receive for upconverters
+Direct transmit frequency entry from frequency selection menu
+New "clear" key on keyboard to clear entry line
+USB disk automount enabled by default in Raspbian Stretch
+10-character locator used as basis for locator change
+Old BATC Streamer removed from output menu.
+
 201805152
 Bugfix for the "Boot to stream" startup problem in Stretch
 
