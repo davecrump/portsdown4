@@ -216,6 +216,19 @@ char RXsound[5][7];         // Sound on/off
 char RXfastlock[5][7];      // Fastlock on/off
 int RXStoreTrigger = 0;     // Set to 1 if ready to store RX preset
 
+// Range and Bearing Calculator Parameters
+int GcBearing(const float, const float, const float, const float);
+float GcDistance(const float, const float, const float, const float, const char *);
+float Locator_To_Lat(char *);
+float Locator_To_Lon(char *);
+int CalcBearing(char *, char *);
+int CalcRange(char *, char *);
+bool CheckLocator(char *);
+
+// Touch display variables
+int getTouchSample(int *, int *, int *);
+void TransformTouchMap(int, int);
+int ButtonNumber(int, int);
 int Inversed=0;           //Display is inversed (Waveshare=1)
 int PresetStoreTrigger=0; //Set to 1 if awaiting preset being stored
 
@@ -260,20 +273,10 @@ void waituntil(int, int);
 void Keyboard(char *, char *, int);
 void DoFreqChange();
 void CompVidStart();
-int GcBearing(const float, const float, const float, const float);
-float GcDistance(const float, const float, const float, const float, const char *);
-float Locator_To_Lat(char *);
-float Locator_To_Lon(char *);
-int CalcBearing(char *, char *);
-int CalcRange(char *, char *);
-bool CheckLocator(char *);
-
-int getTouchSample(int *, int *, int *);
-void TransformTouchMap(int, int);
-int ButtonNumber(int, int);
+void ReceiveLOStart();
 
 /***************************************************************************//**
- * @brief Looks up the value of Param in PathConfigFile and sets value
+ * @brief Looks up the value of a Param in PathConfigFile and sets value
  *        Used to look up the configuration from portsdown_config.txt
  *
  * @param PatchConfigFile (str) the name of the configuration text file
@@ -4980,6 +4983,9 @@ void DoFreqChange()
   system ("sudo /home/pi/rpidatv/scripts/ctlfilter.sh");
   // And wait for it to finish using portsdown_config.txt
   usleep(100000);
+
+  // Now check if the Receive upconverter LO needs to be started or stopped
+  ReceiveLOStart();  
 }
 
 void SelectBand(int NoButton)  // Set the Band
@@ -5033,12 +5039,6 @@ void SelectBand(int NoButton)  // Set the Band
 
   // Make all the changes required after a band change
   DoFreqChange();
-
-  // *** Not required, now in DoFreqChange() ***
-  // Set the Band (and filter) Switching
-  // system ("sudo /home/pi/rpidatv/scripts/ctlfilter.sh");
-  // and wait for it to finish using portsdown_config.txt
-  // usleep(100000);
 }
 
 void SelectVidIP(int NoButton)  // Comp Vid or S-Video
@@ -5427,16 +5427,20 @@ void ReceiveLOStart()
   strcpy(Param, TabBand[CurrentBand]);
   strcat(Param, "lo");
   GetConfigParam(PATH_RXPRESETS, Param, Value);
-  if(strcmp(Value, "0") != 0)
+
+  if(strcmp(Value, "0") != 0)  // Start the LO
   {
     strcpy(bashCall, "sudo /home/pi/rpidatv/bin/adf4351 ");
     strcat(bashCall, Value);
     strcat(bashCall, " ");
     strcat(bashCall, CurrentADFRef);
     strcat(bashCall, " 3"); //max level
-
-    system(bashCall);
   }
+  else                        // Stop the LO
+  {
+    strcpy(bashCall, "sudo /home/pi/rpidatv/bin/adf4351 off");
+  }
+  system(bashCall);
 }
 
 void CompVidInitialise()
@@ -5872,230 +5876,6 @@ void *WaitButtonEvent(void * arg)
   return NULL;
 }
 
-void ProcessLeandvb()
-{
-  #define PATH_SCRIPT_LEAN "sudo /home/pi/rpidatv/scripts/leandvbgui.sh 2>&1"
-  char *line=NULL;
-  size_t len = 0;
-  ssize_t read;
-  FILE *fp;
-  VGfloat shapecolor[4];
-  RGBA(255, 255, 128,1, shapecolor);
-
-  printf("Entering LeandProcess\n");
-  FinishedButton=0;
-
-  // create Thread FFT
-  pthread_create (&thfft,NULL, &DisplayFFT, NULL);
-
-  // Create Wait Button thread
-  pthread_create (&thbutton,NULL, &WaitButtonEvent, NULL);
-
-  fp=popen(PATH_SCRIPT_LEAN, "r");
-  if(fp==NULL) printf("Process error\n");
-
-  while (((read = getline(&line, &len, fp)) != -1)&&(FinishedButton==0))
-  {
-
-        char  strTag[20];
-	int NbData;
-	static int Decim=0;
-	sscanf(line,"%s ",strTag);
-	char * token;
-	static int Lock=0;
-	static float SignalStrength=0;
-	static float MER=0;
-	static float FREQ=0;
-	if((strcmp(strTag,"SYMBOLS")==0))
-	{
-
-		token = strtok(line," ");
-		token = strtok(NULL," ");
-		sscanf(token,"%d",&NbData);
-
-		if(Decim%25==0)
-		{
-			//Start(wscreen,hscreen);
-			Fill(255, 255, 255, 1);
-			Roundrect(0,0,256,hscreen, 10, 10);
-			BackgroundRGB(0,0,0,0);
-			//Lock status
-			char sLock[100];
-			if(Lock==1)
-			{
-				strcpy(sLock,"Lock");
-				Fill(0,255,0, 1);
-
-			}
-			else
-			{
-				strcpy(sLock,"----");
-				Fill(255,0,0, 1);
-			}
-			Roundrect(200,0,100,50, 10, 10);
-			Fill(255, 255, 255, 1);				   // White text
-			Text(200, 20, sLock, SerifTypeface, 25);
-
-			//Signal Strength
-			char sSignalStrength[100];
-			sprintf(sSignalStrength,"%3.0f",SignalStrength);
-
-			Fill(255-SignalStrength,SignalStrength,0,1);
-			Roundrect(350,0,20+SignalStrength/2,50, 10, 10);
-			Fill(255, 255, 255, 1);				   // White text
-			Text(350, 20, sSignalStrength, SerifTypeface, 25);
-
-			//MER 2-30
-			char sMER[100];
-			sprintf(sMER,"%2.1fdB",MER);
-			Fill(255-MER*8,(MER*8),0,1);
-			Roundrect(500,0,(MER*8),50, 10, 10);
-			Fill(255, 255, 255, 1);				   // White text
-			Text(500,20, sMER, SerifTypeface, 25);
-		}
-
-		if(Decim%25==0)
-		{
-			static VGfloat PowerFFTx[FFT_SIZE];
-			static VGfloat PowerFFTy[FFT_SIZE];
-			StrokeWidth(2);
-
-			Stroke(150, 150, 200, 0.8);
-			int i;
-			if(fftout!=NULL)
-			{
-			for(i=0;i<FFT_SIZE;i+=2)
-			{
-
-				PowerFFTx[i]=(i<FFT_SIZE/2)?(FFT_SIZE+i)/2:i/2;
-				PowerFFTy[i]=log10f(sqrt(fftout[i][0]*fftout[i][0]+fftout[i][1]*fftout[i][1])/FFT_SIZE)*100;	
-			Line(PowerFFTx[i],0,PowerFFTx[i],PowerFFTy[i]);
-			//Polyline(PowerFFTx,PowerFFTy,FFT_SIZE);
-
-			//Line(0, (i<1024/2)?(1024/2+i)/2:(i-1024/2)/2,  (int)sqrt(fftout[i][0]*fftout[i][0]+fftout[i][1]*fftout[i][1])*100/1024,(i<1024/2)?(1024/2+i)/2:(i-1024/2)/2);
-
-			}
-			//Polyline(PowerFFTx,PowerFFTy,FFT_SIZE);
-			}
-			//FREQ
-			Stroke(0, 0, 255, 0.8);
-			//Line(FFT_SIZE/2+FREQ/2/1024000.0,0,FFT_SIZE/2+FREQ/2/1024000.0,hscreen/2);
-			Line(FFT_SIZE/2,0,FFT_SIZE/2,10);
-			Stroke(0, 0, 255, 0.8);
-			Line(0,hscreen-300,256,hscreen-300);
-			StrokeWidth(10);
-			Line(128+(FREQ/40000.0)*256.0,hscreen-300-20,128+(FREQ/40000.0)*256.0,hscreen-300+20);
-
-			char sFreq[100];
-			sprintf(sFreq,"%2.1fkHz",FREQ/1000.0);
-			Text(0,hscreen-300+25, sFreq, SerifTypeface, 20);
-
-		}
-		if((Decim%25)==0)
-		{
-			int x,y;
-			Decim++;
-			int i;
-			StrokeWidth(2);
-			Stroke(255, 255, 128, 0.8);
-			for(i=0;i<NbData;i++)
-			{
-				token=strtok(NULL," ");
-				sscanf(token,"%d,%d",&x,&y);
-				coordpoint(x+128, hscreen-(y+128), 5, shapecolor);
-
-				Stroke(0, 255, 255, 0.8);
-				Line(0,hscreen-128,256,hscreen-128);
-				Line(128,hscreen,128,hscreen-256);
-
-			}
-
-
-			End();
-			//usleep(40000);
-
-		}
-		else
-			Decim++;
-		/*if(Decim%1000==0)
-		{
-			char FileSave[255];
-			FILE *File;
-			sprintf(FileSave,"Snap%d_%dx%d.png",Decim,wscreen,hscreen);
-			File=fopen(FileSave,"w");
-
-			dumpscreen(wscreen,hscreen,File);
-			fclose(File);
-		}*/
-		/*if(Decim>200)
-		{
-			Decim=0;
-			Start(wscreen,hscreen);
-
-		}*/
-
-	}
-
-	if((strcmp(strTag,"SS")==0))
-	{
-		token = strtok(line," ");
-		token = strtok(NULL," ");
-		sscanf(token,"%f",&SignalStrength);
-		//printf("Signal %f\n",SignalStrength);
-	}
-
-	if((strcmp(strTag,"MER")==0))
-	{
-
-		token = strtok(line," ");
-		token = strtok(NULL," ");
-		sscanf(token,"%f",&MER);
-		//printf("MER %f\n",MER);
-	}
-
-	if((strcmp(strTag,"FREQ")==0))
-	{
-
-		token = strtok(line," ");
-		token = strtok(NULL," ");
-		sscanf(token,"%f",&FREQ);
-		//printf("FREQ %f\n",FREQ);
-	}
-
-	if((strcmp(strTag,"LOCK")==0))
-	{
-
-		token = strtok(line," ");
-		token = strtok(NULL," ");
-		sscanf(token,"%d",&Lock);
-	}
-
-	free(line);
-	line=NULL;
-    }
-  printf("End Lean - Clean\n");
-  system("(sudo killall rtl_sdr >/dev/null 2>/dev/null) &");
-  system("(sudo killall leandvb >/dev/null 2>/dev/null) &");
-
-  system("sudo killall fbi >/dev/null 2>/dev/null");  // kill any previous images
-  system("sudo fbi -T 1 -noverbose -a /home/pi/rpidatv/scripts/images/BATC_Black.png");  // Add logo image
-
-  MsgBox4("Switching back to Main Menu", "", "Please wait for the receiver", "to clean up files");
-  usleep(5000000); // Time to FFT end reading samples
-  pthread_join(thfft, NULL);
-	//pclose(fp);
-	pthread_join(thbutton, NULL);
-	printf("End Lean\n");
- 
-  system("sudo killall hello_video.bin >/dev/null 2>/dev/null");
-  system("sudo killall fbi >/dev/null 2>/dev/null");
-  system("sudo killall leandvb >/dev/null 2>/dev/null");
-  system("sudo killall ts2es >/dev/null 2>/dev/null");
-  finish();
-  strcpy(ScreenState, "RXwithImage");            //  Signal to display touch menu without further touch
-}
-
-
 
 void ProcessLeandvb2()
 {
@@ -6303,18 +6083,11 @@ void ProcessLeandvb2()
 }
 
 
-
-void ReceiveStart()
-{
-  strcpy(ScreenState, "RXwithImage");
-  system("sudo killall hello_video.bin >/dev/null 2>/dev/null");
-  ProcessLeandvb();
-}
-
 void ReceiveStart2()
 {
   strcpy(ScreenState, "RXwithImage");  //  Signal to display touch menu without further touch
   system("sudo killall hello_video.bin >/dev/null 2>/dev/null");
+  system("sudo killall hello_video2.bin >/dev/null 2>/dev/null");
   ProcessLeandvb2();
 }
 
@@ -8300,23 +8073,7 @@ void waituntil(int w,int h)
           }
           break;
         case 21:                       // RX
-/*          if(CheckRTL()==0)
-          {
-            BackgroundRGB(0,0,0,255);
-            Start(wscreen,hscreen);
-            ReceiveStart();
-            break;
-          }
-          else
-          {
-            MsgBox("No RTL-SDR Connected");
-            wait_touch();
-            BackgroundRGB(255,255,255,255);
-            UpdateWindow();
-          }
-          break;
-        case 22:                      // Temp receive Menu
-*/          printf("MENU 5 \n");
+          printf("MENU 5 \n");
           CurrentMenu=5;
           BackgroundRGB(0,0,0,255);
           Start_Highlights_Menu5();
@@ -9271,8 +9028,11 @@ void waituntil(int w,int h)
         default:
           printf("Menu 16 Error\n");
         }
-        UpdateWindow();
-        usleep(500000);
+        if(i != 3)  // Don't pause if frequency has been set on keyboard
+        {
+          UpdateWindow();
+          usleep(500000);
+        }
         SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 0); // Reset cancel (even if not selected)
         if (CallingMenu == 1)
         {
@@ -9702,7 +9462,8 @@ void waituntil(int w,int h)
           }
           else  // 302, Set Receive LO
           {
-            SetReceiveLOFreq(i);
+            SetReceiveLOFreq(i);      // Set the LO frequency
+            ReceiveLOStart();         // Start the LO if it is required
             printf("Returning to MENU 1 from Menu 26\n");
             CurrentMenu=1;
             BackgroundRGB(255,255,255,255);
@@ -13528,7 +13289,7 @@ int main(int argc, char **argv)
   if(ReceiveDirect==1)
   {
     getTouchScreenDetails(&screenXmin,&screenXmax,&screenYmin,&screenYmax);
-    ProcessLeandvb(); // For FrMenu and no 
+    ProcessLeandvb2(); // For FrMenu and no 
   }
 
   // Check for presence of touchscreen
@@ -13628,8 +13389,11 @@ int main(int argc, char **argv)
   // Set the Band (and filter) Switching
   // Must be done after (not before) starting DATV Express Server
   system ("sudo /home/pi/rpidatv/scripts/ctlfilter.sh");
-  // and wait for it to finish using rpidatvconfig.txt
+  // and wait for it to finish using portsdown_config.txt
   usleep(100000);
+
+  // Start the receive downconverter LO if required
+  ReceiveLOStart();
 
   // Determine button highlights
   Start_Highlights_Menu1();
