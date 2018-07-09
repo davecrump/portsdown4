@@ -1,3 +1,9 @@
+201807090
+LeanDVB Performance Improvements
+Bugfix BATC Streamer label
+Bugfix LeanDVB Preset storage
+Prep for LimeSDR USB
+
 201807040
 New receive menu to allow independent selection of DATV receive parameters
 MPEG-2 DATV receive capability after purchase and installation of key

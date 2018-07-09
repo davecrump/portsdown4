@@ -159,7 +159,7 @@ char FreqLabel[31][255];
 char TabModeAudio[6][15]={"auto", "mic", "video", "bleeps", "no_audio", "webcam"};
 char TabModeSTD[2][7]={"6","0"};
 char TabModeVidIP[2][7]={"0","1"};
-char TabModeOP[9][31]={"IQ", "QPSKRF", "DATVEXPRESS", "BATC", "STREAMER", "COMPVID", "DTX1", "IP", "LIME"};
+char TabModeOP[9][31]={"IQ", "QPSKRF", "DATVEXPRESS", "LIMEUSB", "STREAMER", "COMPVID", "DTX1", "IP", "LIMEMINI"};
 char TabModeOPtext[9][31]={"Portsdown", " UGLY ", "EXPRESS", "Lime USB", "BATC^STREAM", "Comp Vid", " DTX1 ", "IPTS out", "Lime Mini"};
 char TabAtten[4][15] = {"NONE", "PE4312", "PE43713", "HMC1119"};
 char CurrentModeOP[31] = "QPSKRF";
@@ -840,7 +840,7 @@ void ExecuteUpdate(int NoButton)
       exit(133);  // Pass control back to scheduler for Dev Load
     }
     break;
-  case 0:  // Install Lime Mini
+  case 0:  // Install Lime Mini and USB
     // Display the update message
     finish();
     system("/home/pi/rpidatv/scripts/install_lime.sh");
@@ -1391,9 +1391,9 @@ void ReadModeOutput(char Moutput[256])
     strcpy(Moutput, "LimeSDR USB");
     strcpy(CurrentModeOPtext, TabModeOPtext[3]);
   } 
-  else if (strcmp(ModeOutput, "BATC") == 0) 
+  else if (strcmp(ModeOutput, "LIMEMINI") == 0) 
   {
-    strcpy(Moutput, "BATC Streaming");
+    strcpy(Moutput, "LimeSDR Mini");
     strcpy(CurrentModeOPtext, TabModeOPtext[4]);
   } 
   else if (strcmp(ModeOutput, "STREAMER") == 0) 
@@ -1419,11 +1419,6 @@ void ReadModeOutput(char Moutput[256])
   else if (strcmp(ModeOutput, "DIGITHIN") == 0) 
   {
     strcpy(Moutput, "DigiThin Board");
-  } 
-  else if (strcmp(ModeOutput, "LIME") == 0) 
-  {
-    strcpy(Moutput, "LimeSDR Mini");
-    strcpy(CurrentModeOPtext, TabModeOPtext[8]);
   } 
   else
   {
@@ -2470,7 +2465,7 @@ void SaveRXPreset(int PresetButton)
   char Value[255];
   char Prompt[63];
   int index;
-  int Spaces;
+  int Spaces = 1;
   int j;
 
   // Transform button number into preset index
@@ -4214,7 +4209,7 @@ void EnforceValidTXMode()
 {
   char Param[15]="modulation";
 
-  if (strcmp(CurrentModeOP, TabModeOP[8]) != 0)  // not Lime
+  if ((strcmp(CurrentModeOP, TabModeOP[3]) != 0) && (strcmp(CurrentModeOP, TabModeOP[8]) != 0)) // not Lime Mini or USB
   {
     if ((strcmp(CurrentTXMode, TabTXMode[0]) != 0) && (strcmp(CurrentTXMode, TabTXMode[1]) != 0))  // Not DVB-S and not Carrier
     {
@@ -4334,7 +4329,7 @@ void GreyOut1()
         SetButtonStatus(ButtonNumber(CurrentMenu, 7), 2); // Audio
       }
     }
-    if ((strcmp(CurrentModeOP, "BATC") == 0) || (strcmp(CurrentModeOP, "STREAMER") == 0)\
+    if ((strcmp(CurrentModeOP, "STREAMER") == 0)\
       || (strcmp(CurrentModeOP, "COMPVID") == 0) || (strcmp(CurrentModeOP, "DTX1") == 0)\
       || (strcmp(CurrentModeOP, "IP") == 0))
     {
@@ -4370,7 +4365,7 @@ void GreyOutReset11()
 
 void GreyOut11()
 {
-  if (strcmp(CurrentModeOP, TabModeOP[8]) != 0)  // not Lime
+  if ((strcmp(CurrentModeOP, TabModeOP[3]) != 0) && (strcmp(CurrentModeOP, TabModeOP[8]) != 0)) // not Lime Mini or USB
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 0), 2); // S2 QPSK
     SetButtonStatus(ButtonNumber(CurrentMenu, 1), 2); // 8PSK
@@ -4382,6 +4377,7 @@ void GreyOut11()
 void GreyOutReset13()
 {
   SetButtonStatus(ButtonNumber(CurrentMenu, 3), 0); // Lime Mini
+  SetButtonStatus(ButtonNumber(CurrentMenu, 8), 0); // Lime USB
 }
 
 void GreyOut13()
@@ -5123,7 +5119,7 @@ void SetAttenLevel()
     strcpy(Param, "explevel");
     SetConfigParam(PATH_PCONFIG, Param, KeyboardReturn);
   }
-  else if (strcmp(CurrentModeOP, TabModeOP[8]) == 0)  // Lime
+  else if ((strcmp(CurrentModeOP, TabModeOP[3]) == 0) || (strcmp(CurrentModeOP, TabModeOP[8]) == 0))  // Lime Mini or USB
   {
     while ((LimeGain < 0) || (LimeGain > 100))
     {
@@ -5837,34 +5833,30 @@ fftwf_complex *fftout=NULL;
 
 void *DisplayFFT(void * arg)
 {
-	FILE * pFileIQ = NULL;
-	int fft_size=FFT_SIZE;
-	fftwf_complex *fftin;
-	fftin = (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * fft_size);
-	fftout = (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * fft_size);
-	fftwf_plan plan ;
-	plan = fftwf_plan_dft_1d(fft_size, fftin, fftout, FFTW_FORWARD, FFTW_ESTIMATE );
+  FILE * pFileIQ = NULL;
+  int fft_size=FFT_SIZE;
+  fftwf_complex *fftin;
+  fftin = (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * fft_size);
+  fftout = (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * fft_size);
+  fftwf_plan plan ;
+  plan = fftwf_plan_dft_1d(fft_size, fftin, fftout, FFTW_FORWARD, FFTW_ESTIMATE );
 
-	system("mkfifo fifo.iq >/dev/null 2>/dev/null");
-	printf("Entering FFT thread\n");
-	pFileIQ = fopen("fifo.iq", "r");
+  system("mkfifo fifo.iq >/dev/null 2>/dev/null");
+  printf("Entering FFT thread\n");
+  pFileIQ = fopen("fifo.iq", "r");
 
-	while(FinishedButton==0)
-	{
-		//int Nbread; // value set later but not used
-		//int log2_N=11; //FFT 1024 not used?
-		//int ret; // not used?
+  while(FinishedButton==0)
+  {
+    fread( fftin,sizeof(fftwf_complex),FFT_SIZE,pFileIQ);
 
-		//Nbread=fread( fftin,sizeof(fftwf_complex),FFT_SIZE,pFileIQ);
-		fread( fftin,sizeof(fftwf_complex),FFT_SIZE,pFileIQ);
-		fftwf_execute( plan );
-
-		//printf("NbRead %d %d\n",Nbread,sizeof(struct GPU_FFT_COMPLEX));
-
-		fseek(pFileIQ,(1200000-FFT_SIZE)*sizeof(fftwf_complex),SEEK_CUR);
-	}
-	fftwf_free(fftin);
-	fftwf_free(fftout);
+    if((strcmp(RXgraphics[0], "ON") == 0))
+    {
+      fftwf_execute( plan );
+      fseek(pFileIQ,(1200000-FFT_SIZE)*sizeof(fftwf_complex),SEEK_CUR);
+    }
+  }
+  fftwf_free(fftin);
+  fftwf_free(fftout);
   return NULL;
 }
 
@@ -5875,7 +5867,6 @@ void *WaitButtonEvent(void * arg)
   FinishedButton=1;
   return NULL;
 }
-
 
 void ProcessLeandvb2()
 {
@@ -5890,7 +5881,7 @@ void ProcessLeandvb2()
   printf("Entering LeanDVB Process\n");
   FinishedButton=0;
 
-  if((strcmp(RXgraphics[0], "ON") == 0))
+  if((strcmp(RXgraphics[0], "ON") == 0) || (strcmp(RXparams[0], "ON") == 0))
   {
     // create FFT Thread 
     pthread_create (&thfft, NULL, &DisplayFFT, NULL);
@@ -5903,36 +5894,51 @@ void ProcessLeandvb2()
   fp=popen(PATH_SCRIPT_LEAN2, "r");
   if(fp==NULL) printf("Process error\n");
 
-  
-  // While there is data, display it
-  while (((read = getline(&line, &len, fp)) != -1) && (FinishedButton == 0))
+  // Deal with each display case differently
+
+  // No graphics or parameters
+  if((strcmp(RXgraphics[0], "OFF") == 0) && (strcmp(RXparams[0], "OFF") == 0))
   {
-    char  strTag[20];
-    int NbData;
-    static int Decim = 0;
-    sscanf(line,"%s ",strTag);
-    char * token;
-    static int Lock = 0;
-    static float SignalStrength = 0;
-    static float MER = 0;
-    static float FREQ = 0;
-
-    // Deal with the Symbol Data
-    if(strcmp(strTag, "SYMBOLS")==0)
+    BackgroundRGB(0, 0, 0, 0);
+    End();
+    while (FinishedButton == 0)
     {
-      token = strtok(line, " ");
-      token = strtok(NULL, " ");
-      sscanf(token,"%d",&NbData);
-
-      if(Decim%25==0)  // Lock, signal strength and MER
+      usleep(1000);
+      if(FinishedButton == 1)
       {
-        //Start(wscreen,hscreen);
-        //Fill(255, 255, 255, 1);  // Not sure about commenting this out
-        //Roundrect(0, 0, 256, hscreen, 10, 10); // Not sure about commenting this out
-        BackgroundRGB(0, 0, 0, 0);
+        printf("Trying to kill LeanDVB\n");
+        system("(sudo killall -9 leandvb >/dev/null 2>/dev/null) &");
+      }
+    }
+  }
 
-        if(strcmp(RXparams[0], "ON") == 0)
+  // Both graphics and parameters
+  if((strcmp(RXgraphics[0], "ON") == 0) && (strcmp(RXparams[0], "ON") == 0))
+  { 
+    // While there is data, display it
+    while (((read = getline(&line, &len, fp)) != -1) && (FinishedButton == 0))
+    {
+      char  strTag[20];
+      int NbData;
+      static int Decim = 0;
+      sscanf(line,"%s ",strTag);
+      char * token;
+      static int Lock = 0;
+      static float SignalStrength = 0;
+      static float MER = 0;
+      static float FREQ = 0;
+
+      // Deal with the Symbol Data
+      if(strcmp(strTag, "SYMBOLS")==0)
+      {
+        token = strtok(line, " ");
+        token = strtok(NULL, " ");
+        sscanf(token,"%d",&NbData);
+
+        if(Decim%25==0)  // Lock, signal strength and MER
         {
+          BackgroundRGB(0, 0, 0, 0);
+
           // Lock status Rectangle (red/green with white text)
           char sLock[100];
           if(Lock == 1)
@@ -5978,12 +5984,110 @@ void ProcessLeandvb2()
           sprintf(sFreq,"%2.1fkHz",FREQ/1000.0);
           Text(0,hscreen-300+25, sFreq, SerifTypeface, 20);
         }
+
+        if(Decim%25==0)
+        {
+          // Draw FFT
+          static VGfloat PowerFFTx[FFT_SIZE];
+          static VGfloat PowerFFTy[FFT_SIZE];
+          StrokeWidth(2);
+          Stroke(150, 150, 200, 0.8);
+          int i;
+          if(fftout != NULL)
+          {
+            for(i = 0; i < FFT_SIZE; i += 2)
+            {
+              PowerFFTx[i] = (i<FFT_SIZE/2)?(FFT_SIZE+i)/2:i/2;
+              PowerFFTy[i] = log10f(sqrt(fftout[i][0]*fftout[i][0]+fftout[i][1]*fftout[i][1])/FFT_SIZE)*100;	
+              Line(PowerFFTx[i], 0, PowerFFTx[i], PowerFFTy[i]);
+            }
+
+            // Draw Constellation
+            int x, y;
+            Decim++;
+            StrokeWidth(2);
+            Stroke(255, 255, 128, 0.8);
+            for(i = 0; i < NbData ; i++)
+            {
+              token = strtok(NULL, " ");
+              sscanf(token, "%d, %d", &x, &y);
+              coordpoint(x+128, hscreen-(y+128), 5, shapecolor); // dots
+
+              Stroke(0, 255, 255, 0.8);
+              Line(0, hscreen-128, 256, hscreen-128);
+              Line(128, hscreen, 128, hscreen-256);  // Axis
+            }
+          }
+          End();
+        }
+        else
+        {
+          Decim++;
+        }
       }
 
-      if(Decim%25==0)
+      if((strcmp(strTag, "SS") == 0))
       {
-        if(strcmp(RXgraphics[0], "ON") == 0)
+        token = strtok(line," ");
+        token = strtok(NULL," ");
+        sscanf(token,"%f",&SignalStrength);
+      }
+
+      if((strcmp(strTag, "MER") == 0))
+      {
+        token = strtok(line," ");
+        token = strtok(NULL," ");
+        sscanf(token,"%f",&MER);
+      }
+
+      if((strcmp(strTag,"FREQ")==0))
+      {
+        token = strtok(line," ");
+        token = strtok(NULL," ");
+        sscanf(token,"%f",&FREQ);
+      }
+
+      if((strcmp(strTag,"LOCK")==0))
+      {
+        token = strtok(line," ");
+        token = strtok(NULL," ");
+        sscanf(token,"%d",&Lock);
+      }
+
+      free(line);
+      line=NULL;
+
+      if(FinishedButton == 1)
+      {
+        printf("Trying to kill LeanDVB\n");
+        system("(sudo killall -9 leandvb >/dev/null 2>/dev/null) &");
+      }
+    }
+  }
+ 
+  // Only graphics, no  parameters
+  if((strcmp(RXgraphics[0], "ON") == 0) && (strcmp(RXparams[0], "OFF") == 0))
+  { 
+    // While there is data, display it
+    while (((read = getline(&line, &len, fp)) != -1) && (FinishedButton == 0))
+    {
+      char  strTag[20];
+      int NbData;
+      static int Decim = 0;
+      sscanf(line,"%s ",strTag);
+      char * token;
+
+      // Deal with the Symbol Data
+      if(strcmp(strTag, "SYMBOLS")==0)
+      {
+        token = strtok(line, " ");
+        token = strtok(NULL, " ");
+        sscanf(token,"%d",&NbData);
+
+        if(Decim%25==0)
         {
+          BackgroundRGB(0, 0, 0, 0);
+
           // Draw FFT
           static VGfloat PowerFFTx[FFT_SIZE];
           static VGfloat PowerFFTy[FFT_SIZE];
@@ -6015,56 +6119,163 @@ void ProcessLeandvb2()
             Line(0, hscreen-128, 256, hscreen-128);
             Line(128, hscreen, 128, hscreen-256);  // Axis
           }
+          End();
         }
-        End();
+        else
+        {
+          Decim++;
+        }
       }
-      else
+
+      free(line);
+      line=NULL;
+
+      if(FinishedButton == 1)
       {
-        Decim++;
+        printf("Trying to kill LeanDVB\n");
+        system("(sudo killall -9 leandvb >/dev/null 2>/dev/null) &");
       }
     }
-
-    if((strcmp(strTag, "SS") == 0))
-    {
-      token = strtok(line," ");
-      token = strtok(NULL," ");
-      sscanf(token,"%f",&SignalStrength);
-    }
-
-    if((strcmp(strTag, "MER") == 0))
-    {
-      token = strtok(line," ");
-      token = strtok(NULL," ");
-      sscanf(token,"%f",&MER);
-    }
-
-    if((strcmp(strTag,"FREQ")==0))
-    {
-      token = strtok(line," ");
-      token = strtok(NULL," ");
-      sscanf(token,"%f",&FREQ);
-    }
-
-    if((strcmp(strTag,"LOCK")==0))
-    {
-      token = strtok(line," ");
-      token = strtok(NULL," ");
-      sscanf(token,"%d",&Lock);
-    }
-
-    free(line);
-    line=NULL;
-
-    if(FinishedButton == 1)
-    {
-      printf("Trying to kill LeanDVB\n");
-      system("(sudo killall -9 leandvb >/dev/null 2>/dev/null) &");
-
-    }
-
-  
   }
- 
+
+  // Only parameters, no graphics
+  if((strcmp(RXgraphics[0], "OFF") == 0) && (strcmp(RXparams[0], "ON") == 0))
+  { 
+    // While there is data, display it
+    while (((read = getline(&line, &len, fp)) != -1) && (FinishedButton == 0))
+    {
+      char  strTag[20];
+      int NbData;
+      static int Decim = 0;
+      sscanf(line,"%s ",strTag);
+      char * token;
+      static int Lock = 0;
+      static float SignalStrength = 0;
+      static float MER = 0;
+      static float FREQ = 0;
+
+      // Deal with the Symbol Data
+      if(strcmp(strTag, "SYMBOLS")==0)
+      {
+
+        token = strtok(line, " ");
+        token = strtok(NULL, " ");
+        sscanf(token,"%d",&NbData);
+
+        if(Decim%25==0)  // Lock, signal strength and MER
+        {
+          BackgroundRGB(0, 0, 0, 0);
+          StrokeWidth(2);
+
+          // Lock status Rectangle (red/green with white text)
+          char sLock[100];
+          if(Lock == 1)
+          {
+            strcpy(sLock,"Lock");
+            Fill(0,255,0, 1);
+          }
+          else
+          {
+            strcpy(sLock,"----");
+            Fill(255,0,0, 1);
+          }
+          Roundrect(200,0,100,50, 10, 10);
+          Fill(255, 255, 255, 1);
+          Text(200, 20, sLock, SerifTypeface, 25);
+
+          // Signal Strength: White text to right of Lock status
+          char sSignalStrength[100];
+          sprintf(sSignalStrength, "%3.0f", SignalStrength);
+          Fill(255-SignalStrength, SignalStrength, 0, 1);
+          Roundrect(350, 0, 20+SignalStrength/2, 50, 10, 10);
+          Fill(255, 255, 255, 1);
+          Text(350, 20, sSignalStrength, SerifTypeface, 25);
+
+          //MER: 2-30 to right of Sig Stength.  Bar length indicative.
+          char sMER[100];
+          sprintf(sMER, "%2.1fdB", MER);
+          Fill(255-MER*8, (MER*8), 0, 1);
+          Roundrect(500, 0, (MER*8), 50, 10, 10);
+          Fill(255, 255, 255, 1);
+          Text(500, 20, sMER, SerifTypeface, 25);
+
+          // Frequency indicator bar
+          Stroke(0, 0, 255, 0.8);
+          Line(FFT_SIZE/2, 0, FFT_SIZE/2, 10);
+          Stroke(0, 0, 255, 0.8);
+          Line(0,hscreen-300,256,hscreen-300);
+          StrokeWidth(10);
+          Line(128+(FREQ/40000.0)*256.0,hscreen-300-20,128+(FREQ/40000.0)*256.0,hscreen-300+20);
+
+          // Frequency text
+          char sFreq[100];
+          sprintf(sFreq,"%2.1fkHz",FREQ/1000.0);
+          Text(0,hscreen-300+25, sFreq, SerifTypeface, 20);
+        }
+
+        if(Decim%25==0)
+        {
+          // Do the data elements of Draw FFT
+
+          int i;
+          if(fftout != NULL)
+          {
+            // Draw Constellation
+            int x, y;
+            Decim++;
+            for(i = 0; i < NbData ; i++)
+            {
+              token = strtok(NULL, " ");
+              sscanf(token, "%d, %d", &x, &y);
+            }
+          }
+          End();
+        }
+        else
+        {
+          Decim++;
+        }
+      }
+
+      if((strcmp(strTag, "SS") == 0))
+      {
+        token = strtok(line," ");
+        token = strtok(NULL," ");
+        sscanf(token,"%f",&SignalStrength);
+      }
+
+      if((strcmp(strTag, "MER") == 0))
+      {
+        token = strtok(line," ");
+        token = strtok(NULL," ");
+        sscanf(token,"%f",&MER);
+      }
+
+      if((strcmp(strTag,"FREQ")==0))
+      {
+        token = strtok(line," ");
+        token = strtok(NULL," ");
+        sscanf(token,"%f",&FREQ);
+      }
+
+      if((strcmp(strTag,"LOCK")==0))
+      {
+        token = strtok(line," ");
+        token = strtok(NULL," ");
+        sscanf(token,"%d",&Lock);
+      }
+
+      free(line);
+      line=NULL;
+
+      if(FinishedButton == 1)
+      {
+        printf("Trying to kill LeanDVB\n");
+        system("(sudo killall -9 leandvb >/dev/null 2>/dev/null) &");
+      }
+    }
+  }
+
   system("(sudo killall -9 leandvb >/dev/null 2>/dev/null) &");
   system("(sudo killall rtl_sdr >/dev/null 2>/dev/null) &");
 
@@ -6075,7 +6286,8 @@ void ProcessLeandvb2()
   pclose(fp);
   pthread_join(thbutton, NULL);
  
-  system("sudo killall hello_video.bin >/dev/null 2>/dev/null");
+  system("sudo killall -9 hello_video.bin >/dev/null 2>/dev/null");
+  system("sudo killall -9 hello_video2.bin >/dev/null 2>/dev/null");
   system("sudo killall fbi >/dev/null 2>/dev/null");
   system("sudo killall leandvb >/dev/null 2>/dev/null");
   system("sudo killall ts2es >/dev/null 2>/dev/null");
@@ -6095,7 +6307,8 @@ void ReceiveStart2()
 void ReceiveStop()
 {
   system("sudo killall leandvb >/dev/null 2>/dev/null");
-  system("sudo killall hello_video.bin >/dev/null 2>/dev/null");
+  system("sudo killall -9 hello_video.bin >/dev/null 2>/dev/null");
+  system("sudo killall -9 hello_video2.bin >/dev/null 2>/dev/null");
   printf("Receive Stop\n");
 }
 
@@ -10156,7 +10369,7 @@ void Start_Highlights_Menu1()
   {
     snprintf(Leveltext, 20, "Exp Level^%d", TabBandExpLevel[CurrentBand]);
   }
-  else if (strcmp(CurrentModeOP, TabModeOP[8]) == 0)  // Lime
+  else if ((strcmp(CurrentModeOP, TabModeOP[3]) == 0) || (strcmp(CurrentModeOP, TabModeOP[8]) == 0))  // Lime
   {
     snprintf(Leveltext, 20, "Lime Gain^%d", TabBandLimeGain[CurrentBand]);
   }
@@ -10191,7 +10404,14 @@ void Start_Highlights_Menu1()
 
   char Outputtext[255];
   strcpy(Outputtext, "Output to^");
-  strcat(Outputtext, CurrentModeOPtext);
+  if (strcmp(CurrentModeOPtext, "BATC^STREAM") == 0)
+  {
+    strcpy(Outputtext, "Output to^BATC");
+  }
+  else
+  {
+    strcat(Outputtext, CurrentModeOPtext);
+  }
   AmendButtonStatus(17, 0, Outputtext, &Blue);
   AmendButtonStatus(17, 1, Outputtext, &Green);
   AmendButtonStatus(17, 2, Outputtext, &Grey);
