@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Amended 201807040 DGC
+# Amended 201807090 DGC
 
 # Set the look-up files
 PATHBIN="/home/pi/rpidatv/bin/"
@@ -52,7 +52,6 @@ if [ "$SAMPLERATEK" = "0" ]; then
 else
   let SR_RTLSDR=SAMPLERATEK*1000
 fi
-#echo SampleRate = $SR_RTLSDR
 
 GAIN=$(get_config_var rx0gain $RXPRESETSFILE)
 
@@ -63,26 +62,8 @@ ENCODING=$(get_config_var rx0encoding $RXPRESETSFILE)
 SDR=$(get_config_var rx0sdr $RXPRESETSFILE)
 
 GRAPHICS=$(get_config_var rx0graphics $RXPRESETSFILE)
-if [ "$GRAPHICS" = "ON" ]; then
-  FDPP="--fd-pp 3"
-  FDCONST="--fd-const 2"
-  FIFOIQ="3>fifo.iq"
-else
-  FDPP=" "
-  FDCONST=" "
-  FIFOIQ=" "
-fi
 
-# Temprrary overide
-FDCONST="--fd-const 2"
-
-echo $FIFOIQ
 PARAMS=$(get_config_var rx0parameters $RXPRESETSFILE)
-if [ "$PARAMS" = "ON" ]; then
-  FDINFO="--fd-info 2"
-else
-  FDINFO=" "
-fi
 
 SOUND=$(get_config_var rx0sound $RXPRESETSFILE)
 
@@ -97,13 +78,13 @@ fi
 FREQOFFSET=$(get_config_var roffset $RTLPRESETSFILE)
 
 # Clean up
-sudo rm fifo.264
-sudo rm videots
-sudo rm fifo.iq
-sudo killall -9 hello_video.bin
-sudo killall -9 hello_video2.bin
-sudo killall leandvb
-sudo killall ts2es
+sudo rm fifo.264 >/dev/null 2>/dev/null
+sudo rm videots >/dev/null 2>/dev/null
+sudo rm fifo.iq >/dev/null 2>/dev/null
+sudo killall -9 hello_video.bin >/dev/null 2>/dev/null
+sudo killall -9 hello_video2.bin >/dev/null 2>/dev/null
+sudo killall leandvb >/dev/null 2>/dev/null
+sudo killall ts2es >/dev/null 2>/dev/null
 mkfifo fifo.264
 mkfifo videots
 
@@ -112,10 +93,36 @@ sudo killall fbi >/dev/null 2>/dev/null
 sudo fbi -T 1 -noverbose -a $PATHSCRIPT"/images/Blank_Black.png"
 (sleep 1; sudo killall -9 fbi >/dev/null 2>/dev/null) &  ## kill fbi once it has done its work
 
-# Pipe the outoput from rtl-sdr to leandvb.  Then pipe TS to ts2es to separate video es into fifo.264
-sudo rtl_sdr -p $FREQOFFSET -g $GAIN -f $FreqHz -s $SR_RTLSDR - 2>/dev/null \
-  | $PATHBIN"leandvb" $FDPP $FDINFO $FDCONST --cr $FECNUM"/"$FECDEN $FASTLOCK --sr $SYMBOLRATE -f $SR_RTLSDR  3>fifo.iq  \
-  | $PATHBIN"ts2es" -video -stdin fifo.264 &
+# Pipe the output from rtl-sdr to leandvb.  Then put videots in a fifo.
+
+# Treat each display case differently
+
+# Constellation and Parameters on
+if [ "$GRAPHICS" = "ON" ] && [ "$PARAMS" = "ON" ]; then
+  sudo rtl_sdr -p $FREQOFFSET -g $GAIN -f $FreqHz -s $SR_RTLSDR - 2>/dev/null \
+    | $PATHBIN"leandvb" --fd-pp 3 --fd-info 2 --fd-const 2 --cr $FECNUM"/"$FECDEN $FASTLOCK --sr $SYMBOLRATE -f $SR_RTLSDR >videots 3>fifo.iq &
+fi
+
+# Constellation on, Parameters off
+if [ "$GRAPHICS" = "ON" ] && [ "$PARAMS" = "OFF" ]; then
+  sudo rtl_sdr -p $FREQOFFSET -g $GAIN -f $FreqHz -s $SR_RTLSDR - 2>/dev/null \
+    | $PATHBIN"leandvb" --fd-pp 3 --fd-const 2 --cr $FECNUM"/"$FECDEN $FASTLOCK --sr $SYMBOLRATE -f $SR_RTLSDR >videots 3>fifo.iq &
+fi
+
+# Constellation off, Parameters on
+if [ "$GRAPHICS" = "OFF" ] && [ "$PARAMS" = "ON" ]; then
+  sudo rtl_sdr -p $FREQOFFSET -g $GAIN -f $FreqHz -s $SR_RTLSDR - 2>/dev/null \
+    | $PATHBIN"leandvb" --fd-pp 3 --fd-info 2 --fd-const 2 --cr $FECNUM"/"$FECDEN $FASTLOCK --sr $SYMBOLRATE -f $SR_RTLSDR >videots 3>fifo.iq &
+fi
+
+# Constellation and Parameters off
+if [ "$GRAPHICS" = "OFF" ] && [ "$PARAMS" = "OFF" ]; then
+  sudo rtl_sdr -p $FREQOFFSET -g $GAIN -f $FreqHz -s $SR_RTLSDR - 2>/dev/null \
+    | $PATHBIN"leandvb" --cr $FECNUM"/"$FECDEN $FASTLOCK --sr $SYMBOLRATE -f $SR_RTLSDR >videots 3>/dev/null &
+fi
+
+# read videots and output video es
+$PATHBIN"ts2es" -video videots fifo.264 &
 
 # Play the es from fifo.264 in either the H264 or MPEG-2 player.
 if [ "$ENCODING" = "H264" ]; then
