@@ -130,9 +130,6 @@ int GPIO_Band_LSB = 31;
 int GPIO_Band_MSB = 24;
 int GPIO_Tverter = 7;
 
-int FinishedButton = 0;  // Used to indicate screentouch during TX or RX
-
-
 char ScreenState[255] = "NormalMenu";  // NormalMenu SpecialMenu TXwithMenu TXwithImage RXwithImage VideoOut SnapView VideoView Snap SigGen
 char MenuTitle[40][127];
 
@@ -215,6 +212,10 @@ char RXparams[5][7];        // Parameters on/off
 char RXsound[5][7];         // Sound on/off
 char RXfastlock[5][7];      // Fastlock on/off
 int RXStoreTrigger = 0;     // Set to 1 if ready to store RX preset
+int FinishedButton2 = 1;    // Used to control FFT
+fftwf_complex *fftout=NULL; // FFT for RX
+#define FFT_SIZE 256        // for RX display
+
 
 // Range and Bearing Calculator Parameters
 int GcBearing(const float, const float, const float, const float);
@@ -226,11 +227,9 @@ int CalcRange(char *, char *);
 bool CheckLocator(char *);
 
 // Touch display variables
-int getTouchSample(int *, int *, int *);
-void TransformTouchMap(int, int);
-int ButtonNumber(int, int);
-int Inversed=0;           //Display is inversed (Waveshare=1)
-int PresetStoreTrigger=0; //Set to 1 if awaiting preset being stored
+int Inversed=0;               //Display is inversed (Waveshare=1)
+int PresetStoreTrigger = 0;   //Set to 1 if awaiting preset being stored
+int FinishedButton = 0;       // Used to indicate screentouch during TX or RX
 
 pthread_t thfft, thbutton, thview, thwait3;
 
@@ -274,6 +273,9 @@ void Keyboard(char *, char *, int);
 void DoFreqChange();
 void CompVidStart();
 void ReceiveLOStart();
+int getTouchSample(int *, int *, int *);
+void TransformTouchMap(int, int);
+int ButtonNumber(int, int);
 
 /***************************************************************************//**
  * @brief Looks up the value of a Param in PathConfigFile and sets value
@@ -5828,9 +5830,6 @@ void coordpoint(VGfloat x, VGfloat y, VGfloat size, VGfloat pcolor[4]) {
   setfill(pcolor);
 }
 
-fftwf_complex *fftout=NULL;
-#define FFT_SIZE 256
-
 void *DisplayFFT(void * arg)
 {
   FILE * pFileIQ = NULL;
@@ -5845,7 +5844,7 @@ void *DisplayFFT(void * arg)
   printf("Entering FFT thread\n");
   pFileIQ = fopen("fifo.iq", "r");
 
-  while(FinishedButton==0)
+  while(FinishedButton2 == 0)
   {
     fread( fftin,sizeof(fftwf_complex),FFT_SIZE,pFileIQ);
 
@@ -5879,7 +5878,8 @@ void ProcessLeandvb2()
   RGBA(255, 255, 128, 1, shapecolor);
 
   printf("Entering LeanDVB Process\n");
-  FinishedButton=0;
+  FinishedButton = 0;
+  FinishedButton2 = 0;  // Enable the fft to run if required
 
   if((strcmp(RXgraphics[0], "ON") == 0) || (strcmp(RXparams[0], "ON") == 0))
   {
@@ -6275,6 +6275,8 @@ void ProcessLeandvb2()
       }
     }
   }
+
+  FinishedButton2 = 1;  // Stop the FFT running at a safe point in time
 
   system("(sudo killall -9 leandvb >/dev/null 2>/dev/null) &");
   system("(sudo killall rtl_sdr >/dev/null 2>/dev/null) &");
