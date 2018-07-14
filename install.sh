@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Updated for Stretch by davecrump on 20180325
+# Stretch Version by davecrump on 20180715
 
 # Update the package manager
 sudo dpkg --configure -a
@@ -157,6 +157,9 @@ make
 sudo install fbcp /usr/local/bin/fbcp
 cd ../../
 
+# Install omxplayer
+sudo apt-get -y install omxplayer
+
 # Install Waveshare 3.5A DTOVERLAY
 cd /home/pi/rpidatv/scripts/
 sudo cp ./waveshare35a.dtbo /boot/overlays/
@@ -165,17 +168,7 @@ sudo cp ./waveshare35a.dtbo /boot/overlays/
 sudo cp ./waveshare35b.dtbo /boot/overlays/
 
 # Install the Waveshare 3.5A driver
-
 sudo bash -c 'cat /home/pi/rpidatv/scripts/configs/waveshare_mkr.txt >> /boot/config.txt'
-
-# Disable the Touchscreen Screensaver
-# Probably not required for Stretch
-
-# cd /boot
-# sudo sed -i -e 's/rootwait/rootwait consoleblank=0/' cmdline.txt
-# cd /etc/kbd
-#  sudo sed -i 's/^BLANK_TIME.*/BLANK_TIME=0/' config
-#  sudo sed -i 's/^POWERDOWN_TIME.*/POWERDOWN_TIME=0/' config
 
 # Download, compile and install DATV Express-server
 
