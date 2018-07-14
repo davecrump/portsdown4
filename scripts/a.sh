@@ -1,13 +1,12 @@
 #! /bin/bash
 # set -x #Uncomment for testing
 
-# Version 201802040
+# Version 201807150
 
 ############# SET GLOBAL VARIABLES ####################
 
 PATHRPI="/home/pi/rpidatv/bin"
 PATHSCRIPT="/home/pi/rpidatv/scripts"
-CONFIGFILE=$PATHSCRIPT"/rpidatvconfig.txt"
 PCONFIGFILE="/home/pi/rpidatv/scripts/portsdown_config.txt"
 
 ############# MAKE SURE THAT WE KNOW WHERE WE ARE ##################
@@ -1020,19 +1019,30 @@ fi
         -gravity South -pointsize 75 -annotate 0 "$LOCATOR   ""$BAND_LABEL" \
         /home/pi/tmp/contest.jpg
 
+      # Modify size to fill 7 inch screen if required
+      if [ "$DISPLAY" == "Element14_7" ]; then
+        convert /home/pi/tmp/contest.jpg -resize '800x480!' /home/pi/tmp/contest.jpg
+      fi
+
       # Display the numbers on the desktop
       sudo fbi -T 1 -noverbose -a /home/pi/tmp/contest.jpg >/dev/null 2>/dev/null
       (sleep 1; sudo killall -9 fbi >/dev/null 2>/dev/null) &  ## kill fbi once it has done its work
     elif [ "$MODE_INPUT" == "CARDH264" ]; then
+      rm /home/pi/tmp/caption.png >/dev/null 2>/dev/null
+      rm /home/pi/tmp/tcf2.jpg >/dev/null 2>/dev/null
       if [ "$CAPTIONON" == "on" ]; then
-        rm /home/pi/tmp/caption.png >/dev/null 2>/dev/null
-        rm /home/pi/tmp/tcf2.jpg >/dev/null 2>/dev/null
         convert -size 720x80 xc:transparent -fill white -gravity Center -pointsize 40 -annotate 0 $CALL /home/pi/tmp/caption.png
         convert /home/pi/rpidatv/scripts/images/tcf.jpg /home/pi/tmp/caption.png -geometry +0+475 -composite /home/pi/tmp/tcf2.jpg
-        sudo fbi -T 1 -noverbose -a /home/pi/tmp/tcf2.jpg >/dev/null 2>/dev/null
       else
-        sudo fbi -T 1 -noverbose -a /home/pi/rpidatv/scripts/images/tcf.jpg >/dev/null 2>/dev/null
+        cp /home/pi/rpidatv/scripts/images/tcf.jpg /home/pi/tmp/tcf2.jpg >/dev/null 2>/dev/null
       fi
+
+      # Modify size to fill 7 inch screen if required
+      if [ "$DISPLAY" == "Element14_7" ]; then
+        convert /home/pi/tmp/tcf2.jpg -resize '800x480!' /home/pi/tmp/tcf2.jpg
+      fi
+
+      sudo fbi -T 1 -noverbose -a /home/pi/tmp/tcf2.jpg >/dev/null 2>/dev/null
       (sleep 1; sudo killall -9 fbi >/dev/null 2>/dev/null) &  ## kill fbi once it has done its work
     fi
 

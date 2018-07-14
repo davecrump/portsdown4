@@ -54,6 +54,7 @@ Rewitten by Dave, G8GKQ
 #define PATH_RTLPRESETS "/home/pi/rpidatv/scripts/rtl-fm_presets.txt"
 #define PATH_LOCATORS "/home/pi/rpidatv/scripts/portsdown_locators.txt"
 #define PATH_RXPRESETS "/home/pi/rpidatv/scripts/rx_presets.txt"
+#define PATH_STREAMPRESETS "/home/pi/rpidatv/scripts/stream_presets.txt"
 
 #define PI 3.14159265358979323846
 #define deg2rad(DEG) ((DEG)*((PI)/(180.0)))
@@ -216,6 +217,11 @@ int FinishedButton2 = 1;    // Used to control FFT
 fftwf_complex *fftout=NULL; // FFT for RX
 #define FFT_SIZE 256        // for RX display
 
+// Stream Display Parameters
+char StreamAddress[9][127];  // Full rtmp address of stream
+char StreamLabel[9][31];     // Button Label for stream
+int IQAvailable = 1;         // Flag set to 0 if RPi audio output has been used
+int StreamStoreTrigger = 0;   // Set to 1 if stream amendment needed
 
 // Range and Bearing Calculator Parameters
 int GcBearing(const float, const float, const float, const float);
@@ -250,7 +256,7 @@ void Start_Highlights_Menu16();
 void Start_Highlights_Menu17();
 void Start_Highlights_Menu18();
 void Start_Highlights_Menu19();
-//void Start_Highlights_Menu20();
+void Start_Highlights_Menu20();
 void Start_Highlights_Menu21();
 void Start_Highlights_Menu22();
 void Start_Highlights_Menu23();
@@ -2617,7 +2623,7 @@ void SetRXLikeTX()
   strcpy(RXgraphics[0], "ON");                    // Graphics on/off
   strcpy(RXparams[0], "ON");                      // Parameters on/off
   strcpy(RXsound[0], "OFF");                      // Sound on/off
-  strcpy(RXfastlock[0], "ON");                    // Fastlock on/off
+  strcpy(RXfastlock[0], "OFF");                   // Fastlock on/off
 
   // Save the new values as preset 0
   SaveCurrentRX();
@@ -2680,6 +2686,7 @@ void RTLstart()
     else                    // Use RPi audio if no USB
     {
       GetPiAudioCard(card);
+      IQAvailable = 0;     // Set flag to say transmit unavailable
     }
     strcpy(rtlcall, "(rtl_fm");
     snprintf(fragment, 12, " -M %s", RTLmode[0]);  // -M mode
@@ -2746,6 +2753,36 @@ void RTLstop()
   system("sudo killall -9 rtl_fm >/dev/null 2>/dev/null");
   system("sudo killall -9 aplay >/dev/null 2>/dev/null");
 }
+
+/***************************************************************************//**
+ * @brief Reads the Presets from stream_presets.txt and formats them for
+ *        Display and switching
+ *
+ * @param None.  Works on global variables
+ *
+ * @return void
+*******************************************************************************/
+
+void ReadStreamPresets()
+{
+  int n;
+  char Value[127] = "";
+  char Param[20];
+
+  for(n = 0; n < 9; n = n + 1)
+  {
+    // Stream Address
+    snprintf(Param, 15, "stream%d", n);
+    GetConfigParam(PATH_STREAMPRESETS, Param, Value);
+    strcpy(StreamAddress[n], Value);
+
+    // Stream Button Label
+    snprintf(Param, 12, "label%d", n);
+    GetConfigParam(PATH_STREAMPRESETS, Param, Value);
+    strcpy(StreamLabel[n], Value);
+  }
+}
+
 
 /***************************************************************************//**
  * @brief Checks whether the DATV Express is connected
@@ -4345,7 +4382,11 @@ void GreyOut1()
       SetButtonStatus(ButtonNumber(CurrentMenu, 10), 0); // Frequency
       SetButtonStatus(ButtonNumber(CurrentMenu, 13), 0); // Band
       SetButtonStatus(ButtonNumber(CurrentMenu, 8), 0);  // Attenuator Type
-      if ((strcmp(CurrentAtten, "NONE") == 0) && (strcmp(CurrentModeOP, "DATVEXPRESS") != 0) && (strcmp(CurrentModeOP, TabModeOP[8]) != 0))
+      // If no attenuator and not DATV Express or Lime then Grey out Atten Level
+      if ((strcmp(CurrentAtten, "NONE") == 0) 
+        && (strcmp(CurrentModeOP, "DATVEXPRESS") != 0) 
+        && (strcmp(CurrentModeOP, TabModeOP[3]) != 0) 
+        && (strcmp(CurrentModeOP, TabModeOP[8]) != 0))
       {
         SetButtonStatus(ButtonNumber(CurrentMenu, 14), 2); // Attenuator Level
       }
@@ -4560,6 +4601,7 @@ void SelectOP(int NoButton)      // Output device
     StartExpressServer();
   }
   EnforceValidTXMode();
+  EnforceValidFEC();
 
   // Check Lime Connected if selected
   CheckLimeReady();
@@ -5394,8 +5436,8 @@ void RecallPreset(int PresetButton)
 
 void SelectVidSource(int NoButton)  // Video Source
 {
-  SelectInGroupOnMenu(CurrentMenu, 5, 9, NoButton, 1);
-  SelectInGroupOnMenu(CurrentMenu, 0, 2, NoButton, 1);
+  //SelectInGroupOnMenu(CurrentMenu, 5, 9, NoButton, 1);
+  //SelectInGroupOnMenu(CurrentMenu, 0, 2, NoButton, 1);
   if (NoButton < 4) // allow for reverse numbering of rows
   {
     NoButton = NoButton + 10;
@@ -5865,6 +5907,98 @@ void *WaitButtonEvent(void * arg)
   while(getTouchSample(&rawX, &rawY, &rawPressure)==0);
   FinishedButton=1;
   return NULL;
+}
+
+void DisplayStream(int NoButton)
+{
+  char OMXCommand[127];
+  int NoPreset;
+  //VGfloat shapecolor[4];
+  //RGBA(255, 255, 128, 1, shapecolor);
+
+  if(NoButton < 5) // bottom row
+  {
+    NoPreset = NoButton + 5;
+  }
+  else  // top row
+  {
+    NoPreset = NoButton - 4;
+  }
+
+  printf("Starting Stream Display\n");
+  FinishedButton = 0;
+  BackgroundRGB(0, 0, 0, 0);
+  End();
+
+  strcpy(OMXCommand, "omxplayer ");
+  strcat(OMXCommand, StreamAddress[NoPreset]);
+  strcat(OMXCommand, " >/dev/null 2>/dev/null &");
+  printf("starting omxplayer with command: %s\n", OMXCommand);
+  IQAvailable = 0;         // Set flag to prompt user reboot before transmitting
+  system(OMXCommand); 
+
+  // Create Wait Button thread
+  pthread_create (&thbutton, NULL, &WaitButtonEvent, NULL);
+
+  while(FinishedButton == 0)
+  {
+    usleep(1000);
+  }
+  system("sudo killall omxplayer.bin"); 
+  pthread_join(thbutton, NULL);
+}
+
+void AmendStreamPreset(int NoButton)
+{
+  int NoPreset;
+  char Param[255];
+  char Value[255];
+  char TestValue[255];
+  char Prompt[63];
+
+  if(NoButton < 5) // bottom row
+  {
+    NoPreset = NoButton + 5;
+  }
+  else  // top row
+  {
+    NoPreset = NoButton - 4;
+  }
+
+  // Read the Preset address and ask for a new address
+  strcpy(TestValue, StreamAddress[NoPreset]);  // Read the full rtmp address
+  TestValue[29] = '\0';                        // Shorten to 29 cahracters
+  if (strcmp(TestValue, "rtmp://rtmp.batc.org.uk/live/") == 0) // BATC Address
+  {
+    snprintf(Prompt, 62, "Enter the new lower case StreamName for Preset %d:", NoPreset);
+    strcpy(Value, StreamAddress[NoPreset]);  // Read the full rtmp address
+
+    // Copy the text to the right of character 29 (the last /)
+    strncpy(TestValue, &Value[29], strlen(Value));
+    TestValue[strlen(Value) - 29] = '\0';
+    // Ask user to edit streamname
+    Keyboard(Prompt, TestValue, 15);
+    // Put the full url back together
+    strcpy(Value, "rtmp://rtmp.batc.org.uk/live/");
+    strcat(Value, KeyboardReturn);
+    snprintf(Param, 10, "stream%d", NoPreset);
+    SetConfigParam(PATH_STREAMPRESETS, Param, Value);
+    strcpy(StreamAddress[NoPreset], Value);
+
+    // Read the Preset Label and ask for a new value
+    snprintf(Prompt, 62, "Enter the new label for Preset %d:", NoPreset);
+    strcpy(Value, StreamLabel[NoPreset]);  // Read the old label
+    Keyboard(Prompt, Value, 15);
+    snprintf(Param, 16, "label%d", NoPreset);
+    SetConfigParam(PATH_STREAMPRESETS, Param, KeyboardReturn);
+    strcpy(StreamLabel[NoPreset], KeyboardReturn);
+  }
+  else  // not a BATC Address
+  {
+    MsgBox4("Not a BATC Streamer Address", "Please edit it directly in", "rpidatv/scripts/stream_presets.txt", "Touch Screen to Continue");
+    wait_touch();
+  }
+  BackgroundRGB(0, 0, 0, 255);  // Clear the background
 }
 
 void ProcessLeandvb2()
@@ -7165,7 +7299,7 @@ void do_videoview()
       strcpy(ffmpegCMD, "/home/pi/rpidatv/bin/ffmpeg -hide_banner -loglevel panic -f v4l2 -i ");
       strcat(ffmpegCMD, USBVidDevice);
       strcat(ffmpegCMD, " -vf \"yadif=0:1:0,scale=800:480\" -f rawvideo -pix_fmt rgb32 -vframes 2 /home/pi/tmp/frame.raw");
-      system("sudo killall fbcp");
+
       // Refresh image until display touched
       while ( FinishedButton == 0 )
       {
@@ -7175,7 +7309,6 @@ void do_videoview()
         system("cat /home/pi/tmp/frame1>/dev/fb0");
       }
       // Screen has been touched so stop and tidy up
-      system("fbcp &");
       system("sudo rm /home/pi/tmp/* >/dev/null 2>/dev/null");
     }
     else  // not a waveshare or 7 inch display so write to the main framebuffer
@@ -8280,11 +8413,19 @@ void waituntil(int w,int h)
             UpdateWindow();
             //CompVidStart();
           }
-          else
+          else     // Transmit, but only if audio has not been used
           {
-            SelectPTT(i,1);
-            UpdateWindow();
-            TransmitStart();
+            if (!((IQAvailable == 0) && ((strcmp(CurrentModeOP, "QPSKRF") == 0) || (strcmp(CurrentModeOP, "IQ") == 0))))
+            {
+              SelectPTT(i,1);
+              UpdateWindow();
+              TransmitStart();
+            }
+            else
+            {
+              MsgBox4("Transmit unavailable, as the", "audio output has been used.", "Please re-boot to reset.", "Touch screen to continue");
+              wait_touch();
+            }
           }
           break;
         case 21:                       // RX
@@ -8377,7 +8518,13 @@ void waituntil(int w,int h)
         case 13:                              //
           UpdateWindow();
           break;
-        case 14:                              //
+        case 14:                              // Stream Viewer
+          printf("MENU 20 \n");
+          CurrentMenu=20;
+          BackgroundRGB(0,0,0,255);
+          Start_Highlights_Menu20();
+          UpdateWindow();
+          break;
           UpdateWindow();
           break;
         case 15:                               // Select FreqShow
@@ -8461,6 +8608,9 @@ void waituntil(int w,int h)
         switch (i)
         {
         case 0:                              // Check for Update
+          SetButtonStatus(ButtonNumber(3, 0), 1);  // and highlight button
+          UpdateWindow();
+          SetButtonStatus(ButtonNumber(3, 0), 0);
           printf("MENU 33 \n"); 
           CurrentMenu=33;
           BackgroundRGB(0,0,0,255);
@@ -9428,7 +9578,67 @@ void waituntil(int w,int h)
         UpdateWindow();
         continue;   // Completed Menu 19 action, go and wait for touch
       }
-      // Menu 20 Level
+      if (CurrentMenu == 20)  // Menu 20 Stream Display
+      {
+        printf("Button Event %d, Entering Menu 20 Case Statement\n",i);
+        switch (i)
+        {
+        case 4:                               // Cancel
+          SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 1);
+          printf("Stream Select Cancel\n");
+          StreamStoreTrigger = 0;
+          SetButtonStatus(ButtonNumber(CurrentMenu, 9), 0);
+          UpdateWindow();
+          usleep(500000);
+          SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 0); // Reset cancel (even if not selected)
+          printf("Returning to MENU 1 from Menu 20\n");
+          CurrentMenu=1;
+          BackgroundRGB(255,255,255,255);
+          Start_Highlights_Menu1();
+          UpdateWindow();
+          break;
+        case 5:                               // Preset 1
+        case 6:                               // Preset 2
+        case 7:                               // Preset 3
+        case 8:                               // Preset 4
+        case 0:                               // Preset 5
+        case 1:                               // Preset 6
+        case 2:                               // Preset 7
+        case 3:                               // Preset 8
+          if (StreamStoreTrigger == 0)        // Normal
+          {
+            DisplayStream(i);
+            BackgroundRGB(0, 0, 0, 255);
+          }
+          else                                // Amend the Preset
+          {
+            AmendStreamPreset(i);
+            StreamStoreTrigger = 0;
+            SetButtonStatus(ButtonNumber(CurrentMenu, 9), 0);
+            Start_Highlights_Menu20();        // Refresh the button labels
+          }
+          UpdateWindow();                     // Stay in Menu 20
+          break;
+        case 9:                               // Amend Preset
+          if (StreamStoreTrigger == 0)
+          {
+            StreamStoreTrigger = 1;
+            SetButtonStatus(ButtonNumber(CurrentMenu, 9), 1);
+          }
+          else
+          {
+            StreamStoreTrigger = 0;
+            SetButtonStatus(ButtonNumber(CurrentMenu, 9), 0);
+          }
+          UpdateWindow();
+          break;
+          printf("Amend Preset\n");
+          break;
+        default:
+          printf("Menu 20 Error\n");
+        }
+        continue;   // Completed Menu 20 action, go and wait for touch
+      }
       if (CurrentMenu == 21)  // Menu 21 EasyCap
       {
         printf("Button Event %d, Entering Menu 21 Case Statement\n",i);
@@ -10512,9 +10722,9 @@ void Define_Menu2()
   //AddButtonStatus(button, " ", &Blue);
   //AddButtonStatus(button, " ", &Green);
 
-  //button = CreateButton(2, 14);
-  //AddButtonStatus(button, " ", &Blue);
-  //AddButtonStatus(button, " ", &Green);
+  button = CreateButton(2, 14);
+  AddButtonStatus(button, "Stream^Viewer", &Blue);
+  AddButtonStatus(button, "Stream^Viewer", &Green);
 
   // 4th line up Menu 2
 
@@ -10577,6 +10787,7 @@ void Define_Menu3()
 
   button = CreateButton(3, 0);
   AddButtonStatus(button, "Check for^Update", &Blue);
+  AddButtonStatus(button, "Check for^Update", &Green);
 
   // 3rd line up Menu 3: Amend Sites/Beacons, 
 
@@ -10616,13 +10827,8 @@ void Define_Menu3()
 }
 
 void Start_Highlights_Menu3()
-// Retrieves stored value for each group of buttons
-// and then sets the correct highlight
 {
   ;
-  //char Param[255];
-  //char Value[255];
-  //int STD=1;
 }
 
 void Define_Menu4()
@@ -10845,18 +11051,16 @@ void Start_Highlights_Menu5()
 {
   color_t Green;
   color_t Blue;
-  color_t Red;
   color_t Grey;
 
   Green.r=0; Green.g=96; Green.b=0;
   Blue.r=0; Blue.g=0; Blue.b=128;
-  Red.r=255; Red.g=0; Red.b=0;
   Grey.r=127; Grey.g=127; Grey.b=127;
   int index;
   char RXBtext[31];
   int NoButton;
 
-  // Buttons 0 to 3: Presets
+  // Buttons 0 to 3: Presets.  Set text here
   for(index = 1; index < 5 ; index = index + 1)
   {
     // Define the button text
@@ -10864,21 +11068,23 @@ void Start_Highlights_Menu5()
     NoButton = index - 1;
     AmendButtonStatus(ButtonNumber(5, NoButton), 0, RXBtext, &Blue);
     AmendButtonStatus(ButtonNumber(5, NoButton), 1, RXBtext, &Green);
+  }
 
-    // Highlight current preset by comparing frequency and SR
+  // Now highlight current preset by comparing frequency, SR and encoding
 
-    if (((strcmp(RXfreq[0], RXfreq[index]) == 0) && (RXsr[0] == RXsr[index])))
+  // First set all presets off
+  SelectInGroupOnMenu(5, 0, 3, 0, 0);
+
+  for(index = 1; index < 5 ; index = index + 1)
+  {
+    NoButton = index - 1;
+    if ((strcmp(RXfreq[0], RXfreq[index]) == 0) 
+      && (RXsr[0] == RXsr[index]) 
+      && (strcmp(RXencoding[0], RXencoding[index]) == 0))
     {
       SelectInGroupOnMenu(5, 0, 3, NoButton, 1);
     }
   }
-
-  // Set Preset Button 4
-  strcpy(RXBtext, "Store^Preset");
-  AmendButtonStatus(4, 0, RXBtext, &Blue);
-  AmendButtonStatus(4, 1, RXBtext, &Blue);
-  AmendButtonStatus(4, 2, RXBtext, &Red);
-  AmendButtonStatus(4, 3, RXBtext, &Red);
 
   // Fastlock Button 5
   strcpy(RXBtext, "FastLock^");
@@ -12162,7 +12368,81 @@ void Start_Highlights_Menu19()
   }
 }
 
-// Menu 20 Level
+// Menu 20 Stream Viewer
+
+void Define_Menu20()
+{
+  int button;
+  int n;
+  color_t Green;
+  color_t Blue;
+  color_t LBlue;
+  color_t DBlue;
+  color_t Red;
+
+
+  Red.r=255; Red.g=0; Red.b=0;
+  Green.r=0; Green.g=128; Green.b=0;
+  Blue.r=0; Blue.g=0; Blue.b=128;
+  LBlue.r=64; LBlue.g=64; LBlue.b=192;
+  DBlue.r=0; DBlue.g=0; DBlue.b=64;
+
+  strcpy(MenuTitle[20], "Stream Viewer Selection Menu (20)"); 
+
+  // Top Row, Menu 20
+  button = CreateButton(20, 9);
+  AddButtonStatus(button, "Amend^Preset", &Blue);
+  AddButtonStatus(button, "Amend^Preset", &Red);
+
+  // Bottom Row, Menu 20
+  button = CreateButton(20, 4);
+  AddButtonStatus(button, "Exit to^Main Menu", &DBlue);
+  AddButtonStatus(button, "Exit to^Main Menu", &LBlue);
+
+  for(n = 1; n < 9; n = n + 1)
+  {
+    if (n < 5)  // top row
+    {
+      button = CreateButton(20, n + 4);
+      AddButtonStatus(button, StreamLabel[n], &Blue);
+      AddButtonStatus(button, StreamLabel[n], &Green);
+    }
+    else       // Bottom Row
+    {
+      button = CreateButton(20, n - 5);
+      AddButtonStatus(button, StreamLabel[n], &Blue);
+      AddButtonStatus(button, StreamLabel[n], &Green);
+    }
+  }
+}
+
+void Start_Highlights_Menu20()
+{
+  // Stream Display Menu
+  //char Param[255];
+  //char Value[255];
+  int n;
+  // int NoButton;
+  color_t Green;
+  color_t Blue;
+  Green.r=0; Green.g=128; Green.b=0;
+  Blue.r=0; Blue.g=0; Blue.b=128;
+
+  for(n = 1; n < 9; n = n + 1)
+  {
+    if (n < 5)  // top row
+    {
+      AmendButtonStatus(ButtonNumber(20, n + 4), 0, StreamLabel[n], &Blue);
+      AmendButtonStatus(ButtonNumber(20, n + 4), 1, StreamLabel[n], &Green);
+    }
+    else       // Bottom Row
+    {
+      AmendButtonStatus(ButtonNumber(20, n - 5), 0, StreamLabel[n], &Blue);
+      AmendButtonStatus(ButtonNumber(20, n - 5), 1, StreamLabel[n], &Green);
+    }
+  }
+}
+
 
 void Define_Menu21()
 {
@@ -13561,6 +13841,8 @@ int main(int argc, char **argv)
   ReadADFRef();
   ReadRTLPresets();
   ReadRXPresets();
+  ReadStreamPresets();
+
 
   // Initialise all the button Status Indexes to 0
   InitialiseButtons();
@@ -13582,7 +13864,7 @@ int main(int argc, char **argv)
   Define_Menu17();
   Define_Menu18();
   Define_Menu19();
-
+  Define_Menu20();
   Define_Menu21();
   Define_Menu22();
   Define_Menu23();
