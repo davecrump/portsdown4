@@ -1,3 +1,10 @@
+201807150
+Add BATC Streamer Display Function
+Resize H264 testcards for 7 inch display
+Provide warning when Portsdown TX not available after audio usage
+Correct FEC when switching from Lime to other output
+Do not start the framebuffer copy for 7 inch display
+
 201807090
 LeanDVB Performance Improvements
 Bugfix BATC Streamer label
