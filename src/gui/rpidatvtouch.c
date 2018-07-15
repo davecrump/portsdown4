@@ -8425,6 +8425,7 @@ void waituntil(int w,int h)
             {
               MsgBox4("Transmit unavailable, as the", "audio output has been used.", "Please re-boot to reset.", "Touch screen to continue");
               wait_touch();
+              UpdateWindow();
             }
           }
           break;
@@ -10787,7 +10788,7 @@ void Define_Menu3()
 
   button = CreateButton(3, 0);
   AddButtonStatus(button, "Check for^Update", &Blue);
-  AddButtonStatus(button, "Check for^Update", &Green);
+  AddButtonStatus(button, "Checking^for Update", &Green);
 
   // 3rd line up Menu 3: Amend Sites/Beacons, 
 
