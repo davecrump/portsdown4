@@ -1,6 +1,6 @@
 #! /bin/bash
 
-# Version 201802040
+# Version 201807290
 
 # This script shuts down any transmission that has been started by a.sh.
 # It can be called by other programs that want to start and stop transmission
@@ -11,7 +11,6 @@
 
 PATHSCRIPT=/home/pi/rpidatv/scripts
 PATHRPI=/home/pi/rpidatv/bin
-CONFIGFILE=$PATHSCRIPT"/rpidatvconfig.txt"
 PCONFIGFILE="/home/pi/rpidatv/scripts/portsdown_config.txt"
 PATHCONFIGS="/home/pi/rpidatv/scripts/configs"  ## Path to config files
 GPIO_PTT=29  ## WiringPi value, not BCM
@@ -51,6 +50,8 @@ MODE_OUTPUT=$(get_config_var modeoutput $PCONFIGFILE)
   sudo killall tcanim >/dev/null 2>/dev/null
   sudo killall avc2ts >/dev/null 2>/dev/null
   sudo killall netcat >/dev/null 2>/dev/null
+  sudo killall dvb2iq >/dev/null 2>/dev/null
+  sudo killall limetx >/dev/null 2>/dev/null
 
   # Kill the key RX processes as nicely as possible
   sudo killall leandvb >/dev/null 2>/dev/null

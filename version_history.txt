@@ -1,3 +1,8 @@
+201807290
+Introduce Stream to Video appliance with "Stream Valid" signal
+Major Improvements to touchscreen stream display
+More LimeSDR prep
+
 201807150
 Add BATC Streamer Display Function
 Resize H264 testcards for 7 inch display

@@ -564,7 +564,14 @@ case "$MODE_OUTPUT" in
     RPICARD="$(cat /proc/asound/modules | grep 'bcm2835' | head -c 2 | tail -c 1)"
     # Pass the USB mic input directly to the RPi Audio Out
     arecord -D plughw:"$MICCARD",0 -f cd - | aplay -D plughw:"$RPICARD",0 - &
+  ;;
 
+  LIMEMINI)
+    OUTPUT=videots
+    # CALCULATE FREQUENCY IN K
+    FREQ_OUTPUTK=`echo - | awk '{print '$FREQ_OUTPUT' * 1000}'`
+    LIME_GAIN=$(get_config_var limegain $PCONFIGFILE)
+    $PATHSCRIPT"/ctlfilter.sh"
   ;;
 
 esac
@@ -680,6 +687,11 @@ case "$MODE_INPUT" in
         echo "set ptt tx" >> /tmp/expctrl
         sudo nice -n -30 netcat -u -4 127.0.0.1 1314 < videots & 
       ;;
+      "LIMEMINI")
+        /home/pi/libdvbmod/DvbTsToIQ/dvb2iq -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
+          | buffer \
+          | sudo /home/pi/limetool/limetx -s $SYMBOLRATE_K -f $FREQ_OUTPUTK -g $LIME_GAIN &
+      ;;
       "COMPVID")
         OUTPUT_FILE="/dev/null" #Send avc2ts output to /dev/null
       ;;
@@ -758,6 +770,11 @@ fi
       ;;
       "COMPVID")
         : # Do nothing
+      ;;
+      "LIMEMINI")
+        /home/pi/libdvbmod/DvbTsToIQ/dvb2iq -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
+          | buffer \
+          | sudo /home/pi/limetool/limetx -s $SYMBOLRATE_K -f $FREQ_OUTPUTK -g $LIME_GAIN &
       ;;
       *)
         # For IQ, QPSKRF, DIGITHIN and DTX1 rpidatv generates the IQ (and RF for QPSKRF)
@@ -901,6 +918,11 @@ fi
       "COMPVID")
         OUTPUT_FILE="/dev/null" #Send avc2ts output to /dev/null
       ;;
+      "LIMEMINI")
+        /home/pi/libdvbmod/DvbTsToIQ/dvb2iq -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
+          | buffer \
+          | sudo /home/pi/limetool/limetx -s $SYMBOLRATE_K -f $FREQ_OUTPUTK -g $LIME_GAIN &
+      ;;
       *)
         sudo  $PATHRPI"/rpidatv" -i videots -s $SYMBOLRATE_K -c $FECNUM"/"$FECDEN -f $FREQUENCY_OUT -p $GAIN -m $MODE -x $PIN_I -y $PIN_Q &
       ;;
@@ -935,6 +957,11 @@ fi
       "DATVEXPRESS")
         echo "set ptt tx" >> /tmp/expctrl
         sudo nice -n -30 netcat -u -4 127.0.0.1 1314 < videots &
+      ;;
+      "LIMEMINI")
+        /home/pi/libdvbmod/DvbTsToIQ/dvb2iq -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
+          | buffer \
+          | sudo /home/pi/limetool/limetx -s $SYMBOLRATE_K -f $FREQ_OUTPUTK -g $LIME_GAIN &
       ;;
       "COMPVID")
         OUTPUT_FILE="/dev/null" #Send avc2ts output to /dev/null
@@ -993,6 +1020,11 @@ fi
       "DATVEXPRESS")
         echo "set ptt tx" >> /tmp/expctrl
         sudo nice -n -30 netcat -u -4 127.0.0.1 1314 < videots &
+      ;;
+      "LIMEMINI")
+        /home/pi/libdvbmod/DvbTsToIQ/dvb2iq -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
+          | buffer \
+          | sudo /home/pi/limetool/limetx -s $SYMBOLRATE_K -f $FREQ_OUTPUTK -g $LIME_GAIN &
       ;;
       *)
         sudo $PATHRPI"/rpidatv" -i videots -s $SYMBOLRATE_K -c $FECNUM"/"$FECDEN -f $FREQUENCY_OUT -p $GAIN -m $MODE -x $PIN_I -y $PIN_Q &
@@ -1068,6 +1100,11 @@ fi
       "COMPVID")
         OUTPUT_FILE="/dev/null" #Send avc2ts output to /dev/null
       ;;
+      "LIMEMINI")
+        /home/pi/libdvbmod/DvbTsToIQ/dvb2iq -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
+          | buffer \
+          | sudo /home/pi/limetool/limetx -s $SYMBOLRATE_K -f $FREQ_OUTPUTK -g $LIME_GAIN &
+      ;;
       *)
         sudo nice -n -30 $PATHRPI"/rpidatv" -i videots -s $SYMBOLRATE_K -c $FECNUM"/"$FECDEN -f $FREQUENCY_OUT -p $GAIN -m $MODE -x $PIN_I -y $PIN_Q &
       ;;
@@ -1095,6 +1132,11 @@ fi
       "COMPVID")
         : # Do nothing.  Mode does not work yet
       ;;
+      "LIMEMINI")
+        /home/pi/libdvbmod/DvbTsToIQ/dvb2iq -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
+          | buffer \
+          | sudo /home/pi/limetool/limetx -s $SYMBOLRATE_K -f $FREQ_OUTPUTK -g $LIME_GAIN &
+      ;;
       *)
         sudo $PATHRPI"/rpidatv" -i videots -s $SYMBOLRATE_K -c $FECNUM"/"$FECDEN -f $FREQUENCY_OUT -p $GAIN -m $MODE -x $PIN_I -y $PIN_Q &
       ;;
@@ -1118,6 +1160,11 @@ fi
         echo "set ptt tx" >> /tmp/expctrl
         sudo nice -n -30 netcat -u -4 127.0.0.1 1314 < $TSVIDEOFILE &
         #sudo nice -n -30 cat $TSVIDEOFILE | sudo nice -n -30 netcat -u -4 127.0.0.1 1314 & 
+      ;;
+      "LIMEMINI")
+        /home/pi/libdvbmod/DvbTsToIQ/dvb2iq -i $TSVIDEOFILE -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
+          | buffer \
+          | sudo /home/pi/limetool/limetx -s $SYMBOLRATE_K -f $FREQ_OUTPUTK -g $LIME_GAIN &
       ;;
       *)
         sudo $PATHRPI"/rpidatv" -i $TSVIDEOFILE -s $SYMBOLRATE_K -c $FECNUM"/"$FECDEN -f $FREQUENCY_OUT -p $GAIN -m $MODE -l -x $PIN_I -y $PIN_Q &;;
@@ -1246,6 +1293,11 @@ fi
       "DATVEXPRESS")
         echo "set ptt tx" >> /tmp/expctrl
         # ffmpeg sends the stream directly to DATVEXPRESS
+      ;;
+      "LIMEMINI")
+        /home/pi/libdvbmod/DvbTsToIQ/dvb2iq -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
+          | buffer \
+          | sudo /home/pi/limetool/limetx -s $SYMBOLRATE_K -f $FREQ_OUTPUTK -g $LIME_GAIN &
       ;;
       *)
         # For IQ, QPSKRF, DIGITHIN and DTX1 rpidatv generates the IQ (and RF for QPSKRF)
@@ -1457,6 +1509,11 @@ fi
       "COMPVID")
         : # Do nothing
       ;;
+      "LIMEMINI")
+        /home/pi/libdvbmod/DvbTsToIQ/dvb2iq -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
+          | buffer \
+          | sudo /home/pi/limetool/limetx -s $SYMBOLRATE_K -f $FREQ_OUTPUTK -g $LIME_GAIN &
+      ;;
       *)
         # For IQ, QPSKRF, DIGITHIN and DTX1 rpidatv generates the IQ (and RF for QPSKRF)
         sudo $PATHRPI"/rpidatv" -i videots -s $SYMBOLRATE_K -c $FECNUM"/"$FECDEN -f $FREQUENCY_OUT -p $GAIN -m $MODE -x $PIN_I -y $PIN_Q &
@@ -1595,6 +1652,11 @@ fi
       "DATVEXPRESS")
         echo "set ptt tx" >> /tmp/expctrl
         # ffmpeg sends the stream directly to DATVEXPRESS
+      ;;
+      "LIMEMINI")
+        /home/pi/libdvbmod/DvbTsToIQ/dvb2iq -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
+          | buffer \
+          | sudo /home/pi/limetool/limetx -s $SYMBOLRATE_K -f $FREQ_OUTPUTK -g $LIME_GAIN &
       ;;
       *)
         # For IQ, QPSKRF, DIGITHIN and DTX1 rpidatv generates the IQ (and RF for QPSKRF)
