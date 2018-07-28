@@ -229,6 +229,12 @@ make
 mv keyedtx /home/pi/rpidatv/bin/
 cd /home/pi
 
+# Compile and install the executable for the Stream Receiver (201807290)
+cd /home/pi/rpidatv/src/streamrx
+make
+mv streamrx /home/pi/rpidatv/bin/
+cd /home/pi
+
 # Amend /etc/fstab to create a tmpfs drive at ~/tmp for multiple images (201708150)
 sudo sed -i '4itmpfs           /home/pi/tmp    tmpfs   defaults,noatime,nosuid,size=10m  0  0' /etc/fstab
 

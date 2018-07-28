@@ -233,6 +233,12 @@ make
 mv keyedtx /home/pi/rpidatv/bin/
 cd /home/pi
 
+# Compile and install the executable for the Stream Receiver (201807290)
+cd /home/pi/rpidatv/src/streamrx
+make
+mv streamrx /home/pi/rpidatv/bin/
+cd /home/pi
+
 # Compile the Signal Generator (201710280)
 cd /home/pi/rpidatv/src/siggen
 make clean
@@ -245,6 +251,10 @@ cd /home/pi/rpidatv/src/atten
 make
 cp /home/pi/rpidatv/src/atten/set_attenuator /home/pi/rpidatv/bin/set_attenuator
 cd /home/pi
+
+# Always auto-logon and run .bashrc (and hence startup.sh) (20180729)
+sudo ln -fs /etc/systemd/system/autologin@.service\
+ /etc/systemd/system/getty.target.wants/getty@tty1.service
 
 # Restore the user's original siggencal.txt if required
 if [ -f "/home/pi/siggencal.txt" ]; then

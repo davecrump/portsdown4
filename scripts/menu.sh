@@ -10,6 +10,8 @@ CONFIGFILE=$PATHSCRIPT"/rpidatvconfig.txt"
 PATHCONFIGS="/home/pi/rpidatv/scripts/configs"  ## Path to config files
 PCONFIGFILE="/home/pi/rpidatv/scripts/portsdown_config.txt"
 PATH_PPRESETS="/home/pi/rpidatv/scripts/portsdown_presets.txt"
+PATH_STREAMPRESETS="/home/pi/rpidatv/scripts/stream_presets.txt"
+
 
 GPIO_PTT=29  ## WiringPi value, not BCM
 
@@ -1224,17 +1226,44 @@ do_stop_rtl_tcp()
   kill -9 "$PROCESS"  >/dev/null
 }
 
+do_streamrx()
+{
+  # Stop the stream in case it is already running
+  do_stop_streamrx
+
+  # Give the user a chance to change the stream
+  STREAM0=$(get_config_var stream0 $PATH_STREAMPRESETS)
+  STREAM0=$(whiptail --inputbox "Enter the full stream URL" 8 78 $STREAM0 --title "SET URL FOR STREAM TO BE DISPLAYED" 3>&1 1>&2 2>&3)
+  if [ $? -eq 0 ]; then
+    set_config_var stream0 "$STREAM0" $PATH_STREAMPRESETS
+  fi
+
+  # Start the stream receiver
+  /home/pi/rpidatv/bin/streamrx >/dev/null 2>/dev/null &
+}
+
+do_stop_streamrx()
+{
+  sudo killall streamrx >/dev/null 2>/dev/null
+  sudo killall omxplayer.bin >/dev/null 2>/dev/null
+}
+
+
 do_receive_menu()
 {
   menuchoice=$(whiptail --title "Select Receive Option" --menu "RTL Menu" 20 78 13 \
-    "1 Receive DATV" "Use the RTL to Receive with same settings as transmit"  \
+    "1 Receive DATV" "Use the RTL to Receive with default settings"  \
     "2 Start RTL-TCP" "Start the RTL-TCP Server for use with SDR Sharp"  \
     "3 Stop RTL-TCP" "Stop the RTL-TCP Server" \
+    "4 Start Stream RX" "Display the Selected Stream" \
+    "5 Stop Stream RX" "Stop Displaying the Selected Stream" \
     3>&2 2>&1 1>&3)
   case "$menuchoice" in
     1\ *) do_receive ;;
     2\ *) do_start_rtl_tcp ;;
     3\ *) do_stop_rtl_tcp  ;;
+    4\ *) do_streamrx  ;;
+    5\ *) do_stop_streamrx  ;;
   esac
 }
 
@@ -1251,6 +1280,7 @@ do_autostart_setup()
   Radio8=OFF
   Radio9=OFF
   Radio10=OFF
+  Radio11=OFF
 
   case "$MODE_STARTUP" in
     Prompt)
@@ -1283,6 +1313,9 @@ do_autostart_setup()
     SigGen_boot)
       Radio10=ON
     ;;
+    StreamRX_boot)
+      Radio11=ON
+    ;;
     *)
       Radio1=ON
     ;;
@@ -1300,10 +1333,20 @@ do_autostart_setup()
    "Cont_Stream_boot" "Boot up to Always-on Repeater Streamer" $Radio8 \
    "Keyed_TX_boot" "Boot up to GPIO Keyed Transmitter" $Radio9 \
    "SigGen_boot" "Boot up with the Sig Gen Output On" $Radio10 \
+   "StreamRX_boot" "Boot up to display a BATC Stream" $Radio11 \
    3>&2 2>&1 1>&3)
 
   if [ $? -eq 0 ]; then
      set_config_var startup "$chstartup" $PCONFIGFILE
+  fi
+
+  # Allow user to set stream for display if required
+  if [ "$chstartup" == "StreamRX_boot" ]; then
+    STREAM0=$(get_config_var stream0 $PATH_STREAMPRESETS)
+    STREAM0=$(whiptail --inputbox "Enter the full stream URL" 8 78 $STREAM0 --title "SET URL FOR STREAM TO BE DISPLAYED" 3>&1 1>&2 2>&3)
+    if [ $? -eq 0 ]; then
+      set_config_var stream0 "$STREAM0" $PATH_STREAMPRESETS
+    fi
   fi
 }
 

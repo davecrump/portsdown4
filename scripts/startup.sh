@@ -71,6 +71,19 @@ if [ "$RESULT" -eq 0 ]; then
   return
 fi
 
+# If StreamRX is already running and this is an ssh session
+# stop the StreamRX, start the menu and return
+ps -cax | grep 'streamrx' >/dev/null 2>/dev/null
+RESULT="$?"
+if [ "$RESULT" -eq 0 ]; then
+  if [ "$SESSION_TYPE" == "ssh" ]; then
+    killall streamrx >/dev/null 2>/dev/null
+    killall omxplayer.bin >/dev/null 2>/dev/null
+    /home/pi/rpidatv/scripts/menu.sh menu
+  fi
+  return
+fi
+
 # If menu is already running, exit to command prompt
 ps -cax | grep 'menu.sh' >/dev/null 2>/dev/null
 RESULT="$?"
@@ -215,6 +228,13 @@ case "$MODE_STARTUP" in
     # Start the Sig Gen with the output on
     if [ "$SESSION_TYPE" == "boot" ]; then
       /home/pi/rpidatv/bin/siggen on
+    fi
+    return
+  ;;
+  StreamRX_boot)
+    # Start the Streamer Display with the default GPIO Pin
+    if [ "$SESSION_TYPE" == "boot" ]; then
+      /home/pi/rpidatv/bin/streamrx &
     fi
     return
   ;;
