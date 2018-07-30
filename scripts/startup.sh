@@ -233,6 +233,7 @@ case "$MODE_STARTUP" in
   ;;
   StreamRX_boot)
     # Start the Streamer Display with the default GPIO Pin
+    reset
     if [ "$SESSION_TYPE" == "boot" ]; then
       /home/pi/rpidatv/bin/streamrx &
     fi
