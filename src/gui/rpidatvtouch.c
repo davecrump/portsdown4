@@ -6067,6 +6067,7 @@ void DisplayStream(int NoButton)
   strcat(WaitMessage, StreamLabel[NoPreset]);
 
   printf("Starting Stream receiver ....\n");
+  IQAvailable = 0;         // Set flag to prompt user reboot before transmitting
   FinishedButton = 0;
   BackgroundRGB(0, 0, 0, 0);
   End();
