@@ -283,6 +283,7 @@ int getTouchSample(int *, int *, int *);
 void TransformTouchMap(int, int);
 int ButtonNumber(int, int);
 int CheckLimeInstalled();
+int CheckLimeConnect();
 
 /***************************************************************************//**
  * @brief Looks up the value of a Param in PathConfigFile and sets value
@@ -704,7 +705,7 @@ void PrepSWUpdate()
   system("rm /home/pi/rpidatv/scripts/latest_version.txt  >/dev/null 2>/dev/null");
 
   // Download new latest version file
-  strcpy(LinuxCommand, "wget --timeout=2 https://raw.githubusercontent.com/BritishAmateurTelevisionClub/");
+  strcpy(LinuxCommand, "wget -4 --timeout=2 https://raw.githubusercontent.com/BritishAmateurTelevisionClub/");
   if (GetLinuxVer() == 8)  // Jessie, so rpidatv repo
   {
     strcat(LinuxCommand, "rpidatv/master/scripts/latest_version.txt ");
@@ -877,13 +878,19 @@ void ExecuteUpdate(int NoButton)
     system("/home/pi/rpidatv/scripts/install_lime.sh");
     init(&wscreen, &hscreen);
     Start(wscreen, hscreen);
+    wait_touch();
     break;
   case 1:  // Upgrade Lime Firmware
-    if (CheckLimeInstalled() == 0)
+    if (CheckLimeConnect() == 0)
     {
       MsgBox4("Upgrading Lime Firmware", " ", " ", " ");
       system("LimeUtil --update");
-      MsgBox4("Firmware Upgrade Complete", " ", "Touch Screen", "to Continue");
+      MsgBox4("Firmware Upgrade Complete", " ", "Touch Screen to Continue" ," ");
+      wait_touch();
+    }
+    else
+    {
+      MsgBox4("No Lime Mini Connected", " ", "Touch Screen to Continue" ," ");
       wait_touch();
     }
     break;

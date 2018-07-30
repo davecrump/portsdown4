@@ -1,6 +1,6 @@
 #! /bin/bash
 
-# Updated by davecrump 20180717
+# Updated by davecrump 20180729
 
 DisplayUpdateMsg() {
   # Delete any old update message image
@@ -20,26 +20,21 @@ DisplayUpdateMsg() {
 
 reset
 
-# exit #Uncomment this line for release without Lime
-
-DisplayUpdateMsg "Checking update status"
+DisplayUpdateMsg "1 Upgrading existing packages"
 
 # Make sure that we are up-to-date
 # Prepare to update the distribution (added 20170405)
-sudo dpkg --configure -a
-sudo apt-get clean
-sudo apt-get update
+sudo dpkg --configure -a     # Make sure that all the packages are properly configured
+sudo apt-get clean           # Clean up the old archived packages
+sudo apt-get update          # Update the package list
+sudo apt-get -y dist-upgrade # Upgrade all the installed packages to their latest version
 
-# Update the distribution (added 20170403)
-sudo apt-get -y dist-upgrade
-sudo apt-get update
-
-DisplayUpdateMsg "Installing new packages"
+DisplayUpdateMsg "2 Installing new packages"
 
 # Install new packages required
 sudo apt-get -y install libsqlite3-dev libi2c-dev
 
-DisplayUpdateMsg "Deleting any old LimeSuite Files"
+DisplayUpdateMsg "3 Deleting old LimeSuite Files"
 
 sudo rm -rf /usr/local/lib/libLimeSuite.* >/dev/null 2>/dev/null
 sudo rm -rf /usr/local/lib/cmake/LimeSuite/* >/dev/null 2>/dev/null
@@ -49,7 +44,7 @@ sudo rm -rf /usr/local/bin/LimeUtil >/dev/null 2>/dev/null
 sudo rm -rf /usr/local/bin/LimeQuickTest >/dev/null 2>/dev/null
 sudo rm -rf /home/pi/LimeSuite >/dev/null 2>/dev/null
 
-DisplayUpdateMsg "Downloading LimeSuite"
+DisplayUpdateMsg "4 Downloading LimeSuite"
 
 # Install lines if latest version works (it doesn't)
 
@@ -71,7 +66,9 @@ rm master.zip
 cd LimeSuite/
 mkdir dirbuild
 cd dirbuild/
-DisplayUpdateMsg "Compiling LimeSuite"
+
+DisplayUpdateMsg "5 Compiling LimeSuite"
+
 cmake ../
 make
 sudo make install
@@ -84,15 +81,17 @@ chmod +x install.sh
 sudo /home/pi/LimeSuite/udev-rules/install.sh
 
 # Install LimeTools
-DisplayUpdateMsg "Downloading Lime Tools"
+DisplayUpdateMsg "6 Downloading LimeTools"
+sudo rm -rf /home/pi/limetool >/dev/null 2>/dev/null
 cd /home/pi
 git clone https://github.com/davecrump/limetool
 cd limetool
-DisplayUpdateMsg "Compiling Lime Tools"
+DisplayUpdateMsg "7 Compiling LimeTools"
 make
 
 # Install libdvbmod
-DisplayUpdateMsg "Downloading DVB Modulator"
+DisplayUpdateMsg "8 Downloading DVB Apps"
+sudo rm -rf /home/pi/libdvbmod >/dev/null 2>/dev/null
 cd /home/pi
 git clone https://github.com/F5OEO/libdvbmod
 cd libdvbmod/libdvbmod
@@ -100,15 +99,19 @@ make dirmake
 mkdir obj/DVB-S
 mkdir obj/DVB-S2
 mkdir obj/DVB-T
-DisplayUpdateMsg "Compiling DVB Modulator Stage 1"
+DisplayUpdateMsg "9 Compiling DVB Encoder"
 make
 cd ../DvbTsToIQ
-DisplayUpdateMsg "Compiling DVB Modulator Stage 2"
+DisplayUpdateMsg "10 Compiling DVB TS to IQ"
 make
 cd /home/pi
 
-DisplayUpdateMsg "Lime Install Complete"
+DisplayUpdateMsg "11 Lime Install Complete"
 sleep 3
-DisplayUpdateMsg "Touch to Continue"
+DisplayUpdateMsg "Finished! Touch to Continue"
+
+echo
+echo "Lime Install Complete.  No reboot required."
+echo
 
 exit
