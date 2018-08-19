@@ -16,10 +16,10 @@ sudo apt-get -y dist-upgrade
 sudo apt-get update
 
 # Install the packages that we need
-sudo apt-get -y install apt-transport-https git rpi-update
-sudo apt-get -y install cmake libusb-1.0-0-dev g++ libx11-dev buffer libjpeg-dev indent 
-sudo apt-get -y install libfreetype6-dev ttf-dejavu-core bc usbmount fftw3-dev wiringpi libvncserver-dev
-sudo apt-get -y install fbi netcat imagemagick htop
+sudo apt-get -y install git
+sudo apt-get -y install cmake libusb-1.0-0-dev libx11-dev buffer libjpeg-dev indent 
+sudo apt-get -y install ttf-dejavu-core bc usbmount fftw3-dev wiringpi libvncserver-dev
+sudo apt-get -y install fbi netcat imagemagick
 sudo apt-get -y install libvdpau-dev libva-dev libxcb-shape0  # For latest ffmpeg build
 sudo apt-get -y install python-pip pandoc python-numpy pandoc python-pygame gdebi-core # 20180101 FreqShow
 
@@ -57,6 +57,7 @@ rm master.zip
 
 # Compile rpidatv core
 cd rpidatv/src
+touch rpidatv.c
 make
 sudo make install
 
@@ -193,6 +194,8 @@ sudo sed -i 's/sync,//g' /etc/usbmount/usbmount.conf
 # Download, compile and install the executable for hardware shutdown button
 # Updated version that is less trigger-happy (201705200)
 git clone https://github.com/philcrump/pi-sdn /home/pi/pi-sdn-build
+# Install new version that sets swapoff
+cp -f /home/pi/rpidatv/src/pi-sdn/main.c /home/pi/pi-sdn-build/main.c
 cd /home/pi/pi-sdn-build
 make
 mv pi-sdn /home/pi/
