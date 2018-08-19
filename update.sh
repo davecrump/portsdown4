@@ -218,6 +218,13 @@ if ! grep -q timeout /etc/dhcpcd.conf; then
   sudo bash -c 'echo -e "timeout 5\n" >> /etc/dhcpcd.conf'
 fi
 
+# Compile updated pi-sdn that sets swapoff
+cp -f /home/pi/rpidatv/src/pi-sdn/main.c /home/pi/pi-sdn-build/main.c
+cd /home/pi/pi-sdn-build
+make
+mv pi-sdn /home/pi/
+cd /home/pi
+
 # Compile and install the executable for switched repeater streaming (201708150)
 cd /home/pi/rpidatv/src/rptr
 make

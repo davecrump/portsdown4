@@ -6067,10 +6067,10 @@ void DisplayStream(int NoButton)
   strcat(WaitMessage, StreamLabel[NoPreset]);
 
   printf("Starting Stream receiver ....\n");
-  IQAvailable = 0;         // Set flag to prompt user reboot before transmitting
+  IQAvailable = 0;           // Set flag to prompt user reboot before transmitting
   FinishedButton = 0;
   BackgroundRGB(0, 0, 0, 0);
-  End();
+  finish();                  // Close the graphics sub-system
   DisplayHere(WaitMessage);
 
   // Create Wait Button thread
@@ -6143,6 +6143,7 @@ void DisplayStream(int NoButton)
     system("killall -9 omxplayer.bin >/dev/null 2>/dev/null");
   }
   DisplayHere("");
+  init(&wscreen, &hscreen);  // Restart the graphics
   pthread_join(thbutton, NULL);
 }
 
@@ -6716,6 +6717,8 @@ void InfoScreen()
 {
   char result[256];
   char result2[256] = " ";
+
+  //End();  //Test
 
   // Look up and format all the parameters to be displayed
 
@@ -8660,19 +8663,19 @@ void waituntil(int w,int h)
           MsgBox4("", "Shutting down now", "", "");
           system("sudo killall express_server >/dev/null 2>/dev/null");
           system("sudo rm /tmp/expctrl >/dev/null 2>/dev/null");
-          sync();  // Prevents shutdown hang in Stretch
+          sync();            // Prevents shutdown hang in Stretch
           usleep(1000000);
           finish();
-          system("sudo shutdown now");
+          cleanexit(160);    // Commands scheduler to initiate shutdown
           break;
         case 1:                               // Reboot
           MsgBox4("", "Rebooting now", "", "");
           system("sudo killall express_server >/dev/null 2>/dev/null");
           system("sudo rm /tmp/expctrl >/dev/null 2>/dev/null");
-          sync();  // Prevents shutdown hang in Stretch
+          sync();            // Prevents shutdown hang in Stretch
           usleep(1000000);
           finish();
-          system("sudo reboot now");
+          cleanexit(192);    // Commands scheduler to initiate reboot
           break;
         case 2:                               // Display Info Page
           InfoScreen();
@@ -8684,7 +8687,7 @@ void waituntil(int w,int h)
           BackgroundRGB(0,0,0,255);
           UpdateWindow();
           break;
-        case 4:                               //  
+        case 4:                               // Not used
           UpdateWindow();
           break;
         case 5:                               // Locator Bearings
@@ -8697,13 +8700,13 @@ void waituntil(int w,int h)
           BackgroundRGB(0,0,0,255);
           UpdateWindow();
           break;
-        case 7:                               // 
+        case 7:                               // Not used
           UpdateWindow();
           break;
-        case 8:                               // 
+        case 8:                               // Not used
           UpdateWindow();
           break;
-        case 9:                               // 
+        case 9:                               // Not used
           UpdateWindow();
           break;
         case 10:                              // Take Snap from EasyCap Input
@@ -8718,7 +8721,7 @@ void waituntil(int w,int h)
           do_snapcheck();
           UpdateWindow();
           break;
-        case 13:                              //
+        case 13:                              // Not used
           UpdateWindow();
           break;
         case 14:                              // Stream Viewer
@@ -8759,7 +8762,7 @@ void waituntil(int w,int h)
           BackgroundRGB(0,0,0,255);
           UpdateWindow();
           break;
-        case 18:                              // RTL-FM
+        case 18:                              // RTL-FM Receiver
           if(CheckRTL()==0)
           {
             RTLdetected = 1;
@@ -8776,7 +8779,7 @@ void waituntil(int w,int h)
           Start_Highlights_Menu6();
           UpdateWindow();
           break;
-        case 19:                              // (Locator Calc?)
+        case 19:                              // Not used
           UpdateWindow();
           break;
         case 20:                              // Not shown
@@ -13920,7 +13923,7 @@ terminate(int dummy)
   RTLstop();
   system("killall -9 omxplayer.bin >/dev/null 2>/dev/null");
   finish();
-  DisplayHere("Touchscreen Process Stopped");
+  //DisplayHere("Touchscreen Process Stopped");
   printf("Terminate\n");
   sprintf(Commnd,"sudo killall express_server >/dev/null 2>/dev/null");
   system(Commnd);
@@ -13928,6 +13931,8 @@ terminate(int dummy)
   system(Commnd);
   sprintf(Commnd,"reset");
   system(Commnd);
+  //system("sudo swapoff -a");
+  //system("sudo swapon -a");
   exit(1);
 }
 
