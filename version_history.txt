@@ -1,6 +1,7 @@
 201808190
 Update dtblob.bin and RPi Version file to prevent shutdown hang
 Set swapoff before shutdown or reboot to prevent shutdown hang
+Install random number tools to prevent wget hang on checking for update 
 Bugfix stream display after info screen selection 
 
 201807290
