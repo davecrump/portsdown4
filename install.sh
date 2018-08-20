@@ -19,7 +19,7 @@ sudo apt-get update
 sudo apt-get -y install git
 sudo apt-get -y install cmake libusb-1.0-0-dev libx11-dev buffer libjpeg-dev indent 
 sudo apt-get -y install ttf-dejavu-core bc usbmount fftw3-dev wiringpi libvncserver-dev
-sudo apt-get -y install fbi netcat imagemagick
+sudo apt-get -y install fbi netcat imagemagick rng-tools
 sudo apt-get -y install libvdpau-dev libva-dev libxcb-shape0  # For latest ffmpeg build
 sudo apt-get -y install python-pip pandoc python-numpy pandoc python-pygame gdebi-core # 20180101 FreqShow
 
@@ -57,7 +57,6 @@ rm master.zip
 
 # Compile rpidatv core
 cd rpidatv/src
-touch rpidatv.c
 make
 sudo make install
 

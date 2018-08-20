@@ -66,6 +66,10 @@ DisplayUpdateMsg "Step 4a of 10\nStill Updating Software Packages\n\nXXXX------"
 
 sudo apt-get -y dist-upgrade # Upgrade all the installed packages to their latest version
 
+# --------- Install the Random Number Generator ------
+
+sudo apt-get -y install rng-tools
+
 # Enable USB Storage automount in Stretch (only) 20180704
 cd /lib/systemd/system/
 if ! grep -q MountFlags=shared systemd-udevd.service; then
@@ -107,6 +111,7 @@ DisplayUpdateMsg "Step 6 of 10\nCompiling Portsdown SW\n\nXXXXXX----"
 # Compile rpidatv core
 sudo killall -9 rpidatv
 cd rpidatv/src
+touch rpidatv.c
 make clean
 make
 sudo make install
