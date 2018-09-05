@@ -27,7 +27,9 @@ DisplayUpdateMsg "1 Upgrading existing packages"
 sudo dpkg --configure -a     # Make sure that all the packages are properly configured
 sudo apt-get clean           # Clean up the old archived packages
 sudo apt-get update          # Update the package list
-sudo apt-get -y dist-upgrade # Upgrade all the installed packages to their latest version
+
+# --- Do not upgrade firmware until mmal fix is ready ----
+#sudo apt-get -y dist-upgrade # Upgrade all the installed packages to their latest version
 
 DisplayUpdateMsg "2 Installing new packages"
 
@@ -108,7 +110,8 @@ cd /home/pi
 
 DisplayUpdateMsg "11 Lime Install Complete"
 sleep 3
-DisplayUpdateMsg "Finished! Touch to Continue"
+sudo fbi -T 1 -noverbose -a /home/pi/rpidatv/scripts/images/BATC_Black.png >/dev/null 2>/dev/null
+(sleep 1; sudo killall -9 fbi >/dev/null 2>/dev/null) &  ## kill fbi once it has done its work
 
 echo
 echo "Lime Install Complete.  No reboot required."
