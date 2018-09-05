@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Updated by davecrump 201807150
+# Updated by davecrump 201809050
 
 DisplayUpdateMsg() {
   # Delete any old update message image  201802040
@@ -64,11 +64,13 @@ sudo apt-get update          # Update the package list
 
 DisplayUpdateMsg "Step 4a of 10\nStill Updating Software Packages\n\nXXXX------"
 
-sudo apt-get -y dist-upgrade # Upgrade all the installed packages to their latest version
+# --------- Do not update packages until mmal and IL firmware issues are fixed ------
+
+# sudo apt-get -y dist-upgrade # Upgrade all the installed packages to their latest version
 
 # --------- Install the Random Number Generator ------
 
-sudo apt-get -y install rng-tools
+sudo apt-get -y install rng-tools # This makes sure that there is enough entropy for wget
 
 # Enable USB Storage automount in Stretch (only) 20180704
 cd /lib/systemd/system/

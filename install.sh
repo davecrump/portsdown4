@@ -1,19 +1,19 @@
 #!/bin/bash
 
-# Stretch Version by davecrump on 20180715
+# Stretch Version by davecrump on 20180905
 
 # Update the package manager
 sudo dpkg --configure -a
-sudo apt-get clean
 sudo apt-get update
 
 # Uninstall the apt-listchanges package to allow silent install of ca certificates (201704030)
 # http://unix.stackexchange.com/questions/124468/how-do-i-resolve-an-apparent-hanging-update-process
 sudo apt-get -y remove apt-listchanges
 
+# -------- Do not upgrade distribution until firmware IL and mmal issues are fixed ------
+
 # Update the distribution
-sudo apt-get -y dist-upgrade
-sudo apt-get update
+#sudo apt-get -y dist-upgrade
 
 # Install the packages that we need
 sudo apt-get -y install git
