@@ -2505,11 +2505,13 @@ do_Exit()
 
 do_Reboot()
 {
+  sudo swapoff -a
   sudo reboot now
 }
 
 do_Shutdown()
 {
+  sudo swapoff -a
   sudo shutdown now
 }
 
