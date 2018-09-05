@@ -11,7 +11,7 @@ Our thanks to Evariste and all the other contributors to this community project.
 
 The preferred installation method only needs a Windows PC connected to the same (internet-connected) network as your Raspberry Pi.  Do not connect a keyboard or HDMI display directly to your Raspberry Pi.
 
-- First download the 13 March 2018 release of Raspbian Stretch Lite on to your Windows PC from here http://downloads.raspberrypi.org/raspbian_lite/images/raspbian_lite-2018-03-14/2018-03-13-raspbian-stretch-lite.zip
+- First download the 27 June 2018 release of Raspbian Stretch Lite (recent change) on to your Windows PC from here http://downloads.raspberrypi.org/raspbian_lite/images/raspbian_lite-2018-06-29/2018-06-27-raspbian-stretch-lite.zip
 
 - Unzip the image and then transfer it to a Micro-SD Card using Win32diskimager https://sourceforge.net/projects/win32diskimager/
 
@@ -52,7 +52,7 @@ Then reboot, and try again.  The command asks your RPi to use Google's DNS, not 
 
 Note that you do not need to load any touchscreen drivers - if the touchscreen does not work try powering off and on again.  If your touchscreen appears as if the touch sense is 90 degrees out, try selecting the TonTec display in the Setup menu.  If the colours seem wrong, try selecting the Waveshare Type B display and rebooting.
 
-After initial installation, on selecting transmit, the RPi is configured to generate a direct RF output (from GPIO pin 32) on 437 MHz at 333KS using the BATC Logo image as the source.  
+After initial installation, on selecting transmit, the RPi is configured to generate a direct RF output (from GPIO pin 32) on 437 MHz at 333KS using the BATC Portsdown logo image as the source.  
 
 Advanced notes:  To load the development version, cut and paste in the following lines:
 
