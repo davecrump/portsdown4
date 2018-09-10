@@ -281,6 +281,24 @@ fi
 if [ -f "/home/pi/rtl-fm_presets.txt" ]; then
   cp -f -r /home/pi/rtl-fm_presets.txt /home/pi/rpidatv/scripts/rtl-fm_presets.txt
 fi
+if ! grep -q r0gain /home/pi/rpidatv/scripts/rtl-fm_presets.txt; then
+  # File needs updating
+  printf "Adding new entries to user's rtl-fm_presets.txt\n"
+  # Delete any blank lines
+  sed -i -e '/^$/d' /home/pi/rpidatv/scripts/rtl-fm_presets.txt
+  # Add the 9 new entries and a new line 
+  echo "r0gain=30" >> /home/pi/rpidatv/scripts/rtl-fm_presets.txt
+  echo "r1gain=30" >> /home/pi/rpidatv/scripts/rtl-fm_presets.txt
+  echo "r2gain=30" >> /home/pi/rpidatv/scripts/rtl-fm_presets.txt
+  echo "r3gain=30" >> /home/pi/rpidatv/scripts/rtl-fm_presets.txt
+  echo "r4gain=30" >> /home/pi/rpidatv/scripts/rtl-fm_presets.txt
+  echo "r5gain=30" >> /home/pi/rpidatv/scripts/rtl-fm_presets.txt
+  echo "r6gain=30" >> /home/pi/rpidatv/scripts/rtl-fm_presets.txt
+  echo "r7gain=30" >> /home/pi/rpidatv/scripts/rtl-fm_presets.txt
+  echo "r8gain=30" >> /home/pi/rpidatv/scripts/rtl-fm_presets.txt
+  echo "r9gain=30" >> /home/pi/rpidatv/scripts/rtl-fm_presets.txt
+  echo "" >> /home/pi/rpidatv/scripts/rtl-fm_presets.txt
+fi
 
 # Restore the user's original portsdown_locators.txt if required
 if [ -f "/home/pi/portsdown_locators.txt" ]; then
@@ -298,6 +316,30 @@ fi
 # Restore the user's original stream presets if required
 if [ -f "/home/pi/stream_presets.txt" ]; then
   cp -f -r /home/pi/stream_presets.txt /home/pi/rpidatv/scripts/stream_presets.txt
+fi
+if ! grep -q streamurl1 /home/pi/rpidatv/scripts/stream_presets.txt; then
+  # File needs updating
+  printf "Adding new entries to user's stream_presets.txt\n"
+  # Delete any blank lines
+  sed -i -e '/^$/d' /home/pi/rpidatv/scripts/stream_presets.txt
+  # Add the 9 new entries and a new line 
+  echo "streamurl1=rtmp://rtmp.batc.org.uk/live" >> /home/pi/rpidatv/scripts/stream_presets.txt
+  echo "streamkey1=callsign-keykey" >> /home/pi/rpidatv/scripts/stream_presets.txt
+  echo "streamurl2=rtmp://rtmp.batc.org.uk/live" >> /home/pi/rpidatv/scripts/stream_presets.txt
+  echo "streamkey2=callsign-keykey" >> /home/pi/rpidatv/scripts/stream_presets.txt
+  echo "streamurl3=rtmp://rtmp.batc.org.uk/live" >> /home/pi/rpidatv/scripts/stream_presets.txt
+  echo "streamkey3=callsign-keykey" >> /home/pi/rpidatv/scripts/stream_presets.txt
+  echo "streamurl4=rtmp://rtmp.batc.org.uk/live" >> /home/pi/rpidatv/scripts/stream_presets.txt
+  echo "streamkey4=callsign-keykey" >> /home/pi/rpidatv/scripts/stream_presets.txt
+  echo "streamurl5=rtmp://rtmp.batc.org.uk/live" >> /home/pi/rpidatv/scripts/stream_presets.txt
+  echo "streamkey5=callsign-keykey" >> /home/pi/rpidatv/scripts/stream_presets.txt
+  echo "streamurl6=rtmp://rtmp.batc.org.uk/live" >> /home/pi/rpidatv/scripts/stream_presets.txt
+  echo "streamkey6=callsign-keykey" >> /home/pi/rpidatv/scripts/stream_presets.txt
+  echo "streamurl7=rtmp://rtmp.batc.org.uk/live" >> /home/pi/rpidatv/scripts/stream_presets.txt
+  echo "streamkey7=callsign-keykey" >> /home/pi/rpidatv/scripts/stream_presets.txt
+  echo "streamurl8=rtmp://rtmp.batc.org.uk/live" >> /home/pi/rpidatv/scripts/stream_presets.txt
+  echo "streamkey8=callsign-keykey" >> /home/pi/rpidatv/scripts/stream_presets.txt
+  echo "" >> /home/pi/rpidatv/scripts/stream_presets.txt
 fi
 
 DisplayUpdateMsg "Step 9 of 10\nInstalling FreqShow SW\n\nXXXXXXXXX-"

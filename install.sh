@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Stretch Version by davecrump on 20180905
+# Stretch Version by davecrump on 20180907
 
 # Update the package manager
 sudo dpkg --configure -a
@@ -38,9 +38,6 @@ cd /home/pi
 if [ "$1" == "-d" ]; then
   echo "Installing development load"
   wget https://github.com/davecrump/portsdown/archive/master.zip
-elif [ "$1" == "-s" ]; then
-  echo "Installing BATC Staging load"
-  wget https://github.com/BritishAmateurTelevisionClub/portsdown/archive/batc_staging.zip -O master.zip
 else
   echo "Installing BATC Production load"
   wget https://github.com/BritishAmateurTelevisionClub/portsdown/archive/master.zip
@@ -48,11 +45,7 @@ fi
 
 # Unzip the source software and copy to the Pi
 unzip -o master.zip
-if [ "$1" == "-s" ]; then
-  mv portsdown-batc_staging rpidatv
-else
-  mv portsdown-master rpidatv
-fi
+mv portsdown-master rpidatv
 rm master.zip
 
 # Compile rpidatv core
