@@ -1,3 +1,9 @@
+201809100
+Define and store rtl-sdr gain
+Fix rtl-sdr frequency setting bug
+Fix factory reset bug
+Enable stream set-up and selection from Menu 3
+
 201809050
 Update dtblob.bin and RPi Version file to prevent shutdown hang
 Set swapoff before shutdown or reboot to prevent shutdown hang

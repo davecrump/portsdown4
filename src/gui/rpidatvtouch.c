@@ -115,7 +115,7 @@ char PIDpmt[15];
 char ADFRef[3][15];
 char CurrentADFRef[15];
 char UpdateStatus[31] = "NotAvailable";
-//char ADF5355Ref[15];
+char ADF5355Ref[15];
 int  scaledX, scaledY;
 VGfloat CalShiftX = 0;
 VGfloat CalShiftY = 0;
@@ -192,6 +192,7 @@ char RTLfreq[10][15];       // String with frequency in MHz
 char RTLlabel[10][15];      // String for label
 char RTLmode[10][15];       // String for mode: fm, wbfm, am, usb, lsb
 int RTLsquelch[10];         // between 0 and 1000.  0 is off
+int RTLgain[10];            // between 0 (min) and 50 (max).
 int RTLsquelchoveride = 1;  // if 0, squelch has been over-riden
 int RTLppm = 0;             // RTL frequency correction in integer ppm
 int RTLStoreTrigger = 0;    // Set to 1 if ready to store RTL preset
@@ -217,11 +218,16 @@ int FinishedButton2 = 1;    // Used to control FFT
 fftwf_complex *fftout=NULL; // FFT for RX
 #define FFT_SIZE 256        // for RX display
 
-// Stream Display Parameters
+// Stream Display Parameters. [0] is current
 char StreamAddress[9][127];  // Full rtmp address of stream
 char StreamLabel[9][31];     // Button Label for stream
 int IQAvailable = 1;         // Flag set to 0 if RPi audio output has been used
-int StreamStoreTrigger = 0;   // Set to 1 if stream amendment needed
+int StreamStoreTrigger = 0;  // Set to 1 if stream amendment needed
+
+// Stream Output Parameters. [0] is current
+char StreamURL[9][127];      // Full rtmp address of stream server (except for key)
+char StreamKey[9][31];       // streamname-key for stream
+int StreamerStoreTrigger = 0;   // Set to 1 if streamer amendment needed
 
 // Range and Bearing Calculator Parameters
 int GcBearing(const float, const float, const float, const float);
@@ -270,6 +276,7 @@ void Start_Highlights_Menu30();
 void Start_Highlights_Menu31();
 void Start_Highlights_Menu32();
 void Start_Highlights_Menu33();
+void Start_Highlights_Menu35();
 void MsgBox(const char *);
 void MsgBox2(const char *, const char *);
 void MsgBox4(const char *, const char *, const char *, const char *);
@@ -873,12 +880,18 @@ void ExecuteUpdate(int NoButton)
     }
     break;
   case 0:  // Install Lime Mini and USB
-    // Display the update message
+    // Stop the GUI and run the install script
     finish();
     system("/home/pi/rpidatv/scripts/install_lime.sh");
+
+    // Restart the gui
     init(&wscreen, &hscreen);
     Start(wscreen, hscreen);
     wait_touch();
+
+    // Replace the final update message with the BATC Logo
+    system("sudo fbi -T 1 -noverbose -a \"/home/pi/rpidatv/scripts/images/BATC_Black.png\" >/dev/null 2>/dev/null");
+    system("(sleep 1; sudo killall -9 fbi >/dev/null 2>/dev/null) &");
     break;
   case 1:  // Upgrade Lime Firmware
     if (CheckLimeConnect() == 0)
@@ -1719,9 +1732,9 @@ void ReadADFRef()
   GetConfigParam(PATH_PCONFIG, Param, Value);
   strcpy(CurrentADFRef, Value);
 
-  //strcpy(Param, "adf5355ref");
-  //GetConfigParam(PATH_SGCONFIG, Param, Value);
-  //strcpy(ADF5355Ref, Value);
+  strcpy(Param, "adf5355ref");
+  GetConfigParam(PATH_SGCONFIG, Param, Value);
+  strcpy(ADF5355Ref, Value);
 }
 
 /***************************************************************************//**
@@ -2192,6 +2205,10 @@ void SaveRTLPreset(int PresetButton)
   snprintf(Param, 10, "r%dsquelch", index);
   snprintf(Value, 4, "%d", RTLsquelch[0]);
   SetConfigParam(PATH_RTLPRESETS, Param, Value);
+
+  snprintf(Param, 10, "r%dgain", index);
+  snprintf(Value, 4, "%d", RTLgain[0]);
+  SetConfigParam(PATH_RTLPRESETS, Param, Value);
 }
 
 /***************************************************************************//**
@@ -2218,6 +2235,7 @@ void RecallRTLPreset(int PresetButton)
   strcpy(RTLlabel[0], RTLlabel[index]);
   strcpy(RTLmode[0], RTLmode[index]);
   RTLsquelch[0] = RTLsquelch[index];
+  RTLgain[0] = RTLgain[index];
 }
 
 /***************************************************************************//**
@@ -2274,6 +2292,34 @@ void ChangeRTLSquelch()
 
   // Store Response
   RTLsquelch[0] = atoi(KeyboardReturn);
+}
+
+/***************************************************************************//**
+ * @brief Uses keyboard to ask for a new RTL-FM Gain setting
+ *        
+ * @param none
+ *
+ * @return void.  Sets global int RTLgain[0] in range 0 - 50
+*******************************************************************************/
+
+void ChangeRTLGain()
+{
+  char RequestText[64];
+  char InitText[64];
+
+  //Define request string 
+  strcpy(RequestText, "Enter new gain setting 0 (min) to 50 (max):");
+  snprintf(InitText, 3, "%d", RTLgain[0]);
+
+  // Ask for response and check validity
+  strcpy(KeyboardReturn, "60");
+  while ((atoi(KeyboardReturn) < 0) || (atoi(KeyboardReturn) > 50))
+  {
+    Keyboard(RequestText, InitText, 3);
+  }
+
+  // Store Response
+  RTLgain[0] = atoi(KeyboardReturn);
 }
 
 /***************************************************************************//**
@@ -2348,6 +2394,11 @@ void ReadRTLPresets()
     snprintf(Param, 10, "r%dsquelch", n);
     GetConfigParam(PATH_RTLPRESETS, Param, Value);
     RTLsquelch[n] = atoi(Value);
+
+    // Gain
+    snprintf(Param, 10, "r%dgain", n);
+    GetConfigParam(PATH_RTLPRESETS, Param, Value);
+    RTLgain[n] = atoi(Value);
   }
 
   // Frequency correction ppm
@@ -2710,7 +2761,7 @@ void SelectRTLmode(int NoButton)
 void RTLstart()
 {
   char fragment[15];
-
+  
   if(RTLdetected == 1)
   {
     char rtlcall[256];
@@ -2730,7 +2781,7 @@ void RTLstart()
     strcpy(rtlcall, "(rtl_fm");
     snprintf(fragment, 12, " -M %s", RTLmode[0]);  // -M mode
     strcat(rtlcall, fragment);
-    snprintf(fragment, 12, " -f %sM", RTLfreq[0]); // -f frequencyM
+    snprintf(fragment, 16, " -f %sM", RTLfreq[0]); // -f frequencyM
     strcat(rtlcall, fragment);
     if (strcmp(RTLmode[0], "am") == 0)
     {
@@ -2740,6 +2791,8 @@ void RTLstart()
     {
       strcat(rtlcall, " -s 12k");
     }
+    snprintf(fragment, 12, " -g %d", RTLgain[0]); // -g gain
+    strcat(rtlcall, fragment);
     if (RTLsquelchoveride == 1)
     {
       snprintf(fragment, 12, " -l %d", RTLsquelch[0]); // -l squelch
@@ -2767,6 +2820,7 @@ void RTLstart()
     {
       strcat(rtlcall, ",0 -f S16_LE -r6) &"); // 6 KHz for SSB
     }
+    printf("RTL_FM called with: %s\n", rtlcall);
     system(rtlcall);
   }
   else
@@ -2808,6 +2862,7 @@ void ReadStreamPresets()
   char Value[127] = "";
   char Param[20];
 
+  // Read in Stream Receive presets
   for(n = 0; n < 9; n = n + 1)
   {
     // Stream Address
@@ -2820,6 +2875,27 @@ void ReadStreamPresets()
     GetConfigParam(PATH_STREAMPRESETS, Param, Value);
     strcpy(StreamLabel[n], Value);
   }
+
+  // Read in Streamer Transmit presets
+  for(n = 1; n < 9; n = n + 1)
+  {
+    // Streamer URL
+    snprintf(Param, 15, "streamurl%d", n);
+    GetConfigParam(PATH_STREAMPRESETS, Param, Value);
+    strcpy(StreamURL[n], Value);
+
+    // Streamname-key
+    snprintf(Param, 15, "streamkey%d", n);
+    GetConfigParam(PATH_STREAMPRESETS, Param, Value);
+    strcpy(StreamKey[n], Value);
+  }
+
+  // Read in current setting
+  GetConfigParam(PATH_PCONFIG, "streamurl", Value);
+  strcpy(StreamURL[0], Value);
+
+  GetConfigParam(PATH_PCONFIG, "streamkey", Value);
+  strcpy(StreamKey[0], Value);
 }
 
 
@@ -6001,46 +6077,6 @@ int CheckStream()
   }
 }
 
-/*   Old Code!!
-void DisplayStream(int NoButton)
-{
-  char OMXCommand[127];
-  int NoPreset;
-  //VGfloat shapecolor[4];
-  //RGBA(255, 255, 128, 1, shapecolor);
-
-  if(NoButton < 5) // bottom row
-  {
-    NoPreset = NoButton + 5;
-  }
-  else  // top row
-  {
-    NoPreset = NoButton - 4;
-  }
-
-  printf("Starting Stream Display\n");
-  FinishedButton = 0;
-  BackgroundRGB(0, 0, 0, 0);
-  End();
-
-  strcpy(OMXCommand, "omxplayer ");
-  strcat(OMXCommand, StreamAddress[NoPreset]);
-  strcat(OMXCommand, " >/dev/null 2>/dev/null &");
-  printf("starting omxplayer with command: %s\n", OMXCommand);
-  IQAvailable = 0;         // Set flag to prompt user reboot before transmitting
-  system(OMXCommand); 
-
-  // Create Wait Button thread
-  pthread_create (&thbutton, NULL, &WaitButtonEvent, NULL);
-
-  while(FinishedButton == 0)
-  {
-    usleep(1000);
-  }
-  system("sudo killall omxplayer.bin"); 
-  pthread_join(thbutton, NULL);
-}
-*/
 
 void DisplayStream(int NoButton)
 {
@@ -6166,7 +6202,7 @@ void AmendStreamPreset(int NoButton)
 
   // Read the Preset address and ask for a new address
   strcpy(TestValue, StreamAddress[NoPreset]);  // Read the full rtmp address
-  TestValue[29] = '\0';                        // Shorten to 29 cahracters
+  TestValue[29] = '\0';                        // Shorten to 29 characters
   if (strcmp(TestValue, "rtmp://rtmp.batc.org.uk/live/") == 0) // BATC Address
   {
     snprintf(Prompt, 62, "Enter the new lower case StreamName for Preset %d:", NoPreset);
@@ -6197,6 +6233,124 @@ void AmendStreamPreset(int NoButton)
     MsgBox4("Not a BATC Streamer Address", "Please edit it directly in", "rpidatv/scripts/stream_presets.txt", "Touch Screen to Continue");
     wait_touch();
   }
+  BackgroundRGB(0, 0, 0, 255);  // Clear the background
+}
+
+void SelectStreamer(int NoButton)
+{
+  int NoPreset;
+  //char Param[255];
+  //char Value[255];
+
+  // Map button numbering
+  if(NoButton < 5) // bottom row
+  {
+    NoPreset = NoButton + 5;
+  }
+  else  // top row
+  {
+    NoPreset = NoButton - 4;
+  }
+
+  // Copy in the Streamer URL
+  SetConfigParam(PATH_PCONFIG, "streamurl", StreamURL[NoPreset]);
+  strcpy(StreamURL[0], StreamURL[NoPreset]);
+
+  // Copy in Streamname-key
+  SetConfigParam(PATH_PCONFIG, "streamkey", StreamKey[NoPreset]);
+  strcpy(StreamKey[0], StreamKey[NoPreset]);
+}
+
+/* Test code
+  SeparateStreamKey("g8gkq-abcxyz", Param, Value);
+  printf("\nStream separation test **************************\n\n");
+  printf("Test input = \'g8gkq-abcxyz\'\n");
+  printf("Streamname Output = \'%s\'\n", Param);
+  printf("Key Output = \'%s\'\n\n", Value);void SeparateStreamKey(char streamkey[127], char streamname[63], char key[63])
+*/
+
+void SeparateStreamKey(char streamkey[127], char streamname[63], char key[63])
+{
+  int n;
+  char delimiter[1] = "-";
+  int AfterDelimiter = 0;
+  int keystart;
+  int stringkeylength;
+  strcpy(streamname, "null");
+  strcpy(key, "null");
+
+  stringkeylength = strlen(streamkey);
+
+  for(n = 0; n < stringkeylength ; n = n + 1)  // for each character
+  {
+    if (AfterDelimiter == 0)                   // if streamname
+    {
+      streamname[n] = streamkey[n];            // copy character into streamname
+
+      if (n == stringkeylength - 1)            // if no delimiter found
+      {
+        streamname[n + 1] = '\0';                  // terminate streamname to prevent overflow
+      }
+    }
+    else
+    {
+      AfterDelimiter = AfterDelimiter + 1;     // if not streamname jump over delimiter
+    }
+    if (streamkey[n] == delimiter[0])          // if delimiter
+    {
+      streamname[n] = '\0';                    // end streamname
+      AfterDelimiter = 1;                      // set flag
+      keystart = n;                            // and note key start point
+    }
+    if (AfterDelimiter > 1)                    // if key
+    {
+      key[n - keystart - 1] = streamkey[n];    // copy character into key
+    }
+    if (n == stringkeylength - 2)              // if end of input string
+    {
+      key[n - keystart + 1] = '\0';            // end key
+    }
+  }
+}
+
+void AmendStreamerPreset(int NoButton)
+{
+  int NoPreset;
+  char Param[255];
+  char Value[255];
+  char streamname[63];
+  char key[63];
+  char Prompt[63];
+
+  // Map button numbering
+  if(NoButton < 5) // bottom row
+  {
+    NoPreset = NoButton + 5;
+  }
+  else  // top row
+  {
+    NoPreset = NoButton - 4;
+  }
+
+  // streamurl is unchanged
+  // can be changed in file manually if required
+
+  snprintf(Param, 15, "streamkey%d", NoPreset);
+  GetConfigParam(PATH_STREAMPRESETS, Param, Value);
+  SeparateStreamKey(Value, streamname, key);
+
+  sprintf(Prompt, "Enter the streamname (lower case)");
+  Keyboard(Prompt, streamname, 15);
+  strcpy(streamname, KeyboardReturn);
+
+  sprintf(Prompt, "Enter the stream key (6 characters)");
+  Keyboard(Prompt, key, 15);
+  strcpy(key, KeyboardReturn);
+  
+  snprintf(Value, 127, "%s-%s", streamname, key);
+  SetConfigParam(PATH_STREAMPRESETS, Param, Value);
+  strcpy(StreamKey[NoPreset], Value);
+
   BackgroundRGB(0, 0, 0, 255);  // Clear the background
 }
 
@@ -6717,8 +6871,6 @@ void InfoScreen()
 {
   char result[256];
   char result2[256] = " ";
-
-  //End();  //Test
 
   // Look up and format all the parameters to be displayed
 
@@ -8239,10 +8391,31 @@ void ChangeADFRef(int NoButton)
     strcpy(CurrentADFRef, KeyboardReturn);
     SetConfigParam(PATH_PCONFIG, "adfref", KeyboardReturn);
     break;
+  case 3:
+    snprintf(RequestText, 45, "Enter new ADF5355 Reference Frequncy in Hz");
+    snprintf(InitText, 10, "%s", ADF5355Ref);
+    while (Spaces >= 1)
+    {
+      Keyboard(RequestText, InitText, 8);
+  
+      // Check that there are no spaces or other characters
+      Spaces = 0;
+      for (j = 0; j < strlen(KeyboardReturn); j = j + 1)
+      {
+        if ( !(isdigit(KeyboardReturn[j])) )
+        {
+          Spaces = Spaces + 1;
+        }
+      }
+    }
+    strcpy(ADF5355Ref, KeyboardReturn);
+    SetConfigParam(PATH_SGCONFIG, "adf5355ref", KeyboardReturn);
+    break;
   default:
     break;
   }
-  printf("ADFRef set to: %s\n", CurrentADFRef);
+  printf("ADF4351Ref set to: %s\n", CurrentADFRef);
+  printf("ADF5355Ref set to: %s\n", ADF5355Ref);
 }
 
 void ChangePID(int NoButton)
@@ -8857,7 +9030,12 @@ void waituntil(int w,int h)
           Start_Highlights_Menu26();
           UpdateWindow();
           break;
-        case 12:                               // Blank
+        case 12:                               // Set Stream Outputs
+          printf("MENU 35 \n"); 
+          CurrentMenu=35;
+          BackgroundRGB(0,0,0,255);
+          Start_Highlights_Menu35();
+          UpdateWindow();
           break;
         case 13:                               // Blank
           break;
@@ -9293,8 +9471,8 @@ void waituntil(int w,int h)
           SetButtonStatus(ButtonNumber(CurrentMenu, i), 0); 
           UpdateWindow();
           break;
-        case 19:                             // Set ppm offset
-          ChangeRTLppm();
+        case 19:                             // Set gain
+          ChangeRTLGain();
           if (RTLactive == 1)
           {
             RTLstop();
@@ -9314,6 +9492,7 @@ void waituntil(int w,int h)
           }
           else
           {
+            RTLstop();
             RTLactive = 1;
             RTLstart();
           }
@@ -10309,18 +10488,24 @@ void waituntil(int w,int h)
           Start_Highlights_Menu1();
           UpdateWindow();
           break;
-        case 0:
-        case 1:
-        case 2:
-        //case 4:
-        case 5:
-        case 6:
-        case 7:
+        case 0:                               // Use ADF4351 Ref 1
+        case 1:                               // Use ADF4351 Ref 2
+        case 2:                               // Use ADF4351 Ref 3
+        case 3:                               // Set ADF5355 Ref
+        case 5:                               // Set ADF4351 Ref 1
+        case 6:                               // Set ADF4351 Ref 2
+        case 7:                               // Set ADF4351 Ref 3
           printf("Changing ADFRef\n");
           ChangeADFRef(i);
           CurrentMenu=32;
           BackgroundRGB(0,0,0,255);
           Start_Highlights_Menu32();
+          UpdateWindow();
+          break;
+        case 9:                               // Set RTL-SDR ppm offset
+          ChangeRTLppm();
+          BackgroundRGB(0,0,0,255);
+          Start_Highlights_Menu32();          // Refresh button labels
           UpdateWindow();
           break;
         default:
@@ -10370,6 +10555,68 @@ void waituntil(int w,int h)
         }
         // stay in Menu 33 if parameter changed
         continue;   // Completed Menu 33 action, go and wait for touch
+      }
+      if (CurrentMenu == 35)  // Menu 35 Stream output Selector
+      {
+        printf("Button Event %d, Entering Menu 35 Case Statement\n",i);
+        switch (i)
+        {
+        case 4:                               // Cancel
+          SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 1);
+          printf("Streamer Select Cancel\n");
+          StreamerStoreTrigger = 0;
+          SetButtonStatus(ButtonNumber(CurrentMenu, 9), 0);
+          UpdateWindow();
+          usleep(500000);
+          SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 0); // Reset cancel (even if not selected)
+          printf("Returning to MENU 1 from Menu 35\n");
+          CurrentMenu=1;
+          BackgroundRGB(255,255,255,255);
+          Start_Highlights_Menu1();
+          UpdateWindow();
+          break;
+        case 5:                               // Preset 1
+        case 6:                               // Preset 2
+        case 7:                               // Preset 3
+        case 8:                               // Preset 4
+        case 0:                               // Preset 5
+        case 1:                               // Preset 6
+        case 2:                               // Preset 7
+        case 3:                               // Preset 8
+          if (StreamerStoreTrigger == 0)      // Normal
+          {
+            SelectStreamer(i);
+            //BackgroundRGB(0, 0, 0, 255);
+            Start_Highlights_Menu35();        // Refresh the button labels
+          }
+          else                                // Amend the Preset
+          {
+            AmendStreamerPreset(i);
+            StreamerStoreTrigger = 0;
+            SetButtonStatus(ButtonNumber(CurrentMenu, 9), 0);
+            Start_Highlights_Menu35();        // Refresh the button labels
+          }
+          UpdateWindow();                     // Stay in Menu 35
+          break;
+        case 9:                               // Amend Preset
+          if (StreamerStoreTrigger == 0)
+          {
+            StreamerStoreTrigger = 1;
+            SetButtonStatus(ButtonNumber(CurrentMenu, 9), 1);
+          }
+          else
+          {
+            StreamerStoreTrigger = 0;
+            SetButtonStatus(ButtonNumber(CurrentMenu, 9), 0);
+          }
+          UpdateWindow();
+          break;
+          printf("Amend Streamer Preset\n");
+          break;
+        default:
+          printf("Menu 35 Error\n");
+        }
+        continue;   // Completed Menu 35 action, go and wait for touch
       }
       if (CurrentMenu == 41)  // Menu 41 Keyboard (should not get here)
       {
@@ -10996,14 +11243,18 @@ void Define_Menu3()
   AddButtonStatus(button, "Check for^Update", &Blue);
   AddButtonStatus(button, "Checking^for Update", &Green);
 
-  // 3rd line up Menu 3: Amend Sites/Beacons, 
+  // 3rd line up Menu 3: Amend Sites/Beacons, Set Receive LOs and set Stream Outputs 
 
   button = CreateButton(3, 10);
   AddButtonStatus(button, "Amend^Sites/Bcns", &Blue);
 
   button = CreateButton(3, 11);
-  AddButtonStatus(button, "Set Receive^LOs", &Blue);
-  AddButtonStatus(button, "Set Receive^LOs", &Green);
+  AddButtonStatus(button, "Set RX^LOs", &Blue);
+  AddButtonStatus(button, "Set RX^LOs", &Green);
+
+  button = CreateButton(3, 12);
+  AddButtonStatus(button, "Set Stream^Outputs", &Blue);
+  AddButtonStatus(button, "Set Stream^Outputs", &Green);
 
   // 4th line up Menu 3: Band Details, Preset Freqs, Preset SRs, Call and ADFRef
 
@@ -11501,8 +11752,8 @@ void Define_Menu6()
   AddButtonStatus(button, "Save^Settings", &Green);
 
   button = CreateButton(6, 19);
-  AddButtonStatus(button, "Freq Corrn^ppm", &Blue);
-  AddButtonStatus(button, "Freq Corrn^ppm", &Green);
+  AddButtonStatus(button, "Gain", &Blue);
+  AddButtonStatus(button, "Gain", &Green);
 
   //RECEIVE and Exit - Top of Menu 6
 
@@ -11551,8 +11802,8 @@ void Start_Highlights_Menu6()
       SelectInGroupOnMenu(6, 17, 17, 17, 1);
   }
 
-  // Display Freq adjustment
-  snprintf(RTLBtext, 20, "Freq Corrn^%d ppm", RTLppm);
+  // Display the Gain
+  snprintf(RTLBtext, 20, "Gain^%d", RTLgain[0]);
   AmendButtonStatus(ButtonNumber(6, 19), 0, RTLBtext, &Blue);
   AmendButtonStatus(ButtonNumber(6, 19), 1, RTLBtext, &Green);
 
@@ -13468,7 +13719,7 @@ void Define_Menu32()
   DBlue.r=0; DBlue.g=0; DBlue.b=64;
   Green.r=0; Green.g=128; Green.b=0;
 
-  strcpy(MenuTitle[32], "Select and Set ADF Ref Frequency Menu (32)"); 
+  strcpy(MenuTitle[32], "Select and Set Reference Frequency Menu (32)"); 
 
   // Bottom Row, Menu 32
 
@@ -13481,8 +13732,8 @@ void Define_Menu32()
   button = CreateButton(32, 2);
   AddButtonStatus(button, "Set Ref 3", &Blue);
 
-  //button = CreateButton(32, 3);
-  //AddButtonStatus(button, "Set 5355", &Blue);
+  button = CreateButton(32, 3);
+  AddButtonStatus(button, "Set 5355", &Blue);
 
   button = CreateButton(32, 4);
   AddButtonStatus(button, "Exit", &DBlue);
@@ -13502,8 +13753,8 @@ void Define_Menu32()
   AddButtonStatus(button, "Use Ref 3", &Blue);
   AddButtonStatus(button, "Use Ref 3", &Green);
 
-  //button = CreateButton(32, 6);
-  //AddButtonStatus(button, "Switch", &Blue);
+  button = CreateButton(32, 9);
+  AddButtonStatus(button, "RTL ppm", &Blue);
 }
 
 void Start_Highlights_Menu32()
@@ -13554,8 +13805,11 @@ void Start_Highlights_Menu32()
   snprintf(Buttext, 20, "Set Ref 3^%s", ADFRef[2]);
   AmendButtonStatus(ButtonNumber(32, 2), 0, Buttext, &Blue);
 
-  //snprintf(Buttext, 20, "Set 5355^%s", ADF5355Ref);
-  //AmendButtonStatus(ButtonNumber(32, 3), 0, Buttext, &Blue);
+  snprintf(Buttext, 20, "Set 5355^%s", ADF5355Ref);
+  AmendButtonStatus(ButtonNumber(32, 3), 0, Buttext, &Blue);
+
+  snprintf(Buttext, 20, "RTL ppm^%d", RTLppm);
+  AmendButtonStatus(ButtonNumber(32, 9), 0, Buttext, &Blue);
 }
 
 void Define_Menu33()
@@ -13652,6 +13906,97 @@ void Start_Highlights_Menu33()
     AmendButtonStatus(ButtonNumber(33, 7), 0, "Confirm^Dev Update", &Red);
   }
 }
+
+// Menu 35 Stream output Selector
+
+void Define_Menu35()
+{
+  int button;
+  int n;
+  color_t Green;
+  color_t Blue;
+  color_t LBlue;
+  color_t DBlue;
+  color_t Red;
+  char streamname[63];
+  char key[63];
+
+  Red.r=255; Red.g=0; Red.b=0;
+  Green.r=0; Green.g=128; Green.b=0;
+  Blue.r=0; Blue.g=0; Blue.b=128;
+  LBlue.r=64; LBlue.g=64; LBlue.b=192;
+  DBlue.r=0; DBlue.g=0; DBlue.b=64;
+
+  strcpy(MenuTitle[35], "Stream Output Selection Menu (35)"); 
+
+  // Top Row, Menu 35
+  button = CreateButton(35, 9);
+  AddButtonStatus(button, "Amend^Preset", &Blue);
+  AddButtonStatus(button, "Amend^Preset", &Red);
+
+  // Bottom Row, Menu 35
+  button = CreateButton(35, 4);
+  AddButtonStatus(button, "Exit to^Main Menu", &DBlue);
+  AddButtonStatus(button, "Exit to^Main Menu", &LBlue);
+
+  for(n = 1; n < 9; n = n + 1)
+  {
+    if (n < 5)  // top row
+    {
+      button = CreateButton(35, n + 4);
+      AddButtonStatus(button, " ", &Blue);
+      AddButtonStatus(button, " ", &Green);
+    }
+    else       // Bottom Row
+    {
+      button = CreateButton(35, n - 5);
+      AddButtonStatus(button, " ", &Blue);
+      AddButtonStatus(button, " ", &Green);
+    }
+  }
+}
+
+void Start_Highlights_Menu35()
+{
+  // Stream Display Menu
+  //char Param[255];
+  //char Value[255];
+  int n;
+  // int NoButton;
+  color_t Green;
+  color_t Blue;
+  Green.r=0; Green.g=128; Green.b=0;
+  Blue.r=0; Blue.g=0; Blue.b=128;
+  char streamname[63];
+  char key[63];
+
+  for(n = 1; n < 9; n = n + 1)
+  {
+    SeparateStreamKey(StreamKey[n], streamname, key);
+
+    if (n < 5)  // top row
+    {
+      AmendButtonStatus(ButtonNumber(35, n + 4), 0, streamname, &Blue);
+      AmendButtonStatus(ButtonNumber(35, n + 4), 1, streamname, &Green);
+      if(strcmp(StreamKey[n], StreamKey[0]) == 0)
+      {
+        SelectInGroupOnMenu(35, 5, 8, n + 4, 1);
+        SelectInGroupOnMenu(35, 0, 3, n + 4, 1);
+      }
+    }
+    else       // Bottom Row
+    {
+      AmendButtonStatus(ButtonNumber(35, n - 5), 0, streamname, &Blue);
+      AmendButtonStatus(ButtonNumber(35, n - 5), 1, streamname, &Green);
+      if(strcmp(StreamKey[n], StreamKey[0]) == 0)
+      {
+        SelectInGroupOnMenu(35, 5, 8, n - 5, 1);
+        SelectInGroupOnMenu(35, 0, 3, n - 5, 1);
+      }
+    }
+  }
+}
+
 
 void Define_Menu41()
 {
@@ -14061,7 +14406,6 @@ int main(int argc, char **argv)
   ReadRXPresets();
   ReadStreamPresets();
 
-
   // Initialise all the button Status Indexes to 0
   InitialiseButtons();
 
@@ -14096,6 +14440,7 @@ int main(int argc, char **argv)
   Define_Menu31();
   Define_Menu32();
   Define_Menu33();
+  Define_Menu35();
 
   Define_Menu41();
 
