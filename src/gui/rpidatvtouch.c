@@ -2189,10 +2189,10 @@ void SaveRTLPreset(int PresetButton)
 
   // Copy the current values into the presets arrays
 
-
   strcpy(RTLfreq[index], RTLfreq[0]);
   strcpy(RTLmode[index], RTLmode[0]);
   RTLsquelch[index] = RTLsquelch[0];
+  RTLgain[index] = RTLgain[0];
 
   // Save the current values into the presets File
 
@@ -9357,6 +9357,24 @@ void waituntil(int w,int h)
         }
         switch (i)
         {
+          case 4:                              // Store RTL Preset
+          if (RTLStoreTrigger == 0)
+          {
+            RTLStoreTrigger = 1;
+            SetButtonStatus(ButtonNumber(CurrentMenu, 4),1);
+          }
+          else
+          {
+            RTLStoreTrigger = 0;
+            SetButtonStatus(ButtonNumber(CurrentMenu, 4),0);
+          }
+          UpdateWindow();
+          break;
+        case 5:                              // Preset 1
+        case 6:                              // Preset 2
+        case 7:                              // Preset 3
+        case 8:                              // Preset 4
+        case 9:                              // Preset 5
         case 0:                              // Preset 6
         case 1:                              // Preset 7
         case 2:                              // Preset 8
@@ -9376,51 +9394,11 @@ void waituntil(int w,int h)
           RTLstop();
           RTLstart();
           RTLactive = 1;
-          SetButtonStatus(ButtonNumber(CurrentMenu, i), 1);
-          Start_Highlights_Menu6();    // Refresh button labels
-          UpdateWindow();
-          usleep(500000);
-          SetButtonStatus(ButtonNumber(CurrentMenu, i), 0); 
-          UpdateWindow();
-          break;
-        case 4:                              // Store RTL Preset
-          if (RTLStoreTrigger == 0)
-          {
-            RTLStoreTrigger = 1;
-            SetButtonStatus(ButtonNumber(CurrentMenu, 4),1);
-          }
-          else
-          {
-            RTLStoreTrigger = 0;
-            SetButtonStatus(ButtonNumber(CurrentMenu, 4),0);
-          }
-          UpdateWindow();
-          break;
-        case 5:                              // Preset 1
-        case 6:                              // Preset 2
-        case 7:                              // Preset 3
-        case 8:                              // Preset 4
-        case 9:                              // Preset 5
-          if (RTLStoreTrigger == 0)
-          {
-            RecallRTLPreset(i);  // Recall preset
-            // and start/restart RX
-          }
-          else
-          {
-            SaveRTLPreset(i);  // Set preset
-            RTLStoreTrigger = 0;
-            SetButtonStatus(ButtonNumber(CurrentMenu, 4), 0);
-            BackgroundRGB(0,0,0,255);
-          }
-          RTLstop();
-          RTLstart();
-          RTLactive = 1;
-          SetButtonStatus(ButtonNumber(CurrentMenu, i), 1);
-          Start_Highlights_Menu6();    // Refresh button labels
-          UpdateWindow();
-          usleep(500000);
-          SetButtonStatus(ButtonNumber(CurrentMenu, i), 0); 
+          //SetButtonStatus(ButtonNumber(CurrentMenu, i), 1);
+          //Start_Highlights_Menu6();    // Refresh button labels
+          //UpdateWindow();
+          //usleep(500000);
+          //SetButtonStatus(ButtonNumber(CurrentMenu, i), 0); 
           Start_Highlights_Menu6();          // Refresh button labels
           UpdateWindow();
           break;
@@ -11786,16 +11764,13 @@ void Start_Highlights_Menu6()
 {
   color_t Green;
   color_t Blue;
-  //color_t Red;
-  //color_t Grey;
 
   Green.r=0; Green.g=96; Green.b=0;
   Blue.r=0; Blue.g=0; Blue.b=128;
-//  Red.r=255; Red.g=0; Red.b=0;
-//  Grey.r=127; Grey.g=127; Grey.b=127;
   int index;
   char RTLBtext[21];
   int NoButton;
+  int Match = 0;
 
   // Display the frequency
   strcpy(RTLBtext, " Freq ^");
@@ -11851,17 +11826,35 @@ void Start_Highlights_Menu6()
     // Define the button text
     snprintf(RTLBtext, 20, "%s^%s", RTLlabel[index], RTLfreq[index]);
 
-    NoButton = index + 4;   // Valid for second row
+    NoButton = index + 4;   // Valid for top row
     if (index > 5)          // Overwrite for bottom row
     {
       NoButton = index - 6;
     }
     AmendButtonStatus(ButtonNumber(6, NoButton), 0, RTLBtext, &Blue);
     AmendButtonStatus(ButtonNumber(6, NoButton), 1, RTLBtext, &Green);
+
     if (atof(RTLfreq[index]) == atof(RTLfreq[0]))
     {
       SelectInGroupOnMenu(6, 0, 3, NoButton, 1);
       SelectInGroupOnMenu(6, 5, 9, NoButton, 1);
+      Match = 1;
+    }
+  }
+
+  // If current freq not a preset, unhighlight all buttons
+  if (Match == 0)
+  {
+    for(index = 1; index < 10 ; index = index + 1)
+    {
+      NoButton = index + 4;   // Valid for top row
+      if (index > 5)          // Overwrite for bottom row
+      {
+        NoButton = index - 6;
+      }
+
+      SelectInGroupOnMenu(6, 0, 3, NoButton, 0);
+      SelectInGroupOnMenu(6, 5, 9, NoButton, 0);
     }
   }
 
