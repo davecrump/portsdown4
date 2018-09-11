@@ -2896,6 +2896,16 @@ void ReadStreamPresets()
 
   GetConfigParam(PATH_PCONFIG, "streamkey", Value);
   strcpy(StreamKey[0], Value);
+
+  // If preset 1 undefined, and current setting is defined,
+  // read current settings into Preset 1
+  if (((strcmp(StreamKey[1], "callsign-keykey") == 0) && (strcmp(StreamKey[0], "callsign-keykey") != 0)))
+  {
+    strcpy(StreamURL[1], StreamURL[0]);
+    SetConfigParam(PATH_STREAMPRESETS, "streamurl1", StreamURL[0]);
+    strcpy(StreamKey[1], StreamKey[0]);
+    SetConfigParam(PATH_STREAMPRESETS, "streamkey1", StreamKey[0]);
+  }
 }
 
 
@@ -6350,6 +6360,12 @@ void AmendStreamerPreset(int NoButton)
   snprintf(Value, 127, "%s-%s", streamname, key);
   SetConfigParam(PATH_STREAMPRESETS, Param, Value);
   strcpy(StreamKey[NoPreset], Value);
+
+  // Select this new streamer as the in-use streamer
+  SetConfigParam(PATH_PCONFIG, "streamurl", StreamURL[NoPreset]);
+  strcpy(StreamURL[0], StreamURL[NoPreset]);
+  SetConfigParam(PATH_PCONFIG, "streamkey", StreamKey[NoPreset]);
+  strcpy(StreamKey[0], StreamKey[NoPreset]);
 
   BackgroundRGB(0, 0, 0, 255);  // Clear the background
 }
@@ -13918,8 +13934,6 @@ void Define_Menu35()
   color_t LBlue;
   color_t DBlue;
   color_t Red;
-  char streamname[63];
-  char key[63];
 
   Red.r=255; Red.g=0; Red.b=0;
   Green.r=0; Green.g=128; Green.b=0;
@@ -13959,10 +13973,7 @@ void Define_Menu35()
 void Start_Highlights_Menu35()
 {
   // Stream Display Menu
-  //char Param[255];
-  //char Value[255];
   int n;
-  // int NoButton;
   color_t Green;
   color_t Blue;
   Green.r=0; Green.g=128; Green.b=0;
@@ -13970,7 +13981,7 @@ void Start_Highlights_Menu35()
   char streamname[63];
   char key[63];
 
-  for(n = 1; n < 9; n = n + 1)
+  for(n = 8; n > 0; n = n - 1)  // Go backwards to highlight first identical button
   {
     SeparateStreamKey(StreamKey[n], streamname, key);
 
