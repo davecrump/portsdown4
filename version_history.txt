@@ -1,4 +1,4 @@
-201809100
+201809150
 Define and store rtl-sdr gain
 Fix rtl-sdr frequency setting bug
 Fix factory reset bug
