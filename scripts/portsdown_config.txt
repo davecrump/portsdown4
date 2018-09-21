@@ -1,6 +1,6 @@
 modulation=DVB-S
-modeinput=DESKTOP
-modeoutput=QPSKRF
+modeinput=CAMH264
+modeoutput=STREAMER
 freqoutput=437
 symbolrate=333
 fec=7
