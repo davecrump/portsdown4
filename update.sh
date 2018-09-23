@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Updated by davecrump 201809050
+# Updated by davecrump 201809152
 
 DisplayUpdateMsg() {
   # Delete any old update message image  201802040
@@ -11,6 +11,22 @@ DisplayUpdateMsg() {
     -gravity North -pointsize 40 -annotate 0 "\nUpdating Portsdown Software" \
     -gravity Center -pointsize 50 -annotate 0 "$1""\n\nPlease wait" \
     -gravity South -pointsize 50 -annotate 0 "DO NOT TURN POWER OFF" \
+    /home/pi/tmp/update.jpg
+
+  # Display the update message on the desktop
+  sudo fbi -T 1 -noverbose -a /home/pi/tmp/update.jpg >/dev/null 2>/dev/null
+  (sleep 1; sudo killall -9 fbi >/dev/null 2>/dev/null) &  ## kill fbi once it has done its work
+}
+
+DisplayRebootMsg() {
+  # Delete any old update message image  201802040
+  rm /home/pi/tmp/update.jpg >/dev/null 2>/dev/null
+
+  # Create the update image in the tempfs folder
+  convert -size 720x576 xc:white \
+    -gravity North -pointsize 40 -annotate 0 "\nUpdating Portsdown Software" \
+    -gravity Center -pointsize 50 -annotate 0 "$1""\n\nPlease wait" \
+    -gravity South -pointsize 50 -annotate 0 "NOW SAFE TO POWER OFF AND ON" \
     /home/pi/tmp/update.jpg
 
   # Display the update message on the desktop
@@ -366,9 +382,12 @@ cp -f -r /home/pi/prev_installed_version.txt /home/pi/rpidatv/scripts/prev_insta
 rm -rf /home/pi/prev_installed_version.txt
 
 # Reboot
-DisplayUpdateMsg "Step 10 of 10\nRebooting\n\nSafe to Power Off and On"
+DisplayRebootMsg "Step 10 of 10\nRebooting\n\nUpdate Complete"
 printf "\nRebooting\n"
+
 sleep 1
+# Turn off swap to prevent reboot hang
+sudo swapoff -a
 sudo shutdown -r now  # Seems to be more reliable than reboot
 
 exit
