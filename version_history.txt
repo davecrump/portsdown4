@@ -1,3 +1,6 @@
+201809152
+Reduce chances of reboot hang on update and change message
+
 201809150
 Define and store rtl-sdr gain
 Fix rtl-sdr frequency setting bug
