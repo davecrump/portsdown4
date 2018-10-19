@@ -1,3 +1,10 @@
+201810180
+ADF4351 Max Ref Freq raised to 250 MHz
+Experimental support for Logitech C310 Webcam
+Menu 3 button added to Menu 1
+Corrected Console Menu for new BATC Stream
+Video Monitor function (requires MPEG-2 license)
+
 201809152
 Reduce chances of reboot hang on update and change message
 

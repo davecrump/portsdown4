@@ -177,6 +177,22 @@ detect_audio()
       WC_VIDEO_FPS=25
     fi
 
+    # Check for the presence of a C310 with mono audio
+    C310Present=0
+    arecord -l | grep -E -q \
+      "U0x46d0x81b"
+    if [ $? == 0 ]; then   ## Present
+      C310Present=1
+      # Look for the video dongle, select the line and take
+      # the 6th character.  Max card number = 8 !!
+      WCAM="$(arecord -l | grep -E \
+        "U0x46d0x81b" \
+        | head -c 6 | tail -c 1)"
+      WC_AUDIO_CHANNELS=1
+      WC_AUDIO_SAMPLE=48000
+      WC_VIDEO_FPS=25
+    fi
+
     printf "MIC = $MIC\n"
     printf "USBTV = $USBTV\n"
     printf "WCAM = $WCAM\n"
@@ -307,7 +323,7 @@ detect_video()
 {
   # List the video devices, select the 2 lines for any Webcam device, then
   # select the line with the device details and delete the leading tab
-  # This selects any device with "Webcam" int its description
+  # This selects any device with "Webcam" in its description
   VID_WEBCAM="$(v4l2-ctl --list-devices 2> /dev/null | \
     sed -n '/Webcam/,/dev/p' | grep 'dev' | tr -d '\t')"
 
@@ -325,6 +341,14 @@ detect_video()
     # select the line with the device details and delete the leading tab
     VID_WEBCAM="$(v4l2-ctl --list-devices 2> /dev/null | \
       sed -n '/046d:0821/,/dev/p' | grep 'dev' | tr -d '\t')"
+  fi
+
+  if [ "${#VID_WEBCAM}" -lt "10" ]; then # $VID_WEBCAM currently empty
+
+    # List the video devices, select the 2 lines for a C310 device, then
+    # select the line with the device details and delete the leading tab
+    VID_WEBCAM="$(v4l2-ctl --list-devices 2> /dev/null | \
+      sed -n '/046d:081b/,/dev/p' | grep 'dev' | tr -d '\t')"
   fi
 
   printf "The first Webcam device string is $VID_WEBCAM\n"
@@ -1219,6 +1243,9 @@ fi
       if [ $C270Present == 1 ]; then
         ITS_OFFSET="-00:00:1.8"
       fi
+      if [ $C310Present == 1 ]; then
+        ITS_OFFSET="-00:00:1.8"
+      fi
       VIDEO_WIDTH="640"
       VIDEO_HEIGHT="480"
       VIDEO_FPS=$WC_VIDEO_FPS
@@ -1228,6 +1255,9 @@ fi
          v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=1280,height=720,pixelformat=0
       fi
       if [ $C270Present == 1 ]; then
+        ITS_OFFSET="-00:00:1.8"
+      fi
+      if [ $C310Present == 1 ]; then
         ITS_OFFSET="-00:00:1.8"
       fi
       VIDEO_WIDTH="1280"
@@ -1240,6 +1270,9 @@ fi
          v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=1280,height=720,pixelformat=0
       fi
       if [ $C270Present == 1 ]; then
+        ITS_OFFSET="-00:00:2.0"
+      fi
+      if [ $C310Present == 1 ]; then
         ITS_OFFSET="-00:00:2.0"
       fi
       VIDEO_WIDTH="1280"
