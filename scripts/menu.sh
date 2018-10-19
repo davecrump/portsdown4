@@ -565,7 +565,6 @@ do_output_setup_mode()
   Radio7=OFF
   Radio8=OFF
   Radio9=OFF
-  Radio10=OFF
   case "$MODE_OUTPUT" in
   IQ)
     Radio1=ON
@@ -573,29 +572,26 @@ do_output_setup_mode()
   QPSKRF)
     Radio2=ON
   ;;
-  BATC)
+  STREAMER)
     Radio3=ON
   ;;
-  STREAMER)
+  DIGITHIN)
     Radio4=ON
   ;;
-  DIGITHIN)
+  DTX1)
     Radio5=ON
   ;;
-  DTX1)
+  DATVEXPRESS)
     Radio6=ON
   ;;
-  DATVEXPRESS)
-    Radio7=ON
-  ;;
   IP)
-    Radio8=ON
+    Radio6=ON
   ;;
   COMPVID)
-    Radio9=ON
+    Radio8=ON
   ;;
   *)
-    Radio10=ON
+    Radio9=ON
   ;;
   esac
 
@@ -603,13 +599,12 @@ do_output_setup_mode()
     "$StrOutputSetupContext" 20 78 10 \
     "IQ" "$StrOutputSetupIQ" $Radio1 \
     "QPSKRF" "$StrOutputSetupRF" $Radio2 \
-    "BATC" "$StrOutputSetupBATC" $Radio3 \
-    "STREAMER" "Stream to other Streaming Facility" $Radio4 \
-    "DIGITHIN" "$StrOutputSetupDigithin" $Radio5 \
-    "DTX1" "$StrOutputSetupDTX1" $Radio6 \
-    "DATVEXPRESS" "$StrOutputSetupDATVExpress" $Radio7 \
-    "IP" "$StrOutputSetupIP" $Radio8 \
-    "COMPVID" "Output PAL Comp Video from Raspberry Pi AV Socket" $Radio9 \
+    "STREAMER" "Stream to BATC or other Streaming Facility" $Radio3 \
+    "DIGITHIN" "$StrOutputSetupDigithin" $Radio4 \
+    "DTX1" "$StrOutputSetupDTX1" $Radio5 \
+    "DATVEXPRESS" "$StrOutputSetupDATVExpress" $Radio6 \
+    "IP" "$StrOutputSetupIP" $Radio7 \
+    "COMPVID" "Output PAL Comp Video from Raspberry Pi AV Socket" $Radio8 \
     3>&2 2>&1 1>&3)
 
   if [ $? -eq 0 ]; then
@@ -634,22 +629,15 @@ do_output_setup_mode()
         set_config_var rfpower "$GAIN" $PCONFIGFILE
       fi
     ;;
-    BATC)
-      BATC_OUTPUT=$(get_config_var batcoutput $PCONFIGFILE)
-      ADRESS=$(whiptail --inputbox "$StrOutputBATCContext" 8 78 $BATC_OUTPUT --title "$StrOutputBATCTitle" 3>&1 1>&2 2>&3)
-      if [ $? -eq 0 ]; then
-        set_config_var batcoutput "$ADRESS" $PCONFIGFILE
-      fi
-    ;;
     STREAMER)
       STREAM_URL=$(get_config_var streamurl $PCONFIGFILE)
       STREAM=$(whiptail --inputbox "Enter the stream URL: rtmp://rtmp.batc.org.uk/live" 8 78\
-        $STREAM_URL --title "Enter other Stream Details" 3>&1 1>&2 2>&3)
+        $STREAM_URL --title "Enter Stream Details" 3>&1 1>&2 2>&3)
       if [ $? -eq 0 ]; then
         set_config_var streamurl "$STREAM" $PCONFIGFILE
       fi
       STREAM_KEY=$(get_config_var streamkey $PCONFIGFILE)
-      STREAMK=$(whiptail --inputbox "Enter the stream key" 8 78 $STREAM_KEY --title "Enter other Stream Details" 3>&1 1>&2 2>&3)
+      STREAMK=$(whiptail --inputbox "Enter the streamname and key" 8 78 $STREAM_KEY --title "Enter Stream Details" 3>&1 1>&2 2>&3)
       if [ $? -eq 0 ]; then
         set_config_var streamkey "$STREAMK" $PCONFIGFILE
       fi

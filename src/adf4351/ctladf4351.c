@@ -54,7 +54,7 @@ int main(int argc, char *argv[])
     adf4350_requested_frequency = 1000000 * atof(argv[1]);
 
     // Check second parameter
-    if (argc>=3 && atof(argv[2])>=4995000 && atof(argv[2])<=25010000)
+    if (argc>=3 && atof(argv[2])>=4995000 && atof(argv[2])<=250000000)
     {
       // valid reference osc freq, so set it
       adf4350_requested_ref_freq = atof(argv[2]);

@@ -286,6 +286,7 @@ void Keyboard(char *, char *, int);
 void DoFreqChange();
 void CompVidStart();
 void ReceiveLOStart();
+void MonitorStop();
 int getTouchSample(int *, int *, int *);
 void TransformTouchMap(int, int);
 int ButtonNumber(int, int);
@@ -1842,7 +1843,7 @@ void GetUSBVidDev(char VidDevName[256])
   }
   pclose(fp);
 
-  if (strcmp(WebcamName, "none") == 0)  // not detected from "Webcam", so try "046d:0825" for C270
+  if (strcmp(WebcamName, "none") == 0)  // not detected previously, so try "046d:0825" for C270
   {
     fp = popen("v4l2-ctl --list-devices 2> /dev/null | sed -n '/046d:0825/,/dev/p' | grep 'dev' | tr -d '\t'", "r");
     if (fp == NULL)
@@ -1862,7 +1863,27 @@ void GetUSBVidDev(char VidDevName[256])
     pclose(fp);
   }
 
-  if (strcmp(WebcamName, "none") == 0)  // not detected from "Webcam", so try "046d:0821" for C910
+  if (strcmp(WebcamName, "none") == 0)  // not detected previously, so try "046d:081b" for C310
+  {
+    fp = popen("v4l2-ctl --list-devices 2> /dev/null | sed -n '/046d:081b/,/dev/p' | grep 'dev' | tr -d '\t'", "r");
+    if (fp == NULL)
+    {
+      printf("Failed to run command\n" );
+      exit(1);
+    }
+
+    /* Read the output a line at a time - output it. */
+    while (fgets(response_line, 250, fp) != NULL)
+    {
+      if (strlen(response_line) > 1)
+       {
+        strcpy(WebcamName, response_line);
+      }
+    }
+    pclose(fp);
+  }
+
+  if (strcmp(WebcamName, "none") == 0)  // not detected previously, so try "046d:0821" for C910
   {
     fp = popen("v4l2-ctl --list-devices 2> /dev/null | sed -n '/046d:0821/,/dev/p' | grep 'dev' | tr -d '\t'", "r");
     if (fp == NULL)
@@ -1917,7 +1938,7 @@ void GetUSBVidDev(char VidDevName[256])
 }
 
 /***************************************************************************//**
- * @brief Detects if a Logitech C 910, C525 or C270 webcam was connected since last restart
+ * @brief Detects if a Logitech C 910, C525 C310 or C270 webcam was connected since last restart
  *
  * @param None
  *
@@ -1929,8 +1950,8 @@ void GetUSBVidDev(char VidDevName[256])
 int DetectLogitechWebcam()
 {
   char shell_command[255];
-  // Pattern for C270, C525 and C910
-  char DMESG_PATTERN[255] = "046d:0825|Webcam C525|046d:0821";
+  // Pattern for C270, C310, C525 and C910
+  char DMESG_PATTERN[255] = "046d:0825|046d:081b|Webcam C525|046d:0821";
   FILE * shell;
   sprintf(shell_command, "dmesg | grep -E -q \"%s\"", DMESG_PATTERN);
   shell = popen(shell_command, "r");
@@ -5931,7 +5952,7 @@ void TransmitStop()
   // Turn the VCO off
   system("sudo /home/pi/rpidatv/bin/adf4351 off");
 
-  // Check for C910, C525 or C270 webcam
+  // Check for C910, C525, C310 or C270 webcam
   WebcamPresent = DetectLogitechWebcam();
 
   // Stop DATV Express transmitting
@@ -5982,7 +6003,7 @@ void TransmitStop()
   // Start the Receive LO Here
   ReceiveLOStart();
 
-  // Wait a further 3 seconds and reset v42l-ctl if Logitech C910, C270 or C525 present
+  // Wait a further 3 seconds and reset v42l-ctl if Logitech C910, C270, C310 or C525 present
   if (WebcamPresent == 1)
   {
     // Check if Webcam was in use
@@ -7804,6 +7825,61 @@ void do_freqshow()
   cleanexit(131);
 }
 
+void do_video_monitor()
+{
+  char startCommand[255];
+  printf("Starting Video Monitor, calling av2.sh\n");
+
+  strcpy(startCommand, "/home/pi/rpidatv/scripts/av2.sh");
+  strcat(startCommand, " &");
+
+  FinishedButton = 0;
+  BackgroundRGB(0, 0, 0, 0);
+  finish();                  // Close the graphics sub-system
+
+  // Create Wait Button thread
+  pthread_create (&thbutton, NULL, &WaitButtonEvent, NULL);
+
+  system(startCommand);
+
+  while (FinishedButton == 0)
+  {
+    usleep(500000); 
+  }
+
+  MonitorStop();
+
+  init(&wscreen, &hscreen);  // Restart the graphics
+  pthread_join(thbutton, NULL);
+  printf("Exiting Video Monitor\n");
+}
+
+void MonitorStop()
+{
+  // Kill the key processes as nicely as possible
+  system("sudo killall rpidatv >/dev/null 2>/dev/null");
+  system("sudo killall ffmpeg >/dev/null 2>/dev/null");
+  system("sudo killall tcanim >/dev/null 2>/dev/null");
+  system("sudo killall avc2ts >/dev/null 2>/dev/null");
+  system("sudo killall netcat >/dev/null 2>/dev/null");
+  system("sudo killall ts2es >/dev/null 2>/dev/null");
+  system("sudo killall hello_video2.bin >/dev/null 2>/dev/null");
+
+  // Turn the Viewfinder off
+  system("v4l2-ctl --overlay=0 >/dev/null 2>/dev/null");
+
+  // Stop the audio relay in CompVid mode
+  system("sudo killall arecord >/dev/null 2>/dev/null");
+
+  // Then pause and make sure that avc2ts has really been stopped (needed at high SRs)
+  //usleep(1000);
+  //system("sudo killall -9 avc2ts >/dev/null 2>/dev/null");
+
+  // And make sure rpidatv has been stopped (required for brief transmit selections)
+  //system("sudo killall -9 rpidatv >/dev/null 2>/dev/null");
+}
+
+
 void Keyboard(char RequestText[64], char InitText[64], int MaxLength)
 {
   char EditText[64];
@@ -8385,11 +8461,11 @@ void ChangeADFRef(int NoButton)
   case 0:
   case 1:
   case 2:
-    snprintf(RequestText, 45, "Enter new ADF Reference Frequncy %d in Hz", NoButton + 1);
+    snprintf(RequestText, 45, "Enter new ADF4351 Reference Frequncy %d in Hz", NoButton + 1);
     snprintf(InitText, 10, "%s", ADFRef[NoButton]);
     while (Spaces >= 1)
     {
-      Keyboard(RequestText, InitText, 8);
+      Keyboard(RequestText, InitText, 9);
   
       // Check that there are no spaces or other characters
       Spaces = 0;
@@ -8412,7 +8488,7 @@ void ChangeADFRef(int NoButton)
     snprintf(InitText, 10, "%s", ADF5355Ref);
     while (Spaces >= 1)
     {
-      Keyboard(RequestText, InitText, 8);
+      Keyboard(RequestText, InitText, 9);
   
       // Check that there are no spaces or other characters
       Spaces = 0;
@@ -8830,6 +8906,13 @@ void waituntil(int w,int h)
           Start_Highlights_Menu5();
           UpdateWindow();
           break;
+        case 22:                      // Select Menu 3
+          printf("MENU 3 \n");
+          CurrentMenu=3;
+          BackgroundRGB(0,0,0,255);
+          Start_Highlights_Menu3();
+          UpdateWindow();
+          break;
         case 23:                      // Select Menu 2
           printf("MENU 2 \n");
           CurrentMenu=2;
@@ -8910,7 +8993,9 @@ void waituntil(int w,int h)
           do_snapcheck();
           UpdateWindow();
           break;
-        case 13:                              // Not used
+        case 13:                              // Select Video Monitor
+          do_video_monitor();
+          BackgroundRGB(0,0,0,255);
           UpdateWindow();
           break;
         case 14:                              // Stream Viewer
@@ -10746,10 +10831,10 @@ void Define_Menu1()
   AddButtonStatus(button," RX  ",&Blue);
   AddButtonStatus(button,"RX ON",&Green);
 
-/*  // Button 22 Temp RX
   button = CreateButton(1, 22);
-  AddButtonStatus(button," RX 2 ",&Blue);
-*/
+  AddButtonStatus(button," M3  ",&Blue);
+  AddButtonStatus(button," M3  ",&Green);
+
   button = CreateButton(1, 23);
   AddButtonStatus(button," M2  ",&Blue);
   AddButtonStatus(button," M2  ",&Green);
@@ -11166,9 +11251,12 @@ void Define_Menu2()
   AddButtonStatus(button, "Snap^Check", &Blue);
   AddButtonStatus(button, " ", &Green);
 
-  //button = CreateButton(2, 13);
-  //AddButtonStatus(button, " ", &Blue);
-  //AddButtonStatus(button, " ", &Green);
+  if (CheckMPEG2() == 1)
+  {
+    button = CreateButton(2, 13);
+    AddButtonStatus(button, "Video^Monitor", &Blue);
+    AddButtonStatus(button, "Video^Monitor", &Green);
+  }
 
   button = CreateButton(2, 14);
   AddButtonStatus(button, "Stream^Viewer", &Blue);
