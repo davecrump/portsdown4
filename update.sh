@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Updated by davecrump 201809152
+# Updated by davecrump 201810270
 
 DisplayUpdateMsg() {
   # Delete any old update message image  201802040
@@ -124,6 +124,22 @@ cp -f -r portsdown-master/version_history.txt rpidatv/version_history.txt
 rm master.zip
 rm -rf portsdown-master
 
+# Check which avc2ts to download.  Default is production
+# option d is development from davecrump
+if [ "$1" == "-d" ]; then
+  echo "Installing development avc2ts"
+  wget https://github.com/davecrump/avc2ts/archive/master.zip
+else
+  echo "Installing BATC Production avc2ts"
+  wget https://github.com/BritishAmateurTelevisionClub/avc2ts/archive/master.zip
+fi
+
+# Unzip the avc2ts software and copy to the Pi
+unzip -o master.zip
+cp -f -r avc2ts-master avc2ts
+rm master.zip
+rm -rf avc2ts-master
+
 DisplayUpdateMsg "Step 6 of 10\nCompiling Portsdown SW\n\nXXXXXX----"
 
 # Compile rpidatv core
@@ -142,12 +158,55 @@ make
 sudo make install
 cd ../
 
-# Compile avc2ts
-sudo killall -9 avc2ts
-cd avc2ts
-make clean
+# Compile old avc2ts (No changes - so not required)
+#sudo killall -9 avc2ts
+#cd avc2ts
+#make clean
+#make
+#sudo make install
+
+# Check if avc2ts dependencies need to be installed 201810270
+if [ ! -f "/home/pi/avc2ts/libmpegts/version.sh" ]; then
+  DisplayUpdateMsg "Step 6a of 10\nTakes 15 Minutes\n\nXXXXXX----"
+
+  # For libmpegts
+  cd /home/pi/avc2ts
+  git clone git://github.com/F5OEO/libmpegts
+  cd libmpegts
+  ./configure
+  make
+  cd ../
+
+  # For libfdkaac
+  sudo apt-get -y install autoconf libtool
+  git clone https://github.com/mstorsjo/fdk-aac
+  cd fdk-aac
+  ./autogen.sh
+  ./configure
+  make && sudo make install
+  sudo ldconfig
+  cd ../
+
+  #libyuv should be used for fast picture transformation : not yet implemented
+  git clone https://chromium.googlesource.com/libyuv/libyuv
+  cd libyuv
+  #should patch linux.mk with -DHAVE_JPEG on CXX and CFLAGS
+  #seems to be link with libjpeg9-dev
+  make V=1 -f linux.mk
+  cd ../
+
+  # Required for ffmpegsrc.cpp
+  sudo apt-get -y install libvncserver-dev libavcodec-dev libavformat-dev libswscale-dev libavdevice-dev
+
+  # Keep the old avc2ts binary
+  cp /home/pi/rpidatv/bin/avc2ts /home/pi/rpidatv/bin/avc2ts.old
+fi
+
+# Make the new avc2ts
+cd /home/pi/avc2ts
 make
-sudo make install
+cp avc2ts ../rpidatv/bin/
+cd ..
 
 #install adf4351
 cd /home/pi/rpidatv/src/adf4351

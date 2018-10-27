@@ -1108,11 +1108,13 @@ do_stop_transmit()
   sudo killall ffmpeg >/dev/null 2>/dev/null
   sudo killall tcanim >/dev/null 2>/dev/null
   sudo killall avc2ts >/dev/null 2>/dev/null
+  sudo killall avc2ts.old >/dev/null 2>/dev/null
   sudo killall netcat >/dev/null 2>/dev/null
 
   # Then pause and make sure that avc2ts has really been stopped (needed at high SRs)
   sleep 0.1
   sudo killall -9 avc2ts >/dev/null 2>/dev/null
+  sudo killall -9 avc2ts.old >/dev/null 2>/dev/null
 
   # And make sure rpidatv has been stopped (required for brief transmit selections)
   sudo killall -9 rpidatv >/dev/null 2>/dev/null
@@ -1127,6 +1129,9 @@ do_stop_transmit()
   # Display the BATC Logo on the Touchscreen
   sudo fbi -T 1 -noverbose -a /home/pi/rpidatv/scripts/images/BATC_Black.png >/dev/null 2>/dev/null
   (sleep 1; sudo killall -9 fbi >/dev/null 2>/dev/null) &  ## kill fbi once it has done its work
+
+  # Kill a.sh which sometimes hangs during testing
+  sudo killall a.sh >/dev/null 2>/dev/null
 
   # Check if driver for Logitech C270, C525 or C910 needs to be reloaded
   dmesg | grep -E -q "046d:0825|Webcam C525|046d:0821"

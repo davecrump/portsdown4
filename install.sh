@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Stretch Version by davecrump on 20180907
+# Stretch Version by davecrump on 201810270
 
 # Update the package manager
 sudo dpkg --configure -a
@@ -32,20 +32,35 @@ if ! grep -q MountFlags=shared systemd-udevd.service; then
 fi
 cd /home/pi
 
-# Check which source to download.  Default is production
+# Check which rpidatv source to download.  Default is production
 # option d is development from davecrump
-# option s is staging from batc/staging
 if [ "$1" == "-d" ]; then
   echo "Installing development load"
   wget https://github.com/davecrump/portsdown/archive/master.zip
+
 else
   echo "Installing BATC Production load"
   wget https://github.com/BritishAmateurTelevisionClub/portsdown/archive/master.zip
 fi
 
-# Unzip the source software and copy to the Pi
+# Unzip the rpidatv software and copy to the Pi
 unzip -o master.zip
 mv portsdown-master rpidatv
+rm master.zip
+
+# Check which avc2ts to download.  Default is production
+# option d is development from davecrump
+if [ "$1" == "-d" ]; then
+  echo "Installing development avc2ts"
+  wget https://github.com/davecrump/avc2ts/archive/master.zip
+else
+  echo "Installing BATC Production avc2ts"
+  wget https://github.com/BritishAmateurTelevisionClub/avc2ts/archive/master.zip
+fi
+
+# Unzip the avc2ts software and copy to the Pi
+unzip -o master.zip
+mv avc2ts-master avc2ts
 rm master.zip
 
 # Compile rpidatv core
@@ -59,7 +74,7 @@ make
 sudo make install
 cd ../
 
-# Get libmpegts and compile
+# Get libmpegts and compile for use with old avc2ts
 cd avc2ts
 wget https://github.com/kierank/libmpegts/archive/master.zip
 unzip master.zip
@@ -69,10 +84,47 @@ cd libmpegts
 ./configure
 make
 
-# Compile avc2ts
+# Compile old avc2ts
 cd ../
 make
 sudo make install
+cp avc2ts /home/pi/rpidatv/bin/avc2ts.old
+
+# Build new avc2ts and dependencies
+# For libmpegts
+cd /home/pi/avc2ts
+git clone git://github.com/F5OEO/libmpegts
+cd libmpegts
+./configure
+make
+cd ../
+
+# For libfdkaac
+sudo apt-get -y install autoconf libtool
+git clone https://github.com/mstorsjo/fdk-aac
+cd fdk-aac
+./autogen.sh
+./configure
+make && sudo make install
+sudo ldconfig
+cd ../
+
+#libyuv should be used for fast picture transformation : not yet implemented
+git clone https://chromium.googlesource.com/libyuv/libyuv
+cd libyuv
+#should patch linux.mk with -DHAVE_JPEG on CXX and CFLAGS
+#seems to be link with libjpeg9-dev
+make V=1 -f linux.mk
+cd ../
+
+# Required for ffmpegsrc.cpp
+sudo apt-get -y install libvncserver-dev libavcodec-dev libavformat-dev libswscale-dev libavdevice-dev
+
+# Make avc2ts
+cd /home/pi/avc2ts
+make
+cp avc2ts ../rpidatv/bin/
+cd ..
 
 # Compile adf4351
 cd /home/pi/rpidatv/src/adf4351

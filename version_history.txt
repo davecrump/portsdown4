@@ -1,3 +1,9 @@
+201810270
+Initial implementation of H264 encoding with audio
+Nightly streamer reboot
+Improve C920 selection logic
+Correctly load Lime Gain after boot
+
 201810180
 ADF4351 Max Ref Freq raised to 250 MHz
 Experimental support for Logitech C310 Webcam

@@ -1650,6 +1650,14 @@ void ReadBandDetails()
     GetConfigParam(PATH_PPRESETS, Param, Value);
     TabBandExpLevel[i] = atoi(Value);
 
+    if (CheckLimeInstalled() == 0) // Lime installed 
+    {
+      strcpy(Param, TabBand[i]);
+      strcat(Param, "limegain");
+      GetConfigParam(PATH_PPRESETS, Param, Value);
+      TabBandLimeGain[i] = atoi(Value);
+    }
+
     strcpy(Param, TabBand[i]);
     strcat(Param, "expports");
     GetConfigParam(PATH_PPRESETS, Param, Value);
@@ -3076,6 +3084,39 @@ void CheckExpress()
 }
 
 /***************************************************************************//**
+ * @brief Checks whether fbcp is Running
+ *
+ * @param 
+ *
+ * @return 0 if running, 1 if not running
+*******************************************************************************/
+
+int CheckfbcpRunning()
+{
+  FILE *fp;
+  char response[255];
+  int responseint;
+
+  /* Open the command for reading. */
+  fp = popen("pgrep -x 'fbcp' ; echo $?", "r");
+  if (fp == NULL) {
+    printf("Failed to run command\n" );
+    exit(1);
+  }
+
+  /* Read the output a line at a time - output it. */
+  while (fgets(response, 7, fp) != NULL)
+  {
+    responseint = atoi(response);
+  }
+
+  /* close */
+  pclose(fp);
+  return responseint;
+}
+
+
+/***************************************************************************//**
  * @brief Checks whether LimeSuite is installed
  *
  * @param 
@@ -4209,30 +4250,30 @@ void ApplyTXConfig()
         }
       }
     }
-    else  // MPEG-2
+    else  // MPEG-2.  Check for C920 first
+    {
+    if ((strcmp(CurrentSource, "C920") == 0) && (CheckC920() == 1))
     {
       if (strcmp(CurrentFormat, "1080p") == 0)
       {
-        if (CheckC920() == 1)
-        {
-          if (strcmp(CurrentSource, "C920") == 0)
-          {
-            strcpy(ModeInput, "C920FHDH264");
-          }
-          else
-          {
-            MsgBox2("1080p only available with H264"
-              , "Switching to H264");
-            wait_touch();
-            strcpy(ModeInput, "C920FHDH264");
-          }
-        }
-        else
-        {
+        strcpy(ModeInput, "C920FHDH264");
+      }
+      else if (strcmp(CurrentFormat, "720p") == 0)
+      {
+        strcpy(ModeInput, "C920HDH264");
+      }
+      else
+      {
+          strcpy(ModeInput, "C920H264");
+      }
+    }
+    else  // Not C920
+    {
+      if (strcmp(CurrentFormat, "1080p") == 0)
+      {
         MsgBox2("1080p only available with C920 Webcam"
           , "Please select another mode");
         wait_touch();
-        }
       }
       if (strcmp(CurrentFormat, "720p") == 0)
       {
@@ -4371,6 +4412,7 @@ void ApplyTXConfig()
           strcpy(ModeInput, "CARDMPEG-2");
         }
       }
+      }
     }
   }
   // Now save the change and make sure that all the config is correct
@@ -4501,17 +4543,17 @@ void GreyOut1()
         SetButtonStatus(ButtonNumber(CurrentMenu, 6), 0); // Caption
         SetButtonStatus(ButtonNumber(CurrentMenu, 5), 0); // EasyCap
       }
-      if (strcmp(CurrentEncoding, "MPEG-2") == 0)
+      if ((strcmp(CurrentEncoding, "MPEG-2") == 0) || (strcmp(CurrentEncoding, "H264") == 0))
       {
-        SetButtonStatus(ButtonNumber(CurrentMenu, 7), 0); // Audio
+        SetButtonStatus(ButtonNumber(CurrentMenu, 7), 0); // Blue/Green Audio
       }
       else if (strcmp(CurrentSource, "C920") == 0)
       {
-        SetButtonStatus(ButtonNumber(CurrentMenu, 7), 0); // Audio
+        SetButtonStatus(ButtonNumber(CurrentMenu, 7), 0); // Blue/Green Audio
       }
-      else  // H264 (but not C920) or IPTS in or TS File
+      else  // IPTS in or TS File
       {
-        SetButtonStatus(ButtonNumber(CurrentMenu, 7), 2); // Audio
+        SetButtonStatus(ButtonNumber(CurrentMenu, 7), 2); // Grey Audio
       }
     }
     if ((strcmp(CurrentModeOP, "STREAMER") == 0)\
@@ -5947,7 +5989,7 @@ void TransmitStop()
   char Value[255];
   int WebcamPresent = 0;
 
-  // printf("Transmit Stop\n");
+  printf("Transmit Stop\n");
 
   // Turn the VCO off
   system("sudo /home/pi/rpidatv/bin/adf4351 off");
@@ -5980,7 +6022,9 @@ void TransmitStop()
   system("sudo killall rpidatv >/dev/null 2>/dev/null");
   system("sudo killall ffmpeg >/dev/null 2>/dev/null");
   system("sudo killall tcanim >/dev/null 2>/dev/null");
+  system("sudo killall tcanim1v16 >/dev/null 2>/dev/null");
   system("sudo killall avc2ts >/dev/null 2>/dev/null");
+  system("sudo killall avc2ts.old >/dev/null 2>/dev/null");
   system("sudo killall netcat >/dev/null 2>/dev/null");
 
   // Turn the Viewfinder off
@@ -5992,6 +6036,7 @@ void TransmitStop()
   // Then pause and make sure that avc2ts has really been stopped (needed at high SRs)
   usleep(1000);
   system("sudo killall -9 avc2ts >/dev/null 2>/dev/null");
+  system("sudo killall -9 avc2ts.old >/dev/null 2>/dev/null");
 
   // And make sure rpidatv has been stopped (required for brief transmit selections)
   system("sudo killall -9 rpidatv >/dev/null 2>/dev/null");
@@ -5999,6 +6044,25 @@ void TransmitStop()
   // Ensure PTT off.  Required for carrier mode
   pinMode(GPIO_PTT, OUTPUT);
   digitalWrite(GPIO_PTT, LOW);
+
+  // Make sure that a.sh has stopped
+  system("sudo killall a.sh >/dev/null 2>/dev/null");
+
+  // restart fbcp if it was stopped
+  if (CheckfbcpRunning() == 1) // not running
+  {
+    GetConfigParam(PATH_PCONFIG, "display", Value);
+    if (strcmp(Value,"Element14_7") !=0 )  // Don't restart fbcp for 7 inch screen
+    {
+      system("fbcp &");
+    }
+  }
+
+  // Delete the transmit fifos
+  system("sudo rm videoes >/dev/null 2>/dev/null");
+  system("sudo rm videots >/dev/null 2>/dev/null");
+  system("sudo rm netfifo >/dev/null 2>/dev/null");
+  system("sudo rm audioin.wav >/dev/null 2>/dev/null");
 
   // Start the Receive LO Here
   ReceiveLOStart();
@@ -8617,7 +8681,7 @@ void waituntil(int w,int h)
     if (strcmp(ScreenState, "TXwithImage") == 0)
     {
       TransmitStop();
-      ReceiveStop();
+      // ReceiveStop();
       system("sudo fbi -T 1 -noverbose -a /home/pi/rpidatv/scripts/images/BATC_Black.png  >/dev/null 2>/dev/null");  // Add logo image
       system("(sleep 1; sudo killall -9 fbi >/dev/null 2>/dev/null) &");
       init(&wscreen, &hscreen);
