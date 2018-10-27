@@ -167,7 +167,7 @@ cd ../
 
 # Check if avc2ts dependencies need to be installed 201810270
 if [ ! -f "/home/pi/avc2ts/libmpegts/version.sh" ]; then
-  DisplayUpdateMsg "Step 6a of 10\nTakes 15 Minutes\n\nXXXXXX----"
+  DisplayUpdateMsg "Step 6a of 10\nTakes 20 Minutes\n\nXXXXXX----"
 
   # For libmpegts
   cd /home/pi/avc2ts

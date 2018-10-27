@@ -1650,13 +1650,10 @@ void ReadBandDetails()
     GetConfigParam(PATH_PPRESETS, Param, Value);
     TabBandExpLevel[i] = atoi(Value);
 
-    if (CheckLimeInstalled() == 0) // Lime installed 
-    {
-      strcpy(Param, TabBand[i]);
-      strcat(Param, "limegain");
-      GetConfigParam(PATH_PPRESETS, Param, Value);
-      TabBandLimeGain[i] = atoi(Value);
-    }
+    strcpy(Param, TabBand[i]);
+    strcat(Param, "limegain");
+    GetConfigParam(PATH_PPRESETS, Param, Value);
+    TabBandLimeGain[i] = atoi(Value);
 
     strcpy(Param, TabBand[i]);
     strcat(Param, "expports");
