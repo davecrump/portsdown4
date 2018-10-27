@@ -407,8 +407,6 @@ UDPOUTADDR=$(get_config_var udpoutaddr $PCONFIGFILE)
 CALL=$(get_config_var call $PCONFIGFILE)
 CHANNEL=$CALL
 FREQ_OUTPUT=$(get_config_var freqoutput $PCONFIGFILE)
-BATC_OUTPUT=$(get_config_var batcoutput $PCONFIGFILE)
-OUTPUT_BATC="-f flv rtmp://fms.batc.tv/live/$BATC_OUTPUT/$BATC_OUTPUT"
 
 STREAM_URL=$(get_config_var streamurl $PCONFIGFILE)
 STREAM_KEY=$(get_config_var streamkey $PCONFIGFILE)
@@ -458,7 +456,15 @@ case "$MODE_INPUT" in
     | "CONTEST" | "DESKTOP" | "VNC" )
     let PIDPMT=$PIDVIDEO-1
   ;;
-esac  
+esac
+
+
+
+########### Redirect old BATC Streamer mode to Streamer mode ###############
+
+if [ "$MODE_OUTPUT" == "BATC" ]; then
+    MODE_OUTPUT="STREAMER"
+fi
 
 ########### Set 480p Output Format if compatible and required ###############
 
@@ -488,19 +494,6 @@ case "$MODE_OUTPUT" in
     FREQUENCY_OUT=$FREQ_OUTPUT
     OUTPUT=videots
     MODE=RF
-  ;;
-
-  BATC)
-    # Set Output string "-f flv rtmp://fms.batc.tv/live/"$BATC_OUTPUT"/"$BATC_OUTPUT 
-    OUTPUT=$OUTPUT_BATC
-    # If CAMH264 is selected, temporarily select CAMMPEG-2
-    if [ "$MODE_INPUT" == "CAMH264" ]; then
-      MODE_INPUT="CAMMPEG-2"
-    fi
-    # If ANALOGCAM is selected, temporarily select ANALOGMPEG-2
-    if [ "$MODE_INPUT" == "ANALOGCAM" ]; then
-      MODE_INPUT="ANALOGMPEG-2"
-    fi
   ;;
 
   STREAMER)
@@ -668,9 +661,12 @@ fi
 sudo rm videoes
 sudo rm videots
 sudo rm netfifo
+sudo rm audioin.wav
+
 mkfifo videoes
 mkfifo videots
 mkfifo netfifo
+mkfifo audioin.wav
 
 echo "************************************"
 echo Bitrate TS $BITRATE_TS
@@ -698,9 +694,6 @@ case "$MODE_INPUT" in
 
     # Set up the means to transport the stream out of the unit
     case "$MODE_OUTPUT" in
-      "BATC")
-        : # Do nothing - this option should never be called (see MPEG-2)
-      ;;
       "STREAMER")
         : # Do nothing - this option should never be called (see MPEG-2)
       ;;
@@ -728,10 +721,14 @@ case "$MODE_INPUT" in
     # Now generate the stream
     if [ "$AUDIO_CARD" == 0 ]; then
       # ******************************* H264 VIDEO, NO AUDIO ************************************
-      $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -x $VIDEO_WIDTH -y $VIDEO_HEIGHT -f $VIDEO_FPS -i 100 -p $PIDPMT -s $CHANNEL $OUTPUT_FILE $OUTPUT_IP > /dev/null &
+      $PATHRPI"/avc2ts.old" -b $BITRATE_VIDEO -m $BITRATE_TS -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
+        -f $VIDEO_FPS -i 100 -p $PIDPMT -s $CHANNEL $OUTPUT_FILE $OUTPUT_IP > /dev/null &
     else
-      # ******************************* H264 VIDEO WITH AUDIO (TODO) ************************************
-      $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -x $VIDEO_WIDTH -y $VIDEO_HEIGHT -f $VIDEO_FPS -i 100 -p $PIDPMT -s $CHANNEL $OUTPUT_FILE $OUTPUT_IP  > /dev/null &
+      # ******************************* H264 VIDEO WITH AUDIO ************************************
+      arecord -f S16_LE -r 48000 -c 2 -B 100 -D plughw:$AUDIO_CARD_NUMBER,0 > audioin.wav &
+
+      $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -x $VIDEO_WIDTH -y $VIDEO_HEIGHT\
+        -f $VIDEO_FPS -i 100 $OUTPUT_FILE -t 0 -e $ANALOGCAMNAME -p $PIDPMT -s $CHANNEL $OUTPUT_IP > /dev/null &
     fi
   ;;
 
@@ -779,9 +776,6 @@ fi
 
     # Set up the means to transport the stream out of the unit
     case "$MODE_OUTPUT" in
-      "BATC")
-        ITS_OFFSET="-00:00:00"
-      ;;
       "STREAMER")
         ITS_OFFSET="-00:00:00"
       ;;
@@ -808,27 +802,6 @@ fi
 
     # Now generate the stream
     case "$MODE_OUTPUT" in
-      "BATC")
-        # No code for beeps here
-        if [ "$AUDIO_CARD" == 0 ]; then
-          $PATHRPI"/ffmpeg" -loglevel $MODE_DEBUG -thread_queue_size 2048  \
-            -f v4l2 -input_format h264 -video_size 720x576 \
-            -i /dev/video0 \
-            -framerate 25 -video_size 720x576 -c:v h264_omx -b:v 576k \
-            -g 25 \
-            -f flv rtmp://fms.batc.tv/live/$BATC_OUTPUT/$BATC_OUTPUT &
-        else
-          $PATHRPI"/ffmpeg" -loglevel $MODE_DEBUG -itsoffset "$ITS_OFFSET" \
-            -f v4l2 -input_format h264 -video_size 720x576 \
-            -i /dev/video0 -thread_queue_size 2048 \
-            -f alsa -ac $AUDIO_CHANNELS -ar $AUDIO_SAMPLE \
-            -i hw:$AUDIO_CARD_NUMBER,0 \
-            -framerate 25 -video_size 720x576 -c:v h264_omx -b:v 512k \
-            -ar 22050 -ac $AUDIO_CHANNELS -ab 64k \
-            -g 25 \
-            -f flv rtmp://fms.batc.tv/live/$BATC_OUTPUT/$BATC_OUTPUT &
-        fi
-      ;;
       "STREAMER")
         # No code for beeps here
         if [ "$AUDIO_CARD" == 0 ]; then
@@ -929,9 +902,6 @@ fi
 
     # Set up means to transport of stream out of unit
     case "$MODE_OUTPUT" in
-      "BATC")
-        sudo nice -n -30 $PATHRPI"/ffmpeg" -loglevel $MODE_DEBUG -i videots -y $OUTPUT_BATC &
-      ;;
       "IP")
         OUTPUT_FILE=""
       ;;
@@ -950,13 +920,33 @@ fi
       *)
         sudo  $PATHRPI"/rpidatv" -i videots -s $SYMBOLRATE_K -c $FECNUM"/"$FECDEN -f $FREQUENCY_OUT -p $GAIN -m $MODE -x $PIN_I -y $PIN_Q &
       ;;
-	esac
+    esac
 
     # Now generate the stream
 
-    $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -x $VIDEO_WIDTH -y $VIDEO_HEIGHT -f $VIDEO_FPS -i 100 $OUTPUT_FILE -t 3 -p $PIDPMT -s $CHANNEL $OUTPUT_IP  &
+    if [ "$AUDIO_CARD" == 0 ]; then
+      # ******************************* H264 VIDEO, NO AUDIO ************************************
 
-    $PATHRPI"/tcanim" $PATERNFILE"/*10" "48" "72" "CQ" "CQ CQ CQ DE "$CALL" IN $LOCATOR - DATV $SYMBOLRATEK KS FEC "$FECNUM"/"$FECDEN &
+      $PATHRPI"/avc2ts.old" -b $BITRATE_VIDEO -m $BITRATE_TS -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
+        -f $VIDEO_FPS -i 100 $OUTPUT_FILE -t 3 -p $PIDPMT -s $CHANNEL $OUTPUT_IP &
+
+      $PATHRPI"/tcanim" $PATERNFILE"/*10" "48" "72" "CQ" "CQ CQ CQ DE "$CALL" IN $LOCATOR - DATV $SYMBOLRATEK KS FEC "$FECNUM"/"$FECDEN &
+
+    else
+      # ******************************* H264 VIDEO WITH AUDIO ************************************
+
+      $PATHRPI"/tcanim1v16" $PATERNFILE"/*10" "48" "72" "CQ" "CQ CQ CQ DE "$CALL" IN $LOCATOR - DATV $SYMBOLRATEK KS FEC "$FECNUM"/"$FECDEN &
+      sleep 1
+      arecord -f S16_LE -r 48000 -c 2 -B 100 -D plughw:$AUDIO_CARD_NUMBER,0 > audioin.wav &
+
+      # Use old avc2ts until new one is fixed for desktop modes
+      #$PATHRPI"/avc2ts.old" -b $BITRATE_VIDEO -m $BITRATE_TS -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
+      #  -f $VIDEO_FPS -i 100 $OUTPUT_FILE -t 3 -p $PIDPMT -s $CHANNEL $OUTPUT_IP &
+
+      killall fbcp
+      $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
+        -f $VIDEO_FPS -i 100 $OUTPUT_FILE -t 3 -p $PIDPMT -s $CHANNEL $OUTPUT_IP > /dev/null &
+    fi
 
   ;;
 
@@ -972,9 +962,6 @@ fi
 
     # Set up means to transport of stream out of unit
     case "$MODE_OUTPUT" in
-      "BATC")
-        sudo nice -n -30 $PATHRPI"/ffmpeg" -loglevel $MODE_DEBUG -i videots -y $OUTPUT_BATC & 
-      ;;
       "IP")
         OUTPUT_FILE=""
       ;;
@@ -995,8 +982,8 @@ fi
       esac
 
     # Now generate the stream
-    $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -x $VIDEO_WIDTH -y $VIDEO_HEIGHT -f $VIDEO_FPS -i 100 $OUTPUT_FILE -t 4 -e $VNCADDR -p $PIDPMT -s $CHANNEL $OUTPUT_IP &
-
+    $PATHRPI"/avc2ts.old" -b $BITRATE_VIDEO -m $BITRATE_TS -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
+      -f $VIDEO_FPS -i 100 $OUTPUT_FILE -t 4 -e $VNCADDR -p $PIDPMT -s $CHANNEL $OUTPUT_IP &
   ;;
 
   #============================================ ANALOG and WEBCAM H264 =============================================================
@@ -1032,9 +1019,6 @@ fi
 
     # Set up means to transport of stream out of unit
     case "$MODE_OUTPUT" in
-      "BATC")
-        : # Do nothing.  All done below
-      ;;
       "STREAMER")
         : # Do nothing.  All done below
       ;;
@@ -1056,8 +1040,19 @@ fi
     esac
 
     # Now generate the stream
-    $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -x $VIDEO_WIDTH -y $VIDEO_HEIGHT\
-      -f $VIDEO_FPS -i 100 $OUTPUT_FILE -t 2 -e $ANALOGCAMNAME -p $PIDPMT -s $CHANNEL $OUTPUT_IP &
+
+    if [ "$AUDIO_CARD" == 0 ]; then
+      # ******************************* H264 VIDEO, NO AUDIO ************************************
+
+      $PATHRPI"/avc2ts.old" -b $BITRATE_VIDEO -m $BITRATE_TS -x $VIDEO_WIDTH -y $VIDEO_HEIGHT\
+        -f $VIDEO_FPS -i 100 $OUTPUT_FILE -t 2 -e $ANALOGCAMNAME -p $PIDPMT -s $CHANNEL $OUTPUT_IP &
+    else
+      # ******************************* H264 VIDEO WITH AUDIO ************************************
+      arecord -f S16_LE -r 48000 -c 2 -B 100 -D plughw:$AUDIO_CARD_NUMBER,0 > audioin.wav &
+
+      $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -x $VIDEO_WIDTH -y $VIDEO_HEIGHT\
+        -f $VIDEO_FPS -i 100 $OUTPUT_FILE -t 2 -e $ANALOGCAMNAME -p $PIDPMT -s $CHANNEL $OUTPUT_IP > /dev/null &
+    fi
   ;;
 
 #============================================ DESKTOP MODES H264 =============================================================
@@ -1111,9 +1106,6 @@ fi
 
     # Set up means to transport of stream out of unit
     case "$MODE_OUTPUT" in
-      "BATC")
-        sudo nice -n -30 $PATHRPI"/ffmpeg" -loglevel $MODE_DEBUG -i videots -y $OUTPUT_BATC &
-      ;;
       "IP")
         OUTPUT_FILE=""
       ;;
@@ -1136,8 +1128,26 @@ fi
     esac
 
     # Now generate the stream
-    $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -x $VIDEO_WIDTH -y $VIDEO_HEIGHT -f $VIDEO_FPS -i 100 $OUTPUT_FILE -t 3 -p $PIDPMT -s $CHANNEL $OUTPUT_IP &
 
+    if [ "$AUDIO_CARD" == 0 ]; then
+      # ******************************* H264 VIDEO, NO AUDIO ************************************
+
+      $PATHRPI"/avc2ts.old" -b $BITRATE_VIDEO -m $BITRATE_TS -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
+        -f $VIDEO_FPS -i 100 $OUTPUT_FILE -t 3 -p $PIDPMT -s $CHANNEL $OUTPUT_IP &
+    else
+      # ******************************* H264 VIDEO WITH AUDIO ************************************
+      sleep 1 # to allow test card to be displayed
+      arecord -f S16_LE -r 48000 -c 2 -B 100 -D plughw:$AUDIO_CARD_NUMBER,0 > audioin.wav &
+
+      # Old avc2ts:
+      #$PATHRPI"/avc2ts.old" -b $BITRATE_VIDEO -m $BITRATE_TS -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
+      #  -f $VIDEO_FPS -i 100 $OUTPUT_FILE -t 3 -p $PIDPMT -s $CHANNEL $OUTPUT_IP &
+
+      # Use new avc2ts, but kill fbcp first as it conflicts
+      sudo killall fbcp
+      $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
+        -f $VIDEO_FPS -i 100 $OUTPUT_FILE -t 3 -p $PIDPMT -s $CHANNEL $OUTPUT_IP > /dev/null &
+    fi
   ;;
 
 # *********************************** TRANSPORT STREAM INPUT THROUGH IP ******************************************
@@ -1146,9 +1156,6 @@ fi
 
     # Set up means to transport of stream out of unit
     case "$MODE_OUTPUT" in
-      "BATC")
-        sudo nice -n -30 $PATHRPI"/ffmpeg" -loglevel $MODE_DEBUG -i videots -y $OUTPUT_BATC &
-      ;;
       "DATVEXPRESS")
         echo "set ptt tx" >> /tmp/expctrl
         sudo nice -n -30 nc -u -4 127.0.0.1 1314 < videots &
@@ -1177,9 +1184,6 @@ fi
   "FILETS")
     # Set up means to transport of stream out of unit
     case "$MODE_OUTPUT" in
-      "BATC")
-        sudo nice -n -30 $PATHRPI"/ffmpeg" -loglevel $MODE_DEBUG -i $TSVIDEOFILE -y $OUTPUT_BATC &
-      ;;
       "DATVEXPRESS")
         echo "set ptt tx" >> /tmp/expctrl
         sudo nice -n -30 netcat -u -4 127.0.0.1 1314 < $TSVIDEOFILE &
@@ -1320,7 +1324,7 @@ fi
 
     # Set up the means to transport the stream out of the unit
     case "$MODE_OUTPUT" in
-      "IP" | "BATC" | "STREAMER" | "COMPVID")
+      "IP" | "STREAMER" | "COMPVID")
         : # Do nothing
       ;;
       "DATVEXPRESS")
@@ -1341,28 +1345,6 @@ fi
     # Now generate the stream
 
     case "$MODE_OUTPUT" in
-      "BATC")
-        if [ "$AUDIO_CARD" == "0" ]; then
-          # No audio
-          $PATHRPI"/ffmpeg" -loglevel $MODE_DEBUG -thread_queue_size 2048  \
-            -f v4l2 -video_size 720x576 \
-            -i $VID_USB \
-            -framerate 25 -c:v h264_omx -b:v 576k \
-            -vf "$CAPTION""format=yuyv422,yadif=0:1:0" -g 25 \
-            -f flv rtmp://fms.batc.tv/live/$BATC_OUTPUT/$BATC_OUTPUT &
-        else
-          # With audio
-          $PATHRPI"/ffmpeg" -loglevel $MODE_DEBUG -thread_queue_size 2048 \
-            -f v4l2 -video_size 720x576 \
-            -i $VID_USB \
-            -f alsa -ac $AUDIO_CHANNELS -ar $AUDIO_SAMPLE \
-            -i hw:$AUDIO_CARD_NUMBER,0 \
-            -framerate 25 -c:v h264_omx -b:v 512k \
-            -ar 22050 -ac $AUDIO_CHANNELS -ab 64k \
-            -vf "$CAPTION""format=yuyv422,yadif=0:1:0" -g 25 \
-            -f flv rtmp://fms.batc.tv/live/$BATC_OUTPUT/$BATC_OUTPUT &
-        fi
-      ;;
       "STREAMER")
         if [ "$AUDIO_CARD" == "0" ]; then
           # No audio
@@ -1526,9 +1508,6 @@ fi
 
     # Set up the means to transport the stream out of the unit
     case "$MODE_OUTPUT" in
-      "BATC")
-        ITS_OFFSET="-00:00:00"
-      ;;
       "STREAMER")
         ITS_OFFSET="-00:00:00"
       ;;
@@ -1555,31 +1534,6 @@ fi
 
     # Now generate the stream
     case "$MODE_OUTPUT" in
-      "BATC")
-        # No code for beeps here
-        if [ "$AUDIO_CARD" == 0 ]; then
-          $PATHRPI"/ffmpeg" -loglevel $MODE_DEBUG\
-            -f image2 -loop 1 \
-            -i $IMAGEFILE \
-            -framerate 25 -video_size 720x576 -c:v h264_omx -b:v 576k \
-            $VF $CAPTION \
-            \
-            -f flv rtmp://fms.batc.tv/live/$BATC_OUTPUT/$BATC_OUTPUT &
-        else
-          $PATHRPI"/ffmpeg" -loglevel $MODE_DEBUG -itsoffset "$ITS_OFFSET" \
-            -f image2 -loop 1 \
-            -i $IMAGEFILE \
-            \
-            -thread_queue_size 512 \
-            -f alsa -ac $AUDIO_CHANNELS -ar $AUDIO_SAMPLE \
-            -i hw:$AUDIO_CARD_NUMBER,0 \
-            \
-            -framerate 25 -video_size 720x576 -c:v h264_omx -b:v 512k \
-            $VF $CAPTION \
-            \
-            -f flv rtmp://fms.batc.tv/live/$BATC_OUTPUT/$BATC_OUTPUT &
-        fi
-      ;;
       "STREAMER")
         # No code for beeps here
         if [ "$AUDIO_CARD" == 0 ]; then
@@ -1677,7 +1631,7 @@ fi
     v4l2-ctl --overlay=0
 
     # Set up the means to transport the stream out of the unit
-    # Not compatible with COMPVID, BATC or STREAMER output modes
+    # Not compatible with COMPVID or STREAMER output modes
     case "$MODE_OUTPUT" in
       "IP")
         : # Do nothing
