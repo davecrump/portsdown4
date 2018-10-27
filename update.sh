@@ -198,8 +198,11 @@ if [ ! -f "/home/pi/avc2ts/libmpegts/version.sh" ]; then
   # Required for ffmpegsrc.cpp
   sudo apt-get -y install libvncserver-dev libavcodec-dev libavformat-dev libswscale-dev libavdevice-dev
 
-  # Keep the old avc2ts binary
+  # Rename the old avc2ts binary
   cp /home/pi/rpidatv/bin/avc2ts /home/pi/rpidatv/bin/avc2ts.old
+
+  # Delete the old version of avc2ts (owned by root)
+  sudo rm /home/pi/rpidatv/bin/avc2ts
 fi
 
 # Make the new avc2ts

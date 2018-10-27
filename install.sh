@@ -90,6 +90,12 @@ make
 sudo make install
 cp avc2ts /home/pi/rpidatv/bin/avc2ts.old
 
+# Rename the old avc2ts binary
+cp /home/pi/rpidatv/bin/avc2ts /home/pi/rpidatv/bin/avc2ts.old
+
+# Delete the old named version of avc2ts (owned by root)
+sudo rm /home/pi/rpidatv/bin/avc2ts
+
 # Build new avc2ts and dependencies
 # For libmpegts
 cd /home/pi/avc2ts
