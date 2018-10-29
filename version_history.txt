@@ -1,6 +1,7 @@
 201810270
 Initial implementation of H264 encoding with audio
 Nightly streamer reboot
+Reduce "popping" on streamer audio
 Improve C920 selection logic
 Correctly load Lime Gain after boot
 
