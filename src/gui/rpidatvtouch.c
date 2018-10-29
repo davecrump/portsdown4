@@ -4150,17 +4150,8 @@ void ApplyTXConfig()
           }
           else
           {
-            MsgBox2("1080p only available with C920 Webcam"
-              , "Switching to C920");
-            wait_touch();
-            strcpy(ModeInput, "C920FHDH264");
+            strcpy(CurrentFormat, "720p");
           }
-        }
-        else
-        {
-        MsgBox2("1080p only available with C920 Webcam"
-          , "Please select another mode");
-        wait_touch();
         }
       }
       if (strcmp(CurrentFormat, "720p") == 0)
@@ -4173,18 +4164,8 @@ void ApplyTXConfig()
           }
           else
           {
-            MsgBox2("720p H264 only available with C920 Webcam"
-              , "Switching to C920");
-            wait_touch();
-           strcpy(ModeInput, "C920HDH264");
+            strcpy(CurrentFormat, "16:9");
           }
-        }
-        else
-        {
-        MsgBox2("720p H264 only available with C920 Webcam"
-          , "Selecting Pi Cam 720p MPEG-2");
-          strcpy(ModeInput, "CAMHDMPEG-2");
-        wait_touch();
         }
       }
       if (strcmp(CurrentFormat, "16:9") == 0)
@@ -4200,10 +4181,7 @@ void ApplyTXConfig()
           }
           else
           {
-            MsgBox2("16:9 only available with MPEG-2"
-              , "Selecting Pi Cam 16:9 MPEG-2");
-            strcpy(ModeInput, "CAM16MPEG-2");
-            wait_touch();
+            strcpy(CurrentFormat, "4:3");
           }
         }
       }
@@ -4551,6 +4529,11 @@ void GreyOut1()
       else  // IPTS in or TS File
       {
         SetButtonStatus(ButtonNumber(CurrentMenu, 7), 2); // Grey Audio
+      }
+      // Grey out Caption Button if not MPEG-2 or Streamer
+      if ((strcmp(CurrentEncoding, "MPEG-2") != 0) && (strcmp(CurrentModeOP, "STREAMER") != 0))
+      {
+        SetButtonStatus(ButtonNumber(CurrentMenu, 6), 2); // Caption
       }
     }
     if ((strcmp(CurrentModeOP, "STREAMER") == 0)\

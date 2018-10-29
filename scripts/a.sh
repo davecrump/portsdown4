@@ -1359,7 +1359,7 @@ fi
           $PATHRPI"/ffmpeg" -loglevel $MODE_DEBUG -thread_queue_size 2048\
             -f v4l2 -video_size "$VIDEO_WIDTH"x"$VIDEO_HEIGHT" \
             -i $VID_USB \
-            -f alsa -ac $AUDIO_CHANNELS -ar $AUDIO_SAMPLE \
+            -f alsa -thread_queue_size 2048 -ac $AUDIO_CHANNELS -ar $AUDIO_SAMPLE \
             -i hw:$AUDIO_CARD_NUMBER,0 \
             -framerate 25 -c:v h264_omx -b:v 512k \
             -ar 22050 -ac $AUDIO_CHANNELS -ab 64k \
