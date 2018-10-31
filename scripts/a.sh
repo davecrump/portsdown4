@@ -37,9 +37,11 @@ sudo killall rpidatv >/dev/null 2>/dev/null
 sudo killall hello_encode.bin >/dev/null 2>/dev/null
 sudo killall h264yuv >/dev/null 2>/dev/null
 sudo killall -9 avc2ts >/dev/null 2>/dev/null
+sudo killall -9 avc2ts.old >/dev/null 2>/dev/null
 #sudo killall express_server >/dev/null 2>/dev/null
 # Leave Express Server running
 sudo killall tcanim >/dev/null 2>/dev/null
+sudo killall tcanim1v16 >/dev/null 2>/dev/null
 # Kill netcat that night have been started for Express Srver
 sudo killall netcat >/dev/null 2>/dev/null
 sudo killall -9 netcat >/dev/null 2>/dev/null
@@ -727,6 +729,9 @@ case "$MODE_INPUT" in
       # ******************************* H264 VIDEO WITH AUDIO ************************************
       arecord -f S16_LE -r 48000 -c 2 -B 100 -D plughw:$AUDIO_CARD_NUMBER,0 > audioin.wav &
 
+
+      let BITRATE_VIDEO=$BITRATE_VIDEO-30000  # Make room for audio
+
       $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -x $VIDEO_WIDTH -y $VIDEO_HEIGHT\
         -f $VIDEO_FPS -i 100 $OUTPUT_FILE -t 0 -e $ANALOGCAMNAME -p $PIDPMT -s $CHANNEL $OUTPUT_IP > /dev/null &
     fi
@@ -943,6 +948,8 @@ fi
       #$PATHRPI"/avc2ts.old" -b $BITRATE_VIDEO -m $BITRATE_TS -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
       #  -f $VIDEO_FPS -i 100 $OUTPUT_FILE -t 3 -p $PIDPMT -s $CHANNEL $OUTPUT_IP &
 
+      let BITRATE_VIDEO=$BITRATE_VIDEO-30000  # Make room for audio
+
       killall fbcp
       $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
         -f $VIDEO_FPS -i 100 $OUTPUT_FILE -t 3 -p $PIDPMT -s $CHANNEL $OUTPUT_IP > /dev/null &
@@ -1050,6 +1057,8 @@ fi
       # ******************************* H264 VIDEO WITH AUDIO ************************************
       arecord -f S16_LE -r 48000 -c 2 -B 100 -D plughw:$AUDIO_CARD_NUMBER,0 > audioin.wav &
 
+      let BITRATE_VIDEO=$BITRATE_VIDEO-30000  # Make room for audio
+
       $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -x $VIDEO_WIDTH -y $VIDEO_HEIGHT\
         -f $VIDEO_FPS -i 100 $OUTPUT_FILE -t 2 -e $ANALOGCAMNAME -p $PIDPMT -s $CHANNEL $OUTPUT_IP > /dev/null &
     fi
@@ -1145,6 +1154,9 @@ fi
 
       # Use new avc2ts, but kill fbcp first as it conflicts
       sudo killall fbcp
+
+      let BITRATE_VIDEO=$BITRATE_VIDEO-30000  # Make room for audio
+
       $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
         -f $VIDEO_FPS -i 100 $OUTPUT_FILE -t 3 -p $PIDPMT -s $CHANNEL $OUTPUT_IP > /dev/null &
     fi

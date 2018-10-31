@@ -164,6 +164,9 @@ int main( int argc, char *argv[] )
     strcpy(stream_state, "on");
   }
 
+  // fbcp not required, so kill it
+  system("killall fbcp");
+
   /* Now wait here for interrupts - forever! */
   /* But stop/start the stream at 0300Z and 1500Z each day */
     
