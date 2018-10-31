@@ -38,6 +38,10 @@ reset
 
 printf "\nCommencing update.\n\n"
 
+printf "Pausing Streamer or TX if running.\n\n"
+killall keyedstream >/dev/null 2>/dev/null
+sudo killall ffmpeg >/dev/null 2>/dev/null
+
 DisplayUpdateMsg "Step 3 of 10\nSaving Current Config\n\nXXX-------"
 
 # Note previous version number
