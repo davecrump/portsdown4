@@ -48,6 +48,7 @@ MODE_OUTPUT=$(get_config_var modeoutput $PCONFIGFILE)
   sudo killall rpidatv >/dev/null 2>/dev/null
   sudo killall ffmpeg >/dev/null 2>/dev/null
   sudo killall tcanim >/dev/null 2>/dev/null
+  sudo killall tcanim1v16 >/dev/null 2>/dev/null
   sudo killall avc2ts >/dev/null 2>/dev/null
   sudo killall avc2ts.old >/dev/null 2>/dev/null
   sudo killall netcat >/dev/null 2>/dev/null
@@ -79,6 +80,12 @@ MODE_OUTPUT=$(get_config_var modeoutput $PCONFIGFILE)
 
   # Kill a.sh which sometimes hangs during testing
   sudo killall a.sh >/dev/null 2>/dev/null
+
+  # Kill the streamer process
+  sudo killall keyedstream >/dev/null 2>/dev/null
+
+  # Kill the keyed transmit process
+  sudo killall keyedtx >/dev/null 2>/dev/null
 
   # Check if driver for Logitech C270 or C525 needs to be reloaded
   dmesg | grep -E -q "046d:0825|Webcam C525"

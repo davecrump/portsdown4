@@ -1282,7 +1282,7 @@ void PortsdownOnWithMod()
   strcat(StartPortsdown, "-i videots -s 333 -c 7/8 -f 0 -p 7 -m IQ -x 12 -y 13 &");
   system(StartPortsdown);
 
-  strcpy(StartPortsdown, "/home/pi/rpidatv/bin/avc2ts -b 372783 -m 537044 ");
+  strcpy(StartPortsdown, "/home/pi/rpidatv/bin/avc2ts.old -b 372783 -m 537044 ");
   strcat(StartPortsdown, "-x 720 -y 576 -f 25 -i 100 -o videots -t 3 -p 255 -s SigGen &");
   system(StartPortsdown); 
 
@@ -1474,7 +1474,7 @@ void ExpressOnWithMod()
   strcpy(ExpressCommand, "sudo nice -n -30 netcat -u -4 127.0.0.1 1314 < videots &");
   system(ExpressCommand);
 
-  strcpy(ExpressCommand, "/home/pi/rpidatv/bin/avc2ts -b 372783 -m 537044 ");
+  strcpy(ExpressCommand, "/home/pi/rpidatv/bin/avc2ts.old -b 372783 -m 537044 ");
   strcat(ExpressCommand, "-x 720 -y 576 -f 25 -i 100 -o videots -t 3 -p 255 -s SigGen &");
   system(ExpressCommand);
 }
@@ -2222,12 +2222,12 @@ void OscStop()
   system("sudo killall rpidatv >/dev/null 2>/dev/null");
   system("sudo killall ffmpeg >/dev/null 2>/dev/null");
   system("sudo killall tcanim >/dev/null 2>/dev/null");
-  system("sudo killall avc2ts >/dev/null 2>/dev/null");
+  system("sudo killall avc2ts.old >/dev/null 2>/dev/null");
   system("sudo killall netcat >/dev/null 2>/dev/null");
 
-  // Then pause and make sure that avc2ts has really been stopped (needed at high SRs)
+  // Then pause and make sure that avc2ts.old has really been stopped (needed at high SRs)
   usleep(1000);
-  system("sudo killall -9 avc2ts >/dev/null 2>/dev/null");
+  system("sudo killall -9 avc2ts.old >/dev/null 2>/dev/null");
 
   // And make sure rpidatv has been stopped (required for brief transmit selections)
   system("sudo killall -9 rpidatv >/dev/null 2>/dev/null");
