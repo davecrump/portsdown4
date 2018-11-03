@@ -1,3 +1,6 @@
+201811030
+Implement Repeater Streamer Watchdog
+
 201810270
 Initial implementation of H264 encoding with audio
 Nightly streamer reboot
