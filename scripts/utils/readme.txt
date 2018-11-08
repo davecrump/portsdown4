@@ -7,3 +7,5 @@ guir.sh      runs rpidatvtouch.c
 
 usgr.sh      compiles and runs siggentouch.c
 
+ult.sh compiles limetool and copies limetx into the bin folder
+

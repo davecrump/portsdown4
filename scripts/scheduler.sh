@@ -10,6 +10,7 @@
 # 131  Exit from rpidatvgui requesting start of spectrum monitor
 # 132  Run Update Script for production load
 # 133  Run Update Script for development load
+# 134  Run XY Display
 # 160  Shutdown from GUI
 # 192  Reboot from GUI
 
@@ -42,6 +43,10 @@ while [ "$GUI_RETURN_CODE" -gt 127 ];  do
     133)
       cd /home/pi
       /home/pi/update.sh -d
+    ;;
+    134)
+      /home/pi/rpidatv/bin/xy
+      GUI_RETURN_CODE="129"
     ;;
     160)
       sleep 1
