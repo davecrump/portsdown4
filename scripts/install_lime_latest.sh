@@ -50,21 +50,21 @@ DisplayUpdateMsg "4 Downloading LimeSuite"
 
 # Install lines if latest version works (it doesn't)
 
-# cd /home/pi
-# wget https://github.com/myriadrf/LimeSuite/archive/master.zip -O master.zip
-# unzip -o master.zip
-# cp -f -r LimeSuite-master LimeSuite
-# rm -rf LimeSuite-master
+cd /home/pi
+wget https://github.com/myriadrf/LimeSuite/archive/master.zip -O master.zip
+unzip -o master.zip
+cp -f -r LimeSuite-master LimeSuite
+rm -rf LimeSuite-master
 
 # Install lines for last working version (can be deleted when fixed)
-cd /home/pi
+#cd /home/pi
 
 # Try: b0efdb4f2cd55c8b2f61bd39f90f61275698d488
-wget https://github.com/myriadrf/LimeSuite/archive/17c3e0573888519bb42c44eb9785cac59f3d68d0.zip -O master.zip
+#wget https://github.com/myriadrf/LimeSuite/archive/17c3e0573888519bb42c44eb9785cac59f3d68d0.zip -O master.zip
 #wget https://github.com/myriadrf/LimeSuite/archive/b0efdb4f2cd55c8b2f61bd39f90f61275698d488.zip -O master.zip
-unzip -o master.zip
-cp -f -r LimeSuite-17c3e0573888519bb42c44eb9785cac59f3d68d0 LimeSuite
-rm -rf LimeSuite-17c3e0573888519bb42c44eb9785cac59f3d68d0
+#unzip -o master.zip
+#cp -f -r LimeSuite-17c3e0573888519bb42c44eb9785cac59f3d68d0 LimeSuite
+#rm -rf LimeSuite-17c3e0573888519bb42c44eb9785cac59f3d68d0
 #cp -f -r LimeSuite-b0efdb4f2cd55c8b2f61bd39f90f61275698d488 LimeSuite
 #rm -rf LimeSuite-b0efdb4f2cd55c8b2f61bd39f90f61275698d488
 # End last working version download
@@ -87,14 +87,10 @@ cd LimeSuite/udev-rules
 chmod +x install.sh
 sudo /home/pi/LimeSuite/udev-rules/install.sh
 
-# Delete old limetools
-
-rm -r -f /home/pi/limetool
-
-# Install New LimeTools
+# Install LimeTools
 DisplayUpdateMsg "7 Compiling LimeTools"
 cd /home/pi/rpidatv/src/limetool
-touch limetx.c  # Required so that it recompiles if external libraries have changed
+touch limetx.c
 make
 cp -f limetx /home/pi/rpidatv/bin/limetx
 cd /home/pi

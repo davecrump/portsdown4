@@ -25,8 +25,8 @@ DisplayRebootMsg() {
   # Create the update image in the tempfs folder
   convert -size 720x576 xc:white \
     -gravity North -pointsize 40 -annotate 0 "\nUpdating Portsdown Software" \
-    -gravity Center -pointsize 50 -annotate 0 "$1""\n\nPlease wait" \
-    -gravity South -pointsize 50 -annotate 0 "NOW SAFE TO POWER OFF AND ON" \
+    -gravity Center -pointsize 50 -annotate 0 "$1""\n\nDone" \
+    -gravity South -pointsize 50 -annotate 0 "SAFE TO POWER OFF" \
     /home/pi/tmp/update.jpg
 
   # Display the update message on the desktop
@@ -53,6 +53,9 @@ cp -f -r /home/pi/rpidatv/scripts/portsdown_presets.txt /home/pi/portsdown_prese
 
 # Make a safe copy of siggencal.txt
 cp -f -r /home/pi/rpidatv/src/siggen/siggencal.txt /home/pi/siggencal.txt
+
+# Make a safe copy of siggenconfig.txt
+cp -f -r /home/pi/rpidatv/src/siggen/siggenconfig.txt /home/pi/siggenconfig.txt
 
 # Make a safe copy of touchcal.txt if required
 cp -f -r /home/pi/rpidatv/scripts/touchcal.txt /home/pi/touchcal.txt
@@ -244,6 +247,15 @@ if [ ! -f "/usr/bin/omxplayer" ]; then
   sudo apt-get -y install omxplayer
 fi
 
+# Check if limetools need to be compiled (only if Lime is installed)
+if [ -f "/home/pi/LimeSuite/README.md" ]; then
+  cd /home/pi/rpidatv/src/limetool
+  touch limetx.c
+  make
+  cp -f limetx /home/pi/rpidatv/bin/limetx
+  cd /home/pi
+fi
+
 # There is no step 7!
 
 # Disable fallback IP (201701230)
@@ -345,6 +357,12 @@ make
 cp /home/pi/rpidatv/src/atten/set_attenuator /home/pi/rpidatv/bin/set_attenuator
 cd /home/pi
 
+# Compile the x-y display (201811100)
+cd /home/pi/rpidatv/src/xy
+make
+cp -f /home/pi/rpidatv/xy/xy /home/pi/rpidatv/bin/xy
+cd /home/pi
+
 # Always auto-logon and run .bashrc (and hence startup.sh) (20180729)
 sudo ln -fs /etc/systemd/system/autologin@.service\
  /etc/systemd/system/getty.target.wants/getty@tty1.service
@@ -352,6 +370,11 @@ sudo ln -fs /etc/systemd/system/autologin@.service\
 # Restore the user's original siggencal.txt if required
 if [ -f "/home/pi/siggencal.txt" ]; then
   cp -f -r /home/pi/siggencal.txt /home/pi/rpidatv/src/siggen/siggencal.txt
+fi
+
+# Restore the user's original siggenconfig.txt if required
+if [ -f "/home/pi/siggenconfig.txt" ]; then
+  cp -f -r /home/pi/siggenconfig.txt /home/pi/rpidatv/src/siggen/siggenconfig.txt
 fi
 
 # Restore the user's original touchcal.txt if required (201711030)

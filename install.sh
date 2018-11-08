@@ -307,6 +307,12 @@ make
 cp /home/pi/rpidatv/src/atten/set_attenuator /home/pi/rpidatv/bin/set_attenuator
 cd /home/pi
 
+# Compile the x-y display (201811100)
+cd /home/pi/rpidatv/src/xy
+make
+cp -f /home/pi/rpidatv/xy/xy /home/pi/rpidatv/bin/xy
+cd /home/pi
+
 # Install FreqShow (see https://learn.adafruit.com/freq-show-raspberry-pi-rtl-sdr-scanner/overview)
 
 # Remove the existing version of libsdl1.2debian

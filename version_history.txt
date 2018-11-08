@@ -1,3 +1,12 @@
+201811100
+Experimental Support for DVB-S2 modes with Lime
+Experimental support for Lime USB (in addition to Lime Mini)
+Enabled caption on Pi Cam Streamer Output
+Corrected streamer fail-to-start after use of H264 RF modes
+Added System Menu with "Restore to Fractory Settings"
+Multiple Touchscreen Menu improvements
+Added Menus and buttons for candidate future capabilities
+
 201811030
 Implement Repeater Streamer Watchdog
 

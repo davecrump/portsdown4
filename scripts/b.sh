@@ -71,6 +71,9 @@ MODE_OUTPUT=$(get_config_var modeoutput $PCONFIGFILE)
   # And make sure rpidatv has been stopped (required for brief transmit selections)
   sudo killall -9 rpidatv >/dev/null 2>/dev/null
 
+  # And make sure limetx has been stopped
+  sudo killall -9 limetx >/dev/null 2>/dev/null
+
   # Stop the audio for CompVid mode
   sudo killall arecord >/dev/null 2>/dev/null
 

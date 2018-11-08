@@ -87,7 +87,7 @@ typedef struct {
 
 // 	int LastEventTime; Was part of button_t.  No longer used
 
-#define MAX_BUTTON 600
+#define MAX_BUTTON 675
 int IndexButtonInArray=0;
 button_t ButtonArray[MAX_BUTTON];
 #define TIME_ANTI_BOUNCE 500
@@ -116,6 +116,7 @@ char ADFRef[3][15];
 char CurrentADFRef[15];
 char UpdateStatus[31] = "NotAvailable";
 char ADF5355Ref[15];
+char DisplayType[31];
 int  scaledX, scaledY;
 VGfloat CalShiftX = 0;
 VGfloat CalShiftY = 0;
@@ -132,7 +133,7 @@ int GPIO_Band_MSB = 24;
 int GPIO_Tverter = 7;
 
 char ScreenState[255] = "NormalMenu";  // NormalMenu SpecialMenu TXwithMenu TXwithImage RXwithImage VideoOut SnapView VideoView Snap SigGen
-char MenuTitle[40][127];
+char MenuTitle[50][127];
 
 // Values for buttons
 // May be over-written by values from from portsdown_config.txt:
@@ -157,8 +158,8 @@ char FreqLabel[31][255];
 char TabModeAudio[6][15]={"auto", "mic", "video", "bleeps", "no_audio", "webcam"};
 char TabModeSTD[2][7]={"6","0"};
 char TabModeVidIP[2][7]={"0","1"};
-char TabModeOP[9][31]={"IQ", "QPSKRF", "DATVEXPRESS", "LIMEUSB", "STREAMER", "COMPVID", "DTX1", "IP", "LIMEMINI"};
-char TabModeOPtext[9][31]={"Portsdown", " UGLY ", "EXPRESS", "Lime USB", "BATC^STREAM", "Comp Vid", " DTX1 ", "IPTS out", "Lime Mini"};
+char TabModeOP[14][31]={"IQ", "QPSKRF", "DATVEXPRESS", "LIMEUSB", "STREAMER", "COMPVID", "DTX1", "IP", "LIMEMINI", " ", " ", "EXPRESS2", "PLUTO", " "};
+char TabModeOPtext[14][31]={"Portsdown", " Ugly ", "Express", "Lime USB", "BATC^Stream", "Comp Vid", " DTX1 ", "IPTS out", "Lime Mini", " ", " ", "Express S2", "Pluto", " "};
 char TabAtten[4][15] = {"NONE", "PE4312", "PE43713", "HMC1119"};
 char CurrentModeOP[31] = "QPSKRF";
 char CurrentModeOPtext[31] = " UGLY ";
@@ -253,6 +254,7 @@ void Start_Highlights_Menu3();
 void Start_Highlights_Menu4();
 void Start_Highlights_Menu5();
 void Start_Highlights_Menu6();
+void Start_Highlights_Menu7();
 void Start_Highlights_Menu11();
 void Start_Highlights_Menu12();
 void Start_Highlights_Menu13();
@@ -276,7 +278,14 @@ void Start_Highlights_Menu30();
 void Start_Highlights_Menu31();
 void Start_Highlights_Menu32();
 void Start_Highlights_Menu33();
+void Start_Highlights_Menu34();
 void Start_Highlights_Menu35();
+void Start_Highlights_Menu36();
+void Start_Highlights_Menu37();
+void Start_Highlights_Menu38();
+void Start_Highlights_Menu39();
+void Start_Highlights_Menu42();
+
 void MsgBox(const char *);
 void MsgBox2(const char *, const char *);
 void MsgBox4(const char *, const char *, const char *, const char *);
@@ -287,11 +296,15 @@ void DoFreqChange();
 void CompVidStart();
 void ReceiveLOStart();
 void MonitorStop();
+void DisplayLogo();
 int getTouchSample(int *, int *, int *);
 void TransformTouchMap(int, int);
 int ButtonNumber(int, int);
 int CheckLimeInstalled();
-int CheckLimeConnect();
+int CheckLimeMiniConnect();
+int CheckLimeUSBConnect();
+void YesNo(int);
+static void cleanexit(int);
 
 /***************************************************************************//**
  * @brief Looks up the value of a Param in PathConfigFile and sets value
@@ -880,7 +893,24 @@ void ExecuteUpdate(int NoButton)
       exit(133);  // Pass control back to scheduler for Dev Load
     }
     break;
-  case 0:  // Install Lime Mini and USB
+  default:
+    break;
+  }
+}
+
+/***************************************************************************//**
+ * @brief Acts on Lime Config buttons
+ *
+ * @param int NoButton, which is 5, or 6
+ *
+ * @return void
+*******************************************************************************/
+
+void LimeConfig(int NoButton)
+{
+  switch(NoButton)
+  {
+  case 0:  // Install Lime Mini and USB with working version
     // Stop the GUI and run the install script
     finish();
     system("/home/pi/rpidatv/scripts/install_lime.sh");
@@ -894,8 +924,26 @@ void ExecuteUpdate(int NoButton)
     system("sudo fbi -T 1 -noverbose -a \"/home/pi/rpidatv/scripts/images/BATC_Black.png\" >/dev/null 2>/dev/null");
     system("(sleep 1; sudo killall -9 fbi >/dev/null 2>/dev/null) &");
     break;
-  case 1:  // Upgrade Lime Firmware
-    if (CheckLimeConnect() == 0)
+
+  case 1:  // Install Lime Mini and USB with latest, non-working version
+    // Stop the GUI and run the install script
+    finish();
+    system("/home/pi/rpidatv/scripts/install_lime_latest.sh");
+
+    // Restart the gui
+    init(&wscreen, &hscreen);
+    Start(wscreen, hscreen);
+    wait_touch();
+
+    // Replace the final update message with the BATC Logo
+    system("sudo fbi -T 1 -noverbose -a \"/home/pi/rpidatv/scripts/images/BATC_Black.png\" >/dev/null 2>/dev/null");
+    system("(sleep 1; sudo killall -9 fbi >/dev/null 2>/dev/null) &");
+    break;
+
+  case 5:
+    break;
+  case 6:  // Upgrade Lime Firmware
+    if ((CheckLimeMiniConnect() == 0) || (CheckLimeUSBConnect() == 0))
     {
       MsgBox4("Upgrading Lime Firmware", " ", " ", " ");
       system("LimeUtil --update");
@@ -904,7 +952,7 @@ void ExecuteUpdate(int NoButton)
     }
     else
     {
-      MsgBox4("No Lime Mini Connected", " ", "Touch Screen to Continue" ," ");
+      MsgBox4("No Lime Connected", " ", "Touch Screen to Continue" ," ");
       wait_touch();
     }
     break;
@@ -1444,7 +1492,7 @@ void ReadModeOutput(char Moutput[256])
   } 
   else if (strcmp(ModeOutput, "DATVEXPRESS") == 0) 
   {
-    strcpy(Moutput, "DATV Express by USB");
+    strcpy(Moutput, "DATV Express DVB-S");
     strcpy(CurrentModeOPtext, TabModeOPtext[2]);
   } 
   else if (strcmp(ModeOutput, "LIMEUSB") == 0) 
@@ -1480,6 +1528,16 @@ void ReadModeOutput(char Moutput[256])
   else if (strcmp(ModeOutput, "DIGITHIN") == 0) 
   {
     strcpy(Moutput, "DigiThin Board");
+  } 
+  else if (strcmp(ModeOutput, "EXPRESS2") == 0) 
+  {
+    strcpy(Moutput, "DATV Express DVB-S2");
+    strcpy(CurrentModeOPtext, TabModeOPtext[2]);
+  } 
+  else if (strcmp(ModeOutput, "PLUTO") == 0) 
+  {
+    strcpy(Moutput, "ADALM Pluto");
+    strcpy(CurrentModeOPtext, TabModeOPtext[2]);
   } 
   else
   {
@@ -3153,7 +3211,7 @@ int CheckLimeInstalled()
  * @return 0 if present, 1 if absent
 *******************************************************************************/
 
-int CheckLimeConnect()
+int CheckLimeMiniConnect()
 {
   FILE *fp;
   char response[255];
@@ -3178,7 +3236,40 @@ int CheckLimeConnect()
 }
 
 /***************************************************************************//**
- * @brief Checks whether a Lime Mini is connected if selected
+ * @brief Checks whether a Lime USB is connected
+ *
+ * @param 
+ *
+ * @return 0 if present, 1 if absent
+*******************************************************************************/
+
+int CheckLimeUSBConnect()
+{
+  FILE *fp;
+  char response[255];
+  int responseint;
+
+  /* Open the command for reading. */
+  fp = popen("lsusb | grep -q '1d50:6108' ; echo $?", "r");
+  if (fp == NULL) {
+    printf("Failed to run command\n" );
+    exit(1);
+  }
+
+  /* Read the output a line at a time - output it. */
+  while (fgets(response, 7, fp) != NULL)
+  {
+    responseint = atoi(response);
+  }
+
+  /* close */
+  pclose(fp);
+  return responseint;
+}
+
+
+/***************************************************************************//**
+ * @brief Checks whether a Lime Mini or Lime USB is connected if selected
  *        and displays error message if not
  * @param 
  *
@@ -3189,7 +3280,7 @@ void CheckLimeReady()
 {
   if (strcmp(CurrentModeOP, TabModeOP[8]) == 0)  // Lime mini Output selected
   {
-    if (CheckLimeConnect() == 1)
+    if (CheckLimeMiniConnect() == 1)
     {
       MsgBox2("No LimeMini Detected", "Check Connections");
       wait_touch();
@@ -3197,13 +3288,73 @@ void CheckLimeReady()
   }
   if (strcmp(CurrentModeOP, TabModeOP[3]) == 0)  // Lime USB Output selected
   {
-    if (CheckLimeConnect() == 1)
+    if (CheckLimeUSBConnect() == 1)
     {
       MsgBox2("No Lime USB Detected", "Check Connections");
       wait_touch();
     }
   }
 }
+
+/***************************************************************************//**
+ * @brief Displays Info about a connected Lime
+ *        
+ * @param 
+ *
+ * @return void
+*******************************************************************************/
+
+void LimeInfo()
+{
+  BackgroundRGB(0,0,0,255);  // Black background
+  Fill(255, 255, 255, 1);    // White text
+  VGfloat th = TextHeight(SansTypeface, 20);
+  Text(wscreen/12, hscreen - 1 * th, "Lime Firmware Information", SansTypeface, 20);
+
+
+  FILE *fp;
+  char response[255];
+  int line = 0;
+
+  /* Open the command for reading. */
+  fp = popen("LimeUtil --make", "r");
+  if (fp == NULL) {
+    printf("Failed to run command\n" );
+    exit(1);
+  }
+
+  /* Read the output a line at a time - output it. */
+  while (fgets(response, 50, fp) != NULL)
+  {
+    if (line > 0)    //skip first line
+    {
+      Text(wscreen/12, hscreen - (1.2 * line + 2) * th, response, SansTypeface, 20);
+    }
+    line = line + 1;
+  }
+
+  /* close */
+  pclose(fp);
+  Text(wscreen/12, 1.2 * th, "Touch Screen to Continue", SansTypeface, 20);
+
+  End();
+}
+
+/***************************************************************************//**
+ * @brief Stops the graphics system and displays the Portdown Logo
+ *        
+ * @param nil
+ *
+ * @return void
+*******************************************************************************/
+
+void DisplayLogo()
+{
+  finish();
+  system("sudo fbi -T 1 -noverbose -a \"/home/pi/rpidatv/scripts/images/BATC_Black.png\" >/dev/null 2>/dev/null");
+  system("(sleep 1; sudo killall -9 fbi >/dev/null 2>/dev/null) &");
+}
+
 
 void MPEG2License()
 {
@@ -3663,36 +3814,37 @@ int AddButton(int x,int y,int w,int h)
 
 int ButtonNumber(int MenuIndex, int Button)
 {
-  // Returns the Button Number (0 - 599) from the Menu number and the button position
+  // Returns the Button Number (0 - 674) from the Menu number and the button position
   int ButtonNumb = 0;
 
-  if (MenuIndex <= 10)
+  if (MenuIndex <= 10)  // 10 x 25-button main menus
   {
     ButtonNumb = (MenuIndex - 1) * 25 + Button;
   }
-  if ((MenuIndex >= 11) && (MenuIndex <= 40))
+  if ((MenuIndex >= 11) && (MenuIndex <= 40))  // 30 x 10-button submenus
   {
     ButtonNumb = 250 + (MenuIndex - 11) * 10 + Button;
   }
-  if ((MenuIndex >= 41) && (MenuIndex <= 41))
+  if ((MenuIndex >= 41) && (MenuIndex <= 41))  // keyboard
   {
     ButtonNumb = 550 + (MenuIndex - 41) * 50 + Button;
   }
-  if (MenuIndex > 41)
+  if (MenuIndex >= 42)  // 5 x 15-button submenus
   {
-    ButtonNumb = 600;
+    ButtonNumb = 600 + (MenuIndex - 42) * 15 + Button;
   }
   return ButtonNumb;
 }
 
 int CreateButton(int MenuIndex, int ButtonPosition)
 {
-  // Provide Menu number (int 1 - 41), Button Position (0 bottom left, 23 top right)
+  // Provide Menu number (int 1 - 46), Button Position (0 bottom left, 23 top right)
   // return button number
 
   // Menus 1 - 10 are classic 25-button menus
   // Menus 11 - 40 are 10-button menus
   // Menu 41 is a keyboard
+  // Menus 42 - 46 are 15-button menus
 
   int ButtonIndex;
   int x = 0;
@@ -4103,6 +4255,12 @@ void UpdateWindow()
     Roundrect(10, 10, wscreen-18, hscreen*2/6+10, 10, 10);
   }
 
+  if ((CurrentMenu >= 42) && (CurrentMenu <= 46))  // 15-button menus
+  {
+    Fill(127, 127, 127, 1);
+    Roundrect(10, 10, wscreen-18, hscreen*3/6+10, 10, 10);
+  }
+
   for(i=first; i<=last; i++)
   {
     // printf("Looking at button %d\n", i);
@@ -4395,7 +4553,8 @@ void ApplyTXConfig()
   SetConfigParam(PATH_PCONFIG, Param, ModeInput);
   printf("a.sh will be called with %s\n", ModeInput);
 
-  // Load the Pi Cam driver for CAMMPEG-2 modes
+  // Load the Pi Cam driver for CAMMPEG-2 and Streaming modes
+  printf("TESTING FOR STREAMER\n");
   if ((strcmp(ModeInput,"CAMMPEG-2")==0)
     ||(strcmp(ModeInput,"CAM16MPEG-2")==0)
     ||(strcmp(ModeInput,"CAMHDMPEG-2")==0))
@@ -4540,7 +4699,14 @@ void GreyOut1()
       || (strcmp(CurrentModeOP, "COMPVID") == 0) || (strcmp(CurrentModeOP, "DTX1") == 0)\
       || (strcmp(CurrentModeOP, "IP") == 0))
     {
-      SetButtonStatus(ButtonNumber(CurrentMenu, 10), 2); // Frequency
+      if (strcmp(CurrentModeOP, "STREAMER") != 0)
+      {
+        SetButtonStatus(ButtonNumber(CurrentMenu, 10), 2); // Don't grey out freq button for stream
+      }
+      else
+      {
+        SetButtonStatus(ButtonNumber(CurrentMenu, 10), 0);
+      }
       SetButtonStatus(ButtonNumber(CurrentMenu, 13), 2); // Band
       SetButtonStatus(ButtonNumber(CurrentMenu, 14), 2); // Attenuator Level
       SetButtonStatus(ButtonNumber(CurrentMenu, 8), 2);  // Attenuator Type
@@ -4588,14 +4754,22 @@ void GreyOut11()
 void GreyOutReset13()
 {
   SetButtonStatus(ButtonNumber(CurrentMenu, 3), 0); // Lime Mini
+  SetButtonStatus(ButtonNumber(CurrentMenu, 7), 0); // DATV Express
   SetButtonStatus(ButtonNumber(CurrentMenu, 8), 0); // Lime USB
 }
 
 void GreyOut13()
 {
-  if (CheckLimeInstalled() == 1)  // Lime not installed so GreyOut
+  if (CheckExpressConnect() == 1)   // DATV Express not connected so GreyOut
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 7), 2); // DATV Express
+  }
+  if (CheckLimeMiniConnect() == 1)  // Lime Mini not connected so GreyOut
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 3), 2); // Lime Mini
+  }
+  if (CheckLimeUSBConnect() == 1)  // Lime USB not connected so GreyOut
+  {
     SetButtonStatus(ButtonNumber(CurrentMenu, 8), 2); // Lime USB
   }
 }
@@ -4675,6 +4849,39 @@ void GreyOut25()
     SetButtonStatus(ButtonNumber(CurrentMenu, 8), 2); // FEC 3/5
     SetButtonStatus(ButtonNumber(CurrentMenu, 9), 2); // FEC 2/3
   }
+}
+
+
+void GreyOutReset42()
+{
+  SetButtonStatus(ButtonNumber(CurrentMenu, 3), 0); // Lime Mini
+  SetButtonStatus(ButtonNumber(CurrentMenu, 7), 0); // DATV Express
+  SetButtonStatus(ButtonNumber(CurrentMenu, 8), 0); // Lime USB
+}
+
+void GreyOut42()
+{
+  if (CheckExpressConnect() == 1)   // DATV Express not connected so GreyOut
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 7), 2); // DATV Express
+  }
+  if (CheckLimeMiniConnect() == 1)  // Lime Mini not connected so GreyOut
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 3), 2); // Lime Mini
+  }
+  if (CheckLimeUSBConnect() == 1)  // Lime USB not connected so GreyOut
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 8), 2); // Lime USB
+  }
+  //if (CheckExpressConnect() == 1)   // DATV Express not connected so GreyOut
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 12), 2); // DATV Express
+  }
+  //if (CheckLimeMiniConnect() == 1)  // Pluto not connected so GreyOut
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 13), 2); // Lime Mini
+  }
+
 }
 
 void SelectInGroup(int StartButton,int StopButton,int NoButton,int Status)
@@ -5901,12 +6108,14 @@ void TransmitStart()
   GetConfigParam(PATH_PCONFIG,Param,Value);
   strcpy(ModeInput,Value);
 
-  // Check if MPEG-2 camera mode selected 
+  // Check if MPEG-2 camera mode selected, or streaming PiCam
   if ((strcmp(ModeInput, "CAMMPEG-2")==0)
     ||(strcmp(ModeInput, "CAM16MPEG-2")==0)
-    ||(strcmp(ModeInput, "CAMHDMPEG-2")==0))
+    ||(strcmp(ModeInput, "CAMHDMPEG-2")==0)
+    ||((strcmp(CurrentModeOP, TabModeOP[4]) == 0) && (strcmp(CurrentSource, "Pi Cam") == 0)))
   {
-    // Start the viewfinder
+    // Load the camera driver and start the viewfinder
+    system("sudo modprobe bcm2835_v4l2");
     finish();
     system("v4l2-ctl --overlay=1 >/dev/null 2>/dev/null");
     strcpy(ScreenState, "TXwithImage");
@@ -5992,7 +6201,7 @@ void TransmitStop()
   }
 
   // Stop Lime transmitting
-  if((strcmp(ModeOutput, "LIMEMINI")==0) || (strcmp(ModeOutput, "LIMEUSB")==0))
+  if((strcmp(ModeOutput, "LIMEMINI") == 0) || (strcmp(ModeOutput, "LIMEUSB") ==0 ))
   {
     system("sudo killall dvb2iq >/dev/null 2>/dev/null");
     system("sudo killall limetx >/dev/null 2>/dev/null");
@@ -6017,6 +6226,7 @@ void TransmitStop()
   usleep(1000);
   system("sudo killall -9 avc2ts >/dev/null 2>/dev/null");
   system("sudo killall -9 avc2ts.old >/dev/null 2>/dev/null");
+  system("sudo killall -9 limetx >/dev/null 2>/dev/null");
 
   // And make sure rpidatv has been stopped (required for brief transmit selections)
   system("sudo killall -9 rpidatv >/dev/null 2>/dev/null");
@@ -6947,6 +7157,39 @@ void MsgBox4(const char *message1, const char *message2, const char *message3, c
   printf("MsgBox4 called\n");
 }
 
+void YesNo(int i)  // i == 6 Yes, i == 8 No
+{
+  char Param[63];
+
+  // First switch on what was calling the Yes/No question
+  switch(CallingMenu)
+  {
+  case 375:         // Restore Factory Settings?
+    switch (i)
+    {
+    case 6:     // Yes
+      // Run script
+      system("/home/pi/rpidatv/scripts/restore_factory.sh");
+      
+      // Correct the display back to original
+      strcpy(Param, "display");
+      SetConfigParam(PATH_PCONFIG, Param, DisplayType);
+      MsgBox2("Restored to Factory Settings", "Display will restart after touch");
+      wait_touch();
+
+      // Exit and restart display to load settings
+      cleanexit(129);
+      break;
+    case 8:     // Yes
+      MsgBox("Current settings retained");
+      wait_touch();
+      break;
+    }
+    CurrentMenu = 37;
+    UpdateWindow();
+    break;
+  }
+}
 
 void InfoScreen()
 {
@@ -8834,10 +9077,20 @@ void waituntil(int w,int h)
           UpdateWindow();
           break;
         case 10:
-          printf("MENU 16 \n");        // Frequency
-          CurrentMenu=16;
-          BackgroundRGB(0,0,0,255);
-          Start_Highlights_Menu16();
+          if (strcmp(CurrentModeOP, TabModeOP[4]) != 0)  // not Streaming
+          {
+            printf("MENU 16 \n");        // Set Frequency
+            CurrentMenu=16;
+            BackgroundRGB(0,0,0,255);
+            Start_Highlights_Menu16();
+          }
+          else
+          {
+            printf("MENU 35 \n");        // Select Stream
+            CurrentMenu=35;
+            BackgroundRGB(0,0,0,255);
+            Start_Highlights_Menu35();
+          }
           UpdateWindow();
           break;
         case 11:
@@ -8892,10 +9145,10 @@ void waituntil(int w,int h)
           UpdateWindow();
           break;
         case 17:
-          printf("MENU 13 \n");        // Output Device
-          CurrentMenu=13;
+          printf("MENU 42 \n");        // Output Device
+          CurrentMenu=42;
           BackgroundRGB(0,0,0,255);
-          Start_Highlights_Menu13();
+          Start_Highlights_Menu42();
           UpdateWindow();
           break;
         case 18:
@@ -9023,6 +9276,10 @@ void waituntil(int w,int h)
           UpdateWindow();
           break;
         case 9:                               // Not used
+          printf("MENU 7 \n");
+          CurrentMenu=7;
+          BackgroundRGB(0,0,0,255);
+          Start_Highlights_Menu7();
           UpdateWindow();
           break;
         case 10:                              // Take Snap from EasyCap Input
@@ -9054,6 +9311,7 @@ void waituntil(int w,int h)
         case 15:                               // Select FreqShow
           if(CheckRTL()==0)
           {
+            DisplayLogo();
             do_freqshow();
           }
           else
@@ -9065,6 +9323,7 @@ void waituntil(int w,int h)
           UpdateWindow();
           break;
         case 16:                               // Start Sig Gen and Exit
+          DisplayLogo();
           cleanexit(130);
           break;
         case 17:                               // Start RTL-TCP server
@@ -9142,15 +9401,30 @@ void waituntil(int w,int h)
           Start_Highlights_Menu33();
           UpdateWindow();
           break;
-        case 1:                               // 
+        case 1:                               // System Config
+          printf("MENU 37 \n"); 
+          CurrentMenu=37;
+          BackgroundRGB(0,0,0,255);
+          Start_Highlights_Menu37();
+          UpdateWindow();
           break;
-        case 2:                               // 
+        case 2:                               // Wifi Config
+          printf("MENU 36 \n"); 
+          CurrentMenu=36;
+          BackgroundRGB(0,0,0,255);
+          Start_Highlights_Menu36();
+          UpdateWindow();
           break;
         case 3:                               // 
           break;
         case 4:                               // 
           break;
-         case 5:                              // 
+        case 5:                              // 
+          printf("MENU 34 \n"); 
+          CurrentMenu=34;
+          BackgroundRGB(0,0,0,255);
+          Start_Highlights_Menu34();
+          UpdateWindow();
           break;
         case 6:                              // 
           break;
@@ -9417,6 +9691,13 @@ void waituntil(int w,int h)
           Start_Highlights_Menu5();
           UpdateWindow();
           break;
+        case 17:                       // SDR Selection
+          printf("MENU 39 \n");
+          CurrentMenu=39;
+          BackgroundRGB(0,0,0,255);
+          Start_Highlights_Menu39();
+          UpdateWindow();
+          break;
         case 18:                                            // Constellation on/off
           if (strcmp(RXgraphics[0], "ON") == 0)
           {
@@ -9639,6 +9920,27 @@ void waituntil(int w,int h)
         continue;   // Completed Menu 6 action, go and wait for touch
       }
 
+      if (CurrentMenu == 7)  // Menu 7
+      {
+        printf("Button Event %d, Entering Menu 7 Case Statement\n",i);
+        switch (i)
+        {
+        case 15:                               // Start XY display and Exit
+          cleanexit(134);
+          break;
+        case 22:                              // Menu 1
+          printf("MENU 1 \n");
+          CurrentMenu=1;
+          BackgroundRGB(255,255,255,255);
+          Start_Highlights_Menu1();
+          UpdateWindow();
+          break;
+        default:
+          printf("Menu 7 Error\n");
+        }
+        continue;   // Completed Menu 7 action, go and wait for touch
+      }
+
       if (CurrentMenu == 11)  // Menu 11 TX RF Output Mode
       {
         printf("Button Event %d, Entering Menu 11 Case Statement\n",i);
@@ -9771,7 +10073,8 @@ void waituntil(int w,int h)
         default:
           printf("Menu 13 Error\n");
         }
-        UpdateWindow();
+        Start_Highlights_Menu13();  // Update Menu appearance
+        UpdateWindow();             // and display for half a second
         usleep(500000);
         SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 0); // Reset cancel (even if not selected)
         printf("Returning to MENU 1 from Menu 13\n");
@@ -10112,7 +10415,6 @@ void waituntil(int w,int h)
         case 0:                               // Preset 5
         case 1:                               // Preset 6
         case 2:                               // Preset 7
-        case 3:                               // Preset 8
           if (StreamStoreTrigger == 0)        // Normal
           {
             DisplayStream(i);
@@ -10125,6 +10427,14 @@ void waituntil(int w,int h)
             SetButtonStatus(ButtonNumber(CurrentMenu, 9), 0);
             Start_Highlights_Menu20();        // Refresh the button labels
           }
+          UpdateWindow();                     // Stay in Menu 20
+          break;
+        case 3:                               // Preset 8  and direct entry
+          AmendStreamPreset(i);
+          StreamStoreTrigger = 0;
+          SetButtonStatus(ButtonNumber(CurrentMenu, 9), 0);
+          DisplayStream(i);
+          BackgroundRGB(0, 0, 0, 255);
           UpdateWindow();                     // Stay in Menu 20
           break;
         case 9:                               // Amend Preset
@@ -10661,8 +10971,6 @@ void waituntil(int w,int h)
           Start_Highlights_Menu1();
           UpdateWindow();
           break;
-        case 0:                                 // Install/update Lime drivers
-        case 1:                                 // Update Lime Firmware
         case 5:                                 // All defined in ExecuteUpdate(i)
         case 6:
         case 7:
@@ -10679,6 +10987,47 @@ void waituntil(int w,int h)
         // stay in Menu 33 if parameter changed
         continue;   // Completed Menu 33 action, go and wait for touch
       }
+
+      if (CurrentMenu == 34)  // Menu 34 Lime Configuration
+      {
+        printf("Button Event %d, Entering Menu 34 Case Statement\n",i);
+        switch (i)
+        {
+        case 4:                               // Cancel
+          SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 1);
+          printf("Cancelling Lime Config Menu\n");
+          UpdateWindow();
+          usleep(500000);
+          SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 0); // Reset cancel (even if not selected)
+          printf("Returning to MENU 1 from Menu 34\n");
+          CurrentMenu=1;
+          BackgroundRGB(255,255,255,255);
+          Start_Highlights_Menu1();
+          UpdateWindow();
+          break;
+        case 6:  // Lime firmware update
+        case 0:  // Lime Install to Portsdown (working version)
+        case 1:  // Lime Install to Portsdown (latest, non-working version)
+          printf("Lime Firmware Update or Install\n");
+          LimeConfig(i);
+          CurrentMenu=34;
+          BackgroundRGB(0,0,0,255);
+          Start_Highlights_Menu34();
+          UpdateWindow();
+          break;
+        case 7:                               // Display Info Page
+          LimeInfo();
+          wait_touch();
+          BackgroundRGB(0,0,0,255);
+          UpdateWindow();
+          break;
+        default:
+          printf("Menu 34 Error\n");
+        }
+        // stay in Menu 34 if parameter changed
+        continue;   // Completed Menu 34 action, go and wait for touch
+      }
+
       if (CurrentMenu == 35)  // Menu 35 Stream output Selector
       {
         printf("Button Event %d, Entering Menu 35 Case Statement\n",i);
@@ -10741,6 +11090,159 @@ void waituntil(int w,int h)
         }
         continue;   // Completed Menu 35 action, go and wait for touch
       }
+
+      if (CurrentMenu == 36)  // Menu 36 WiFi Configuration
+      {
+        printf("Button Event %d, Entering Menu 36 Case Statement\n",i);
+        switch (i)
+        {
+        case 4:                               // Cancel
+          SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 1);
+          printf("Cancelling WiFi Config Menu\n");
+          UpdateWindow();
+          usleep(500000);
+          SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 0); // Reset cancel (even if not selected)
+          printf("Returning to MENU 1 from Menu 36\n");
+          CurrentMenu=1;
+          BackgroundRGB(255,255,255,255);
+          Start_Highlights_Menu1();
+          UpdateWindow();
+          break;
+        default:
+          printf("Menu 36 Error\n");
+        }
+        // stay in Menu 36 if parameter changed
+        continue;   // Completed Menu 36 action, go and wait for touch
+      }
+
+      if (CurrentMenu == 37)  // Menu 37 System Configuration
+      {
+        printf("Button Event %d, Entering Menu 37 Case Statement\n",i);
+        switch (i)
+        {
+        case 4:                               // Cancel
+          SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 1);
+          printf("Cancelling WiFi Config Menu\n");
+          UpdateWindow();
+          usleep(500000);
+          SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 0); // Reset cancel (even if not selected)
+          printf("Returning to MENU 1 from Menu 36\n");
+          CurrentMenu=1;
+          BackgroundRGB(255,255,255,255);
+          Start_Highlights_Menu1();
+          UpdateWindow();
+          break;
+        case 5:                               // Restore Factory Settings
+          CallingMenu = 375;
+          CurrentMenu = 38;
+          MsgBox4("Are you sure that you want to", "overwrite all the current settings", "with the factory settings?", " ");
+          UpdateWindow();
+        break;
+        default:
+          printf("Menu 37 Error\n");
+        }
+        // stay in Menu 37 if parameter changed
+        continue;   // Completed Menu 37 action, go and wait for touch
+      }
+
+      if (CurrentMenu == 38)  // Menu 38 Yes/No
+      {
+        printf("Button Event %d, Entering Menu 38 Case Statement\n",i);
+        switch (i)
+        {
+        case 6:                               // Yes
+        case 8:                               // No
+          YesNo(i);                            // Decide what to do next
+          break;
+        default:
+          printf("Menu 38 Error\n");
+        }
+        continue;   // Completed Menu 38 action, go and wait for touch
+      }
+
+      if (CurrentMenu == 39)  // Menu 39 LeanDVB SDR Selection
+      {
+        printf("Button Event %d, Entering Menu 39 Case Statement\n",i);
+        switch (i)
+        {
+        case 4:                               // Cancel
+          SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 1);
+          printf("Cancelling LeanDVB SDR Selection Menu\n");
+          UpdateWindow();
+          usleep(500000);
+          SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 0); // Reset cancel (even if not selected)
+          printf("Returning to MENU 1 from Menu 39\n");
+          CurrentMenu=1;
+          BackgroundRGB(255,255,255,255);
+          Start_Highlights_Menu1();
+          UpdateWindow();
+          break;
+        default:
+          printf("Menu 39 Error\n");
+        }
+        continue;   // Completed Menu 39 action, go and wait for touch
+      }
+
+      if (CurrentMenu == 42)  // Menu 42 Output Device
+      {
+        printf("Button Event %d, Entering Menu 42 Case Statement\n",i);
+        switch (i)
+        {
+        case 4:                               // Cancel
+          SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 1);
+          printf("Encoding Cancel\n");
+          break;
+        case 5:                               // IQ
+          SelectOP(i);
+          printf("IQ\n");
+          break;
+        case 6:                               // QPSKRF
+          SelectOP(i);
+          printf("QPSKRF\n");
+          break;
+        case 7:                               // EXPRESS
+          SelectOP(i);
+          printf("EXPRESS\n");
+          break;
+        case 8:                               // Lime USB
+          SelectOP(i);
+          printf("LIME USB\n");
+          break;
+        case 9:                               // STREAMER
+          SelectOP(i);
+          printf("STREAMER\n");
+          break;
+        case 0:                               // COMPVID
+          SelectOP(i);
+          printf("COMPVID\n");
+          break;
+        case 1:                               // DTX-1
+          SelectOP(i);
+          printf("DTX-1\n");
+          break;
+        case 2:                               // IPTS
+          SelectOP(i);
+          printf("IPTS\n");
+          break;
+        case 3:                               // LIME Mini
+          SelectOP(i);
+          printf("LIME Mini\n");
+          break;
+        default:
+          printf("Menu 42 Error\n");
+        }
+        Start_Highlights_Menu13();  // Update Menu appearance
+        UpdateWindow();             // and display for half a second
+        usleep(500000);
+        SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 0); // Reset cancel (even if not selected)
+        printf("Returning to MENU 1 from Menu 42\n");
+        CurrentMenu=1;
+        BackgroundRGB(255,255,255,255);
+        Start_Highlights_Menu1();
+        UpdateWindow();
+        continue;   // Completed Menu 42 action, go and wait for touch
+      }
+
       if (CurrentMenu == 41)  // Menu 41 Keyboard (should not get here)
       {
         //break;
@@ -11036,28 +11538,41 @@ void Start_Highlights_Menu1()
   // Frequency Button 10
 
   char Freqtext[255];
+  char streamname_[31];
+  char key_[15];
   float TvtrFreq;
-  strcpy(Param,"freqoutput");
-  GetConfigParam(PATH_PCONFIG,Param,Value);
-  printf("Value=%s %s\n",Value,"Freq");
-  if ((TabBandLO[CurrentBand] < 0.1) && (TabBandLO[CurrentBand] > -0.1))
+  if (strcmp(CurrentModeOPtext, "BATC^Stream") != 0)
   {
-    strcpy(Freqtext, "Freq^");
-    strcat(Freqtext, Value);
-    strcat(Freqtext, " MHz");
+    // Not Streaming, so display Frequency
+    strcpy(Param,"freqoutput");
+    GetConfigParam(PATH_PCONFIG,Param,Value);
+    printf("Value=%s %s\n",Value,"Freq");
+    if ((TabBandLO[CurrentBand] < 0.1) && (TabBandLO[CurrentBand] > -0.1))
+    {
+      strcpy(Freqtext, "Freq^");
+      strcat(Freqtext, Value);
+      strcat(Freqtext, " MHz");
+    }
+    else
+    {
+      strcpy(Freqtext, "F: ");
+      strcat(Freqtext, Value);
+      strcat(Freqtext, "^T:");
+      TvtrFreq = atof(Value) + TabBandLO[CurrentBand];
+      if (TvtrFreq < 0)
+      {
+        TvtrFreq = TvtrFreq * -1;
+      }
+      snprintf(Value, 10, "%.1f", TvtrFreq);
+      strcat(Freqtext, Value);
+    }
   }
   else
   {
-    strcpy(Freqtext, "F: ");
-    strcat(Freqtext, Value);
-    strcat(Freqtext, "^T:");
-    TvtrFreq = atof(Value) + TabBandLO[CurrentBand];
-    if (TvtrFreq < 0)
-    {
-      TvtrFreq = TvtrFreq * -1;
-    }
-    snprintf(Value, 10, "%.1f", TvtrFreq);
-    strcat(Freqtext, Value);
+    // Streaming, so display streamname
+    strcpy(Freqtext, "Stream to^");
+    SeparateStreamKey(StreamKey[0], streamname_, key_);
+    strcat(Freqtext, streamname_);
   }
   AmendButtonStatus(10, 0, Freqtext, &Blue);
   AmendButtonStatus(10, 1, Freqtext, &Green);
@@ -11193,7 +11708,7 @@ void Start_Highlights_Menu1()
 
   char Outputtext[255];
   strcpy(Outputtext, "Output to^");
-  if (strcmp(CurrentModeOPtext, "BATC^STREAM") == 0)
+  if (strcmp(CurrentModeOPtext, "BATC^Stream") == 0)
   {
     strcpy(Outputtext, "Output to^BATC");
   }
@@ -11277,9 +11792,9 @@ void Define_Menu2()
   //AddButtonStatus(button, " ", &Blue);
   //AddButtonStatus(button, " ", &Green);
 
-  //button = CreateButton(2, 9);
-  //AddButtonStatus(button, " ", &Blue);
-  //AddButtonStatus(button, " ", &Green);
+  button = CreateButton(2, 9);
+  AddButtonStatus(button, "More^Functions", &Blue);
+  AddButtonStatus(button, "More^Functions", &Green);
 
   // 3rd line up Menu 2
 
@@ -11368,6 +11883,17 @@ void Define_Menu3()
   button = CreateButton(3, 0);
   AddButtonStatus(button, "Check for^Update", &Blue);
   AddButtonStatus(button, "Checking^for Update", &Green);
+
+  button = CreateButton(3, 1);
+  AddButtonStatus(button, "System^Config", &Blue);
+
+  button = CreateButton(3, 2);
+  AddButtonStatus(button, "WiFi^Config", &Blue);
+
+  // 2nd line up Menu 3: Lime Config 
+
+  button = CreateButton(3, 5);
+  AddButtonStatus(button, "Lime^Config", &Blue);
 
   // 3rd line up Menu 3: Amend Sites/Beacons, Set Receive LOs and set Stream Outputs 
 
@@ -11994,6 +12520,75 @@ void Start_Highlights_Menu6()
   SetButtonStatus(ButtonNumber(6, 21), RTLactive); 
 }
 
+void Define_Menu7()
+{
+  int button;
+  color_t Green;
+  color_t Blue;
+
+  Green.r=0; Green.g=128; Green.b=0;
+  Blue.r=0; Blue.g=0; Blue.b=128;
+
+  strcpy(MenuTitle[7], "Menu 7 Extra Utilities");
+
+  // Bottom Line Menu 7: Check for Update
+
+//  button = CreateButton(7, 0);
+//  AddButtonStatus(button, "Check for^Update", &Blue);
+//  AddButtonStatus(button, "Checking^for Update", &Green);
+
+  // 2nd line up Menu 7: Lime Config 
+
+//  button = CreateButton(7, 5);
+//  AddButtonStatus(button, "Lime^Config", &Blue);
+
+  // 3rd line up Menu 7: Amend Sites/Beacons, Set Receive LOs and set Stream Outputs 
+
+//  button = CreateButton(7, 10);
+//  AddButtonStatus(button, "Amend^Sites/Bcns", &Blue);
+
+//  button = CreateButton(7, 11);
+//  AddButtonStatus(button, "Set RX^LOs", &Blue);
+//  AddButtonStatus(button, "Set RX^LOs", &Green);
+
+//  button = CreateButton(7, 12);
+//  AddButtonStatus(button, "Set Stream^Outputs", &Blue);
+//  AddButtonStatus(button, "Set Stream^Outputs", &Green);
+
+  // 4th line up Menu 7: Band Details, Preset Freqs, Preset SRs, Call and ADFRef
+
+  button = CreateButton(7, 15);
+  AddButtonStatus(button, "XY^Display", &Blue);
+  AddButtonStatus(button, "XY^Display", &Green);
+
+//  button = CreateButton(7, 16);
+//  AddButtonStatus(button, "Set Preset^Freqs", &Blue);
+//  AddButtonStatus(button, "Set Preset^Freqs", &Green);
+
+//  button = CreateButton(7, 17);
+//  AddButtonStatus(button, "Set Preset^SRs", &Blue);
+//  AddButtonStatus(button, "Set Preset^SRs", &Green);
+
+//  button = CreateButton(7, 18);
+//  AddButtonStatus(button, "Set Call,^Loc & PIDs", &Blue);
+//  AddButtonStatus(button, "Set Call,^Loc & PIDs", &Green);
+
+//  button = CreateButton(7, 19);
+//  AddButtonStatus(button, "Set ADF^Ref Freq", &Blue);
+//  AddButtonStatus(button, "Set ADF^Ref Freq", &Green);
+
+  // Top of Menu 7
+
+  button = CreateButton(7, 22);
+  AddButtonStatus(button," M1  ",&Blue);
+}
+
+void Start_Highlights_Menu7()
+{
+  ;
+}
+
+
 void Define_Menu11()
 {
   int button;
@@ -12202,6 +12797,7 @@ void Define_Menu13()
   button = CreateButton(13, 7);
   AddButtonStatus(button, TabModeOPtext[2], &Blue);
   AddButtonStatus(button, TabModeOPtext[2], &Green);
+  AddButtonStatus(button, TabModeOPtext[2], &Grey);
 
   button = CreateButton(13, 8);
   AddButtonStatus(button, TabModeOPtext[3], &Blue);
@@ -12978,7 +13574,7 @@ void Define_Menu20()
   color_t LBlue;
   color_t DBlue;
   color_t Red;
-
+  char TempLabel[31] = "Keyboard^";
 
   Red.r=255; Red.g=0; Red.b=0;
   Green.r=0; Green.g=128; Green.b=0;
@@ -13009,8 +13605,17 @@ void Define_Menu20()
     else       // Bottom Row
     {
       button = CreateButton(20, n - 5);
-      AddButtonStatus(button, StreamLabel[n], &Blue);
-      AddButtonStatus(button, StreamLabel[n], &Green);
+      if (n == 20)
+      {
+        strcat(TempLabel, StreamLabel[n]);
+        AddButtonStatus(button, TempLabel, &Blue);
+        AddButtonStatus(button, TempLabel, &Green);
+      }
+      else
+      {
+        AddButtonStatus(button, StreamLabel[n], &Blue);
+        AddButtonStatus(button, StreamLabel[n], &Green);
+      }
     }
   }
 }
@@ -13026,6 +13631,7 @@ void Start_Highlights_Menu20()
   color_t Blue;
   Green.r=0; Green.g=128; Green.b=0;
   Blue.r=0; Blue.g=0; Blue.b=128;
+  char TempLabel[31] = "Keyboard^";
 
   for(n = 1; n < 9; n = n + 1)
   {
@@ -13036,8 +13642,17 @@ void Start_Highlights_Menu20()
     }
     else       // Bottom Row
     {
-      AmendButtonStatus(ButtonNumber(20, n - 5), 0, StreamLabel[n], &Blue);
-      AmendButtonStatus(ButtonNumber(20, n - 5), 1, StreamLabel[n], &Green);
+      if (n == 8)
+      {
+        strcat(TempLabel, StreamLabel[n]);
+        AmendButtonStatus(ButtonNumber(20, n - 5), 0, TempLabel, &Blue);
+        AmendButtonStatus(ButtonNumber(20, n - 5), 1, TempLabel, &Green);
+      }
+      else
+      {
+        AmendButtonStatus(ButtonNumber(20, n - 5), 0, StreamLabel[n], &Blue);
+        AmendButtonStatus(ButtonNumber(20, n - 5), 1, StreamLabel[n], &Green);
+      }
     }
   }
 }
@@ -13969,17 +14584,6 @@ void Define_Menu33()
 
   // Bottom Row, Menu 33
 
-  if (GetLinuxVer() == 9)
-  {
-    button = CreateButton(33, 0);
-    AddButtonStatus(button, "Install^Lime Mini", &Blue);
-    AddButtonStatus(button, "Install^Lime Mini", &Green);
-
-    button = CreateButton(33, 1);
-    AddButtonStatus(button, "Update^Lime FW", &Blue);
-    AddButtonStatus(button, "Update^Lime FW", &Green);
-  }
-
   button = CreateButton(33, 3);
   AddButtonStatus(button, "MPEG-2^License", &Blue);
   AddButtonStatus(button, "MPEG-2^License", &Green);
@@ -14010,17 +14614,11 @@ void Start_Highlights_Menu33()
   color_t Red;
   color_t Blue;
   color_t Grey;
-  color_t Green;
+  //color_t Green;
   Blue.r=0; Blue.g=0; Blue.b=128;
   Red.r=128; Red.g=0; Red.b=0;
   Grey.r=127; Grey.g=127; Grey.b=127;
-  Green.r=0; Green.g=128; Green.b=0;
-
-  if ((ButtonArray[ButtonNumber(CurrentMenu, 0)].IndexStatus > 0) && (CheckLimeInstalled() == 0))  // Lime was not installed, but now is
-  {
-    AmendButtonStatus(ButtonNumber(33, 0), 0, "Update^Lime Drvr", &Blue);
-    AmendButtonStatus(ButtonNumber(33, 0), 1, "Update^Lime Drvr", &Green);
-  }
+  //Green.r=0; Green.g=128; Green.b=0;
 
   if (strcmp(UpdateStatus, "NotAvailable") == 0)
   {
@@ -14046,6 +14644,50 @@ void Start_Highlights_Menu33()
     AmendButtonStatus(ButtonNumber(33, 6), 0, " ", &Grey);
     AmendButtonStatus(ButtonNumber(33, 7), 0, "Confirm^Dev Update", &Red);
   }
+}
+
+void Define_Menu34()
+{
+  int button;
+  color_t Blue;
+  color_t LBlue;
+  color_t DBlue;
+  color_t Green;
+  Blue.r=0; Blue.g=0; Blue.b=128;
+  LBlue.r=64; LBlue.g=64; LBlue.b=192;
+  DBlue.r=0; DBlue.g=0; DBlue.b=64;
+  Green.r=0; Green.g=128; Green.b=0;
+
+  strcpy(MenuTitle[34], "Lime Configuration Menu (34)"); 
+
+  // Bottom Row, Menu 34
+
+  button = CreateButton(34, 4);
+  AddButtonStatus(button, "Exit", &DBlue);
+  AddButtonStatus(button, "Exit", &LBlue);
+
+  button = CreateButton(34, 0);
+  AddButtonStatus(button, "Install^Lime", &Blue);
+  AddButtonStatus(button, "Install^Lime", &Green);
+
+  button = CreateButton(34, 1);
+  AddButtonStatus(button, "Break^Lime", &Blue);
+  AddButtonStatus(button, "Break^Lime", &Green);
+
+  // 2nd Row, Menu 34
+
+  button = CreateButton(34, 6);
+  AddButtonStatus(button, "Update^Lime FW", &Blue);
+  AddButtonStatus(button, "Update^Lime FW", &Green);
+
+  button = CreateButton(34, 7);
+  AddButtonStatus(button, "Lime^FW Info", &Blue);
+  AddButtonStatus(button, "Lime^FW Info", &Green);
+}
+
+void Start_Highlights_Menu34()
+{
+  // Nothing here yet
 }
 
 // Menu 35 Stream output Selector
@@ -14131,6 +14773,300 @@ void Start_Highlights_Menu35()
       }
     }
   }
+}
+
+void Define_Menu36()
+{
+  int button;
+//  color_t Blue;
+  color_t LBlue;
+  color_t DBlue;
+//  color_t Green;
+//  Blue.r=0; Blue.g=0; Blue.b=128;
+  LBlue.r=64; LBlue.g=64; LBlue.b=192;
+  DBlue.r=0; DBlue.g=0; DBlue.b=64;
+//  Green.r=0; Green.g=128; Green.b=0;
+
+  strcpy(MenuTitle[36], "WiFi Configuration Menu (36)"); 
+
+  // Bottom Row, Menu 36
+
+  button = CreateButton(36, 4);
+  AddButtonStatus(button, "Exit", &DBlue);
+  AddButtonStatus(button, "Exit", &LBlue);
+
+//  button = CreateButton(36, 0);
+//  AddButtonStatus(button, "Install^Lime", &Blue);
+//  AddButtonStatus(button, "Install^Lime", &Green);
+
+//  button = CreateButton(36, 1);
+//  AddButtonStatus(button, "Update^Lime", &Blue);
+//  AddButtonStatus(button, "Update^Lime", &Green);
+
+  // 2nd Row, Menu 36
+
+//  button = CreateButton(36, 6);
+//  AddButtonStatus(button, "Update^Lime FW", &Blue);
+//  AddButtonStatus(button, "Update^Lime FW", &Green);
+
+//  button = CreateButton(36, 7);
+//  AddButtonStatus(button, "Lime^Info", &Blue);
+//  AddButtonStatus(button, "Lime^Info", &Green);
+}
+
+void Start_Highlights_Menu36()
+{
+  // Nothing here yet
+}
+
+void Define_Menu37()
+{
+  int button;
+  color_t Blue;
+  color_t LBlue;
+  color_t DBlue;
+  color_t Green;
+  Blue.r=0; Blue.g=0; Blue.b=128;
+  LBlue.r=64; LBlue.g=64; LBlue.b=192;
+  DBlue.r=0; DBlue.g=0; DBlue.b=64;
+  Green.r=0; Green.g=128; Green.b=0;
+
+  strcpy(MenuTitle[37], "System Configuration Menu (37)"); 
+
+  // Bottom Row, Menu 37
+
+  button = CreateButton(37, 4);
+  AddButtonStatus(button, "Exit", &DBlue);
+  AddButtonStatus(button, "Exit", &LBlue);
+
+//  button = CreateButton(37, 0);
+//  AddButtonStatus(button, "Install^Lime", &Blue);
+//  AddButtonStatus(button, "Install^Lime", &Green);
+
+//  button = CreateButton(37, 1);
+//  AddButtonStatus(button, "Update^Lime", &Blue);
+//  AddButtonStatus(button, "Update^Lime", &Green);
+
+  // 2nd Row, Menu 37
+
+  button = CreateButton(37, 5);
+  AddButtonStatus(button, "Restore^Factory", &Blue);
+  AddButtonStatus(button, "Restore^Factory", &Green);
+
+//  button = CreateButton(37, 7);
+//  AddButtonStatus(button, "Lime^Info", &Blue);
+//  AddButtonStatus(button, "Lime^Info", &Green);
+}
+
+void Start_Highlights_Menu37()
+{
+  // Nothing here yet
+}
+
+void Define_Menu38()
+{
+  int button;
+  color_t Blue;
+//  color_t LBlue;
+//  color_t DBlue;
+  color_t Green;
+  Blue.r=0; Blue.g=0; Blue.b=128;
+//  LBlue.r=64; LBlue.g=64; LBlue.b=192;
+//  DBlue.r=0; DBlue.g=0; DBlue.b=64;
+  Green.r=0; Green.g=128; Green.b=0;
+
+  strcpy(MenuTitle[38], "Answer Yes or No (38)"); 
+
+// 2nd Row, Menu 38
+
+  button = CreateButton(38, 6);
+  AddButtonStatus(button, "Yes", &Blue);
+  AddButtonStatus(button, "Yes", &Green);
+
+  button = CreateButton(38, 8);
+  AddButtonStatus(button, "No", &Blue);
+  AddButtonStatus(button, "No", &Green);
+}
+
+void Start_Highlights_Menu38()
+{
+  // Nothing here yet
+}
+
+void Define_Menu39()
+{
+  int button;
+  color_t Green;
+  color_t Blue;
+  color_t LBlue;
+  color_t DBlue;
+  color_t Grey;
+  Green.r=0; Green.g=128; Green.b=0;
+  Blue.r=0; Blue.g=0; Blue.b=128;
+  LBlue.r=64; LBlue.g=64; LBlue.b=192;
+  DBlue.r=0; DBlue.g=0; DBlue.b=64;
+  Grey.r=127; Grey.g=127; Grey.b=127;
+
+  strcpy(MenuTitle[39], "LeanDVB SDR Selection Menu (39)"); 
+
+  // Bottom Row, Menu 39
+
+  button = CreateButton(39, 4);
+  AddButtonStatus(button, "Cancel", &DBlue);
+  AddButtonStatus(button, "Cancel", &LBlue);
+
+  // 2nd Row, Menu 39
+
+  button = CreateButton(39, 5);
+  AddButtonStatus(button,"RTL-SDR",&Blue);
+  AddButtonStatus(button,"RTL-SDR",&Green);
+  AddButtonStatus(button,"RTL-SDR",&Grey);
+
+  button = CreateButton(39, 6);
+//  AddButtonStatus(button,"Lime Mini",&Blue);
+//  AddButtonStatus(button,"Lime Mini",&Green);
+  AddButtonStatus(button,"Lime Mini",&Grey);
+
+  button = CreateButton(39, 7);
+//  AddButtonStatus(button,"Lime USB",&Blue);
+//  AddButtonStatus(button,"Lime USB",&Green);
+  AddButtonStatus(button,"Lime USB",&Grey);
+
+  button = CreateButton(39, 8);
+//  AddButtonStatus(button,"Pluto",&Blue);
+//  AddButtonStatus(button,"Pluto",&Green);
+  AddButtonStatus(button,"Pluto",&Grey);
+}
+
+void Start_Highlights_Menu39()
+{
+}
+
+void Define_Menu42()
+{
+  int button;
+  color_t Green;
+  color_t Blue;
+  color_t Grey;
+  color_t LBlue;
+  color_t DBlue;
+  Green.r=0; Green.g=128; Green.b=0;
+  Blue.r=0; Blue.g=0; Blue.b=128;
+  Grey.r=127; Grey.g=127; Grey.b=127;
+  LBlue.r=64; LBlue.g=64; LBlue.b=192;
+  DBlue.r=0; DBlue.g=0; DBlue.b=64;
+
+  strcpy(MenuTitle[42], "Output Device Menu (42)"); 
+
+  // Bottom Row, Menu 42
+
+  button = CreateButton(42, 4);
+  AddButtonStatus(button, "Cancel", &DBlue);
+  AddButtonStatus(button, "Cancel", &LBlue);
+
+  button = CreateButton(42, 0);
+  AddButtonStatus(button, TabModeOPtext[5], &Blue);
+  AddButtonStatus(button, TabModeOPtext[5], &Green);
+
+  button = CreateButton(42, 1);
+  AddButtonStatus(button, TabModeOPtext[6], &Blue);
+  AddButtonStatus(button, TabModeOPtext[6], &Green);
+
+  button = CreateButton(42, 2);
+  AddButtonStatus(button, TabModeOPtext[7], &Blue);
+  AddButtonStatus(button, TabModeOPtext[7], &Green);
+
+  button = CreateButton(42, 3);
+  AddButtonStatus(button, TabModeOPtext[8], &Blue);
+  AddButtonStatus(button, TabModeOPtext[8], &Green);
+  AddButtonStatus(button, TabModeOPtext[8], &Grey);
+
+  // 2nd Row, Menu 42
+
+  button = CreateButton(42, 5);
+  AddButtonStatus(button, TabModeOPtext[0], &Blue);
+  AddButtonStatus(button, TabModeOPtext[0], &Green);
+
+  button = CreateButton(42, 6);
+  AddButtonStatus(button, TabModeOPtext[1], &Blue);
+  AddButtonStatus(button, TabModeOPtext[1], &Green);
+
+  button = CreateButton(42, 7);
+  AddButtonStatus(button, TabModeOPtext[2], &Blue);
+  AddButtonStatus(button, TabModeOPtext[2], &Green);
+  AddButtonStatus(button, TabModeOPtext[2], &Grey);
+
+  button = CreateButton(42, 8);
+  AddButtonStatus(button, TabModeOPtext[3], &Blue);
+  AddButtonStatus(button, TabModeOPtext[3], &Green);
+  AddButtonStatus(button, TabModeOPtext[3], &Grey);
+
+  button = CreateButton(42, 9);
+  AddButtonStatus(button, TabModeOPtext[4], &Blue);
+  AddButtonStatus(button, TabModeOPtext[4], &Green);
+
+  // 3rd Row, Menu 42
+
+  button = CreateButton(42, 12);
+  AddButtonStatus(button, TabModeOPtext[11], &Blue);
+  AddButtonStatus(button, TabModeOPtext[11], &Green);
+  AddButtonStatus(button, TabModeOPtext[11], &Grey);
+
+  button = CreateButton(42, 13);
+  AddButtonStatus(button, TabModeOPtext[12], &Blue);
+  AddButtonStatus(button, TabModeOPtext[12], &Green);
+  AddButtonStatus(button, TabModeOPtext[12], &Grey);
+}
+
+void Start_Highlights_Menu42()
+{
+  GreyOutReset42();
+  if(strcmp(CurrentModeOP, TabModeOP[0]) == 0)
+  {
+    SelectInGroupOnMenu(42, 5, 9, 5, 1);
+    SelectInGroupOnMenu(42, 0, 2, 5, 1);
+  }
+  if(strcmp(CurrentModeOP, TabModeOP[1]) == 0)
+  {
+    SelectInGroupOnMenu(42, 5, 9, 6, 1);
+    SelectInGroupOnMenu(42, 0, 2, 6, 1);
+  }
+  if(strcmp(CurrentModeOP, TabModeOP[2]) == 0)
+  {
+    SelectInGroupOnMenu(42, 5, 9, 7, 1);
+    SelectInGroupOnMenu(42, 0, 2, 7, 1);
+  }
+  if(strcmp(CurrentModeOP, TabModeOP[3]) == 0)
+  {
+    SelectInGroupOnMenu(42, 5, 9, 8, 1);
+    SelectInGroupOnMenu(42, 0, 2, 8, 1);
+  }
+  if(strcmp(CurrentModeOP, TabModeOP[4]) == 0)
+  {
+    SelectInGroupOnMenu(42, 5, 9, 9, 1);
+    SelectInGroupOnMenu(42, 0, 2, 9, 1);
+  }
+  if(strcmp(CurrentModeOP, TabModeOP[5]) == 0)
+  {
+    SelectInGroupOnMenu(42, 5, 9, 0, 1);
+    SelectInGroupOnMenu(42, 0, 2, 0, 1);
+  }
+  if(strcmp(CurrentModeOP, TabModeOP[6]) == 0)
+  {
+    SelectInGroupOnMenu(42, 5, 9, 1, 1);
+    SelectInGroupOnMenu(42, 0, 2, 1, 1);
+  }
+  if(strcmp(CurrentModeOP, TabModeOP[7]) == 0)
+  {
+    SelectInGroupOnMenu(42, 5, 9, 2, 1);
+    SelectInGroupOnMenu(42, 0, 2, 2, 1);
+  }
+  if(strcmp(CurrentModeOP, TabModeOP[8]) == 0)
+  {
+    SelectInGroupOnMenu(42, 5, 9, 2, 1);
+    SelectInGroupOnMenu(42, 0, 3, 3, 1);
+  }
+  GreyOut42();
 }
 
 
@@ -14455,17 +15391,19 @@ int main(int argc, char **argv)
   InitialiseGPIO();
 
   // Determine if using waveshare or waveshare B screen
-  // Either by first argument or from rpidatvconfig.txt
-  if(argc>1)
+  // Either by first argument or from portsdown_config.txt
+  if(argc > 1)
+  {
     Inversed=atoi(argv[1]);
+  }
   strcpy(Param,"display");
-  GetConfigParam(PATH_PCONFIG,Param,Value);
-  if(strcmp(Value,"Waveshare")==0)
-    Inversed=1;
-  if(strcmp(Value,"WaveshareB")==0)
-    Inversed=1;
-  if(strcmp(Value,"Waveshare4")==0)
-    Inversed=1;
+  GetConfigParam(PATH_PCONFIG, Param, Value);
+  strcpy(DisplayType, Value);  //  DisplayType set here and never changes
+  if((strcmp(DisplayType, "Waveshare")==0) || (strcmp(DisplayType, "WaveshareB")==0)
+    || (strcmp(DisplayType, "Waveshare4")==0))
+  {
+    Inversed = 1;
+  }
 
   // Set the Analog Capture (input) Standard
   GetUSBVidDev(USBVidDevice);
@@ -14552,6 +15490,7 @@ int main(int argc, char **argv)
   Define_Menu4();
   Define_Menu5();
   Define_Menu6();
+  Define_Menu7();
 
   Define_Menu11();
   Define_Menu12();
@@ -14576,9 +15515,15 @@ int main(int argc, char **argv)
   Define_Menu31();
   Define_Menu32();
   Define_Menu33();
+  Define_Menu34();
   Define_Menu35();
+  Define_Menu36();
+  Define_Menu37();
+  Define_Menu38();
+  Define_Menu39();
 
   Define_Menu41();
+  Define_Menu42();
 
   // Start the button Menu
   Start(wscreen,hscreen);
