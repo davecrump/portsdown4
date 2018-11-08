@@ -9,7 +9,7 @@ DisplayUpdateMsg() {
   # Create the update image in the tempfs folder
   convert -size 720x576 xc:white \
     -gravity North -pointsize 40 -annotate 0 "\nInstalling LimeSDR Software" \
-    -gravity Center -pointsize 50 -annotate 0 "$1""\n\nPlease wait" \
+  #  -gravity Center -pointsize 50 -annotate 0 "$1""\n\nPlease wait" \
     -gravity South -pointsize 50 -annotate 0 "DO NOT TURN POWER OFF" \
     /home/pi/tmp/update.jpg
 
