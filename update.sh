@@ -360,7 +360,7 @@ cd /home/pi
 # Compile the x-y display (201811100)
 cd /home/pi/rpidatv/src/xy
 make
-cp -f /home/pi/rpidatv/xy/xy /home/pi/rpidatv/bin/xy
+cp -f /home/pi/rpidatv/src/xy/xy /home/pi/rpidatv/bin/xy
 cd /home/pi
 
 # Always auto-logon and run .bashrc (and hence startup.sh) (20180729)
