@@ -70,6 +70,14 @@ void ShowTitle()
   Text(wscreen / 2.0 - (tw / 2.0), hscreen - linenumber * linepitch, "X-Y Display", font, pointsize);
 }
 
+
+void DisplayLogo()
+{
+  finish();
+  system("sudo fbi -T 1 -noverbose -a \"/home/pi/rpidatv/scripts/images/BATC_Black.png\" >/dev/null 2>/dev/null");
+  system("(sleep 1; sudo killall -9 fbi >/dev/null 2>/dev/null) &");
+}
+
 int openTouchScreen(int NoDevice)
 {
   char sDevice[255];
@@ -281,115 +289,143 @@ int main()
   //printf ("X Scale Factor = %f\n", scaleXvalue);
   scaleYvalue = ((float)screenYmax-screenYmin) / hscreen;
 
+  int x0 = 150;
+  int y0 = 30;
+
+  int xv[501];
+  int yv[501];
+
   Start(wscreen,hscreen);
  
   ShowTitle();
 
-  // Draw initial graticule here
+  // Label Y axis
 
-  End();
+  Fill(255, 255, 255, 1);    // White text
+  Fontinfo font = SansTypeface;
+  int pointsize = 10;
 
-  StrokeWidth(2);
-  Stroke(150, 150, 200, 0.8);
-
-  int x0 = 150;
-  int y0 = 10;
-
-  int xv[501];
-  int yv[501];
+  Text(x0 - 25, y0 + 400 - 5,   "0", font, pointsize);
+  Text(x0 - 25, y0 + 350,     "-10", font, pointsize);
+  Text(x0 - 25, y0 + 300 - 5, "-20", font, pointsize);
+  Text(x0 - 25, y0 + 250,     "-30", font, pointsize);
+  Text(x0 - 25, y0 + 200 - 5, "-40", font, pointsize);
+  Text(x0 - 25, y0 + 150,     "-50", font, pointsize);
+  Text(x0 - 25, y0 + 100 - 5, "-60", font, pointsize);
+  Text(x0 - 25, y0 + 50 - 5,  "-70", font, pointsize);
+  Text(x0 - 25, y0 + 0 - 5,   "-80", font, pointsize);
 
   // Create Wait Button thread
   pthread_create (&thbutton, NULL, &WaitButtonEvent, NULL);
 
   while (FinishedButton == 0)
   {
+    // Draw the graticule     
+    StrokeWidth(1);
+    Stroke(150, 150, 200, 0.8);
 
-  for (i = 0; i < 11; i = i + 1)
-  {
-    xv[0] = mcp3002_value(0);
-    yv[0] = mcp3002_value(1);
-  }
-
-
-  for (i = 0; i < 501; i = i + 1)
-  {
-    xv[i] = mcp3002_value(0);
-    //usleep(2);
-    yv[i] = mcp3002_value(1);
-    //usleep(2);
-  }
-
-  // Now build picture from sweep
-
-  // Check for first flyback
-  int flyback = 0;
-
-  for (i = 0; i < 499; i = i + 1)
-  {
-    if ((xv[i] > 900) && (xv[i] < 1020) && (xv[i + 2] < 250) && (xv[i + 2] >150) && (flyback == 0))
+    for (i = 0; i < 9; i = i + 1)
     {
-       //flyback is at i+1 or i+2
-      if (xv[i + 1] < 609)
+      Line(x0, y0 + (i * 50), x0 + 500, y0 + (i * 50));
+    }
+
+    for (i = 0; i < 11; i = i + 1)
+    {
+      Line(x0 + (i * 50), y0, x0 + (i * 50), y0 + 400);
+    }
+    // Centre X line brighter
+    Stroke(250, 250, 250, 0.8);
+    Line(x0 + 250, y0, x0 + 250, y0 + 400);
+
+    StrokeWidth(2);
+    Stroke(150, 150, 200, 0.8);
+
+    for (i = 0; i < 11; i = i + 1)
+    {
+      xv[0] = mcp3002_value(0);
+      yv[0] = mcp3002_value(1);
+    }
+
+    for (i = 0; i < 501; i = i + 1)
+    {
+      xv[i] = mcp3002_value(0);
+      //usleep(2);
+      yv[i] = mcp3002_value(1);
+      //usleep(2);
+    }
+
+    // Now build picture from sweep
+  
+    // Check for first flyback
+    int flyback = 0;
+
+    for (i = 0; i < 499; i = i + 1)
+    {
+      if ((xv[i] > 900) && (xv[i] < 1020) && (xv[i + 2] < 250) && (xv[i + 2] >150) && (flyback == 0))
       {
-        // Flyback is at i+1
-        flyback = i + 1;
+         //flyback is at i+1 or i+2
+        if (xv[i + 1] < 609)
+        {
+          // Flyback is at i+1
+          flyback = i + 1;
+        }
+        else
+        {
+          // Flyback is at i+2
+          flyback = i + 2;
+        }
+      }
+    }
+  
+    // X scan goes from 200 to 1010
+
+    // Now build matrix of 501 points
+    int point[501];
+    int ramp[501];
+    int currentsample;
+    currentsample = flyback;
+
+    for (i = 1; i < 501; i = i + 1)
+    {
+      point[i] = 0;
+      if (yv[currentsample] > 1023)
+      {
+        yv[currentsample] = 0;
+      }
+ 
+      if ((xv[i] - 200) > ((i / 501) * 810))
+      {
+        point[i] = yv[currentsample]*400/1024;
+        currentsample = currentsample + 1;
       }
       else
       {
-        // Flyback is at i+2
-        flyback = i + 2;
+        point[i] = yv[currentsample]*400/1024;
       }
-    }
-  }
-  
-  // X scan goes from 200 to 1010
-
-  // Now build matrix of 501 points
-  int point[501];
-  int ramp[501];
-  int currentsample;
-  currentsample = flyback;
-
-  for (i = 1; i < 501; i = i + 1)
-  {
-    point[i] = 0;
-    if (yv[currentsample] > 1023)
-    {
-      yv[currentsample] = 0;
-    }
+      ramp[i] = xv[currentsample];
+    }  
+    point[0] = point[1];
+    ramp[0] = ramp[1];
  
-    if ((xv[i] - 200) > ((i / 501) * 810))
+    for (i = 0; i < 500; i = i + 1)
     {
-      point[i] = yv[currentsample]*400/1024;
-      currentsample = currentsample + 1;
+      //Line(x1, y1, x2, y2 VGfloat)
+      //printf("i = %d, y = %d\n", i, yv[i]);
+      //printf("i = %d, x = %d, point = %d\n", i, ramp[i], point[i]);
+      Line(i + x0, y0 + point[i], i + x0 + 1, y0 + point[i+1]);
     }
-    else
-    {
-      point[i] = yv[currentsample]*400/1024;
-    }
-    ramp[i] = xv[currentsample];
-  }  
-  point[0] = point[1];
-  ramp[0] = ramp[1];
+
+    //printf ("flyback = %d, before = %d, on = %d, after = %d", flyback, xv[flyback-1], xv[flyback], xv[flyback+1]);
+
+    End();
+
+    //wait_touch(); Uncomment for single sweep  
  
-  for (i = 0; i < 500; i = i + 1)
-  {
-    //Line(x1, y1, x2, y2 VGfloat)
-    //printf("i = %d, y = %d\n", i, yv[i]);
-    printf("i = %d, x = %d, point = %d\n", i, ramp[i], point[i]);
-    Line(i + x0, y0 + point[i], i + x0 + 1, y0 + point[i+1]);
+   vgClear(x0, y0, x0 + 501, y0 + 401);
   }
 
-    printf ("flyback = %d, before = %d, on = %d, after = %d", flyback, xv[flyback-1], xv[flyback], xv[flyback+1]);
-
-
-  End();
-
-  //wait_touch();
-  vgClear(x0, y0, x0 + 501, y0 + 401);
-  ShowTitle();
-
-  }
   pthread_join(thbutton, NULL);
 
+  // Clear the screen and display the Logo
+  DisplayLogo();
 }
