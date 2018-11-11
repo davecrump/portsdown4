@@ -8,7 +8,6 @@
 
 int8_t IndicationGPIO;
 int8_t ButtonGPIO;
-char sdnCommand[32];
 _timer_t shutdown_button_timer;
 
 void Edge_ISR(void);
@@ -69,9 +68,6 @@ int main( int argc, char *argv[] )
 		return 0;
 	}
     
-    /* Set up command in a buffer */
-    snprintf(sdnCommand,32,"shutdown -h now");
-    
     if(IndicationGPIO >= 0)
     {
         pinMode(IndicationGPIO, OUTPUT);
@@ -112,6 +108,6 @@ void Edge_ISR(void)
 void Shutdown_Function(void)
 {
     /* Shut. It. Down */
-    system("sudo swapoff -a");
-    system(sdnCommand);
+    system("/home/pi/rpidatv/scripts/shutdown_script.sh &");
+    exit;
 }
