@@ -1,9 +1,9 @@
 ![portsdown banner](/doc/img/Portsdown3.jpg)
 # portsdown
 
-**Portsdown** is a DVB-S digital television transmitter for Raspberry Pi 3.  The core of the transmitter was written by Evariste Courjaud F5OEO and is maintained by him.  This BATC Version, known as the Portsdown Transmitter, has been developed by a team of BATC members for use with an external synthesized oscillator and modulator/filter board to produce a signal suitable for driving a high power amateur television transmitter on the 146, 432 or 1296 MHz bands.  The idea is that the design should be reproducible by someone who has never used Linux before.  Detailed instructions on loading the software are listed below, and further details of the complete transmitter design and build are on the BATC Wiki at https://wiki.batc.tv/The_Portsdown_Transmitter.  There is a Forum for discussion of the project here: http://www.batc.org.uk/forum/viewforum.php?f=103
+**Portsdown** is a DVB-S and DVB-S2 digital television transmitter for Raspberry Pi 3.  The core of the transmitter was written by Evariste Courjaud F5OEO and is maintained by him.  This BATC Version, known as the Portsdown Transmitter, has been developed by a team of BATC members for use with an external synthesized oscillator and modulator/filter board to produce a signal suitable for driving a high power amateur television transmitter on the 146, 432 or 1296 MHz bands.  The idea is that the design should be reproducible by someone who has never used Linux before.  Detailed instructions on loading the software are listed below, and further details of the complete transmitter design and build are on the BATC Wiki at https://wiki.batc.tv/The_Portsdown_Transmitter.  There is a Forum for discussion of the project here: http://www.batc.org.uk/forum/viewforum.php?f=103
 
-This version is based on Raspbian Stretch and is compatible with the Raspberry Pi 3 B+.  It is the version on which development effort will be focused.  The older Jessie version will still be supported, but may not be updated with as many new features.
+This version is based on Raspbian Stretch and is compatible with the Raspberry Pi 3B and 3B+.  It is the version on which development effort will be focused.  The older Jessie version will still be supported, but may not be updated with as many new features.
 
 Our thanks to Evariste and all the other contributors to this community project.  All code within the project is GPL.
 
@@ -11,7 +11,7 @@ Our thanks to Evariste and all the other contributors to this community project.
 
 The preferred installation method only needs a Windows PC connected to the same (internet-connected) network as your Raspberry Pi.  Do not connect a keyboard or HDMI display directly to your Raspberry Pi.
 
-- First download the 27 June 2018 release of Raspbian Stretch Lite (recent change) on to your Windows PC from here http://downloads.raspberrypi.org/raspbian_lite/images/raspbian_lite-2018-06-29/2018-06-27-raspbian-stretch-lite.zip
+- First download the 13 November 2018 release of Raspbian Stretch Lite on to your Windows PC from here http://downloads.raspberrypi.org/raspbian_lite/images/raspbian_lite-2018-11-15/2018-11-13-raspbian-stretch-lite.zip
 
 - Unzip the image and then transfer it to a Micro-SD Card using Win32diskimager https://sourceforge.net/projects/win32diskimager/
 

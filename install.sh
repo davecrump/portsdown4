@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Stretch Version by davecrump on 201810270
+# Stretch Version by davecrump on 201811170
 
 # Update the package manager
 sudo dpkg --configure -a
@@ -10,10 +10,10 @@ sudo apt-get update
 # http://unix.stackexchange.com/questions/124468/how-do-i-resolve-an-apparent-hanging-update-process
 sudo apt-get -y remove apt-listchanges
 
-# -------- Do not upgrade distribution until firmware IL and mmal issues are fixed ------
+# -------- Upgrade distribution ------
 
 # Update the distribution
-#sudo apt-get -y dist-upgrade
+sudo apt-get -y dist-upgrade
 
 # Install the packages that we need
 sudo apt-get -y install git
