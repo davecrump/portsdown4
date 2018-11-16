@@ -4751,29 +4751,6 @@ void GreyOut11()
   }
 }
 
-void GreyOutReset13()
-{
-  SetButtonStatus(ButtonNumber(CurrentMenu, 3), 0); // Lime Mini
-  SetButtonStatus(ButtonNumber(CurrentMenu, 7), 0); // DATV Express
-  SetButtonStatus(ButtonNumber(CurrentMenu, 8), 0); // Lime USB
-}
-
-void GreyOut13()
-{
-  if (CheckExpressConnect() == 1)   // DATV Express not connected so GreyOut
-  {
-    SetButtonStatus(ButtonNumber(CurrentMenu, 7), 2); // DATV Express
-  }
-  if (CheckLimeMiniConnect() == 1)  // Lime Mini not connected so GreyOut
-  {
-    SetButtonStatus(ButtonNumber(CurrentMenu, 3), 2); // Lime Mini
-  }
-  if (CheckLimeUSBConnect() == 1)  // Lime USB not connected so GreyOut
-  {
-    SetButtonStatus(ButtonNumber(CurrentMenu, 8), 2); // Lime USB
-  }
-}
-
 void GreyOut15()
 {
   if (strcmp(CurrentFormat, "1080p") == 0)
@@ -6129,8 +6106,9 @@ void TransmitStart()
   }
 
   // Check if a desktop mode is selected; if so, display desktop
+  // || (strcmp(ModeInput,"PATERNAUDIO") == 0) removed in 201811170
+
   if  ((strcmp(ModeInput,"CARDH264")==0)
-    || (strcmp(ModeInput,"PATERNAUDIO") == 0)
     || (strcmp(ModeInput,"CONTEST") == 0) 
     || (strcmp(ModeInput,"DESKTOP") == 0)
     || (strcmp(ModeInput,"CARDMPEG-2")==0)
@@ -6143,7 +6121,10 @@ void TransmitStart()
   }
 
   // Check if non-display input mode selected.  If so, turn off response to buttons.
+  // Added || (strcmp(ModeInput,"PATERNAUDIO") == 0) in 201811170
+
   if ((strcmp(ModeInput,"ANALOGCAM") == 0)
+    || (strcmp(ModeInput,"PATERNAUDIO") == 0)
     ||(strcmp(ModeInput,"WEBCAMH264") == 0)
     ||(strcmp(ModeInput,"ANALOGMPEG-2") == 0)
     ||(strcmp(ModeInput,"CARRIER") == 0)
@@ -11231,7 +11212,7 @@ void waituntil(int w,int h)
         default:
           printf("Menu 42 Error\n");
         }
-        Start_Highlights_Menu13();  // Update Menu appearance
+        Start_Highlights_Menu42();  // Update Menu appearance
         UpdateWindow();             // and display for half a second
         usleep(500000);
         SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 0); // Reset cancel (even if not selected)
@@ -12748,18 +12729,18 @@ void Start_Highlights_Menu12()
 void Define_Menu13()
 {
   int button;
-  color_t Green;
-  color_t Blue;
-  color_t Grey;
+  //color_t Green;
+  //color_t Blue;
+  //color_t Grey;
   color_t LBlue;
   color_t DBlue;
-  Green.r=0; Green.g=128; Green.b=0;
-  Blue.r=0; Blue.g=0; Blue.b=128;
-  Grey.r=127; Grey.g=127; Grey.b=127;
+  //Green.r=0; Green.g=128; Green.b=0;
+  //Blue.r=0; Blue.g=0; Blue.b=128;
+  //Grey.r=127; Grey.g=127; Grey.b=127;
   LBlue.r=64; LBlue.g=64; LBlue.b=192;
   DBlue.r=0; DBlue.g=0; DBlue.b=64;
 
-  strcpy(MenuTitle[13], "Output Device Menu (13)"); 
+  strcpy(MenuTitle[13], "Not Used Menu (13)"); 
 
   // Bottom Row, Menu 13
 
@@ -12767,97 +12748,13 @@ void Define_Menu13()
   AddButtonStatus(button, "Cancel", &DBlue);
   AddButtonStatus(button, "Cancel", &LBlue);
 
-  button = CreateButton(13, 0);
-  AddButtonStatus(button, TabModeOPtext[5], &Blue);
-  AddButtonStatus(button, TabModeOPtext[5], &Green);
-
-  button = CreateButton(13, 1);
-  AddButtonStatus(button, TabModeOPtext[6], &Blue);
-  AddButtonStatus(button, TabModeOPtext[6], &Green);
-
-  button = CreateButton(13, 2);
-  AddButtonStatus(button, TabModeOPtext[7], &Blue);
-  AddButtonStatus(button, TabModeOPtext[7], &Green);
-
-  button = CreateButton(13, 3);
-  AddButtonStatus(button, TabModeOPtext[8], &Blue);
-  AddButtonStatus(button, TabModeOPtext[8], &Green);
-  AddButtonStatus(button, TabModeOPtext[8], &Grey);
 
   // 2nd Row, Menu 13
 
-  button = CreateButton(13, 5);
-  AddButtonStatus(button, TabModeOPtext[0], &Blue);
-  AddButtonStatus(button, TabModeOPtext[0], &Green);
-
-  button = CreateButton(13, 6);
-  AddButtonStatus(button, TabModeOPtext[1], &Blue);
-  AddButtonStatus(button, TabModeOPtext[1], &Green);
-
-  button = CreateButton(13, 7);
-  AddButtonStatus(button, TabModeOPtext[2], &Blue);
-  AddButtonStatus(button, TabModeOPtext[2], &Green);
-  AddButtonStatus(button, TabModeOPtext[2], &Grey);
-
-  button = CreateButton(13, 8);
-  AddButtonStatus(button, TabModeOPtext[3], &Blue);
-  AddButtonStatus(button, TabModeOPtext[3], &Green);
-  AddButtonStatus(button, TabModeOPtext[3], &Grey);
-
-  button = CreateButton(13, 9);
-  AddButtonStatus(button, TabModeOPtext[4], &Blue);
-  AddButtonStatus(button, TabModeOPtext[4], &Green);
 }
 
 void Start_Highlights_Menu13()
 {
-  GreyOutReset13();
-  if(strcmp(CurrentModeOP, TabModeOP[0]) == 0)
-  {
-    SelectInGroupOnMenu(13, 5, 9, 5, 1);
-    SelectInGroupOnMenu(13, 0, 2, 5, 1);
-  }
-  if(strcmp(CurrentModeOP, TabModeOP[1]) == 0)
-  {
-    SelectInGroupOnMenu(13, 5, 9, 6, 1);
-    SelectInGroupOnMenu(13, 0, 2, 6, 1);
-  }
-  if(strcmp(CurrentModeOP, TabModeOP[2]) == 0)
-  {
-    SelectInGroupOnMenu(13, 5, 9, 7, 1);
-    SelectInGroupOnMenu(13, 0, 2, 7, 1);
-  }
-  if(strcmp(CurrentModeOP, TabModeOP[3]) == 0)
-  {
-    SelectInGroupOnMenu(13, 5, 9, 8, 1);
-    SelectInGroupOnMenu(13, 0, 2, 8, 1);
-  }
-  if(strcmp(CurrentModeOP, TabModeOP[4]) == 0)
-  {
-    SelectInGroupOnMenu(13, 5, 9, 9, 1);
-    SelectInGroupOnMenu(13, 0, 2, 9, 1);
-  }
-  if(strcmp(CurrentModeOP, TabModeOP[5]) == 0)
-  {
-    SelectInGroupOnMenu(13, 5, 9, 0, 1);
-    SelectInGroupOnMenu(13, 0, 2, 0, 1);
-  }
-  if(strcmp(CurrentModeOP, TabModeOP[6]) == 0)
-  {
-    SelectInGroupOnMenu(13, 5, 9, 1, 1);
-    SelectInGroupOnMenu(13, 0, 2, 1, 1);
-  }
-  if(strcmp(CurrentModeOP, TabModeOP[7]) == 0)
-  {
-    SelectInGroupOnMenu(13, 5, 9, 2, 1);
-    SelectInGroupOnMenu(13, 0, 2, 2, 1);
-  }
-  if(strcmp(CurrentModeOP, TabModeOP[8]) == 0)
-  {
-    SelectInGroupOnMenu(13, 5, 9, 2, 1);
-    SelectInGroupOnMenu(13, 0, 3, 3, 1);
-  }
-  GreyOut13();
 }
 
 void Define_Menu14()

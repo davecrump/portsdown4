@@ -1,7 +1,7 @@
 #! /bin/bash
 # set -x #Uncomment for testing
 
-# Version 201807150
+# Version 201811170
 
 ############# SET GLOBAL VARIABLES ####################
 
@@ -689,8 +689,7 @@ let BITRATE_TS=SYMBOLRATE*BITSPERSYMBOL*188*FECNUM/204/FECDEN
 
 echo Theoretical Bitrate TS $BITRATE_TS
 
-
-# Calculate the Video Bit Rate for Sound/no sound
+# Calculate the Video Bit Rate for MPEG-2 Sound/no sound
 if [ "$MODE_INPUT" == "CAMMPEG-2" ] || [ "$MODE_INPUT" == "ANALOGMPEG-2" ] \
   || [ "$MODE_INPUT" == "CAMHDMPEG-2" ] || [ "$MODE_INPUT" == "CARDMPEG-2" ] \
   || [ "$MODE_INPUT" == "CAM16MPEG-2" ] || [ "$MODE_INPUT" == "ANALOG16MPEG-2" ]; then
@@ -699,7 +698,7 @@ if [ "$MODE_INPUT" == "CAMMPEG-2" ] || [ "$MODE_INPUT" == "ANALOGMPEG-2" ] \
   else
     let BITRATE_VIDEO=(BITRATE_TS*75)/100-10000
   fi
-else 
+else # h264
   let BITRATE_VIDEO=(BITRATE_TS*75)/100-10000
 fi
 
@@ -741,6 +740,13 @@ else
     fi
   fi
 fi
+
+# Set h264 aac audio bitrate for avc2ts
+BITRATE_AUDIO=24000
+
+# Set IDRPeriod for avc2ts
+# Default is 100, ie one every 4 sec at 25 fps
+IDRPERIOD=100
 
 # Clean up before starting fifos
 sudo rm videoes
@@ -813,17 +819,17 @@ case "$MODE_INPUT" in
     # Now generate the stream
     if [ "$AUDIO_CARD" == 0 ]; then
       # ******************************* H264 VIDEO, NO AUDIO ************************************
-      $PATHRPI"/avc2ts.old" -b $BITRATE_VIDEO -m $BITRATE_TS -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
-        -f $VIDEO_FPS -i 100 -p $PIDPMT -s $CHANNEL $OUTPUT_FILE $OUTPUT_IP > /dev/null &
+      $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
+        -f $VIDEO_FPS -i $IDRPERIOD $OUTPUT_FILE -t 0 -e $ANALOGCAMNAME -p $PIDPMT -s $CHANNEL $OUTPUT_IP > /dev/null &
     else
       # ******************************* H264 VIDEO WITH AUDIO ************************************
       arecord -f S16_LE -r 48000 -c 2 -B 100 -D plughw:$AUDIO_CARD_NUMBER,0 > audioin.wav &
 
-
       let BITRATE_VIDEO=$BITRATE_VIDEO-30000  # Make room for audio
 
-      $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -x $VIDEO_WIDTH -y $VIDEO_HEIGHT\
-        -f $VIDEO_FPS -i 100 $OUTPUT_FILE -t 0 -e $ANALOGCAMNAME -p $PIDPMT -s $CHANNEL $OUTPUT_IP > /dev/null &
+      $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
+        -f $VIDEO_FPS -i $IDRPERIOD $OUTPUT_FILE -t 0 -e $ANALOGCAMNAME -p $PIDPMT -s $CHANNEL $OUTPUT_IP \
+        -a audioin.wav -z $BITRATE_AUDIO > /dev/null &
     fi
   ;;
 
@@ -832,8 +838,6 @@ case "$MODE_INPUT" in
 
 # Set up the command for the MPEG-2 Callsign caption
 # Note that spaces are not allowed in the CAPTION string below!
-
-
 
 # Put caption at the bottom of the screen with locator for US users
 if [ "$IMAGE_HEIGHT" == "480" ]; then
@@ -995,8 +999,7 @@ fi
     esac
   ;;
 
-#============================================ H264 PATERN =============================================================
-
+#============================================ H264 TCANIM =============================================================
 
   "PATERNAUDIO")
 
@@ -1036,34 +1039,30 @@ fi
       ;;
     esac
 
-    # Now generate the stream
+    # Stop fbcp, becuase it conficts with avc2ts desktop
+    killall fbcp
+
+    # Start the animated test card
+    $PATHRPI"/tcanim1v16" $PATERNFILE"/*10" "48" "72" "CQ" "CQ CQ CQ DE "$CALL" IN $LOCATOR - DATV $SYMBOLRATEK KS FEC "$FECNUM"/"$FECDEN &
+
+    # Generate the stream
 
     if [ "$AUDIO_CARD" == 0 ]; then
-      # ******************************* H264 VIDEO, NO AUDIO ************************************
+      # ******************************* H264 TCANIM, NO AUDIO ************************************
 
-      $PATHRPI"/avc2ts.old" -b $BITRATE_VIDEO -m $BITRATE_TS -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
-        -f $VIDEO_FPS -i 100 $OUTPUT_FILE -t 3 -p $PIDPMT -s $CHANNEL $OUTPUT_IP &
-
-      $PATHRPI"/tcanim" $PATERNFILE"/*10" "48" "72" "CQ" "CQ CQ CQ DE "$CALL" IN $LOCATOR - DATV $SYMBOLRATEK KS FEC "$FECNUM"/"$FECDEN &
-
+      $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
+        -f $VIDEO_FPS -i $IDRPERIOD $OUTPUT_FILE -t 3 -p $PIDPMT -s $CHANNEL $OUTPUT_IP > /dev/null &
     else
-      # ******************************* H264 VIDEO WITH AUDIO ************************************
+      # ******************************* H264 TCANIM WITH AUDIO ************************************
 
-      $PATHRPI"/tcanim1v16" $PATERNFILE"/*10" "48" "72" "CQ" "CQ CQ CQ DE "$CALL" IN $LOCATOR - DATV $SYMBOLRATEK KS FEC "$FECNUM"/"$FECDEN &
-      sleep 1
       arecord -f S16_LE -r 48000 -c 2 -B 100 -D plughw:$AUDIO_CARD_NUMBER,0 > audioin.wav &
-
-      # Use old avc2ts until new one is fixed for desktop modes
-      #$PATHRPI"/avc2ts.old" -b $BITRATE_VIDEO -m $BITRATE_TS -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
-      #  -f $VIDEO_FPS -i 100 $OUTPUT_FILE -t 3 -p $PIDPMT -s $CHANNEL $OUTPUT_IP &
 
       let BITRATE_VIDEO=$BITRATE_VIDEO-30000  # Make room for audio
 
-      killall fbcp
       $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
-        -f $VIDEO_FPS -i 100 $OUTPUT_FILE -t 3 -p $PIDPMT -s $CHANNEL $OUTPUT_IP > /dev/null &
+        -f $VIDEO_FPS -i $IDRPERIOD $OUTPUT_FILE -t 3 -p $PIDPMT -s $CHANNEL $OUTPUT_IP \
+        -a audioin.wav -z $BITRATE_AUDIO > /dev/null &
     fi
-
   ;;
 
 #============================================ VNC =============================================================
@@ -1105,8 +1104,25 @@ fi
       esac
 
     # Now generate the stream
-    $PATHRPI"/avc2ts.old" -b $BITRATE_VIDEO -m $BITRATE_TS -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
-      -f $VIDEO_FPS -i 100 $OUTPUT_FILE -t 4 -e $VNCADDR -p $PIDPMT -s $CHANNEL $OUTPUT_IP &
+    #$PATHRPI"/avc2ts.old" -b $BITRATE_VIDEO -m $BITRATE_TS -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
+    #  -f $VIDEO_FPS -i 100 $OUTPUT_FILE -t 4 -e $VNCADDR -p $PIDPMT -s $CHANNEL $OUTPUT_IP &
+
+    if [ "$AUDIO_CARD" == 0 ]; then
+      # ******************************* H264 VIDEO, NO AUDIO ************************************
+      $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
+        -f $VIDEO_FPS -i $IDRPERIOD $OUTPUT_FILE -t 4 -e $VNCADDR -p $PIDPMT -s $CHANNEL $OUTPUT_IP \
+        > /dev/null &
+    else
+      # ******************************* H264 VIDEO WITH AUDIO ************************************
+      arecord -f S16_LE -r 48000 -c 2 -B 100 -D plughw:$AUDIO_CARD_NUMBER,0 > audioin.wav &
+
+      let BITRATE_VIDEO=$BITRATE_VIDEO-30000  # Make room for audio
+
+      $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
+        -f $VIDEO_FPS -i $IDRPERIOD $OUTPUT_FILE -t 4 -e $VNCADDR -p $PIDPMT -s $CHANNEL $OUTPUT_IP \
+        -a audioin.wav -z $BITRATE_AUDIO > /dev/null &
+    fi
+
   ;;
 
   #============================================ ANALOG and WEBCAM H264 =============================================================
@@ -1174,16 +1190,18 @@ fi
     if [ "$AUDIO_CARD" == 0 ]; then
       # ******************************* H264 VIDEO, NO AUDIO ************************************
 
-      $PATHRPI"/avc2ts.old" -b $BITRATE_VIDEO -m $BITRATE_TS -x $VIDEO_WIDTH -y $VIDEO_HEIGHT\
-        -f $VIDEO_FPS -i 100 $OUTPUT_FILE -t 2 -e $ANALOGCAMNAME -p $PIDPMT -s $CHANNEL $OUTPUT_IP &
+      $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
+        -f $VIDEO_FPS -i $IDRPERIOD $OUTPUT_FILE -t 2 -e $ANALOGCAMNAME -p $PIDPMT -s $CHANNEL $OUTPUT_IP \
+      > /dev/null &
     else
       # ******************************* H264 VIDEO WITH AUDIO ************************************
       arecord -f S16_LE -r 48000 -c 2 -B 100 -D plughw:$AUDIO_CARD_NUMBER,0 > audioin.wav &
 
       let BITRATE_VIDEO=$BITRATE_VIDEO-30000  # Make room for audio
 
-      $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -x $VIDEO_WIDTH -y $VIDEO_HEIGHT\
-        -f $VIDEO_FPS -i 100 $OUTPUT_FILE -t 2 -e $ANALOGCAMNAME -p $PIDPMT -s $CHANNEL $OUTPUT_IP > /dev/null &
+      $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
+        -f $VIDEO_FPS -i $IDRPERIOD $OUTPUT_FILE -t 2 -e $ANALOGCAMNAME -p $PIDPMT -s $CHANNEL $OUTPUT_IP \
+      -a audioin.wav -z $BITRATE_AUDIO > /dev/null &
     fi
   ;;
 
@@ -1266,29 +1284,28 @@ fi
 
     esac
 
+    # Pause to allow test card to be displayed
+    sleep 1
+
+    #  Before fbcp is stopped because it conflicts with avc2ts
+    killall fbcp
+
     # Now generate the stream
 
     if [ "$AUDIO_CARD" == 0 ]; then
       # ******************************* H264 VIDEO, NO AUDIO ************************************
-
-      $PATHRPI"/avc2ts.old" -b $BITRATE_VIDEO -m $BITRATE_TS -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
-        -f $VIDEO_FPS -i 100 $OUTPUT_FILE -t 3 -p $PIDPMT -s $CHANNEL $OUTPUT_IP &
+      $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
+        -f $VIDEO_FPS -i $IDRPERIOD $OUTPUT_FILE -t 3 -p $PIDPMT -s $CHANNEL $OUTPUT_IP \
+        > /dev/null  &
     else
       # ******************************* H264 VIDEO WITH AUDIO ************************************
-      sleep 1 # to allow test card to be displayed
       arecord -f S16_LE -r 48000 -c 2 -B 100 -D plughw:$AUDIO_CARD_NUMBER,0 > audioin.wav &
-
-      # Old avc2ts:
-      #$PATHRPI"/avc2ts.old" -b $BITRATE_VIDEO -m $BITRATE_TS -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
-      #  -f $VIDEO_FPS -i 100 $OUTPUT_FILE -t 3 -p $PIDPMT -s $CHANNEL $OUTPUT_IP &
-
-      # Use new avc2ts, but kill fbcp first as it conflicts
-      sudo killall fbcp
 
       let BITRATE_VIDEO=$BITRATE_VIDEO-30000  # Make room for audio
 
       $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
-        -f $VIDEO_FPS -i 100 $OUTPUT_FILE -t 3 -p $PIDPMT -s $CHANNEL $OUTPUT_IP > /dev/null &
+        -f $VIDEO_FPS -i $IDRPERIOD $OUTPUT_FILE -t 3 -p $PIDPMT -s $CHANNEL $OUTPUT_IP \
+      -a audioin.wav -z $BITRATE_AUDIO > /dev/null &
     fi
   ;;
 

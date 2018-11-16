@@ -1,9 +1,15 @@
+201811170
+Use new avc2ts in all H264 modes except C920 and Streaming
+Update to latest Raspbian Version
+Display Touch buttons during Animated Test Card transmission
+Highlight output sources after selection
+
 201811100
 Experimental Support for DVB-S2 modes with Lime
 Experimental support for Lime USB (in addition to Lime Mini)
 Enabled caption on Pi Cam Streamer Output
 Corrected streamer fail-to-start after use of H264 RF modes
-Added System Menu with "Restore to Fractory Settings"
+Added System Menu with "Restore to Factory Settings"
 Improved hardware shudown button response time
 Multiple Touchscreen Menu improvements
 Added Menus and buttons for candidate future capabilities

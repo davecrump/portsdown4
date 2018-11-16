@@ -1,6 +1,6 @@
 #! /bin/bash
 
-# Updated by davecrump 20180729
+# Updated by davecrump 201811170
 
 DisplayUpdateMsg() {
   # Delete any old update message image
@@ -28,8 +28,8 @@ sudo dpkg --configure -a     # Make sure that all the packages are properly conf
 sudo apt-get clean           # Clean up the old archived packages
 sudo apt-get update          # Update the package list
 
-# --- Do not upgrade firmware until mmal fix is ready ----
-#sudo apt-get -y dist-upgrade # Upgrade all the installed packages to their latest version
+# --- Upgrade firmware and packages ----
+sudo apt-get -y dist-upgrade # Upgrade all the installed packages to their latest version
 
 DisplayUpdateMsg "2 Installing new packages"
 
