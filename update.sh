@@ -130,6 +130,7 @@ cp -f -r portsdown-master/video rpidatv
 cp -f -r portsdown-master/version_history.txt rpidatv/version_history.txt
 rm master.zip
 rm -rf portsdown-master
+cd /home/pi
 
 # Check which avc2ts to download.  Default is production
 # option d is development from davecrump
@@ -143,7 +144,7 @@ fi
 
 # Unzip the avc2ts software and copy to the Pi
 unzip -o master.zip
-cp -f -r avc2ts-master avc2ts
+cp -f -r avc2ts-master/* /home/pi/avc2ts
 rm master.zip
 rm -rf avc2ts-master
 
@@ -214,6 +215,7 @@ fi
 
 # Make the new avc2ts
 cd /home/pi/avc2ts
+touch avc2ts.cpp
 make
 cp avc2ts ../rpidatv/bin/
 cd ..
