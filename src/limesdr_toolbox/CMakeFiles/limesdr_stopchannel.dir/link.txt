@@ -1,0 +1,1 @@
+/usr/bin/cc     CMakeFiles/limesdr_stopchannel.dir/limesdr_stopchannel.c.o  -o limesdr_stopchannel  -L/usr/local/lib/libLimeSuite.so -Wl,-rpath,/usr/local/lib/libLimeSuite.so:/usr/local/lib -rdynamic /usr/local/lib/libLimeSuite.so 

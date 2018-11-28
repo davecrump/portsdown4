@@ -1,0 +1,1 @@
+/usr/bin/cc     CMakeFiles/limesdr_dump.dir/limesdr_dump.c.o CMakeFiles/limesdr_dump.dir/limesdr_util.c.o  -o limesdr_dump  -L/usr/local/lib/libLimeSuite.so -Wl,-rpath,/usr/local/lib/libLimeSuite.so:/usr/local/lib -rdynamic /usr/local/lib/libLimeSuite.so 

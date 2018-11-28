@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Updated by davecrump 201811170
+# Updated by davecrump 201811300
 
 DisplayUpdateMsg() {
   # Delete any old update message image  201802040
@@ -100,7 +100,57 @@ cd /lib/systemd/system/
 if ! grep -q MountFlags=shared systemd-udevd.service; then
   sudo sed -i -e 's/MountFlags=slave/MountFlags=shared/' systemd-udevd.service
 fi
-cd /home/pi
+
+# Check if Lime needs to be updated
+# Look for Commit 809c16c
+grep -Fxqs "809c16c" /home/pi/LimeSuite/commit_tag.txt
+Lime_Update_Not_Required=$?
+
+if [ $Lime_Update_Not_Required != 0 ]
+
+  # Install packages here to catch first-time Lime Install
+  sudo apt-get -y install libsqlite3-dev libi2c-dev 
+
+  # Delete the old installation files
+  sudo rm -rf /usr/local/lib/cmake/LimeSuite/* >/dev/null 2>/dev/null
+  sudo rm -rf /usr/local/include/lime/* >/dev/null 2>/dev/null
+  sudo rm -rf /usr/local/lib/libLimeSuite.* >/dev/null 2>/dev/null
+  sudo rm -rf /usr/local/lib/pkgconfig/LimeSuite.pc >/dev/null 2>/dev/null
+  sudo rm -rf /usr/local/bin/LimeUtil >/dev/null 2>/dev/null
+  sudo rm -rf /usr/local/bin/LimeQuickTest >/dev/null 2>/dev/null
+  sudo rm -rf /home/pi/LimeSuite >/dev/null 2>/dev/null
+
+  # Install LimeSuite 18.04 as at 14 Nov 18
+  # Commit 809c16ccb88fe1b714200777d1676b3f35757832
+  cd /home/pi
+  wget https://github.com/myriadrf/LimeSuite/archive/809c16ccb88fe1b714200777d1676b3f35757832.zip -O master.zip
+  unzip -o master.zip
+  cp -f -r LimeSuite-809c16ccb88fe1b714200777d1676b3f35757832 LimeSuite
+  rm -rf LimeSuite-809c16ccb88fe1b714200777d1676b3f35757832
+  rm master.zip
+
+  # Compile LimeSuite
+  cd LimeSuite/
+  mkdir dirbuild
+  cd dirbuild/
+  cmake ../
+  make
+  sudo make install
+  sudo ldconfig
+
+  # Install udev rules for LimeSuite
+  cd /home/pi
+  cd LimeSuite/udev-rules
+  chmod +x install.sh
+  sudo /home/pi/LimeSuite/udev-rules/install.sh
+
+  # Record the LimeSuite Version
+  echo "809c16c" >/home/pi/LimeSuite/commit_tag.txt
+fi
+
+# Delete old limetool and binary
+rm -r -f /home/pi/limetool
+rm -r -f /home/pi/rpidatv/bin/limetx
 
 # ---------- Update rpidatv -----------
 
@@ -165,13 +215,6 @@ make clean
 make
 sudo make install
 cd ../
-
-# Compile old avc2ts (No changes - so not required)
-#sudo killall -9 avc2ts
-#cd avc2ts
-#make clean
-#make
-#sudo make install
 
 # Check if avc2ts dependencies need to be installed 201810270
 if [ ! -f "/home/pi/avc2ts/libmpegts/version.sh" ]; then
@@ -249,14 +292,26 @@ if [ ! -f "/usr/bin/omxplayer" ]; then
   sudo apt-get -y install omxplayer
 fi
 
-# Check if limetools need to be compiled (only if Lime is installed)
-if [ -f "/home/pi/LimeSuite/README.md" ]; then
-  cd /home/pi/rpidatv/src/limetool
-  touch limetx.c
-  make
-  cp -f limetx /home/pi/rpidatv/bin/limetx
-  cd /home/pi
-fi
+# Delete Limetool
+rm -rf /home/pi/rpidatv/src/limetool
+rm -rf /home/pi/rpidatv/bin/limetx
+
+# Install limesdr_toolbox
+cd /home/pi/rpidatv/src/limesdr_toolbox
+cmake .
+make
+cp limesdr_dump  ../../bin/
+cp limesdr_send ../../bin/
+cp limesdr_stopchannel ../../bin/
+cp limesdr_forward ../../bin/
+
+# Update libdvbmod and DvbTsToIQ
+cd /home/pi/rpidatv/src/libdvbmod
+make dirmake
+make
+cd ../DvbTsToIQ
+make
+cp dvb2iq ../../bin/
 
 # There is no step 7!
 

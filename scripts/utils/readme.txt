@@ -7,5 +7,7 @@ guir.sh      runs rpidatvtouch.c
 
 usgr.sh      compiles and runs siggentouch.c
 
-ult.sh compiles limetool and copies limetx into the bin folder
+udvb.sh       compiles libdvbmod, compiles DvbTsToIQ and then copies dvb2iq to the bin folder
+
+ulst.sh       compiles LimeSDR Toolbox and copies the 4 binaries to the bin folder
 

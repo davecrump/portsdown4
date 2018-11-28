@@ -911,33 +911,9 @@ void LimeConfig(int NoButton)
   switch(NoButton)
   {
   case 0:  // Install Lime Mini and USB with working version
-    // Stop the GUI and run the install script
-    finish();
-    system("/home/pi/rpidatv/scripts/install_lime.sh");
-
-    // Restart the gui
-    init(&wscreen, &hscreen);
-    Start(wscreen, hscreen);
-    wait_touch();
-
-    // Replace the final update message with the BATC Logo
-    system("sudo fbi -T 1 -noverbose -a \"/home/pi/rpidatv/scripts/images/BATC_Black.png\" >/dev/null 2>/dev/null");
-    system("(sleep 1; sudo killall -9 fbi >/dev/null 2>/dev/null) &");
     break;
 
   case 1:  // Install Lime Mini and USB with latest, non-working version
-    // Stop the GUI and run the install script
-    finish();
-    system("/home/pi/rpidatv/scripts/install_lime_latest.sh");
-
-    // Restart the gui
-    init(&wscreen, &hscreen);
-    Start(wscreen, hscreen);
-    wait_touch();
-
-    // Replace the final update message with the BATC Logo
-    system("sudo fbi -T 1 -noverbose -a \"/home/pi/rpidatv/scripts/images/BATC_Black.png\" >/dev/null 2>/dev/null");
-    system("(sleep 1; sudo killall -9 fbi >/dev/null 2>/dev/null) &");
     break;
 
   case 5:
@@ -3341,6 +3317,50 @@ void LimeInfo()
 }
 
 /***************************************************************************//**
+ * @brief Displays Info about the installed LimeUtil
+ *        
+ * @param 
+ *
+ * @return void
+*******************************************************************************/
+
+void LimeUtilInfo()
+{
+  BackgroundRGB(0,0,0,255);  // Black background
+  Fill(255, 255, 255, 1);    // White text
+  VGfloat th = TextHeight(SansTypeface, 20);
+  Text(wscreen/12, hscreen - 1 * th, "LimeSuite Version Information", SansTypeface, 20);
+
+
+  FILE *fp;
+  char response[255];
+  int line = 0;
+
+  /* Open the command for reading. */
+  fp = popen("LimeUtil --info", "r");
+  if (fp == NULL) {
+    printf("Failed to run command\n" );
+    exit(1);
+  }
+
+  /* Read the output a line at a time - output it. */
+  while (fgets(response, 50, fp) != NULL)
+  {
+    if ((line > 4) && (line < 11))    // Select lines for display
+    {
+      Text(wscreen/12, hscreen - (1.5 * line - 2) * th, response, SansTypeface, 20);
+    }
+    line = line + 1;
+  }
+
+  /* close */
+  pclose(fp);
+  Text(wscreen/12, 1.2 * th, "Touch Screen to Continue", SansTypeface, 20);
+
+  End();
+}
+
+/***************************************************************************//**
  * @brief Stops the graphics system and displays the Portdown Logo
  *        
  * @param nil
@@ -5183,7 +5203,7 @@ void ChangeBandDetails(int NoButton)
   GetConfigParam(PATH_PPRESETS, Param, Value);
   while ((ExpPorts < 0) || (ExpPorts > 15))
   {
-    snprintf(Prompt, 63, "Enter Express Port Settings for the %s Band:", TabBandLabel[band]);
+    snprintf(Prompt, 63, "Enter the Express & Lime Port Settings for %s:", TabBandLabel[band]);
     Keyboard(Prompt, Value, 2);
     ExpPorts = atoi(KeyboardReturn);
   }
@@ -6185,7 +6205,8 @@ void TransmitStop()
   if((strcmp(ModeOutput, "LIMEMINI") == 0) || (strcmp(ModeOutput, "LIMEUSB") ==0 ))
   {
     system("sudo killall dvb2iq >/dev/null 2>/dev/null");
-    system("sudo killall limetx >/dev/null 2>/dev/null");
+    system("sudo killall limesdr_send >/dev/null 2>/dev/null");
+    system("/home/pi/rpidatv/bin/limesdr_stopchannel");
   }
 
   // Kill the key processes as nicely as possible
@@ -6207,7 +6228,7 @@ void TransmitStop()
   usleep(1000);
   system("sudo killall -9 avc2ts >/dev/null 2>/dev/null");
   system("sudo killall -9 avc2ts.old >/dev/null 2>/dev/null");
-  system("sudo killall -9 limetx >/dev/null 2>/dev/null");
+  system("sudo killall -9 limesdr_send >/dev/null 2>/dev/null");
 
   // And make sure rpidatv has been stopped (required for brief transmit selections)
   system("sudo killall -9 rpidatv >/dev/null 2>/dev/null");
@@ -8522,14 +8543,17 @@ void ChangePresetFreq(int NoButton)
   // Correct freq for transverter offset
   if (((TabBandLO[CurrentBand] < 0.1) && (TabBandLO[CurrentBand] > -0.1)) || (CallingMenu == 5))
   {
-    ;
+    ; // No transverter offset required
   }
-  else
+  else  // Calculate transverter offset
   {
-    PDfreq = atof(KeyboardReturn) - TabBandLO[CurrentBand];
-    if (TabBandLO[CurrentBand] < 0)
+    if (TabBandLO[CurrentBand] > 0)  // Low side LO
     {
-      PDfreq = TabBandLO[CurrentBand] - atof(KeyboardReturn);
+      PDfreq = atof(KeyboardReturn) - TabBandLO[CurrentBand];
+    }
+    else  // High side LO
+    {
+      PDfreq = -1 * (atof(KeyboardReturn) + TabBandLO[CurrentBand]);
     }
     snprintf(KeyboardReturn, 10, "%.1f", PDfreq);
   }
@@ -10986,9 +11010,13 @@ void waituntil(int w,int h)
           Start_Highlights_Menu1();
           UpdateWindow();
           break;
+        case 5:                               // Display LimeSuite Info Page
+          LimeUtilInfo();
+          wait_touch();
+          BackgroundRGB(0,0,0,255);
+          UpdateWindow();
+          break;
         case 6:  // Lime firmware update
-        case 0:  // Lime Install to Portsdown (working version)
-        case 1:  // Lime Install to Portsdown (latest, non-working version)
           printf("Lime Firmware Update or Install\n");
           LimeConfig(i);
           CurrentMenu=34;
@@ -14563,15 +14591,11 @@ void Define_Menu34()
   AddButtonStatus(button, "Exit", &DBlue);
   AddButtonStatus(button, "Exit", &LBlue);
 
-  button = CreateButton(34, 0);
-  AddButtonStatus(button, "Install^Lime", &Blue);
-  AddButtonStatus(button, "Install^Lime", &Green);
-
-  button = CreateButton(34, 1);
-  AddButtonStatus(button, "Break^Lime", &Blue);
-  AddButtonStatus(button, "Break^Lime", &Green);
-
   // 2nd Row, Menu 34
+
+  button = CreateButton(34, 5);
+  AddButtonStatus(button, "LimeUtil^Info", &Blue);
+  AddButtonStatus(button, "LimeUtil^Info", &Green);
 
   button = CreateButton(34, 6);
   AddButtonStatus(button, "Update^Lime FW", &Blue);

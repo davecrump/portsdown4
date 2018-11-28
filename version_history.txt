@@ -1,3 +1,9 @@
+201811300
+Lime install by default
+Lime upsampling and GPIO support
+Correct Streamer watchdog permissions
+Correct high-side LO transverter calculations
+
 201811170
 Use new avc2ts in all H264 modes except C920 and Streaming
 Update to latest Raspbian Version

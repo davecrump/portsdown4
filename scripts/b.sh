@@ -53,7 +53,7 @@ MODE_OUTPUT=$(get_config_var modeoutput $PCONFIGFILE)
   sudo killall avc2ts.old >/dev/null 2>/dev/null
   sudo killall netcat >/dev/null 2>/dev/null
   sudo killall dvb2iq >/dev/null 2>/dev/null
-  sudo killall limetx >/dev/null 2>/dev/null
+  sudo killall limesdr_send >/dev/null 2>/dev/null
 
   # Kill the key RX processes as nicely as possible
   sudo killall leandvb >/dev/null 2>/dev/null
@@ -71,8 +71,8 @@ MODE_OUTPUT=$(get_config_var modeoutput $PCONFIGFILE)
   # And make sure rpidatv has been stopped (required for brief transmit selections)
   sudo killall -9 rpidatv >/dev/null 2>/dev/null
 
-  # And make sure limetx has been stopped
-  sudo killall -9 limetx >/dev/null 2>/dev/null
+  # And make sure limesdr_send has been stopped
+  sudo killall -9 limesdr_send >/dev/null 2>/dev/null
 
   # Stop the audio for CompVid mode
   sudo killall arecord >/dev/null 2>/dev/null

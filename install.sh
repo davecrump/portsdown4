@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Stretch Version by davecrump on 201811170
+# Stretch Version by davecrump on 201811300
 
 # Update the package manager
 sudo dpkg --configure -a
@@ -22,6 +22,7 @@ sudo apt-get -y install ttf-dejavu-core bc usbmount fftw3-dev wiringpi libvncser
 sudo apt-get -y install fbi netcat imagemagick rng-tools
 sudo apt-get -y install libvdpau-dev libva-dev libxcb-shape0  # For latest ffmpeg build
 sudo apt-get -y install python-pip pandoc python-numpy pandoc python-pygame gdebi-core # 20180101 FreqShow
+sudo apt-get -y install libsqlite3-dev libi2c-dev # 201811300 Lime
 
 sudo pip install pyrtlsdr  #20180101 FreqShow
 
@@ -30,7 +31,33 @@ cd /lib/systemd/system/
 if ! grep -q MountFlags=shared systemd-udevd.service; then
   sudo sed -i -e 's/MountFlags=slave/MountFlags=shared/' systemd-udevd.service
 fi
+
+# Install LimeSuite 18.04 as at 14 Nov 18
+# Commit 809c16ccb88fe1b714200777d1676b3f35757832
 cd /home/pi
+wget https://github.com/myriadrf/LimeSuite/archive/809c16ccb88fe1b714200777d1676b3f35757832.zip -O master.zip
+unzip -o master.zip
+cp -f -r LimeSuite-809c16ccb88fe1b714200777d1676b3f35757832 LimeSuite
+rm -rf LimeSuite-809c16ccb88fe1b714200777d1676b3f35757832
+rm master.zip
+
+# Compile LimeSuite
+cd LimeSuite/
+mkdir dirbuild
+cd dirbuild/
+cmake ../
+make
+sudo make install
+sudo ldconfig
+
+# Install udev rules for LimeSuite
+cd /home/pi
+cd LimeSuite/udev-rules
+chmod +x install.sh
+sudo /home/pi/LimeSuite/udev-rules/install.sh
+
+# Record the LimeSuite Version
+echo "809c16c" >/home/pi/LimeSuite/commit_tag.txt
 
 # Check which rpidatv source to download.  Default is production
 # option d is development from davecrump
@@ -228,6 +255,23 @@ rm master.zip
 cd /home/pi/express_server
 make
 sudo make install
+
+# Install limesdr_toolbox
+cd /home/pi/rpidatv/src/limesdr_toolbox
+cmake .
+make
+cp limesdr_dump  ../../bin/
+cp limesdr_send ../../bin/
+cp limesdr_stopchannel ../../bin/
+cp limesdr_forward ../../bin/
+
+# Install libdvbmod and DvbTsToIQ
+cd /home/pi/rpidatv/src/libdvbmod
+make dirmake
+make
+cd ../DvbTsToIQ
+make
+cp dvb2iq ../../bin/
 
 cd /home/pi/rpidatv/scripts/
 
