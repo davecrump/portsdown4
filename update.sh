@@ -106,7 +106,7 @@ fi
 grep -Fxqs "809c16c" /home/pi/LimeSuite/commit_tag.txt
 Lime_Update_Not_Required=$?
 
-if [ $Lime_Update_Not_Required != 0 ]
+if [ $Lime_Update_Not_Required != 0 ]; then
 
   # Install packages here to catch first-time Lime Install
   sudo apt-get -y install libsqlite3-dev libi2c-dev 
