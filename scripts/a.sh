@@ -660,22 +660,57 @@ case "$MODE_OUTPUT" in
     arecord -D plughw:"$MICCARD",0 -f cd - | aplay -D plughw:"$RPICARD",0 - &
   ;;
 
-  LIMEMINI)
+  "LIMEMINI" | "LIMEUSB")
     OUTPUT=videots
-    # CALCULATE FREQUENCY IN K
+    BAND_CODE=$(get_config_var band $PCONFIGFILE)
+    case "$BAND_CODE" in
+    "d1" )
+      BAND_GPIO="0"
+    ;;
+    "d2" )
+      BAND_GPIO="1"
+    ;;
+    "d3" )
+      BAND_GPIO="2"
+    ;;
+    "d4" )
+      BAND_GPIO="3"
+    ;;
+    "t1" )
+      BAND_GPIO="4"
+    ;;
+    "t2" )
+      BAND_GPIO="5"
+    ;;
+    "t1" )
+      BAND_GPIO="6"
+    ;;
+    "t1" )
+      BAND_GPIO="7"
+    ;;
+    esac
+
+    # CALCULATE FREQUENCY IN KHz and Hz
     FREQ_OUTPUTK=`echo - | awk '{print '$FREQ_OUTPUT' * 1000}'`
+    FREQ_OUTPUTHZ=`echo - | awk '{print '$FREQ_OUTPUT' * 1000000}'`
+
+    # Set correct output port for LimeSDR Mini
+    if [ "$FREQ_OUTPUTK" -lt 2000000 ]; then
+      OUTPORT="BAND2"
+    else
+      OUTPORT="BAND1"
+    fi
+    # Switch Output Port for LimeSDR USB
+    if [ "$MODE_OUTPUT" == "LIMEUSB" ]; then
+      if [ "$OUTPORT" = "BAND1" ]; then
+        OUTPORT="BAND2"
+      else
+        OUTPORT="BAND1"
+      fi
+    fi
     LIME_GAIN=$(get_config_var limegain $PCONFIGFILE)
     $PATHSCRIPT"/ctlfilter.sh"
   ;;
-
-  LIMEUSB)
-    OUTPUT=videots
-    # CALCULATE FREQUENCY IN K
-    FREQ_OUTPUTK=`echo - | awk '{print '$FREQ_OUTPUT' * 1000}'`
-    LIME_GAIN=$(get_config_var limegain $PCONFIGFILE)
-    $PATHSCRIPT"/ctlfilter.sh"
-  ;;
-
 esac
 
 OUTPUT_QPSK="videots"
@@ -748,6 +783,34 @@ BITRATE_AUDIO=24000
 # Default is 100, ie one every 4 sec at 25 fps
 IDRPERIOD=100
 
+# Set the SDR Up-sampling rate and correct gain for Lime
+case "$MODE_OUTPUT" in
+  "LIMEMINI" | "LIMEUSB")
+    if [ "$SYMBOLRATE_K" -lt 990 ] ; then
+      UPSAMPLE=2
+      LIME_GAINF=`echo - | awk '{print '$LIME_GAIN' / 100}'`
+    elif [ "$SYMBOLRATE_K" -lt 1500 ] && [ "$MODULATION" == "DVB-S" ] ; then
+      UPSAMPLE=2
+      LIME_GAINF=`echo - | awk '{print '$LIME_GAIN' / 100}'`
+    else
+      UPSAMPLE=1
+      if [ "$LIME_GAIN" -lt 6 ]; then
+        LIMEGAIN=6
+      fi
+      LIME_GAINF=`echo - | awk '{print ( '$LIME_GAIN' - 6 ) / 100}'`
+    fi
+
+    # Equalise Carrier Mode Level fgor Lime
+    if [ "$MODE_INPUT" == "CARRIER" ]; then
+      if [ "$LIME_GAIN" -lt 6 ]; then
+        LIMEGAIN=6
+      fi
+      LIME_GAINF=`echo - | awk '{print ( '$LIME_GAIN' - 6 ) / 100}'`
+    fi
+  ;;
+esac
+
+
 # Clean up before starting fifos
 sudo rm videoes
 sudo rm videots
@@ -765,8 +828,11 @@ echo Bitrate Video $BITRATE_VIDEO
 echo Size $VIDEO_WIDTH x $VIDEO_HEIGHT at $VIDEO_FPS fps
 echo "************************************"
 echo "ModeINPUT="$MODE_INPUT
+#
+echo "LIME_GAINF="$LIME_GAINF
 
 OUTPUT_FILE="-o videots"
+
 
 case "$MODE_INPUT" in
 
@@ -795,17 +861,11 @@ case "$MODE_INPUT" in
         echo "set ptt tx" >> /tmp/expctrl
         sudo nice -n -30 netcat -u -4 127.0.0.1 1314 < videots & 
       ;;
-      "LIMEMINI")
-        /home/pi/libdvbmod/DvbTsToIQ/dvb2iq -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
-          -m $MODTYPE -c $CONSTLN \
-          | buffer \
-          | sudo $PATHRPI"/limetx" -s $SYMBOLRATE_K -f $FREQ_OUTPUTK -g $LIME_GAIN &
-      ;;
-      "LIMEUSB")
-        /home/pi/libdvbmod/DvbTsToIQ/dvb2iq -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
-          -m $MODTYPE -c $CONSTLN \
-          | buffer \
-          | sudo $PATHRPI"/limetx" -s $SYMBOLRATE_K -f $FREQ_OUTPUTK -g $LIME_GAIN &
+      "LIMEMINI" | "LIMEUSB")
+        $PATHRPI"/dvb2iq" -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
+          -r $UPSAMPLE -m $MODTYPE -c $CONSTLN \
+           | sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s $SYMBOLRATE \
+           -g $LIME_GAINF -p 0.05 -a $OUTPORT -r $UPSAMPLE -l 102400 -e $BAND_GPIO &
       ;;
       "COMPVID")
         OUTPUT_FILE="/dev/null" #Send avc2ts output to /dev/null
@@ -890,17 +950,11 @@ fi
       "COMPVID")
         : # Do nothing
       ;;
-      "LIMEMINI")
-        /home/pi/libdvbmod/DvbTsToIQ/dvb2iq -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
-          -m $MODTYPE -c $CONSTLN \
-          | buffer \
-          | sudo $PATHRPI"/limetx" -s $SYMBOLRATE_K -f $FREQ_OUTPUTK -g $LIME_GAIN &
-      ;;
-      "LIMEUSB")
-        /home/pi/libdvbmod/DvbTsToIQ/dvb2iq -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
-          -m $MODTYPE -c $CONSTLN \
-          | buffer \
-          | sudo $PATHRPI"/limetx" -s $SYMBOLRATE_K -f $FREQ_OUTPUTK -g $LIME_GAIN &
+      "LIMEMINI" | "LIMEUSB")
+        $PATHRPI"/dvb2iq" -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
+          -r $UPSAMPLE -m $MODTYPE -c $CONSTLN \
+           | sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s $SYMBOLRATE \
+           -g $LIME_GAINF -p 0.05 -a $OUTPORT -r $UPSAMPLE -l 102400 &
       ;;
       *)
         # For IQ, QPSKRF, DIGITHIN and DTX1 rpidatv generates the IQ (and RF for QPSKRF)
@@ -976,10 +1030,10 @@ fi
 
           # ******************************* MPEG-2 VIDEO WITH AUDIO ************************************
 
-          # PCR PID ($PIDSTART) seems to be fixed as the same as the video PID.  
+          # PCR PID ($PIDSTART) seems to be fixed as the same as the video PID.  nice -n -30 
           # PMT, Vid and Audio PIDs can all be set. 
 
-          sudo nice -n -30 $PATHRPI"/ffmpeg" -loglevel $MODE_DEBUG -itsoffset "$ITS_OFFSET"\
+          sudo $PATHRPI"/ffmpeg" -loglevel $MODE_DEBUG -itsoffset "$ITS_OFFSET"\
             -analyzeduration 0 -probesize 2048  -fpsprobesize 0 -thread_queue_size 512\
             -f v4l2 -framerate $VIDEO_FPS -video_size "$VIDEO_WIDTH"x"$VIDEO_HEIGHT"\
             -i /dev/video0 -fflags nobuffer \
@@ -1022,17 +1076,11 @@ fi
       "COMPVID")
         OUTPUT_FILE="/dev/null" #Send avc2ts output to /dev/null
       ;;
-      "LIMEMINI")
-        /home/pi/libdvbmod/DvbTsToIQ/dvb2iq -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
-          -m $MODTYPE -c $CONSTLN \
-          | buffer \
-          | sudo $PATHRPI"/limetx" -s $SYMBOLRATE_K -f $FREQ_OUTPUTK -g $LIME_GAIN &
-      ;;
-      "LIMEUSB")
-        /home/pi/libdvbmod/DvbTsToIQ/dvb2iq -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
-          -m $MODTYPE -c $CONSTLN \
-          | buffer \
-          | sudo $PATHRPI"/limetx" -s $SYMBOLRATE_K -f $FREQ_OUTPUTK -g $LIME_GAIN &
+      "LIMEMINI" | "LIMEUSB")
+        $PATHRPI"/dvb2iq" -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
+          -r $UPSAMPLE -m $MODTYPE -c $CONSTLN \
+           | sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s $SYMBOLRATE \
+           -g $LIME_GAINF -p 0.05 -a $OUTPORT -r $UPSAMPLE -l 102400 &
       ;;
       *)
         sudo  $PATHRPI"/rpidatv" -i videots -s $SYMBOLRATE_K -c $FECNUM"/"$FECDEN -f $FREQUENCY_OUT -p $GAIN -m $MODE -x $PIN_I -y $PIN_Q &
@@ -1084,17 +1132,11 @@ fi
         echo "set ptt tx" >> /tmp/expctrl
         sudo nice -n -30 netcat -u -4 127.0.0.1 1314 < videots &
       ;;
-      "LIMEMINI")
-        /home/pi/libdvbmod/DvbTsToIQ/dvb2iq -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
-          -m $MODTYPE -c $CONSTLN \
-          | buffer \
-          | sudo $PATHRPI"/limetx" -s $SYMBOLRATE_K -f $FREQ_OUTPUTK -g $LIME_GAIN &
-      ;;
-      "LIMEUSB")
-        /home/pi/libdvbmod/DvbTsToIQ/dvb2iq -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
-          -m $MODTYPE -c $CONSTLN \
-          | buffer \
-          | sudo $PATHRPI"/limetx" -s $SYMBOLRATE_K -f $FREQ_OUTPUTK -g $LIME_GAIN &
+      "LIMEMINI" | "LIMEUSB")
+        $PATHRPI"/dvb2iq" -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
+          -r $UPSAMPLE -m $MODTYPE -c $CONSTLN \
+           | sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s $SYMBOLRATE \
+           -g $LIME_GAINF -p 0.05 -a $OUTPORT -r $UPSAMPLE -l 102400 &
       ;;
       "COMPVID")
         OUTPUT_FILE="/dev/null" #Send avc2ts output to /dev/null
@@ -1104,8 +1146,6 @@ fi
       esac
 
     # Now generate the stream
-    #$PATHRPI"/avc2ts.old" -b $BITRATE_VIDEO -m $BITRATE_TS -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
-    #  -f $VIDEO_FPS -i 100 $OUTPUT_FILE -t 4 -e $VNCADDR -p $PIDPMT -s $CHANNEL $OUTPUT_IP &
 
     if [ "$AUDIO_CARD" == 0 ]; then
       # ******************************* H264 VIDEO, NO AUDIO ************************************
@@ -1122,7 +1162,6 @@ fi
         -f $VIDEO_FPS -i $IDRPERIOD $OUTPUT_FILE -t 4 -e $VNCADDR -p $PIDPMT -s $CHANNEL $OUTPUT_IP \
         -a audioin.wav -z $BITRATE_AUDIO > /dev/null &
     fi
-
   ;;
 
   #============================================ ANALOG and WEBCAM H264 =============================================================
@@ -1168,17 +1207,11 @@ fi
         echo "set ptt tx" >> /tmp/expctrl
         sudo nice -n -30 netcat -u -4 127.0.0.1 1314 < videots &
       ;;
-      "LIMEMINI")
-        /home/pi/libdvbmod/DvbTsToIQ/dvb2iq -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
-          -m $MODTYPE -c $CONSTLN \
-          | buffer \
-          | sudo $PATHRPI"/limetx" -s $SYMBOLRATE_K -f $FREQ_OUTPUTK -g $LIME_GAIN &
-      ;;
-      "LIMEUSB")
-        /home/pi/libdvbmod/DvbTsToIQ/dvb2iq -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
-          -m $MODTYPE -c $CONSTLN \
-          | buffer \
-          | sudo $PATHRPI"/limetx" -s $SYMBOLRATE_K -f $FREQ_OUTPUTK -g $LIME_GAIN &
+      "LIMEMINI" | "LIMEUSB")
+        $PATHRPI"/dvb2iq" -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
+          -r $UPSAMPLE -m $MODTYPE -c $CONSTLN \
+           | sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s $SYMBOLRATE \
+           -g $LIME_GAINF -p 0.05 -a $OUTPORT -r $UPSAMPLE -l 102400 &
       ;;
       *)
         sudo $PATHRPI"/rpidatv" -i videots -s $SYMBOLRATE_K -c $FECNUM"/"$FECDEN -f $FREQUENCY_OUT -p $GAIN -m $MODE -x $PIN_I -y $PIN_Q &
@@ -1266,17 +1299,11 @@ fi
       "COMPVID")
         OUTPUT_FILE="/dev/null" #Send avc2ts output to /dev/null
       ;;
-      "LIMEMINI")
-        /home/pi/libdvbmod/DvbTsToIQ/dvb2iq -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
-          -m $MODTYPE -c $CONSTLN \
-          | buffer \
-          | sudo $PATHRPI"/limetx" -s $SYMBOLRATE_K -f $FREQ_OUTPUTK -g $LIME_GAIN &
-      ;;
-      "LIMEUSB")
-        /home/pi/libdvbmod/DvbTsToIQ/dvb2iq -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
-          -m $MODTYPE -c $CONSTLN \
-          | buffer \
-          | sudo $PATHRPI"/limetx" -s $SYMBOLRATE_K -f $FREQ_OUTPUTK -g $LIME_GAIN &
+      "LIMEMINI" | "LIMEUSB")
+        $PATHRPI"/dvb2iq" -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
+          -r $UPSAMPLE -m $MODTYPE -c $CONSTLN \
+           | sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s $SYMBOLRATE \
+           -g $LIME_GAINF -p 0.05 -a $OUTPORT -r $UPSAMPLE -l 102400 &
       ;;
       *)
         sudo nice -n -30 $PATHRPI"/rpidatv" -i videots -s $SYMBOLRATE_K -c $FECNUM"/"$FECDEN -f $FREQUENCY_OUT -p $GAIN -m $MODE -x $PIN_I -y $PIN_Q &
@@ -1322,17 +1349,11 @@ fi
       "COMPVID")
         : # Do nothing.  Mode does not work yet
       ;;
-      "LIMEMINI")
-        /home/pi/libdvbmod/DvbTsToIQ/dvb2iq -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
-          -m $MODTYPE -c $CONSTLN \
-          | buffer \
-          | sudo $PATHRPI"/limetx" -s $SYMBOLRATE_K -f $FREQ_OUTPUTK -g $LIME_GAIN &
-      ;;
-      "LIMEUSB")
-        /home/pi/libdvbmod/DvbTsToIQ/dvb2iq -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
-          -m $MODTYPE -c $CONSTLN \
-          | buffer \
-          | sudo $PATHRPI"/limetx" -s $SYMBOLRATE_K -f $FREQ_OUTPUTK -g $LIME_GAIN &
+      "LIMEMINI" | "LIMEUSB")
+        $PATHRPI"/dvb2iq" -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
+          -r $UPSAMPLE -m $MODTYPE -c $CONSTLN \
+           | sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s $SYMBOLRATE \
+           -g $LIME_GAINF -p 0.05 -a $OUTPORT -r $UPSAMPLE -l 102400 &
       ;;
       *)
         sudo $PATHRPI"/rpidatv" -i videots -s $SYMBOLRATE_K -c $FECNUM"/"$FECDEN -f $FREQUENCY_OUT -p $GAIN -m $MODE -x $PIN_I -y $PIN_Q &
@@ -1355,17 +1376,11 @@ fi
         sudo nice -n -30 netcat -u -4 127.0.0.1 1314 < $TSVIDEOFILE &
         #sudo nice -n -30 cat $TSVIDEOFILE | sudo nice -n -30 netcat -u -4 127.0.0.1 1314 & 
       ;;
-      "LIMEMINI")
-        /home/pi/libdvbmod/DvbTsToIQ/dvb2iq -i $TSVIDEOFILE -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
-          -m $MODTYPE -c $CONSTLN \
-          | buffer \
-          | sudo $PATHRPI"/limetx" -s $SYMBOLRATE_K -f $FREQ_OUTPUTK -g $LIME_GAIN &
-      ;;
-      "LIMEUSB")
-        /home/pi/libdvbmod/DvbTsToIQ/dvb2iq -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
-          -m $MODTYPE -c $CONSTLN \
-          | buffer \
-          | sudo $PATHRPI"/limetx" -s $SYMBOLRATE_K -f $FREQ_OUTPUTK -g $LIME_GAIN &
+      "LIMEMINI" | "LIMEUSB")
+        $PATHRPI"/dvb2iq" -i $TSVIDEOFILE -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
+          -r $UPSAMPLE -m $MODTYPE -c $CONSTLN \
+           | sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s $SYMBOLRATE \
+           -g $LIME_GAINF -p 0.05 -a $OUTPORT -r $UPSAMPLE -l 102400 &
       ;;
       *)
         sudo $PATHRPI"/rpidatv" -i $TSVIDEOFILE -s $SYMBOLRATE_K -c $FECNUM"/"$FECDEN -f $FREQUENCY_OUT -p $GAIN -m $MODE -l -x $PIN_I -y $PIN_Q &;;
@@ -1380,10 +1395,15 @@ fi
         echo "set car on" >> /tmp/expctrl
         echo "set ptt tx" >> /tmp/expctrl
       ;;
+      "LIMEMINI" | "LIMEUSB")
+        $PATHRPI"/dvb2iq" -f carrier -r 1 -s 50 \
+           | sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s 50000 \
+           -g $LIME_GAINF -p 0.05 -a $OUTPORT -r 1 -l 102400 &
+      ;;
       *)
         # sudo $PATHRPI"/rpidatv" -i videots -s $SYMBOLRATE_K -c "carrier" -f $FREQUENCY_OUT -p $GAIN -m $MODE -x $PIN_I -y $PIN_Q &
 
-        # Temporary fix for swapped carrier and test modes:
+        # Temporary fix for swapped carrier and test modes:   
         sudo $PATHRPI"/rpidatv" -i videots -s $SYMBOLRATE_K -c "tesmode" -f $FREQUENCY_OUT -p $GAIN -m $MODE -x $PIN_I -y $PIN_Q &
       ;;
     esac
@@ -1504,17 +1524,11 @@ fi
         echo "set ptt tx" >> /tmp/expctrl
         # ffmpeg sends the stream directly to DATVEXPRESS
       ;;
-      "LIMEMINI")
-        /home/pi/libdvbmod/DvbTsToIQ/dvb2iq -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
-          -m $MODTYPE -c $CONSTLN \
-          | buffer \
-          | sudo $PATHRPI"/limetx" -s $SYMBOLRATE_K -f $FREQ_OUTPUTK -g $LIME_GAIN &
-      ;;
-      "LIMEUSB")
-        /home/pi/libdvbmod/DvbTsToIQ/dvb2iq -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
-          -m $MODTYPE -c $CONSTLN \
-          | buffer \
-          | sudo $PATHRPI"/limetx" -s $SYMBOLRATE_K -f $FREQ_OUTPUTK -g $LIME_GAIN &
+      "LIMEMINI" | "LIMEUSB")
+        $PATHRPI"/dvb2iq" -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
+          -r $UPSAMPLE -m $MODTYPE -c $CONSTLN \
+           | sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s $SYMBOLRATE \
+           -g $LIME_GAINF -p 0.05 -a $OUTPORT -r $UPSAMPLE -l 102400 &
       ;;
       *)
         # For IQ, QPSKRF, DIGITHIN and DTX1 rpidatv generates the IQ (and RF for QPSKRF)
@@ -1701,17 +1715,11 @@ fi
       "COMPVID")
         : # Do nothing
       ;;
-      "LIMEMINI")
-        /home/pi/libdvbmod/DvbTsToIQ/dvb2iq -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
-          -m $MODTYPE -c $CONSTLN \
-          | buffer \
-          | sudo $PATHRPI"/limetx" -s $SYMBOLRATE_K -f $FREQ_OUTPUTK -g $LIME_GAIN &
-      ;;
-      "LIMEUSB")
-        /home/pi/libdvbmod/DvbTsToIQ/dvb2iq -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
-          -m $MODTYPE -c $CONSTLN \
-          | buffer \
-          | sudo $PATHRPI"/limetx" -s $SYMBOLRATE_K -f $FREQ_OUTPUTK -g $LIME_GAIN &
+      "LIMEMINI" | "LIMEUSB")
+        $PATHRPI"/dvb2iq" -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
+          -r $UPSAMPLE -m $MODTYPE -c $CONSTLN \
+           | sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s $SYMBOLRATE \
+           -g $LIME_GAINF -p 0.05 -a $OUTPORT -r $UPSAMPLE -l 102400 &
       ;;
       *)
         # For IQ, QPSKRF, DIGITHIN and DTX1 rpidatv generates the IQ (and RF for QPSKRF)
@@ -1787,9 +1795,9 @@ fi
           # ******************************* MPEG-2 CARD WITH AUDIO ************************************
 
           # PCR PID ($PIDSTART) seems to be fixed as the same as the video PID.  
-          # PMT, Vid and Audio PIDs can all be set. 
+          # PMT, Vid and Audio PIDs can all be set. nice -n -30 
 
-          sudo nice -n -30 $PATHRPI"/ffmpeg" -loglevel $MODE_DEBUG -itsoffset "$ITS_OFFSET" \
+          sudo $PATHRPI"/ffmpeg" -loglevel $MODE_DEBUG -itsoffset "$ITS_OFFSET" \
             -thread_queue_size 512 \
             -f image2 -loop 1 \
             -framerate 5 -video_size "$VIDEO_WIDTH"x"$VIDEO_HEIGHT" \
@@ -1827,17 +1835,11 @@ fi
         echo "set ptt tx" >> /tmp/expctrl
         # ffmpeg sends the stream directly to DATVEXPRESS
       ;;
-      "LIMEMINI")
-        /home/pi/libdvbmod/DvbTsToIQ/dvb2iq -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
-          -m $MODTYPE -c $CONSTLN \
-          | buffer \
-          | sudo $PATHRPI"/limetx" -s $SYMBOLRATE_K -f $FREQ_OUTPUTK -g $LIME_GAIN &
-      ;;
-      "LIMEUSB")
-        /home/pi/libdvbmod/DvbTsToIQ/dvb2iq -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
-          -m $MODTYPE -c $CONSTLN \
-          | buffer \
-          | sudo $PATHRPI"/limetx" -s $SYMBOLRATE_K -f $FREQ_OUTPUTK -g $LIME_GAIN &
+      "LIMEMINI" | "LIMEUSB")
+        $PATHRPI"/dvb2iq" -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
+          -r $UPSAMPLE -m $MODTYPE -c $CONSTLN \
+           | sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s $SYMBOLRATE \
+           -g $LIME_GAINF -p 0.05 -a $OUTPORT -r $UPSAMPLE -l 102400 &
       ;;
       *)
         # For IQ, QPSKRF, DIGITHIN and DTX1 rpidatv generates the IQ (and RF for QPSKRF)
@@ -1849,7 +1851,6 @@ fi
     case "$MODE_INPUT" in
       C920H264)
         v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=640,height=480,pixelformat=1
-#       v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=800,height=600,pixelformat=1
       ;;
       C920HDH264)
         v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=1280,height=720,pixelformat=1

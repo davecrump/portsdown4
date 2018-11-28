@@ -1,0 +1,1 @@
+/usr/bin/cc     CMakeFiles/limesdr_forward.dir/limesdr_forward.c.o CMakeFiles/limesdr_forward.dir/limesdr_util.c.o  -o limesdr_forward  -L/usr/local/lib/libLimeSuite.so -Wl,-rpath,/usr/local/lib/libLimeSuite.so:/usr/local/lib -rdynamic /usr/local/lib/libLimeSuite.so 

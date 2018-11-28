@@ -1,4 +1,4 @@
-Updated 8 Nov 2018 DGC
+Updated 28 Nov 2018 DGC
 
 During install or update, some binaries are downloaded from github, and some
 are compiled from source.  Details:
@@ -20,9 +20,9 @@ keyedstream is compiled (for repeater streaming)
 
 keyedtx is compiled
 
-leandvb is compiled
+leandvb and dvb2iq are compiled
 
-limetx is compiled
+limesdr_dump, limesdr_forward, limesdr_send and limesdr_stopchannel are compiled
 
 rpidatv is compiled from rpidatv.c
 

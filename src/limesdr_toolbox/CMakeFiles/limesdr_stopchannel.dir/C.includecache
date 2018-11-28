@@ -1,0 +1,30 @@
+#IncludeRegexLine: ^[ 	]*#[ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/home/pi/rpidatv/src/limesdr_toolbox/limesdr_stopchannel.c
+lime/LimeSuite.h
+-
+stdio.h
+-
+
+/usr/local/include/lime/LMS7002M_parameters.h
+stdint.h
+-
+
+/usr/local/include/lime/LimeSuite.h
+stdint.h
+-
+stdlib.h
+-
+LMS7002M_parameters.h
+/usr/local/include/lime/LMS7002M_parameters.h
+stdbool.h
+-
+windows.h
+-
+
