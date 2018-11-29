@@ -929,7 +929,7 @@ fi
         $PATHRPI"/dvb2iq" -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
           -r $UPSAMPLE -m $MODTYPE -c $CONSTLN \
            | sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s $SYMBOLRATE \
-           -g $LIME_GAINF -p 0.05 -a $OUTPORT -r $UPSAMPLE -l 102400 &
+           -g $LIME_GAINF -p 0.05 -a $OUTPORT -r $UPSAMPLE -l 102400 -e $BAND_GPIO &
       ;;
       *)
         # For IQ, QPSKRF, DIGITHIN and DTX1 rpidatv generates the IQ (and RF for QPSKRF)
@@ -1055,7 +1055,7 @@ fi
         $PATHRPI"/dvb2iq" -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
           -r $UPSAMPLE -m $MODTYPE -c $CONSTLN \
            | sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s $SYMBOLRATE \
-           -g $LIME_GAINF -p 0.05 -a $OUTPORT -r $UPSAMPLE -l 102400 &
+           -g $LIME_GAINF -p 0.05 -a $OUTPORT -r $UPSAMPLE -l 102400 -e $BAND_GPIO &
       ;;
       *)
         sudo  $PATHRPI"/rpidatv" -i videots -s $SYMBOLRATE_K -c $FECNUM"/"$FECDEN -f $FREQUENCY_OUT -p $GAIN -m $MODE -x $PIN_I -y $PIN_Q &
@@ -1111,7 +1111,7 @@ fi
         $PATHRPI"/dvb2iq" -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
           -r $UPSAMPLE -m $MODTYPE -c $CONSTLN \
            | sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s $SYMBOLRATE \
-           -g $LIME_GAINF -p 0.05 -a $OUTPORT -r $UPSAMPLE -l 102400 &
+           -g $LIME_GAINF -p 0.05 -a $OUTPORT -r $UPSAMPLE -l 102400 -e $BAND_GPIO &
       ;;
       "COMPVID")
         OUTPUT_FILE="/dev/null" #Send avc2ts output to /dev/null
@@ -1186,7 +1186,7 @@ fi
         $PATHRPI"/dvb2iq" -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
           -r $UPSAMPLE -m $MODTYPE -c $CONSTLN \
            | sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s $SYMBOLRATE \
-           -g $LIME_GAINF -p 0.05 -a $OUTPORT -r $UPSAMPLE -l 102400 &
+           -g $LIME_GAINF -p 0.05 -a $OUTPORT -r $UPSAMPLE -l 102400 -e $BAND_GPIO &
       ;;
       *)
         sudo $PATHRPI"/rpidatv" -i videots -s $SYMBOLRATE_K -c $FECNUM"/"$FECDEN -f $FREQUENCY_OUT -p $GAIN -m $MODE -x $PIN_I -y $PIN_Q &
@@ -1278,7 +1278,7 @@ fi
         $PATHRPI"/dvb2iq" -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
           -r $UPSAMPLE -m $MODTYPE -c $CONSTLN \
            | sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s $SYMBOLRATE \
-           -g $LIME_GAINF -p 0.05 -a $OUTPORT -r $UPSAMPLE -l 102400 &
+           -g $LIME_GAINF -p 0.05 -a $OUTPORT -r $UPSAMPLE -l 102400 -e $BAND_GPIO &
       ;;
       *)
         sudo nice -n -30 $PATHRPI"/rpidatv" -i videots -s $SYMBOLRATE_K -c $FECNUM"/"$FECDEN -f $FREQUENCY_OUT -p $GAIN -m $MODE -x $PIN_I -y $PIN_Q &
@@ -1328,7 +1328,7 @@ fi
         $PATHRPI"/dvb2iq" -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
           -r $UPSAMPLE -m $MODTYPE -c $CONSTLN \
            | sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s $SYMBOLRATE \
-           -g $LIME_GAINF -p 0.05 -a $OUTPORT -r $UPSAMPLE -l 102400 &
+           -g $LIME_GAINF -p 0.05 -a $OUTPORT -r $UPSAMPLE -l 102400 -e $BAND_GPIO &
       ;;
       *)
         sudo $PATHRPI"/rpidatv" -i videots -s $SYMBOLRATE_K -c $FECNUM"/"$FECDEN -f $FREQUENCY_OUT -p $GAIN -m $MODE -x $PIN_I -y $PIN_Q &
@@ -1355,7 +1355,7 @@ fi
         $PATHRPI"/dvb2iq" -i $TSVIDEOFILE -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
           -r $UPSAMPLE -m $MODTYPE -c $CONSTLN \
            | sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s $SYMBOLRATE \
-           -g $LIME_GAINF -p 0.05 -a $OUTPORT -r $UPSAMPLE -l 102400 &
+           -g $LIME_GAINF -p 0.05 -a $OUTPORT -r $UPSAMPLE -l 102400 -e $BAND_GPIO &
       ;;
       *)
         sudo $PATHRPI"/rpidatv" -i $TSVIDEOFILE -s $SYMBOLRATE_K -c $FECNUM"/"$FECDEN -f $FREQUENCY_OUT -p $GAIN -m $MODE -l -x $PIN_I -y $PIN_Q &;;
@@ -1373,7 +1373,7 @@ fi
       "LIMEMINI" | "LIMEUSB")
         $PATHRPI"/dvb2iq" -f carrier -r 1 -s 50 \
            | sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s 50000 \
-           -g $LIME_GAINF -p 0.05 -a $OUTPORT -r 1 -l 102400 &
+           -g $LIME_GAINF -p 0.05 -a $OUTPORT -r 1 -l 102400 -e $BAND_GPIO &
       ;;
       *)
         # sudo $PATHRPI"/rpidatv" -i videots -s $SYMBOLRATE_K -c "carrier" -f $FREQUENCY_OUT -p $GAIN -m $MODE -x $PIN_I -y $PIN_Q &
@@ -1503,7 +1503,7 @@ fi
         $PATHRPI"/dvb2iq" -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
           -r $UPSAMPLE -m $MODTYPE -c $CONSTLN \
            | sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s $SYMBOLRATE \
-           -g $LIME_GAINF -p 0.05 -a $OUTPORT -r $UPSAMPLE -l 102400 &
+           -g $LIME_GAINF -p 0.05 -a $OUTPORT -r $UPSAMPLE -l 102400 -e $BAND_GPIO &
       ;;
       *)
         # For IQ, QPSKRF, DIGITHIN and DTX1 rpidatv generates the IQ (and RF for QPSKRF)
@@ -1694,7 +1694,7 @@ fi
         $PATHRPI"/dvb2iq" -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
           -r $UPSAMPLE -m $MODTYPE -c $CONSTLN \
            | sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s $SYMBOLRATE \
-           -g $LIME_GAINF -p 0.05 -a $OUTPORT -r $UPSAMPLE -l 102400 &
+           -g $LIME_GAINF -p 0.05 -a $OUTPORT -r $UPSAMPLE -l 102400 -e $BAND_GPIO &
       ;;
       *)
         # For IQ, QPSKRF, DIGITHIN and DTX1 rpidatv generates the IQ (and RF for QPSKRF)
@@ -1814,7 +1814,7 @@ fi
         $PATHRPI"/dvb2iq" -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
           -r $UPSAMPLE -m $MODTYPE -c $CONSTLN \
            | sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s $SYMBOLRATE \
-           -g $LIME_GAINF -p 0.05 -a $OUTPORT -r $UPSAMPLE -l 102400 &
+           -g $LIME_GAINF -p 0.05 -a $OUTPORT -r $UPSAMPLE -l 102400 -e $BAND_GPIO &
       ;;
       *)
         # For IQ, QPSKRF, DIGITHIN and DTX1 rpidatv generates the IQ (and RF for QPSKRF)
