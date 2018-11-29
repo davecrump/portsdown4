@@ -1,4 +1,4 @@
-Updated 28 Nov 2018 DGC
+Updated 30 Nov 2018 DGC
 
 During install or update, some binaries are downloaded from github, and some
 are compiled from source.  Details:
@@ -6,8 +6,6 @@ are compiled from source.  Details:
 adf4351 is compiled from adf4351.c
 
 avc2ts is compiled from /home/pi/avc2ts
-
-avc2ts.old is compiled from avc2ts.cpp in /home/pi/rpidatv/src/avc2ts
 
 ffmpeg was compiled by davecrump and is 
 downloaded from github, with alsa and omx encoder support

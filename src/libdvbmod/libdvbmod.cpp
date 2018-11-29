@@ -44,7 +44,7 @@ sfcmplx *Dvbs2_get_IQ(void)
 		static sfcmplx Zero;
 		Zero.im=0;
 		Zero.re=0;
-		sfcmplx *FrameS2IQ=(sfcmplx*)DvbS2Modulator.pl_get_frame()*m_upsample;
+		sfcmplx *FrameS2IQ=(sfcmplx*)DvbS2Modulator.pl_get_frame();
 		for(size_t i=0;i<DVBS2Length;i++)
 		{
 			for(size_t j=0;j<m_upsample;j++)

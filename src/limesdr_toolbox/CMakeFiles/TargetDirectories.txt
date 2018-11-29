@@ -1,6 +1,0 @@
-/home/pi/rpidatv/src/limesdr_toolbox/CMakeFiles/rebuild_cache.dir
-/home/pi/rpidatv/src/limesdr_toolbox/CMakeFiles/edit_cache.dir
-/home/pi/rpidatv/src/limesdr_toolbox/CMakeFiles/limesdr_dump.dir
-/home/pi/rpidatv/src/limesdr_toolbox/CMakeFiles/limesdr_send.dir
-/home/pi/rpidatv/src/limesdr_toolbox/CMakeFiles/limesdr_stopchannel.dir
-/home/pi/rpidatv/src/limesdr_toolbox/CMakeFiles/limesdr_forward.dir
