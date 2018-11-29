@@ -58,6 +58,7 @@ sudo /home/pi/LimeSuite/udev-rules/install.sh
 
 # Record the LimeSuite Version
 echo "809c16c" >/home/pi/LimeSuite/commit_tag.txt
+cd /home/pi
 
 # Check which rpidatv source to download.  Default is production
 # option d is development from davecrump
@@ -74,6 +75,7 @@ fi
 unzip -o master.zip
 mv portsdown-master rpidatv
 rm master.zip
+cd /home/pi
 
 # Check which avc2ts to download.  Default is production
 # option d is development from davecrump
@@ -91,7 +93,7 @@ mv avc2ts-master avc2ts
 rm master.zip
 
 # Compile rpidatv core
-cd rpidatv/src
+cd /home/pi/rpidatv/src
 make
 sudo make install
 
@@ -99,26 +101,6 @@ sudo make install
 cd gui
 make
 sudo make install
-cd ../
-
-# Get libmpegts and compile for use with old avc2ts
-cd avc2ts
-wget https://github.com/kierank/libmpegts/archive/master.zip
-unzip master.zip
-mv libmpegts-master libmpegts
-rm master.zip
-cd libmpegts
-./configure
-make
-
-# Compile old avc2ts
-cd ../
-make
-sudo make install
-cp avc2ts /home/pi/rpidatv/bin/avc2ts.old
-
-# Delete the old named version of avc2ts (owned by root)
-sudo rm /home/pi/rpidatv/bin/avc2ts
 
 # Build new avc2ts and dependencies
 # For libmpegts
@@ -354,7 +336,7 @@ cd /home/pi
 # Compile the x-y display (201811100)
 cd /home/pi/rpidatv/src/xy
 make
-cp -f /home/pi/rpidatv/xy/xy /home/pi/rpidatv/bin/xy
+cp -f /home/pi/rpidatv/src/xy/xy /home/pi/rpidatv/bin/xy
 cd /home/pi
 
 # Install FreqShow (see https://learn.adafruit.com/freq-show-raspberry-pi-rtl-sdr-scanner/overview)

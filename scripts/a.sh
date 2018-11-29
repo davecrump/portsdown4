@@ -662,33 +662,8 @@ case "$MODE_OUTPUT" in
 
   "LIMEMINI" | "LIMEUSB")
     OUTPUT=videots
-    BAND_CODE=$(get_config_var band $PCONFIGFILE)
-    case "$BAND_CODE" in
-    "d1" )
-      BAND_GPIO="0"
-    ;;
-    "d2" )
-      BAND_GPIO="1"
-    ;;
-    "d3" )
-      BAND_GPIO="2"
-    ;;
-    "d4" )
-      BAND_GPIO="3"
-    ;;
-    "t1" )
-      BAND_GPIO="4"
-    ;;
-    "t2" )
-      BAND_GPIO="5"
-    ;;
-    "t1" )
-      BAND_GPIO="6"
-    ;;
-    "t1" )
-      BAND_GPIO="7"
-    ;;
-    esac
+
+    BAND_GPIO=$(get_config_var expports $PCONFIGFILE)
 
     # CALCULATE FREQUENCY IN KHz and Hz
     FREQ_OUTPUTK=`echo - | awk '{print '$FREQ_OUTPUT' * 1000}'`
