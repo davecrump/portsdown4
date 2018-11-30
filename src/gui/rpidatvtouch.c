@@ -2076,6 +2076,7 @@ void InitialiseGPIO()
   pinMode(GPIO_Band_LSB, OUTPUT);
   pinMode(GPIO_Band_MSB, OUTPUT);
   pinMode(GPIO_Tverter, OUTPUT);
+  digitalWrite(GPIO_Tverter, LOW);
 }
 
 /***************************************************************************//**
@@ -6215,8 +6216,14 @@ void TransmitStop()
   system("sudo killall tcanim >/dev/null 2>/dev/null");
   system("sudo killall tcanim1v16 >/dev/null 2>/dev/null");
   system("sudo killall avc2ts >/dev/null 2>/dev/null");
-  system("sudo killall avc2ts.old >/dev/null 2>/dev/null");
   system("sudo killall netcat >/dev/null 2>/dev/null");
+
+  if((strcmp(ModeOutput, "IQ") == 0) || (strcmp(ModeOutput, "QPSKRF") == 0))
+  {
+    //  Ensure that Transverter line does not float
+    //  As it is released when rpidatv terminates
+    pinMode(GPIO_Tverter, OUTPUT);
+  }
 
   // Turn the Viewfinder off
   system("v4l2-ctl --overlay=0 >/dev/null 2>/dev/null");
@@ -6227,7 +6234,6 @@ void TransmitStop()
   // Then pause and make sure that avc2ts has really been stopped (needed at high SRs)
   usleep(1000);
   system("sudo killall -9 avc2ts >/dev/null 2>/dev/null");
-  system("sudo killall -9 avc2ts.old >/dev/null 2>/dev/null");
   system("sudo killall -9 limesdr_send >/dev/null 2>/dev/null");
 
   // And make sure rpidatv has been stopped (required for brief transmit selections)
