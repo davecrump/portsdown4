@@ -368,7 +368,7 @@ then
   echo "Installation de la langue française et du clavier"
   cd /home/pi/rpidatv/scripts/
   sudo cp configs/keyfr /etc/default/keyboard
-  sed -i 's/^menulanguage.*/menulanguage=fr/' rpidatvconfig.txt
+  sed -i 's/^menulanguage.*/menulanguage=fr/' portsdown_config.txt
   cd /home/pi
   echo "Installation française terminée"
 else
