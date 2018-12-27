@@ -7,9 +7,6 @@
 # DELAY_TIME in seconds
 DELAY_TIME=7
 
-# Testing PTT_BIT: 0 for Receive, 1 for (delayed) transmit = BCM 4 / Header pin 7
-# Testing PTT_BIT=4
-
 # PTT_BIT: 0 for Receive, 1 for (delayed) transmit = BCM 21 / Header pin 40
 PTT_BIT=21
 
@@ -22,7 +19,7 @@ sleep "$DELAY_TIME"
 
 # Only proceed if limetx Running
 
-if pgrep -x "limetx" > /dev/null
+if pgrep -x "limesdr_send" > /dev/null
 then
   # set PTT high
   gpio -g write $PTT_BIT 1
@@ -30,7 +27,7 @@ then
   # Check again after 1 second, to make sure that PTT hadn't just been cancelled
   # If not running cancel PTT
   sleep 1
-  if !(pgrep -x "limetx" > /dev/null)
+  if !(pgrep -x "limesdr_send" > /dev/null)
   then
     gpio -g write $PTT_BIT 0
   fi
