@@ -166,7 +166,7 @@ char CurrentModeOPtext[31] = " UGLY ";
 char TabTXMode[6][255] = {"DVB-S", "Carrier", "S2QPSK", "8PSK", "16APSK", "32APSK"};
 char CurrentTXMode[255] = "DVB-S";
 char CurrentModeInput[255] = "DESKTOP";
-char TabEncoding[4][255] = {"H264", "MPEG-2", "IPTS in", "TS File"};
+char TabEncoding[5][15] = {"MPEG-2", "H264", "H265", "IPTS in", "TS File"};
 char CurrentEncoding[255] = "H264";
 char TabSource[8][15] = {"Pi Cam", "CompVid", "TCAnim", "TestCard", "PiScreen", "Contest", "Webcam", "C920"};
 char CurrentSource[15] = "PiScreen";
@@ -285,6 +285,7 @@ void Start_Highlights_Menu37();
 void Start_Highlights_Menu38();
 void Start_Highlights_Menu39();
 void Start_Highlights_Menu42();
+void Start_Highlights_Menu43();
 
 void MsgBox(const char *);
 void MsgBox2(const char *, const char *);
@@ -3884,14 +3885,14 @@ int CreateButton(int MenuIndex, int ButtonPosition)
       w = wbuttonsize * 0.9;
       h = hbuttonsize * 0.9;
     }
-    else if ((ButtonPosition == 20) || (ButtonPosition == 21))  // TX and RX buttons
+    else if (ButtonPosition == 20)  // TX button
     {
       x = (ButtonPosition % 5) * wbuttonsize *1.7 + 20;    // % operator gives the remainder of the division
       y = (ButtonPosition / 5) * hbuttonsize + 20;
       w = wbuttonsize * 1.2;
       h = hbuttonsize * 1.2;
     }
-    else if ((ButtonPosition == 22) || (ButtonPosition == 23)) //Menu Up and Menu down buttons
+    else if ((ButtonPosition == 21) || (ButtonPosition == 22) || (ButtonPosition == 23)) // RX/M1, M2 and M3 buttons
     {
       x = ((ButtonPosition + 1) % 5) * wbuttonsize + 20;  // % operator gives the remainder of the division
       y = (ButtonPosition / 5) * hbuttonsize + 20;
@@ -4939,7 +4940,7 @@ void SelectTX(int NoButton)  // TX RF Output Mode
 
 void SelectEncoding(int NoButton)  // Encoding
 {
-  SelectInGroupOnMenu(CurrentMenu, 5, 8, NoButton, 1);
+  SelectInGroupOnMenu(CurrentMenu, 5, 9, NoButton, 1);
   strcpy(CurrentEncoding, TabEncoding[NoButton - 5]);
   ApplyTXConfig();
 }
@@ -7172,7 +7173,7 @@ void YesNo(int i)  // i == 6 Yes, i == 8 No
   // First switch on what was calling the Yes/No question
   switch(CallingMenu)
   {
-  case 375:         // Restore Factory Settings?
+  case 430:         // Restore Factory Settings?
     switch (i)
     {
     case 6:     // Yes
@@ -7185,15 +7186,16 @@ void YesNo(int i)  // i == 6 Yes, i == 8 No
       MsgBox2("Restored to Factory Settings", "Display will restart after touch");
       wait_touch();
 
-      // Exit and restart display to load settings
+      // Exit and restart display application to load settings
       cleanexit(129);
       break;
     case 8:     // Yes
       MsgBox("Current settings retained");
       wait_touch();
+      BackgroundRGB(0,0,0,255);
       break;
     }
-    CurrentMenu = 37;
+    CurrentMenu = 43;
     UpdateWindow();
     break;
   }
@@ -9214,18 +9216,18 @@ void waituntil(int w,int h)
           Start_Highlights_Menu5();
           UpdateWindow();
           break;
-        case 22:                      // Select Menu 3
-          printf("MENU 3 \n");
-          CurrentMenu=3;
-          BackgroundRGB(0,0,0,255);
-          Start_Highlights_Menu3();
-          UpdateWindow();
-          break;
-        case 23:                      // Select Menu 2
+        case 22:                      // Select Menu 2
           printf("MENU 2 \n");
           CurrentMenu=2;
           BackgroundRGB(0,0,0,255);
           Start_Highlights_Menu2();
+          UpdateWindow();
+          break;
+        case 23:                      // Select Menu 3
+          printf("MENU 3 \n");
+          CurrentMenu=3;
+          BackgroundRGB(0,0,0,255);
+          Start_Highlights_Menu3();
           UpdateWindow();
           break;
         default:
@@ -9371,17 +9373,15 @@ void waituntil(int w,int h)
           UpdateWindow();
           break;
         case 20:                              // Not shown
-          ;
           break;
-        case 21:                              // Not shown
-          ;
-          break;
-        case 22:                              // Menu 1
+        case 21:                              // Menu 1
           printf("MENU 1 \n");
           CurrentMenu=1;
           BackgroundRGB(255,255,255,255);
           Start_Highlights_Menu1();
           UpdateWindow();
+          break;
+        case 22:                              // Not shown
           break;
         case 23:                              // Menu 3
           printf("MENU 3 \n");
@@ -9413,10 +9413,10 @@ void waituntil(int w,int h)
           UpdateWindow();
           break;
         case 1:                               // System Config
-          printf("MENU 37 \n"); 
-          CurrentMenu=37;
+          printf("MENU 43 \n"); 
+          CurrentMenu=43;
           BackgroundRGB(0,0,0,255);
-          Start_Highlights_Menu37();
+          Start_Highlights_Menu43();
           UpdateWindow();
           break;
         case 2:                               // Wifi Config
@@ -9509,13 +9509,18 @@ void waituntil(int w,int h)
           break;
         case 20:                              // Not shown
           break;
-        case 21:                              // Not shown
-          break;
-        case 22:                              // Menu 1
+        case 21:                              // Menu 1
           printf("MENU 1 \n");
           CurrentMenu=1;
           BackgroundRGB(255,255,255,255);
           Start_Highlights_Menu1();
+          UpdateWindow();
+          break;
+        case 22:                              // Menu 2
+          printf("MENU 2 \n");
+          CurrentMenu=2;
+          BackgroundRGB(0, 0, 0, 255);
+          Start_Highlights_Menu2();
           UpdateWindow();
           break;
         case 23:                              // Not Shown
@@ -10007,19 +10012,23 @@ void waituntil(int w,int h)
           SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 1);
           printf("Encoding Cancel\n");
           break;
-        case 5:                               // H264
-          SelectEncoding(i);
-          printf("H264\n");
-          break;
-        case 6:                               // MPEG-2
+        case 5:                               // MPEG-2
           SelectEncoding(i);
           printf("MPEG-2\n");
           break;
-        case 7:                               // IPTS in
+        case 6:                               // H264
+          SelectEncoding(i);
+          printf("H264\n");
+          break;
+        case 7:                               // H265
+          //SelectEncoding(i);
+          printf("H265\n");
+          break;
+        case 8:                               // IPTS in
           SelectEncoding(i);
           printf("IPTS in\n");
           break;
-        case 8:                               // TS File
+        case 9:                               // TS File
           SelectEncoding(i);
           printf("TS File\n");
           break;
@@ -11130,7 +11139,7 @@ void waituntil(int w,int h)
         continue;   // Completed Menu 36 action, go and wait for touch
       }
 
-      if (CurrentMenu == 37)  // Menu 37 System Configuration
+      if (CurrentMenu == 37)  // Menu 37 Not used
       {
         printf("Button Event %d, Entering Menu 37 Case Statement\n",i);
         switch (i)
@@ -11141,18 +11150,14 @@ void waituntil(int w,int h)
           UpdateWindow();
           usleep(500000);
           SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 0); // Reset cancel (even if not selected)
-          printf("Returning to MENU 1 from Menu 36\n");
+          printf("Returning to MENU 1 from Menu 37\n");
           CurrentMenu=1;
           BackgroundRGB(255,255,255,255);
           Start_Highlights_Menu1();
           UpdateWindow();
           break;
-        case 5:                               // Restore Factory Settings
-          CallingMenu = 375;
-          CurrentMenu = 38;
-          MsgBox4("Are you sure that you want to", "overwrite all the current settings", "with the factory settings?", " ");
-          UpdateWindow();
-        break;
+        case 5:                               // 
+          break;
         default:
           printf("Menu 37 Error\n");
         }
@@ -11257,6 +11262,38 @@ void waituntil(int w,int h)
         UpdateWindow();
         continue;   // Completed Menu 42 action, go and wait for touch
       }
+
+      if (CurrentMenu == 43)  // Menu 43 System Configuration
+      {
+        printf("Button Event %d, Entering Menu 43 Case Statement\n",i);
+        switch (i)
+        {
+        case 4:                               // Cancel
+          SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 1);
+          printf("Cancelling System Config Menu\n");
+          UpdateWindow();
+          usleep(500000);
+          SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 0); // Reset cancel (even if not selected)
+          printf("Returning to MENU 1 from Menu 43\n");
+          CurrentMenu=1;
+          BackgroundRGB(255,255,255,255);
+          Start_Highlights_Menu1();
+          UpdateWindow();
+          break;
+        case 0:                               // Restore Factory Settings
+          CallingMenu = 430;
+          CurrentMenu = 38;
+          MsgBox4("Are you sure that you want to", "overwrite all the current settings", "with the factory settings?", " ");
+          UpdateWindow();
+        break;
+        default:
+          printf("Menu 43 Error\n");
+        }
+        // stay in Menu 43 if parameter changed
+        continue;   // Completed Menu 43 action, go and wait for touch
+      }
+
+
 
       if (CurrentMenu == 41)  // Menu 41 Keyboard (should not get here)
       {
@@ -11393,12 +11430,12 @@ void Define_Menu1()
   AddButtonStatus(button,"RX ON",&Green);
 
   button = CreateButton(1, 22);
-  AddButtonStatus(button," M3  ",&Blue);
-  AddButtonStatus(button," M3  ",&Green);
-
-  button = CreateButton(1, 23);
   AddButtonStatus(button," M2  ",&Blue);
   AddButtonStatus(button," M2  ",&Green);
+
+  button = CreateButton(1, 23);
+  AddButtonStatus(button," M3  ",&Blue);
+  AddButtonStatus(button," M3  ",&Green);
 }
 
 void Start_Highlights_Menu1()
@@ -11860,13 +11897,7 @@ void Define_Menu2()
 
   // Top of Menu 2
 
-  //button = CreateButton(2, 20);
-  //AddButtonStatus(button, "FreqShow^Spectrum", &Blue);
-
-  //button = CreateButton(2, 21);
-  //AddButtonStatus(button, "", &Blue);
-
-  button = CreateButton(2, 22);
+  button = CreateButton(2, 21);
   AddButtonStatus(button," M1  ",&Blue);
   AddButtonStatus(button," M1  ",&Green);
 
@@ -11876,10 +11907,7 @@ void Define_Menu2()
 }
 
 void Start_Highlights_Menu2()
-// Retrieves stored value for each group of buttons
-// and then sets the correct highlight
 {
- 
 }
 
 void Define_Menu3()
@@ -11947,8 +11975,11 @@ void Define_Menu3()
 
   // Top of Menu 3
 
-  button = CreateButton(3, 22);
+  button = CreateButton(3, 21);
   AddButtonStatus(button," M1  ",&Blue);
+
+  button = CreateButton(3, 22);
+  AddButtonStatus(button," M2  ",&Blue);
 }
 
 void Start_Highlights_Menu3()
@@ -12727,13 +12758,17 @@ void Define_Menu12()
   AddButtonStatus(button, TabEncoding[1], &Blue);
   AddButtonStatus(button, TabEncoding[1], &Green);
 
-  button = CreateButton(12, 7);
-  AddButtonStatus(button, TabEncoding[2], &Blue);
-  AddButtonStatus(button, TabEncoding[2], &Green);
+  //button = CreateButton(12, 7);
+  //AddButtonStatus(button, TabEncoding[2], &Blue);
+  //AddButtonStatus(button, TabEncoding[2], &Green);
 
   button = CreateButton(12, 8);
   AddButtonStatus(button, TabEncoding[3], &Blue);
   AddButtonStatus(button, TabEncoding[3], &Green);
+
+  button = CreateButton(12, 9);
+  AddButtonStatus(button, TabEncoding[4], &Blue);
+  AddButtonStatus(button, TabEncoding[4], &Green);
 }
 
 void Start_Highlights_Menu12()
@@ -12744,19 +12779,23 @@ void Start_Highlights_Menu12()
 
   if(strcmp(CurrentEncoding, TabEncoding[0]) == 0)
   {
-    SelectInGroupOnMenu(12, 5, 8, 5, 1);
+    SelectInGroupOnMenu(12, 5, 9, 5, 1);
   }
   if(strcmp(CurrentEncoding, TabEncoding[1]) == 0)
   {
-    SelectInGroupOnMenu(12, 5, 8, 6, 1);
+    SelectInGroupOnMenu(12, 5, 9, 6, 1);
   }
-  if(strcmp(CurrentEncoding, TabEncoding[2]) == 0)
-  {
-    SelectInGroupOnMenu(12, 5, 8, 7, 1);
-  }
+  //if(strcmp(CurrentEncoding, TabEncoding[2]) == 0)
+  //{
+  //  SelectInGroupOnMenu(12, 5, 9, 7, 1);
+  //}
   if(strcmp(CurrentEncoding, TabEncoding[3]) == 0)
   {
-    SelectInGroupOnMenu(12, 5, 8, 8, 1);
+    SelectInGroupOnMenu(12, 5, 9, 8, 1);
+  }
+  if(strcmp(CurrentEncoding, TabEncoding[4]) == 0)
+  {
+    SelectInGroupOnMenu(12, 5, 9, 9, 1);
   }
 }
 
@@ -14748,41 +14787,7 @@ void Start_Highlights_Menu36()
 
 void Define_Menu37()
 {
-  int button;
-  color_t Blue;
-  color_t LBlue;
-  color_t DBlue;
-  color_t Green;
-  Blue.r=0; Blue.g=0; Blue.b=128;
-  LBlue.r=64; LBlue.g=64; LBlue.b=192;
-  DBlue.r=0; DBlue.g=0; DBlue.b=64;
-  Green.r=0; Green.g=128; Green.b=0;
-
-  strcpy(MenuTitle[37], "System Configuration Menu (37)"); 
-
-  // Bottom Row, Menu 37
-
-  button = CreateButton(37, 4);
-  AddButtonStatus(button, "Exit", &DBlue);
-  AddButtonStatus(button, "Exit", &LBlue);
-
-//  button = CreateButton(37, 0);
-//  AddButtonStatus(button, "Install^Lime", &Blue);
-//  AddButtonStatus(button, "Install^Lime", &Green);
-
-//  button = CreateButton(37, 1);
-//  AddButtonStatus(button, "Update^Lime", &Blue);
-//  AddButtonStatus(button, "Update^Lime", &Green);
-
-  // 2nd Row, Menu 37
-
-  button = CreateButton(37, 5);
-  AddButtonStatus(button, "Restore^Factory", &Blue);
-  AddButtonStatus(button, "Restore^Factory", &Green);
-
-//  button = CreateButton(37, 7);
-//  AddButtonStatus(button, "Lime^Info", &Blue);
-//  AddButtonStatus(button, "Lime^Info", &Green);
+  // Nothing here yet
 }
 
 void Start_Highlights_Menu37()
@@ -14996,6 +15001,57 @@ void Start_Highlights_Menu42()
   GreyOut42();
 }
 
+void Define_Menu43()
+{
+  int button;
+  color_t Blue;
+  color_t LBlue;
+  color_t DBlue;
+  color_t Green;
+  Blue.r=0; Blue.g=0; Blue.b=128;
+  LBlue.r=64; LBlue.g=64; LBlue.b=192;
+  DBlue.r=0; DBlue.g=0; DBlue.b=64;
+  Green.r=0; Green.g=128; Green.b=0;
+
+  strcpy(MenuTitle[43], "System Configuration Menu (43)"); 
+
+  // Bottom Row, Menu 43
+
+  button = CreateButton(43, 4);
+  AddButtonStatus(button, "Exit", &DBlue);
+  AddButtonStatus(button, "Exit", &LBlue);
+
+  button = CreateButton(43, 0);
+  AddButtonStatus(button, "Restore^Factory", &Blue);
+  AddButtonStatus(button, "Restore^Factory", &Green);
+
+//  button = CreateButton(43, 1);
+//  AddButtonStatus(button, "Load^from USB", &Blue);
+//  AddButtonStatus(button, "Load^from USB", &Green);
+
+//  button = CreateButton(43, 2);
+//  AddButtonStatus(button, "Restore^from Boot", &Blue);
+//  AddButtonStatus(button, "Restore^from Boot", &Green);
+
+  // 2nd Row, Menu 43
+
+//  button = CreateButton(43, 6);
+//  AddButtonStatus(button, "Save^to USB", &Blue);
+//  AddButtonStatus(button, "Save^to USB", &Green);
+
+//  button = CreateButton(43, 7);
+//  AddButtonStatus(button, "Back-up^to Boot", &Blue);
+//  AddButtonStatus(button, "Back-up^to Boot", &Green);
+
+//  button = CreateButton(43, 9);
+//  AddButtonStatus(button, "Hardware^Shutdown", &Blue);
+//  AddButtonStatus(button, "Hardware^Shutdown", &Green);
+}
+
+void Start_Highlights_Menu43()
+{
+  // Nothing here yet
+}
 
 void Define_Menu41()
 {
@@ -15451,6 +15507,7 @@ int main(int argc, char **argv)
 
   Define_Menu41();
   Define_Menu42();
+  Define_Menu43();
 
   // Start the button Menu
   Start(wscreen,hscreen);

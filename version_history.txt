@@ -1,3 +1,7 @@
+201812290
+Correct RPi PTT operation with LimeSDR
+Tidy Menu buttons
+
 201811300
 Lime install by default
 Lime upsampling and GPIO support

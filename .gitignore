@@ -1,5 +1,6 @@
 *~
 *.swp
+*.bak
 bin/*
 scripts/portsdown_config.txt
 scripts/portsdown_presets.txt
