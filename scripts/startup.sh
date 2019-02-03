@@ -2,8 +2,9 @@
 # set -x
 
 # This script is sourced from .bashrc at boot and ssh session start
+# to sort out driver issues and
 # to select the user's selected start-up option.
-# Dave Crump 20170721 Revised for Stretch 20180327
+# Dave Crump 20170721 Revised for Stretch 20180327 and 20190130
 
 ############ Set Environment Variables ###############
 
@@ -28,6 +29,29 @@ break
 end
 end
 EOF
+}
+
+############ Function to Write to Config File ###############
+
+set_config_var() {
+lua - "$1" "$2" "$3" <<EOF > "$3.bak"
+local key=assert(arg[1])
+local value=assert(arg[2])
+local fn=assert(arg[3])
+local file=assert(io.open(fn))
+local made_change=false
+for line in file:lines() do
+if line:match("^#?%s*"..key.."=.*$") then
+line=key.."="..value
+made_change=true
+end
+print(line)
+end
+if not made_change then
+print(key.."="..value)
+end
+EOF
+mv "$3.bak" "$3"
 }
 
 ######################### Start here #####################
@@ -92,6 +116,115 @@ if [ "$RESULT" -eq 0 ]; then
 fi
 
 # So continue assuming that this could be a first-start
+# or it could be a second ssh session.
+
+# Check user-requested display type
+DISPLAY=$(get_config_var display $PCONFIGFILE)
+
+# Read the desired start-up behaviour
+MODE_STARTUP=$(get_config_var startup $PCONFIGFILE)
+
+# First check that the correct display has been selected 
+# to load drivers against the one that is fitted
+
+# But only if it is a boot session and display boot selected
+
+if [[ "$SESSION_TYPE" == "boot" && "$MODE_STARTUP" == "Display_boot" ]]; then
+  
+  # Test if Waveshare selected, but Element 14 fitted 
+  if [ "$DISPLAY" == "Waveshare" ]; then
+
+    dmesg | grep 'rpi-ft5406' >/dev/null 2>/dev/null
+    SCREEN_RESULT="$?"
+
+    if [ "$SCREEN_RESULT" == 1 ]; then # no 7 inch display detected
+      # Remove reboot lock
+      rm /home/pi/rpidatv/scripts/reboot.lock >/dev/null 2>/dev/null
+    else
+      # This section modifies and replaces the end of /boot/config.txt
+      # to allow (only) the correct LCD drivers to be loaded at next boot
+
+      # Set constants for the amendment of /boot/config.txt
+      PATHCONFIGS="/home/pi/rpidatv/scripts/configs"  ## Path to config files
+      lead='^## Begin LCD Driver'               ## Marker for start of inserted text
+      tail='^## End LCD Driver'                 ## Marker for end of inserted text
+      CHANGEFILE="/boot/config.txt"             ## File requiring added text
+      APPENDFILE=$PATHCONFIGS"/lcd_markers.txt" ## File containing both markers
+      TRANSFILE=$PATHCONFIGS"/transfer.txt"     ## File used for transfer
+
+      grep -q "$lead" "$CHANGEFILE"     ## Is the first marker already present?
+      if [ $? -ne 0 ]; then
+        sudo bash -c 'cat '$APPENDFILE' >> '$CHANGEFILE' '  ## If not append the markers
+      fi
+
+      # Select the correct driver text
+      INSERTFILE=$PATHCONFIGS"/element14_7.txt"
+
+      # Replace whatever is between the markers with the driver text
+      sed -e "/$lead/,/$tail/{ /$lead/{p; r $INSERTFILE
+	        }; /$tail/p; d }" $CHANGEFILE >> $TRANSFILE
+
+      sudo cp "$TRANSFILE" "$CHANGEFILE"          ## Copy from the transfer file
+      rm $TRANSFILE                               ## Delete the transfer file
+
+      # Change the Display in the config file
+      set_config_var display "Element14_7" $PCONFIGFILE
+
+      # Reboot, but only if reboot lock does not exist
+      if [ ! -f /home/pi/rpidatv/scripts/reboot.lock ]; then
+        touch /home/pi/rpidatv/scripts/reboot.lock      
+        sudo reboot now
+      fi
+    fi
+  fi
+
+  # Test if Element 14 selected, but Waveshare fitted 
+
+  if [ "$DISPLAY" == "Element14_7" ]; then
+
+    dmesg | grep 'ft5406' >/dev/null 2>/dev/null
+    DRIVER_RESULT="$?"
+    if [ "$DRIVER_RESULT" -eq 0 ]; then  # driver present and working
+      # Remove reboot lock
+      rm /home/pi/rpidatv/scripts/reboot.lock >/dev/null 2>/dev/null
+    else
+      # This section modifies and replaces the end of /boot/config.txt
+      # to allow (only) the correct LCD drivers to be loaded at next boot
+
+      # Set constants for the amendment of /boot/config.txt
+      PATHCONFIGS="/home/pi/rpidatv/scripts/configs"  ## Path to config files
+      lead='^## Begin LCD Driver'               ## Marker for start of inserted text
+      tail='^## End LCD Driver'                 ## Marker for end of inserted text
+      CHANGEFILE="/boot/config.txt"             ## File requiring added text
+      APPENDFILE=$PATHCONFIGS"/lcd_markers.txt" ## File containing both markers
+      TRANSFILE=$PATHCONFIGS"/transfer.txt"     ## File used for transfer
+
+      grep -q "$lead" "$CHANGEFILE"     ## Is the first marker already present?
+      if [ $? -ne 0 ]; then
+          sudo bash -c 'cat '$APPENDFILE' >> '$CHANGEFILE' '  ## If not append the markers
+      fi
+
+      # Select the correct driver text
+      INSERTFILE=$PATHCONFIGS"/waveshare.txt"
+
+      # Replace whatever is between the markers with the driver text
+      sed -e "/$lead/,/$tail/{ /$lead/{p; r $INSERTFILE
+	        }; /$tail/p; d }" $CHANGEFILE >> $TRANSFILE
+
+      sudo cp "$TRANSFILE" "$CHANGEFILE"          ## Copy from the transfer file
+      rm $TRANSFILE                               ## Delete the transfer file
+
+      # Change the Display in the config file
+      set_config_var display "Waveshare" $PCONFIGFILE
+
+      # Reboot, but only if reboot lock does not exist
+      if [ ! -f /home/pi/rpidatv/scripts/reboot.lock ]; then
+        touch /home/pi/rpidatv/scripts/reboot.lock      
+        sudo reboot now
+      fi
+    fi
+  fi
+fi
 
 # If pi-sdn is not running, check if it is required to run
 ps -cax | grep 'pi-sdn' >/dev/null 2>/dev/null
@@ -108,8 +241,6 @@ if [ -f ~/.wifi_off ]; then
     . ~/.wifi_off
 fi
 
-# Check display type
-DISPLAY=$(get_config_var display $PCONFIGFILE)
 
 # If framebuffer copy is not already running, start it for non-Element 14 displays
 if [ "$DISPLAY" != "Element14_7" ]; then
@@ -140,11 +271,11 @@ if [ "$RESULT" -eq 0 ]; then
   sudo modprobe usbtv           # Load the EasyCap driver
   sudo modprobe em28xx        # Load the EasyCap driver
   sudo modprobe stk1160        # Load the EasyCap driver
-  # Comment out reload of uvcvideo as it causes shutdown to hang
+  # Comment out reload of uvcvideo as it causes shutdown to hang if device not present
   #  sudo modprobe uvcvideo        # Load the EasyCap driver
 
-  # Reload uvcvideo if Webcam C170 present
-  lsusb | grep 'Webcam C170' >/dev/null 2>/dev/null
+  # Reload uvcvideo if Webcam C170 or C920 present
+  lsusb | grep -E 'Webcam C170|Webcam C920' >/dev/null 2>/dev/null
   RESULT="$?"
   if [ "$RESULT" -eq 0 ]; then
     sudo modprobe uvcvideo
@@ -169,9 +300,6 @@ RESULT="$?"
 if [ "$RESULT" -eq 0 ]; then
   sudo ln /dev/input/event2 /dev/input/touchscreen
 fi
-
-# Read the desired start-up behaviour
-MODE_STARTUP=$(get_config_var startup $PCONFIGFILE)
 
 # Select the appropriate action
 
@@ -245,3 +373,5 @@ case "$MODE_STARTUP" in
     return
   ;;
 esac
+
+
