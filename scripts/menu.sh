@@ -565,6 +565,8 @@ do_output_setup_mode()
   Radio7=OFF
   Radio8=OFF
   Radio9=OFF
+  Radio10=OFF
+  Radio11=OFF
   case "$MODE_OUTPUT" in
   IQ)
     Radio1=ON
@@ -590,8 +592,14 @@ do_output_setup_mode()
   COMPVID)
     Radio8=ON
   ;;
-  *)
+  LIMEMINI)
     Radio9=ON
+  ;;
+  LIMEUSB)
+    Radio10=ON
+  ;;
+  *)
+    Radio11=ON
   ;;
   esac
 
@@ -605,6 +613,8 @@ do_output_setup_mode()
     "DATVEXPRESS" "$StrOutputSetupDATVExpress" $Radio6 \
     "IP" "$StrOutputSetupIP" $Radio7 \
     "COMPVID" "Output PAL Comp Video from Raspberry Pi AV Socket" $Radio8 \
+    "LIMEMINI" "Transmit using a LimeSDR Mini" $Radio9 \
+    "LIMEUSB" "Transmit using a LimeSDR USB" $Radio10 \
     3>&2 2>&1 1>&3)
 
   if [ $? -eq 0 ]; then
@@ -683,6 +693,12 @@ do_output_setup_mode()
       fi
     ;;
     COMPVID)
+      :
+    ;;
+    LIMEMINI)
+      :
+    ;;
+    LIMEUSB)
       :
     ;;
     esac
@@ -1589,6 +1605,35 @@ do_attenuator()
   fi
 }
 
+do_LimeStatus()
+{
+reset
+
+printf "LimeSDR Firmware Status\n"
+printf "=========================\n\n"
+
+LimeUtil --make
+
+printf "\n\nPress any key to return to the main menu\n"
+read -n 1
+
+}
+
+
+do_LimeUpdate()
+{
+reset
+
+printf "LimeSDR Firmware Update\n"
+printf "=======================\n\n"
+
+LimeUtil --update
+
+printf "\n\nPress any key to return to the main menu\n"
+read -n 1
+
+}
+
 do_Update()
 {
 reset
@@ -2354,10 +2399,7 @@ do_back_up()
     if [[ "$BACKUP" == "y" || "$BACKUP" == "Y" ]]; then
       ls -l /dev/disk/by-uuid|grep -q sda  # returns 0 if USB drive connected
       if [ $? -eq 0 ]; then
-        sudo mv -f /media/usb0/portsdown_config.txt /media/usb0/portsdown_config.txt.bak >/dev/null 2>/dev/null
-        sudo cp $PATHSCRIPT"/portsdown_config.txt" /media/usb0/portsdown_config.txt >/dev/null 2>/dev/null
-        sudo mv -f /media/usb0/portsdown_presets.txt /media/usb0/portsdown_presets.txt.bak >/dev/null 2>/dev/null
-        sudo cp $PATHSCRIPT"/portsdown_presets.txt" /media/usb0/portsdown_presets.txt >/dev/null 2>/dev/null
+        source /home/pi/rpidatv/scripts/copy_settings_to_usb.sh
         sudo umount /media/usb0 >/dev/null 2>/dev/null
         whiptail --title "Message" --msgbox "Config files copied to USB.  USB Drive unmounted.  Press enter to continue" 8 78
       else
@@ -2377,11 +2419,8 @@ do_load_settings()
     if [[ "$BACKUP" == "y" || "$BACKUP" == "Y" ]]; then
       ls -l /dev/disk/by-uuid|grep -q sda  # returns 0 if USB drive connected
       if [ $? -eq 0 ]; then
-        if [ -f /media/usb0/portsdown_config.txt ]; then
-          mv -f $PATHSCRIPT"/portsdown_config.txt" $PATHSCRIPT"/portsdown_config.txt.bak" >/dev/null 2>/dev/null
-          cp /media/usb0/portsdown_config.txt $PATHSCRIPT"/portsdown_config.txt" >/dev/null 2>/dev/null
-          mv -f $PATHSCRIPT"/portsdown_presets.txt" $PATHSCRIPT"/portsdown_presets.txt.bak" >/dev/null 2>/dev/null
-          cp /media/usb0/portsdown_presets.txt $PATHSCRIPT"/portsdown_presets.txt" >/dev/null 2>/dev/null
+        if [ -f /media/usb0/portsdown_settings/portsdown_config.txt ]; then
+          source /home/pi/rpidatv/scripts/restore_from_USB.sh
           whiptail --title "Message" --msgbox "Configuration files copied from USB.  Please press enter to continue" 8 78
         else
           whiptail --title "Message" --msgbox "File portsdown_config.txt not found.  Please press enter to continue" 8 78
@@ -2397,7 +2436,7 @@ do_load_settings()
 
 do_system_setup()
 {
-menuchoice=$(whiptail --title "$StrSystemTitle" --menu "$StrSystemContext" 16 78 10 \
+menuchoice=$(whiptail --title "$StrSystemTitle" --menu "$StrSystemContext" 20 78 13 \
     "1 Autostart" "$StrAutostartMenu"  \
     "2 Display" "$StrDisplayMenu" \
     "3 Show IP" "$StrIPMenu" \
@@ -2407,7 +2446,9 @@ menuchoice=$(whiptail --title "$StrSystemTitle" --menu "$StrSystemContext" 16 78
     "7 Set-up EasyCap" "Set input socket and PAL/NTSC"  \
     "8 Audio Input" "Select USB Dongle or EasyCap"  \
     "9 Attenuator" "Select Output Attenuator Type"  \
-    "10 Update" "Check for Updated rpidatv Software"  \
+    "10 Lime Status" "Check the LimeSDR Firmware Version"  \
+    "11 Lime Update" "Update the LimeSDR Firmware Version"  \
+    "12 Update" "Check for Updated rpidatv Software"  \
     3>&2 2>&1 1>&3)
     case "$menuchoice" in
         1\ *) do_autostart_setup ;;
@@ -2419,7 +2460,9 @@ menuchoice=$(whiptail --title "$StrSystemTitle" --menu "$StrSystemContext" 16 78
         7\ *) do_EasyCap ;;
         8\ *) do_audio_switch;;
         9\ *) do_attenuator;;
-        10\ *) do_Update ;;
+        10\ *) do_LimeStatus;;
+        11\ *) do_LimeUpdate;;
+        12\ *) do_Update ;;
      esac
 }
 

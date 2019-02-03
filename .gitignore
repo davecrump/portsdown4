@@ -1,6 +1,10 @@
 *~
 *.swp
 *.bak
+*.inc
+*.o
+*.so
+*.a
 bin/*
 scripts/portsdown_config.txt
 scripts/portsdown_presets.txt
@@ -18,6 +22,7 @@ src/avc2ts/grabdisplay.o
 src/avc2ts/libmpegts/
 src/avc2ts/vncclient.o
 src/avc2ts/webcam.o
+src/DvbTsToIQ/dvb2iq
 src/gui/DejaVuSans.inc
 src/gui/DejaVuSansMono.inc
 src/gui/DejaVuSerif.inc
@@ -27,8 +32,15 @@ src/gui/libshapes.so
 src/gui/oglinit.o
 src/gui/rpidatvgui
 src/gui/tcanim
+src/gui/tcanim1v16
 src/hello_video/hello_video.bin
+src/hello_video2/hello_video2.bin
 src/leansdr/
+src/limesdr_toolbox/CMakeFiles/
+src/limesdr_toolbox/limesdr_dump
+src/limesdr_toolbox/limesdr_forward
+src/limesdr_toolbox/limesdr_send
+src/limesdr_toolbox/limesdr_stopchannel
 src/rpidatv
 src/siggen/DejaVuSans.inc
 src/siggen/DejaVuSansMono.inc
@@ -37,3 +49,5 @@ src/siggen/font2openvg
 src/siggen/libshapes.o
 src/siggen/oglinit.o
 src/tstools/
+src/xy/xy
+

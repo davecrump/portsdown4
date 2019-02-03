@@ -301,11 +301,11 @@ void DisplayLogo();
 int getTouchSample(int *, int *, int *);
 void TransformTouchMap(int, int);
 int ButtonNumber(int, int);
-int CheckLimeInstalled();
 int CheckLimeMiniConnect();
 int CheckLimeUSBConnect();
 void YesNo(int);
 static void cleanexit(int);
+int LimeGWRev();
 
 /***************************************************************************//**
  * @brief Looks up the value of a Param in PathConfigFile and sets value
@@ -345,7 +345,7 @@ void GetConfigParam(char *PathConfigFile, char *Param, char *Value)
 }
 
 /***************************************************************************//**
- * @brief sets the value of Param in PathConfigFile froma program variable
+ * @brief sets the value of Param in PathConfigFile from a program variable
  *        Used to store the configuration in portsdown_config.txt
  *
  * @param PatchConfigFile (str) the name of the configuration text file
@@ -900,42 +900,35 @@ void ExecuteUpdate(int NoButton)
 }
 
 /***************************************************************************//**
- * @brief Acts on Lime Config buttons
+ * @brief Applies a normal Lime firmware update and checks GW revision
  *
- * @param int NoButton, which is 5, or 6
+ * @param nil
  *
  * @return void
 *******************************************************************************/
 
-void LimeConfig(int NoButton)
+void LimeFWUpdate()
 {
-  switch(NoButton)
+  MsgBox4("Please wait", " ", " ", " ");
+  if ((CheckLimeMiniConnect() == 0) || (CheckLimeUSBConnect() == 0))
   {
-  case 0:  // Install Lime Mini and USB with working version
-    break;
-
-  case 1:  // Install Lime Mini and USB with latest, non-working version
-    break;
-
-  case 5:
-    break;
-  case 6:  // Upgrade Lime Firmware
-    if ((CheckLimeMiniConnect() == 0) || (CheckLimeUSBConnect() == 0))
+    MsgBox4("Upgrading Lime Firmware", " ", " ", " ");
+    system("LimeUtil --update");
+    usleep(250000);
+    if (LimeGWRev() == 27)
     {
-      MsgBox4("Upgrading Lime Firmware", " ", " ", " ");
-      system("LimeUtil --update");
-      MsgBox4("Firmware Upgrade Complete", " ", "Touch Screen to Continue" ," ");
-      wait_touch();
+      MsgBox4("Firmware Upgrade Successful", "Now at Gateware 1.27", "Touch Screen to Continue" ," ");
     }
     else
     {
-      MsgBox4("No Lime Connected", " ", "Touch Screen to Continue" ," ");
-      wait_touch();
+      MsgBox4("Firmware Upgrade Unsuccessful", "Further Investifgation required", "Touch Screen to Continue" ," ");
     }
-    break;
-  default:
-    break;
   }
+  else
+  {
+    MsgBox4("No Lime Connected", " ", "Touch Screen to Continue" ," ");
+  }
+  wait_touch();
 }
 
 
@@ -1523,6 +1516,28 @@ void ReadModeOutput(char Moutput[256])
 }
 
 /***************************************************************************//**
+ * @brief Checks if a file exists
+ *
+ * @param nil
+ *
+ * @return 0 if exists, 1 if not
+*******************************************************************************/
+
+int file_exist (char *filename)
+{
+  if ( access( filename, R_OK ) != -1 ) 
+  {
+    // file exists
+    return 0;
+  }
+  else
+  {
+    // file doesn't exist
+    return 1;
+  }
+}
+
+/***************************************************************************//**
  * @brief Reads the EasyCap modes from portsdown_config.txt
  *        
  * @param nil
@@ -1532,7 +1547,6 @@ void ReadModeOutput(char Moutput[256])
 
 void ReadModeEasyCap()
 {
-  // char ModeOutput[256];
   GetConfigParam(PATH_PCONFIG,"analogcaminput", ModeVidIP);
   GetConfigParam(PATH_PCONFIG,"analogcamstandard", ModeSTD);
 }
@@ -1863,6 +1877,8 @@ void GetUSBVidDev(char VidDevName[256])
   FILE *fp;
   char response_line[255];
   char WebcamName[255] = "none";
+
+  strcpy(VidDevName, "nil");
 
   // Read the Webcam address if it is present
 
@@ -3148,39 +3164,6 @@ int CheckfbcpRunning()
   return responseint;
 }
 
-
-/***************************************************************************//**
- * @brief Checks whether LimeSuite is installed
- *
- * @param 
- *
- * @return 0 if installed, 1 if not
-*******************************************************************************/
-
-int CheckLimeInstalled()
-{
-  FILE *fp;
-  char response[255];
-  int responseint;
-
-  /* Open the command for reading. */
-  fp = popen("if [ ! -d \"/home/pi/LimeSuite/\" ]; then echo \"1\"; else echo \"0\"; fi", "r");
-  if (fp == NULL) {
-    printf("Failed to run command\n" );
-    exit(1);
-  }
-
-  /* Read the output a line at a time - output it. */
-  while (fgets(response, 7, fp) != NULL)
-  {
-    responseint = atoi(response);
-  }
-
-  /* close */
-  pclose(fp);
-  return responseint;
-}
-
 /***************************************************************************//**
  * @brief Checks whether a Lime Mini is connected
  *
@@ -3284,6 +3267,7 @@ void CheckLimeReady()
 
 void LimeInfo()
 {
+  MsgBox4("Please wait", "", "", "");
   BackgroundRGB(0,0,0,255);  // Black background
   Fill(255, 255, 255, 1);    // White text
   VGfloat th = TextHeight(SansTypeface, 20);
@@ -3317,6 +3301,461 @@ void LimeInfo()
 
   End();
 }
+
+/***************************************************************************//**
+ * @brief Returns Lime Gateware Revision
+ *        
+ * @param 
+ *
+ * @return int Lime Gateware revision 26, 27 or 28
+*******************************************************************************/
+
+int LimeGWRev()
+{
+  FILE *fp;
+  char response[255];
+  char test_string[255];
+  int line = 0;
+  int GWRev = 0;
+
+  // Open the command for reading
+  fp = popen("LimeUtil --make", "r");
+  if (fp == NULL) {
+    printf("Failed to run command\n" );
+    exit(1);
+  }
+
+  // Read the output a line at a time
+  while (fgets(response, 50, fp) != NULL)
+  {
+    if (line > 0)    //skip first line
+    {
+      strcpy(test_string, response);
+      test_string[19] = '\0';
+      if (strcmp(test_string, "  Gateware revision") == 0)
+      {
+        strncpy(test_string, &response[21], strlen(response));
+        test_string[strlen(response)-21] = '\0';
+        GWRev = atoi(test_string);
+      }
+    }
+    line = line + 1;
+  }
+
+  pclose(fp);
+  return GWRev;
+}
+
+/***************************************************************************//**
+ * @brief Returns Lime Gateware Version
+ *        
+ * @param 
+ *
+ * @return int Lime Gateware Version 1?
+*******************************************************************************/
+int LimeGWVer()
+{
+  FILE *fp;
+  char response[255];
+  char test_string[255];
+  int line = 0;
+  int GWVer = 0;
+
+  fp = popen("LimeUtil --make", "r");
+  if (fp == NULL)
+  {
+    printf("Failed to run command\n" );
+    exit(1);
+  }
+
+  // Read the output a line at a time
+  while (fgets(response, 50, fp) != NULL)
+  {
+    if (line > 0)    //skip first line
+    {
+      strcpy(test_string, response);
+      test_string[18] = '\0';
+      if (strcmp(test_string, "  Gateware version") == 0)
+      {
+        // Copy the text to the right of the deleted character
+        strncpy(test_string, &response[20], strlen(response));
+        test_string[strlen(response)-20] = '\0';
+        GWVer = atoi(test_string);
+      }
+    }
+    line = line + 1;
+  }
+
+  pclose(fp);
+  return GWVer;
+}
+
+/***************************************************************************//**
+ * @brief Returns Lime Firmware Version
+ *        
+ * @param 
+ *
+ * @return int Lime Firmware version 5?
+*******************************************************************************/
+int LimeFWVer()
+{
+  FILE *fp;
+  char response[255];
+  char test_string[255];
+  int line = 0;
+  int FWVer = 0;
+
+  fp = popen("LimeUtil --make", "r");
+  if (fp == NULL)
+  {
+    printf("Failed to run command\n" );
+    exit(1);
+  }
+
+  // Read the output a line at a time
+  while (fgets(response, 50, fp) != NULL)
+  {
+    if (line > 0)    //skip first line
+    {
+      strcpy(test_string, response);
+      test_string[18] = '\0';
+      if (strcmp(test_string, "  Firmware version") == 0)
+      {
+        // Copy the text to the right of the deleted character
+        strncpy(test_string, &response[20], strlen(response));
+        test_string[strlen(response)-20] = '\0';
+        FWVer = atoi(test_string);
+      }
+    }
+    line = line + 1;
+  }
+
+  pclose(fp);
+  return FWVer;
+}
+
+/***************************************************************************//**
+ * @brief Returns Lime Hardware version
+ *        
+ * @param 
+ *
+ * @return int Lime Hardware version 1 or 2
+*******************************************************************************/
+int LimeHWVer()
+{
+  FILE *fp;
+  char response[255];
+  char test_string[255];
+  int line = 0;
+  int HWVer = 0;
+
+  fp = popen("LimeUtil --make", "r");
+  if (fp == NULL)
+  {
+    printf("Failed to run command\n" );
+    exit(1);
+  }
+
+  // Read the output a line at a time
+  while (fgets(response, 50, fp) != NULL)
+  {
+    if (line > 0)    //skip first line
+    {
+      strcpy(test_string, response);
+      test_string[18] = '\0';
+      if (strcmp(test_string, "  Hardware version") == 0)
+      {
+        // Copy the text to the right of the deleted character
+        strncpy(test_string, &response[20], strlen(response));
+        test_string[strlen(response)-20] = '\0';
+        HWVer = atoi(test_string);
+      }
+    }
+    line = line + 1;
+  }
+
+  pclose(fp);
+  return HWVer;
+}
+
+/***************************************************************************//**
+ * @brief Checks Lime Mini version and runs LimeQuickTest
+ *        
+ * @param 
+ *
+ * @return null, but output is displayed
+*******************************************************************************/
+void LimeMiniTest()
+{
+  BackgroundRGB(0,0,0,255);  // Black background
+  Fill(255, 255, 255, 1);    // White text
+  VGfloat th = TextHeight(SansTypeface, 20);
+  char version_info[51];
+  int LHWVer = 0;
+  int LFWVer = 0;
+  int LGWVer = 0;
+  int LGWRev = 0;
+  FILE *fp;
+  char response[255];
+  char test_string[255];
+  int line = 0;
+  int rct = 1;      // REF clock test
+  int vctcxot = 1;  // VCTCXO test
+  int cnt  = 1;     // Clock Network Test
+  int fpgae = 1;    // FPGA EEPROM Test
+  int lmst = 1;     // LMS7002M Test
+  int tx2lnawt = 1; // TX_2 -> LNA_W Test
+  int tx1lnaht = 1; // TX_1 -> LNA_H
+  int rflt = 1;     // RF Loopback Test
+  int bt = 1;       // Board tests
+
+  MsgBox4("Testing...", "", "Please Wait", "");
+  BackgroundRGB(0,0,0,255);  // Black background
+
+  Text(wscreen/12, hscreen - 1 * th, "Portsdown LimeSDR Mini Test Report", SansTypeface, 20);
+
+  // First check that a LimeSDR Mini (not a USB version) is connected
+  if (CheckLimeMiniConnect() != 0)  // No Lime Mini Connected
+  {
+    if (CheckLimeUSBConnect() == 0)  // Lime USB Connnected
+    {
+      Text(wscreen/12, hscreen - 3 * th, "LimeSDR USB Connected", SansTypeface, 20);
+      Text(wscreen/12, hscreen - 5 * th, "This test only works for the LimeSDR Mini", SansTypeface, 20);
+    }
+    else  // Nothing connected
+    {
+      Text(wscreen/12, hscreen - 3 * th, "No LimeSDR Connected", SansTypeface, 20);
+      Text(wscreen/12, hscreen - 5 * th, "Please check connections", SansTypeface, 20);
+    }
+  }
+  else  // LimeSDR Mini connected, so check HW, FW and GW versions
+  {
+
+    fp = popen("LimeUtil --make", "r");
+    if (fp == NULL)
+    {
+      printf("Failed to run command\n" );
+      exit(1);
+    }
+
+    while (fgets(response, 50, fp) != NULL)
+    {
+      if (line > 0)    //skip first line
+      {
+        strcpy(test_string, response);
+        test_string[18] = '\0';
+        if (strcmp(test_string, "  Hardware version") == 0)
+        {
+          strncpy(test_string, &response[20], strlen(response));
+          test_string[strlen(response)-20] = '\0';
+          LHWVer = atoi(test_string);
+        }
+
+        strcpy(test_string, response);
+        test_string[18] = '\0';
+        if (strcmp(test_string, "  Firmware version") == 0)
+        {
+          strncpy(test_string, &response[20], strlen(response));
+          test_string[strlen(response)-20] = '\0';
+          LFWVer = atoi(test_string);
+        }
+
+        strcpy(test_string, response);
+        test_string[18] = '\0';
+        if (strcmp(test_string, "  Gateware version") == 0)
+        {
+          strncpy(test_string, &response[20], strlen(response));
+          test_string[strlen(response)-20] = '\0';
+          LGWVer = atoi(test_string);
+        }
+
+        strcpy(test_string, response);
+        test_string[19] = '\0';
+        if (strcmp(test_string, "  Gateware revision") == 0)
+        {
+          strncpy(test_string, &response[21], strlen(response));
+          test_string[strlen(response)-21] = '\0';
+          LGWRev = atoi(test_string);
+        }
+      }
+      line = line + 1;
+    }
+    pclose(fp);
+ 
+    snprintf(version_info, 50, "Hardware V1.%d, Firmware V%d, Gateware V%d.%d", LHWVer, LFWVer, LGWVer, LGWRev);
+    Text(wscreen/12, hscreen - (2.8 * th), version_info, SansTypeface, 20);
+
+    if ((LFWVer == 5) && (LGWVer == 1) && (LGWRev == 27))  // All correct
+    {
+      Fill(127, 255, 127, 1);    // Green text
+      Text(wscreen/12, hscreen - (3.9 * th), "This is the correct standard for this Portsdown", SansTypeface, 20);
+      Fill(255, 255, 255, 1);    // White text
+      fp = popen("LimeQuickTest", "r");
+      if (fp == NULL)
+      {
+        printf("Failed to run command\n" );
+        exit(1);
+      }
+
+      // Read the output a line at a time
+      while (fgets(response, 100, fp) != NULL)
+      {
+        if (line > 4)    //skip initial lines
+        {
+          strcpy(test_string, response);
+          test_string[15] = '\0';
+          if (strcmp(test_string, "  Test results:") == 0)
+          {
+            Text(wscreen/12, hscreen - (5.5 * th), "REF clock test", SansTypeface, 20);
+            strncpy(test_string, &response[strlen(response) - 7], strlen(response));
+            test_string[6] = '\0';
+            Text(wscreen*6/12, hscreen - (5.5 * th), test_string, SansTypeface, 20);
+            rct = strcmp(test_string, "PASSED");
+          }
+
+          strcpy(test_string, response);
+          test_string[11] = '\0';
+          if (strcmp(test_string, "  Results :") == 0)
+          {
+            Text(wscreen/12, hscreen - (6.6 * th), "VCTCXO test", SansTypeface, 20);
+            strncpy(test_string, &response[strlen(response) - 7], strlen(response));
+            test_string[6] = '\0';
+            Text(wscreen*6/12, hscreen - (6.6 * th), test_string, SansTypeface, 20);
+            vctcxot = strcmp(test_string, "PASSED");
+          }
+
+          strcpy(test_string, response);
+          test_string[11] = '\0';
+          if (strcmp(test_string, "->Clock Net") == 0)
+          {
+            Text(wscreen/12, hscreen - (7.7 * th), "Clock Network Test", SansTypeface, 20);
+            strncpy(test_string, &response[strlen(response) - 7], strlen(response));
+            test_string[6] = '\0';
+            Text(wscreen*6/12, hscreen - (7.7 * th), test_string, SansTypeface, 20);
+            cnt = strcmp(test_string, "PASSED");
+          }
+
+          strcpy(test_string, response);
+          test_string[12] = '\0';
+          if (strcmp(test_string, "->FPGA EEPRO") == 0)
+          {
+            Text(wscreen/12, hscreen - (8.8 * th), "FPGA EEPROM Test", SansTypeface, 20);
+            strncpy(test_string, &response[strlen(response) - 7], strlen(response));
+            test_string[6] = '\0';
+            Text(wscreen*6/12, hscreen - (8.8 * th), test_string, SansTypeface, 20);
+            fpgae = strcmp(test_string, "PASSED");
+           }
+
+          strcpy(test_string, response);
+          test_string[12] = '\0';
+          if (strcmp(test_string, "->LMS7002M T") == 0)
+          {
+            Text(wscreen/12, hscreen - (9.9 * th), "LMS7002M Test", SansTypeface, 20);
+            strncpy(test_string, &response[strlen(response) - 7], strlen(response));
+            test_string[6] = '\0';
+            Text(wscreen*6/12, hscreen - (9.9 * th), test_string, SansTypeface, 20);
+            lmst = strcmp(test_string, "PASSED");
+          }
+
+          strcpy(test_string, response);
+          test_string[12] = '\0';
+          if (strcmp(test_string, "  CH0 (SXR=1") == 0)
+          {
+            Text(wscreen/12, hscreen - (11 * th), "TX_2 -> LNA_W Test", SansTypeface, 20);
+            strncpy(test_string, &response[strlen(response) - 7], strlen(response));
+            test_string[6] = '\0';
+            Text(wscreen*6/12, hscreen - (11 * th), test_string, SansTypeface, 20);
+            tx2lnawt = strcmp(test_string, "PASSED");
+          }
+
+          strcpy(test_string, response);
+          test_string[12] = '\0';
+          if (strcmp(test_string, "  CH0 (SXR=2") == 0)
+          {
+            Text(wscreen/12, hscreen - (12.1 * th), "TX_1 -> LNA_H Test", SansTypeface, 20);
+            strncpy(test_string, &response[strlen(response) - 7], strlen(response));
+            test_string[6] = '\0';
+            Text(wscreen*6/12, hscreen - (12.1 * th), test_string, SansTypeface, 20);
+            tx1lnaht = strcmp(test_string, "PASSED");
+          }
+
+          strcpy(test_string, response);
+          test_string[12] = '\0';
+          if (strcmp(test_string, "->RF Loopbac") == 0)
+          {
+            Text(wscreen/12, hscreen - (13.2 * th), "RF Loopback Test", SansTypeface, 20);
+            strncpy(test_string, &response[strlen(response) - 7], strlen(response));
+            test_string[6] = '\0';
+            Text(wscreen*6/12, hscreen - (13.2 * th), test_string, SansTypeface, 20);
+            rflt = strcmp(test_string, "PASSED");
+          }
+
+              strcpy(test_string, response);
+          test_string[12] = '\0';
+          if (strcmp(test_string, "=> Board tes") == 0)
+          {
+            Text(wscreen/12, hscreen - (14.3 * th), "Board tests", SansTypeface, 20);
+            strncpy(test_string, &response[strlen(response) - 10], strlen(response));
+            test_string[6] = '\0';
+            Text(wscreen*6/12, hscreen - (14.3 * th), test_string, SansTypeface, 20);
+            bt = strcmp(test_string, "PASSED");
+          }
+        }
+        line = line + 1;
+      }
+      pclose(fp);
+      if ((rct + vctcxot + cnt + fpgae + lmst + tx2lnawt + tx1lnaht + rflt + bt) == 0)       // All passed
+      {
+        Fill(127, 255, 127, 1);    // Green text
+        Text(wscreen/12, 1.0 * th, "All tests passed", SansTypeface, 20);
+      }
+      else
+      {
+        Fill(255, 63, 63, 1);    // Red text
+        Text(wscreen/12, hscreen - (15.4 * th), "Further investigation required", SansTypeface, 20);
+      }
+    }
+    else  // incorrect version
+    {
+      Fill(255, 63, 63, 1);    // Red text
+      if (LFWVer < 5)
+      {
+        Text(wscreen/12, hscreen - 5 * th, "Firmware version needs to be V5 for Portsdown", SansTypeface, 20);
+        Text(wscreen/12, hscreen - 7 * th, "Please \"Update Lime FW\"", SansTypeface, 20);
+      }
+      else
+      {
+        if ((LGWRev < 27) && (LGWVer == 1))
+        {
+          Text(wscreen/12, hscreen - 5 * th, "Gateware version needs to be V1.27 for Portsdown", SansTypeface, 20);
+          Text(wscreen/12, hscreen - 7 * th, "Please \"Update Lime FW\"", SansTypeface, 20);
+        }
+        else
+        {
+          if (LFWVer > 5)
+          {
+            Text(wscreen/12, hscreen - 5 * th, "Firmware version needs to be V5 for Portsdown", SansTypeface, 20);
+            Text(wscreen/12, hscreen - 7 * th, "Please \"Force Lime FW\"", SansTypeface, 20);
+          }
+          else
+          {
+            if ((LGWRev > 27) || (LGWVer > 1))
+            {
+              Text(wscreen/12, hscreen - 5 * th, "Gateware version needs to be V1.27 for Portsdown", SansTypeface, 20);
+              Text(wscreen/12, hscreen - 7 * th, "Please \"Force Lime FW\"", SansTypeface, 20);
+            }
+          }
+        }
+      }
+    }
+  }
+  Fill(255, 255, 255, 1);    // White text
+  Text(wscreen*5/12, 1.0 * th, "Touch Screen to Continue", SansTypeface, 20);
+
+  End();
+}
+
+
 
 /***************************************************************************//**
  * @brief Displays Info about the installed LimeUtil
@@ -3679,8 +4118,6 @@ void TransformTouchMap(int x, int y)
 
   int shiftX, shiftY;
   double factorX, factorY;
-  char Param[255];
-  char Value[255];
 
   // Adjust registration of touchscreen for Waveshare
   shiftX=30; // move touch sensitive position left (-) or right (+).  Screen is 700 wide
@@ -3699,9 +4136,7 @@ void TransformTouchMap(int x, int y)
   {
     scaledX = shiftX+wscreen-y/(scaleXvalue+factorX);
 
-    strcpy(Param,"display");  //Check for Waveshare 4 inch
-    GetConfigParam(PATH_PCONFIG,Param,Value);
-    if(strcmp(Value,"Waveshare4")!=0)
+    if(strcmp(DisplayType, "Waveshare4") != 0) //Check for Waveshare 4 inch
     {
       scaledY = shiftY+hscreen-x/(scaleYvalue+factorY);
     }
@@ -3823,15 +4258,15 @@ int InitialiseButtons()
 
 int AddButton(int x,int y,int w,int h)
 {
-	button_t *NewButton=&(ButtonArray[IndexButtonInArray]);
-	NewButton->x=x;
-	NewButton->y=y;
-	NewButton->w=w;
-	NewButton->h=h;
-	NewButton->NoStatus=0;
-	NewButton->IndexStatus=0;
-	// NewButton->LastEventTime=mymillis();  No longer used
-	return IndexButtonInArray++;
+  button_t *NewButton=&(ButtonArray[IndexButtonInArray]);
+  NewButton->x=x;
+  NewButton->y=y;
+  NewButton->w=w;
+  NewButton->h=h;
+  NewButton->NoStatus=0;
+  NewButton->IndexStatus=0;
+  // NewButton->LastEventTime=mymillis();  No longer used
+  return IndexButtonInArray++;
 }
 
 int ButtonNumber(int MenuIndex, int Button)
@@ -5213,20 +5648,17 @@ void ChangeBandDetails(int NoButton)
   SetConfigParam(PATH_PPRESETS ,Param, KeyboardReturn);
 
   // Lime Gain
-  if (CheckLimeInstalled() == 0)
+  strcpy(Param, TabBand[band]);
+  strcat(Param, "limegain");
+  GetConfigParam(PATH_PPRESETS, Param, Value);
+  while ((LimeGain < 0) || (LimeGain > 100))
   {
-    strcpy(Param, TabBand[band]);
-    strcat(Param, "limegain");
-    GetConfigParam(PATH_PPRESETS, Param, Value);
-    while ((LimeGain < 0) || (LimeGain > 100))
-    {
-      snprintf(Prompt, 63, "Set the Lime Gain for the %s Band:", TabBandLabel[band]);
-      Keyboard(Prompt, Value, 3);
-      LimeGain = atoi(KeyboardReturn);
-    }
-    TabBandLimeGain[band] = LimeGain;
-    SetConfigParam(PATH_PPRESETS ,Param, KeyboardReturn);
+    snprintf(Prompt, 63, "Set the Lime Gain for the %s Band:", TabBandLabel[band]);
+    Keyboard(Prompt, Value, 3);
+    LimeGain = atoi(KeyboardReturn);
   }
+  TabBandLimeGain[band] = LimeGain;
+  SetConfigParam(PATH_PPRESETS ,Param, KeyboardReturn);
 
   // LO frequency
   strcpy(Param, TabBand[band]);
@@ -5361,17 +5793,14 @@ void DoFreqChange()
   SetConfigParam(PATH_PCONFIG ,Param, Value);
 
   // Lime Gain
-  if (CheckLimeInstalled() == 0)
-  {
-    strcpy(Param, TabBand[CurrentBand]);
-    strcat(Param, "limegain");
-    GetConfigParam(PATH_PPRESETS, Param, Value);
+  strcpy(Param, TabBand[CurrentBand]);
+  strcat(Param, "limegain");
+  GetConfigParam(PATH_PPRESETS, Param, Value);
  
-    TabBandLimeGain[CurrentBand] = atoi(Value);
+  TabBandLimeGain[CurrentBand] = atoi(Value);
 
-    strcpy(Param, "limegain");
-    SetConfigParam(PATH_PCONFIG ,Param, Value);
-  }
+  strcpy(Param, "limegain");
+  SetConfigParam(PATH_PCONFIG ,Param, Value);
 
   // LO frequency
   strcpy(Param, TabBand[CurrentBand]);
@@ -6250,8 +6679,7 @@ void TransmitStop()
   // restart fbcp if it was stopped
   if (CheckfbcpRunning() == 1) // not running
   {
-    GetConfigParam(PATH_PCONFIG, "display", Value);
-    if (strcmp(Value,"Element14_7") !=0 )  // Don't restart fbcp for 7 inch screen
+    if (strcmp(DisplayType, "Element14_7") != 0 )  // Don't restart fbcp for 7 inch screen
     {
       system("fbcp &");
     }
@@ -7168,11 +7596,43 @@ void MsgBox4(const char *message1, const char *message2, const char *message3, c
 
 void YesNo(int i)  // i == 6 Yes, i == 8 No
 {
-  char Param[63];
-
   // First switch on what was calling the Yes/No question
   switch(CallingMenu)
   {
+  case 349:         // Force Lime Software upgrade?
+    MsgBox4("Please wait", " ", " ", " ");
+    if ((CheckLimeMiniConnect() == 0) || (CheckLimeUSBConnect() == 0))
+    {
+      switch (i)
+      {
+      case 6:     // Yes
+        MsgBox4("Upgrading Lime Firmware", " ", " ", " ");
+        system("LimeUtil --force --update");
+        usleep(250000);
+        if (LimeGWRev() == 27)
+        {
+          MsgBox4("Firmware Upgrade Successful", "Now at Gateware 1.27", "Touch Screen to Continue" ," ");
+        }
+        else
+        {
+          MsgBox4("Firmware Upgrade Unsuccessful", "Further Investifgation required", "Touch Screen to Continue" ," ");
+        }
+        break;
+      case 8:     // No
+        MsgBox("LimeSDR firmware update cancelled");
+        break;
+      }
+    }
+    else
+    {
+      MsgBox4("No Lime Connected", " ", "Touch Screen to Continue" ," ");
+    }
+    wait_touch();
+    BackgroundRGB(0, 0, 0, 255);
+    CurrentMenu = 34;
+    UpdateWindow();
+    break;
+
   case 430:         // Restore Factory Settings?
     switch (i)
     {
@@ -7181,15 +7641,128 @@ void YesNo(int i)  // i == 6 Yes, i == 8 No
       system("/home/pi/rpidatv/scripts/restore_factory.sh");
       
       // Correct the display back to original
-      strcpy(Param, "display");
-      SetConfigParam(PATH_PCONFIG, Param, DisplayType);
+      SetConfigParam(PATH_PCONFIG, "display", DisplayType);
       MsgBox2("Restored to Factory Settings", "Display will restart after touch");
       wait_touch();
 
       // Exit and restart display application to load settings
       cleanexit(129);
       break;
-    case 8:     // Yes
+    case 8:     // No
+      MsgBox("Current settings retained");
+      wait_touch();
+      BackgroundRGB(0, 0, 0, 255);
+      break;
+    }
+    CurrentMenu = 43;
+    UpdateWindow();
+    break;
+
+  case 431:         // Restore Settings from USB?
+    switch (i)
+    {
+    case 6:     // Yes
+      // Run script
+      system("/home/pi/rpidatv/scripts/restore_from_USB.sh");
+      
+      // Correct the display back to original
+      SetConfigParam(PATH_PCONFIG, "display", DisplayType);
+      MsgBox2("Settings restored from USB", "Display will restart after touch");
+      wait_touch();
+
+      // Exit and restart display application to load settings
+      cleanexit(129);
+      break;
+    case 8:     // No
+      MsgBox("Current settings retained");
+      wait_touch();
+      BackgroundRGB(0, 0, 0, 255);
+      break;
+    }
+    CurrentMenu = 43;
+    UpdateWindow();
+    break;
+
+  case 432:         // Restore Settings from /boot?
+    switch (i)
+    {
+    case 6:     // Yes
+      // Run script
+      system("/home/pi/rpidatv/scripts/restore_from_boot_folder.sh");
+      
+      // Correct the display back to original
+      SetConfigParam(PATH_PCONFIG, "display", DisplayType);
+      MsgBox2("Settings restored from /boot", "Display will restart after touch");
+      wait_touch();
+
+      // Exit and restart display application to load settings
+      cleanexit(129);
+      break;
+    case 8:     // No
+      MsgBox("Current settings retained");
+      wait_touch();
+      BackgroundRGB(0, 0, 0, 255);
+      break;
+    }
+    CurrentMenu = 43;
+    UpdateWindow();
+    break;
+
+  case 436:         // save Settings to USB?
+    switch (i)
+    {
+    case 6:     // Yes
+      // Run script
+      system("/home/pi/rpidatv/scripts/copy_settings_to_usb.sh");
+      MsgBox("Current settings saved to USB");
+      wait_touch();
+      BackgroundRGB(0, 0, 0, 255);
+      break;
+    case 8:     // No
+      MsgBox("Settings not saved");
+      wait_touch();
+      BackgroundRGB(0, 0, 0, 255);
+      break;
+    }
+    CurrentMenu = 43;
+    UpdateWindow();
+    break;
+
+  case 437:         // save Settings to /boot?
+    switch (i)
+    {
+    case 6:     // Yes
+      // Run script
+      system("/home/pi/rpidatv/scripts/copy_settings_to_boot_folder.sh");
+      MsgBox("Current settings saved to /boot");
+      wait_touch();
+      BackgroundRGB(0,0,0,255);
+      break;
+    case 8:     // No
+      MsgBox("Settings not saved");
+      wait_touch();
+      BackgroundRGB(0,0,0,255);
+      break;
+    }
+    CurrentMenu = 43;
+    UpdateWindow();
+    break;
+
+  case 4314:         // Invert 7 inch
+    switch (i)
+    {
+    case 6:     // Yes
+      // Run script which corrects config and reboots immediately
+      MsgBox4("", "Rebooting now", "", "");
+      UpdateWindow();
+      system("sudo killall express_server >/dev/null 2>/dev/null");
+      system("sudo rm /tmp/expctrl >/dev/null 2>/dev/null");
+      sync();            // Prevents shutdown hang in Stretch
+      usleep(1000000);
+      finish();
+      cleanexit(193);    // Commands scheduler to rotate and reboot
+      break;
+    case 8:     // No
       MsgBox("Current settings retained");
       wait_touch();
       BackgroundRGB(0,0,0,255);
@@ -7219,10 +7792,6 @@ void InfoScreen()
   }
   GetSWVers(result);
   strcat(swversion, result);
-  if (CheckLimeInstalled() == 0)
-  {
-    strcat(swversion, " + Lime");
-  }
 
   char ipaddress[256] = "IP: ";
   strcpy(result, "Not connected");
@@ -7294,13 +7863,9 @@ void InfoScreen()
   char Device2[256]=" ";
   GetDevices(Device1, Device2);
 
-  char Param[31];
-  char Value[31];
   int pointsize = 20;
 
-  strcpy(Param,"display");
-  GetConfigParam(PATH_PCONFIG,Param,Value);
-  if (strcmp(Value,"Element14_7")==0)  // Reduce text size for 7 inch screen
+  if (strcmp(DisplayType, "Element14_7") == 0)  // Reduce text size for 7 inch screen
   {
     pointsize = 15;
   }
@@ -7422,10 +7987,8 @@ void RangeBearing()
     }
   }
 
-  // Reduce text size for 7 inch screen
-  strcpy(Param,"display");
   GetConfigParam(PATH_PCONFIG, Param, Value);
-  if (strcmp(Value,"Element14_7")==0)  
+  if (strcmp(DisplayType,"Element14_7")==0)  
   {
     pointsize = 15;
   }
@@ -7518,9 +8081,7 @@ void BeaconBearing()
   int i;
 
   // Reduce text size for 7 inch screen
-  strcpy(Param,"display");
-  GetConfigParam(PATH_PCONFIG, Param, Value);
-  if (strcmp(Value,"Element14_7")==0)  
+  if (strcmp(DisplayType, "Element14_7") == 0)  
   {
     pointsize = 15;
   }
@@ -7936,8 +8497,6 @@ void do_snap()
 void do_videoview()
 {
   printf("videoview called\n");
-  char Param[255];
-  char Value[255];
   char USBVidDevice[255];
   char ffmpegCMD[255];
 
@@ -7957,9 +8516,7 @@ void do_videoview()
     // Create a thread to listen for display touches
     pthread_create (&thview,NULL, &WaitButtonEvent,NULL);
 
-    strcpy(Param,"display");
-    GetConfigParam(PATH_PCONFIG,Param,Value);
-    if ((strcmp(Value,"Waveshare")==0) || (strcmp(Value,"Waveshare4")==0))
+    if ((strcmp(DisplayType, "Waveshare") == 0) || (strcmp(DisplayType, "Waveshare4") == 0))
     // Write directly to the touchscreen framebuffer for Waveshare displays
     {
       USBVidDevice[strcspn(USBVidDevice, "\n")] = 0;  //remove the newline
@@ -7979,7 +8536,7 @@ void do_videoview()
       system("fbcp &");
       system("sudo rm /home/pi/tmp/* >/dev/null 2>/dev/null");
     }
-    else if (strcmp(Value,"Element14_7")==0)
+    else if (strcmp(DisplayType, "Element14_7") == 0)
     // Write directly to the touchscreen framebuffer for 7 inch displays
     {
       USBVidDevice[strcspn(USBVidDevice, "\n")] = 0;  //remove the newline
@@ -8104,12 +8661,7 @@ static void cleanexit(int exit_code)
 
 void do_freqshow()
 {
-  char Param[31];
-  char Value[31];
-
-  strcpy(Param,"display");
-  GetConfigParam(PATH_PCONFIG,Param,Value);
-  if (strcmp(Value,"Element14_7")==0)  // load modified freqshow.py
+  if (strcmp(DisplayType, "Element14_7") == 0)  // load modified freqshow.py
   {
     system("cp -f /home/pi/rpidatv/scripts/configs/freqshow/freqshow.py.7inch /home/pi/FreqShow/freqshow.py");
   }
@@ -11031,18 +11583,31 @@ void waituntil(int w,int h)
           BackgroundRGB(0,0,0,255);
           UpdateWindow();
           break;
-        case 6:  // Lime firmware update
-          printf("Lime Firmware Update or Install\n");
-          LimeConfig(i);
+        case 6:                               // Display Lime FW Info Page
+          LimeInfo();
+          wait_touch();
+          BackgroundRGB(0,0,0,255);
+          UpdateWindow();
+          break;
+        case 7:                               // Display Lime Report Page
+          LimeMiniTest();
+          wait_touch();
+          BackgroundRGB(0 ,0, 0, 255);
+          UpdateWindow();
+          break;
+        case 8:                               // Lime firmware update
+          printf("Lime Firmware Update\n");
+          LimeFWUpdate();
           CurrentMenu=34;
           BackgroundRGB(0,0,0,255);
           Start_Highlights_Menu34();
           UpdateWindow();
           break;
-        case 7:                               // Display Info Page
-          LimeInfo();
-          wait_touch();
-          BackgroundRGB(0,0,0,255);
+        case 9:                               // Force Lime firmware update
+          printf("Force Lime Firmware Update\n");
+          CallingMenu = 349;
+          CurrentMenu = 38;
+          MsgBox4("Force update should only be used to", "downgrade LimeSDR Mini for Portdsown", "Continue?", " ");
           UpdateWindow();
           break;
         default:
@@ -11285,15 +11850,117 @@ void waituntil(int w,int h)
           CurrentMenu = 38;
           MsgBox4("Are you sure that you want to", "overwrite all the current settings", "with the factory settings?", " ");
           UpdateWindow();
-        break;
+          break;
+        case 1:                               // Restore Settings from USB
+          if (file_exist("/media/usb/portsdown_settings/portsdown_config.txt") == 1) // no file found
+          {
+            MsgBox4("Portsdown configuration files", "not found on USB drive.", "Please check the USB drive and", "try reconnecting it");
+            BackgroundRGB(0, 0, 0, 255);
+            wait_touch();
+          }
+          else  // file exists
+          {
+            CallingMenu = 431;
+            CurrentMenu = 38;
+            MsgBox4("Are you sure that you want to", "overwrite all the current settings", "with the settings from USB?", " ");
+          }
+          UpdateWindow();
+          break;
+        case 2:                               // Restore Settings from /boot
+          if (file_exist("/boot/portsdown_settings/portsdown_config.txt") == 1) // no file found
+          {
+            MsgBox4("Portsdown configuration files", "not found in /boot folder.", " ", " ");
+            BackgroundRGB(0, 0, 0, 255);
+            wait_touch();
+          }
+          else  // file exists
+          {
+            CallingMenu = 432;
+            CurrentMenu = 38;
+            MsgBox4("Are you sure that you want to", "overwrite all the current settings", "with the settings from /boot?", " ");
+          }
+          UpdateWindow();
+          break;
+        case 5:                               // Unmount USB drive
+          system("pumount /media/usb");
+          MsgBox2("USB drive unmounted", "USB drive can safely be removed");
+          wait_touch();
+          BackgroundRGB(0, 0, 0, 255);
+          UpdateWindow();
+          break;
+        case 6:                               // Back-up to USB
+          // Test writing file to usb
+          system("sudo rm -rf /media/usb/portsdown_write_test.txt");
+          if (file_exist("/media/usb/portsdown_write_test.txt") == 0) // File still there
+          {
+            MsgBox4("USB Drive found, but", "Portsdown is unable to delete files from it", "Please check the USB drive", "");
+            BackgroundRGB(0, 0, 0, 255);
+            wait_touch();
+          }
+          else  // test file not present, so try creating it
+          {
+            system("sudo touch /media/usb/portsdown_write_test.txt");
+            if (file_exist("/media/usb/portsdown_write_test.txt") == 1) // File not created
+            {
+              MsgBox4("Unable to write to USB drive", "Please check the USB drive", "and try reconnecting it", "");
+              BackgroundRGB(0, 0, 0, 255);
+              wait_touch();
+            }
+            else  // all good
+            {
+              system("sudo rm -rf /media/usb/portsdown_write_test.txt");
+              CallingMenu = 436;
+              CurrentMenu = 38;
+              MsgBox4("Are you sure that you want to overwrite", "any stored settings on the USB drive", "with the current settings?", " ");
+
+            }
+          }
+          UpdateWindow();
+          break;
+        case 7:                               // Back-up to /boot
+          CallingMenu = 437;
+          CurrentMenu = 38;
+          MsgBox4("Are you sure that you want to overwrite", "any stored settings on the boot drive", "with the current settings?", " ");
+          UpdateWindow();
+          break;
+        case 9:                               // Toggle enable of hardware shutdown button
+          if (file_exist ("/home/pi/.pi-sdn") == 0)  // If enabled
+          {
+            system("rm /home/pi/.pi-sdn");  // Stop it being loaded at log-on
+            system("sudo pkill -x pi-sdn"); // kill the current process
+          }
+          else
+          {
+            system("cp /home/pi/rpidatv/scripts/configs/text.pi-sdn /home/pi/.pi-sdn");  // load it at logon
+            system("/home/pi/.pi-sdn");                                                  // load it now
+          }
+          Start_Highlights_Menu43();
+          UpdateWindow();
+          break;
+        case 14:                               // Invert 7 Inch
+          if (strcmp(DisplayType, "Element14_7") != 0)
+          {
+            MsgBox4("Display inversion only", "available with 7 inch display", "", "Please touch screen to continue");
+            BackgroundRGB(0, 0, 0, 255);
+            wait_touch();
+            BackgroundRGB(0, 0, 0, 255);
+            UpdateWindow();
+          }
+          else
+          {
+            CallingMenu = 4314;
+            CurrentMenu = 38;
+            MsgBox4("System will reboot immediately", "and restart with inverted display", "Are you sure?", " ");
+            UpdateWindow();
+          }
+          UpdateWindow();
+          break;
         default:
           printf("Menu 43 Error\n");
         }
         // stay in Menu 43 if parameter changed
         continue;   // Completed Menu 43 action, go and wait for touch
       }
-
-
 
       if (CurrentMenu == 41)  // Menu 41 Keyboard (should not get here)
       {
@@ -14643,12 +15310,20 @@ void Define_Menu34()
   AddButtonStatus(button, "LimeUtil^Info", &Green);
 
   button = CreateButton(34, 6);
+  AddButtonStatus(button, "Lime^FW Info", &Blue);
+  AddButtonStatus(button, "Lime^FW Info", &Green);
+
+  button = CreateButton(34, 7);
+  AddButtonStatus(button, "Lime^Report", &Blue);
+  AddButtonStatus(button, "Lime^Report", &Green);
+
+  button = CreateButton(34, 8);
   AddButtonStatus(button, "Update^Lime FW", &Blue);
   AddButtonStatus(button, "Update^Lime FW", &Green);
 
-  button = CreateButton(34, 7);
-  AddButtonStatus(button, "Lime^FW Info", &Blue);
-  AddButtonStatus(button, "Lime^FW Info", &Green);
+  button = CreateButton(34, 9);
+  AddButtonStatus(button, "Force^Lime FW", &Blue);
+  AddButtonStatus(button, "Force^Lime FW", &Green);
 }
 
 void Start_Highlights_Menu34()
@@ -15008,10 +15683,12 @@ void Define_Menu43()
   color_t LBlue;
   color_t DBlue;
   color_t Green;
+  color_t Grey;
   Blue.r=0; Blue.g=0; Blue.b=128;
   LBlue.r=64; LBlue.g=64; LBlue.b=192;
   DBlue.r=0; DBlue.g=0; DBlue.b=64;
   Green.r=0; Green.g=128; Green.b=0;
+  Grey.r=127; Grey.g=127; Grey.b=127;
 
   strcpy(MenuTitle[43], "System Configuration Menu (43)"); 
 
@@ -15025,32 +15702,69 @@ void Define_Menu43()
   AddButtonStatus(button, "Restore^Factory", &Blue);
   AddButtonStatus(button, "Restore^Factory", &Green);
 
-//  button = CreateButton(43, 1);
-//  AddButtonStatus(button, "Load^from USB", &Blue);
-//  AddButtonStatus(button, "Load^from USB", &Green);
+  button = CreateButton(43, 1);
+  AddButtonStatus(button, "Restore^from USB", &Blue);
+  AddButtonStatus(button, "Restore^from USB", &Green);
 
-//  button = CreateButton(43, 2);
-//  AddButtonStatus(button, "Restore^from Boot", &Blue);
-//  AddButtonStatus(button, "Restore^from Boot", &Green);
+  button = CreateButton(43, 2);
+  AddButtonStatus(button, "Restore^from /boot", &Blue);
+  AddButtonStatus(button, "Restore^from /boot", &Green);
 
   // 2nd Row, Menu 43
 
-//  button = CreateButton(43, 6);
-//  AddButtonStatus(button, "Save^to USB", &Blue);
-//  AddButtonStatus(button, "Save^to USB", &Green);
+  button = CreateButton(43, 5);
+  AddButtonStatus(button, "Unmount^(Eject) USB", &Blue);
+  AddButtonStatus(button, "Unmount^(Eject) USB", &Green);
 
-//  button = CreateButton(43, 7);
-//  AddButtonStatus(button, "Back-up^to Boot", &Blue);
-//  AddButtonStatus(button, "Back-up^to Boot", &Green);
+  button = CreateButton(43, 6);
+  AddButtonStatus(button, "Back-up^to USB", &Blue);
+  AddButtonStatus(button, "Back-up^to USB", &Green);
 
-//  button = CreateButton(43, 9);
-//  AddButtonStatus(button, "Hardware^Shutdown", &Blue);
-//  AddButtonStatus(button, "Hardware^Shutdown", &Green);
+  button = CreateButton(43, 7);
+  AddButtonStatus(button, "Back-up^to /boot", &Blue);
+  AddButtonStatus(button, "Back-up^to /boot", &Green);
+
+  button = CreateButton(43, 9);
+  AddButtonStatus(button, "SD Button^Enabled", &Blue);
+  AddButtonStatus(button, "SD Button^Enabled", &Green);
+  AddButtonStatus(button, "SD Button^Disabled", &Blue);
+  AddButtonStatus(button, "SD Button^Disabled", &Green);
+
+  // 3rd Row, Menu 43
+
+//  button = CreateButton(43, 10);
+//  AddButtonStatus(button, "", &Blue);
+//  AddButtonStatus(button, "", &Green);
+
+//  button = CreateButton(43, 11);
+//  AddButtonStatus(button, "", &Blue);
+//  AddButtonStatus(button, "", &Green);
+
+  button = CreateButton(43, 14);
+  AddButtonStatus(button, "Invert^7 inch", &Blue);
+  AddButtonStatus(button, "Invert^7 inch", &Green);
+  AddButtonStatus(button, "Invert^7 inch", &Grey);
 }
 
 void Start_Highlights_Menu43()
 {
-  // Nothing here yet
+  if (file_exist ("/home/pi/.pi-sdn") == 0)  // Hardware Shutdown Enabled
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 9), 0);
+  }
+  else
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 9), 2);
+  }
+
+  if (strcmp(DisplayType, "Element14_7") == 0)
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 14), 0); // Display Invert 7 inch
+  }
+  else
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 14), 2); // Grey-out Invert 7 inch
+  }
 }
 
 void Define_Menu41()
