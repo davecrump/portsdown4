@@ -73,6 +73,12 @@ while [ "$GUI_RETURN_CODE" -gt 127 ];  do
       sudo swapoff -a
       sudo reboot now
     ;;
+    194)
+      source /home/pi/rpidatv/scripts/toggle_pwm.sh
+      sleep 1
+      sudo swapoff -a
+      sudo reboot now
+    ;;
     *)
       # Jump out of the loop
       break

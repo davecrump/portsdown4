@@ -262,7 +262,8 @@ sudo bash -c 'echo -e "\n##Enable Pi Camera" >> /boot/config.txt'
 sudo bash -c 'echo -e "\ngpu_mem=128\nstart_x=1\n" >> /boot/config.txt'
 
 # Disable sync option for usbmount
-sudo sed -i 's/sync,//g' /etc/usbmount/usbmount.conf
+# Not now required 201902070 so commented out
+#sudo sed -i 's/sync,//g' /etc/usbmount/usbmount.conf
 
 # Download, compile and install the executable for hardware shutdown button
 # Updated version that is less trigger-happy (201705200)

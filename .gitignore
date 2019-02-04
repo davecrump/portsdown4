@@ -23,6 +23,8 @@ src/avc2ts/libmpegts/
 src/avc2ts/vncclient.o
 src/avc2ts/webcam.o
 src/DvbTsToIQ/dvb2iq
+src/libdvbmod/lib/libdvbmod.a
+src/libdvbmod/obj/libdvbmod.o
 src/gui/DejaVuSans.inc
 src/gui/DejaVuSansMono.inc
 src/gui/DejaVuSerif.inc
@@ -50,4 +52,7 @@ src/siggen/libshapes.o
 src/siggen/oglinit.o
 src/tstools/
 src/xy/xy
+src/xy/libshapes.o
+src/xy/libshapes.so
+
 

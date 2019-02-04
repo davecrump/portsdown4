@@ -8,6 +8,8 @@ Save settings to /boot added
 Lime selection from Console
 Lime Test Report from Touchscreen
 Force Lime FW update added to touchscreen
+Toggle force_pwm_open facility to enable TX after sound use
+USB sync not disabled on initial install
 
 201812290
 Correct RPi PTT operation with LimeSDR
