@@ -2,7 +2,7 @@
 
 # set -x
 
-# Sourrced from scheduler.sh to rotate 7 inch screen display and touch
+# Sourced from scheduler.sh to rotate 7 inch screen display and touch
 # by 180 degrees.  Followed by a reboot to apply the change
 
 # Three scenarios:

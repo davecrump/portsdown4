@@ -1108,6 +1108,46 @@ void NewMPEGKey(char* KeyString)
 }
 
 /***************************************************************************//**
+ * @brief Looks up the force_pwm_open status
+ *
+ * @param nil
+ *
+ * @return int 0 or 1 (1 is normal, 0 pops, but allows tx after audio use)
+*******************************************************************************/
+
+int Getforce_pwm_open()
+{
+  FILE *fp;
+  char test_string[63];
+  char response[63];
+  int pwm_int = 9;
+
+  /* Open the command for reading. */
+  fp = popen("vcgencmd get_config force_pwm_open", "r");
+  if (fp == NULL) {
+    printf("Failed to run command\n" );
+    exit(1);
+  }
+
+  /* Read the output a line at a time - output it. */
+  while (fgets(response, 63, fp) != NULL)
+  {
+    strcpy(test_string, response);
+    test_string[15] = '\0';
+    if (strcmp(test_string, "force_pwm_open=") == 0)
+    {
+      strncpy(test_string, &response[15], strlen(response));
+      test_string[strlen(response)-16] = '\0';
+      pwm_int = atoi(test_string);
+    }
+  }
+
+  /* close */
+  pclose(fp);
+  return pwm_int;
+}
+
+/***************************************************************************//**
  * @brief Looks up the GPU Temp
  *
  * @param GPUTemp (str) GPU Temp to be passed as a string max 20 char
@@ -3515,17 +3555,26 @@ void LimeMiniTest()
   Text(wscreen/12, hscreen - 1 * th, "Portsdown LimeSDR Mini Test Report", SansTypeface, 20);
 
   // First check that a LimeSDR Mini (not a USB version) is connected
-  if (CheckLimeMiniConnect() != 0)  // No Lime Mini Connected
+  if ((CheckLimeMiniConnect() != 0) || (CheckExpressConnect() == 0))  // No Lime Mini Connected or express
   {
-    if (CheckLimeUSBConnect() == 0)  // Lime USB Connnected
+    if (CheckExpressConnect() == 0)
     {
-      Text(wscreen/12, hscreen - 3 * th, "LimeSDR USB Connected", SansTypeface, 20);
-      Text(wscreen/12, hscreen - 5 * th, "This test only works for the LimeSDR Mini", SansTypeface, 20);
+      Text(wscreen/12, hscreen - 3 * th, "DATV Express Connected", SansTypeface, 20);
+      Text(wscreen/12, hscreen - 5 * th, "Please retry without DATV Express", SansTypeface, 20);
+      Text(wscreen/12, hscreen - 6.1 * th, "and only LimeSDR Mini connected", SansTypeface, 20);
     }
-    else  // Nothing connected
+    else
     {
-      Text(wscreen/12, hscreen - 3 * th, "No LimeSDR Connected", SansTypeface, 20);
-      Text(wscreen/12, hscreen - 5 * th, "Please check connections", SansTypeface, 20);
+      if (CheckLimeUSBConnect() == 0)  // Lime USB Connnected
+      {
+        Text(wscreen/12, hscreen - 3 * th, "LimeSDR USB Connected", SansTypeface, 20);
+        Text(wscreen/12, hscreen - 5 * th, "This test only works for the LimeSDR Mini", SansTypeface, 20);
+      }
+      else  // Nothing connected
+      {
+        Text(wscreen/12, hscreen - 3 * th, "No LimeSDR Connected", SansTypeface, 20);
+        Text(wscreen/12, hscreen - 5 * th, "Please check connections", SansTypeface, 20);
+      }
     }
   }
   else  // LimeSDR Mini connected, so check HW, FW and GW versions
@@ -3644,7 +3693,7 @@ void LimeMiniTest()
             test_string[6] = '\0';
             Text(wscreen*6/12, hscreen - (8.8 * th), test_string, SansTypeface, 20);
             fpgae = strcmp(test_string, "PASSED");
-           }
+          }
 
           strcpy(test_string, response);
           test_string[12] = '\0';
@@ -7748,6 +7797,32 @@ void YesNo(int i)  // i == 6 Yes, i == 8 No
     UpdateWindow();
     break;
 
+
+  case 4313:         // Change PWM Mode (Choos popping or TX after audio use)
+    switch (i)
+    {
+    case 6:     // Yes
+      // Run script which corrects config and reboots immediately
+      MsgBox4("", "Rebooting now", "", "");
+      UpdateWindow();
+      system("sudo killall express_server >/dev/null 2>/dev/null");
+      system("sudo rm /tmp/expctrl >/dev/null 2>/dev/null");
+      sync();            // Prevents shutdown hang in Stretch
+      usleep(1000000);
+      finish();
+      cleanexit(194);    // Commands scheduler to rotate and reboot
+      break;
+    case 8:     // No
+      MsgBox("Current settings retained");
+      wait_touch();
+      BackgroundRGB(0,0,0,255);
+      break;
+    }
+    CurrentMenu = 43;
+    UpdateWindow();
+    break;
+
+
   case 4314:         // Invert 7 inch
     switch (i)
     {
@@ -9741,9 +9816,9 @@ void waituntil(int w,int h)
             UpdateWindow();
             //CompVidStart();
           }
-          else     // Transmit, but only if audio has not been used
+          else     // Transmit, but not if audio has been used and would not work 
           {
-            if (!((IQAvailable == 0) && ((strcmp(CurrentModeOP, "QPSKRF") == 0) || (strcmp(CurrentModeOP, "IQ") == 0))))
+            if (!((IQAvailable == 0) && (Getforce_pwm_open() == 1) && ((strcmp(CurrentModeOP, "QPSKRF") == 0) || (strcmp(CurrentModeOP, "IQ") == 0))))
             {
               if ((strcmp(CurrentModeOP, "LIMEMINI") == 0) || (strcmp(CurrentModeOP, "LIMEUSB") == 0))
               {  
@@ -11935,6 +12010,19 @@ void waituntil(int w,int h)
             system("/home/pi/.pi-sdn");                                                  // load it now
           }
           Start_Highlights_Menu43();
+          UpdateWindow();
+          break;
+        case 13:                               // Invert 7 Inch
+          CallingMenu = 4313;
+          CurrentMenu = 38;
+          if (Getforce_pwm_open() == 0)
+          {
+            MsgBox4("This will cure audio popping", "but not allow RF after audio use", "Apply setting and reboot?", "");
+          }
+          else
+          {
+            MsgBox4("This will allow RF after audio use", "but cause audio popping", "Apply setting and reboot?", "");
+          }
           UpdateWindow();
           break;
         case 14:                               // Invert 7 Inch
@@ -15740,6 +15828,12 @@ void Define_Menu43()
 //  AddButtonStatus(button, "", &Blue);
 //  AddButtonStatus(button, "", &Green);
 
+  button = CreateButton(43, 13);
+  AddButtonStatus(button, "force pwm^open = 0", &Blue);
+  AddButtonStatus(button, "force pwm^open = 0", &Green);
+  AddButtonStatus(button, "force pwm^open = 1", &Blue);
+  AddButtonStatus(button, "force pwm^open = 1", &Green);
+
   button = CreateButton(43, 14);
   AddButtonStatus(button, "Invert^7 inch", &Blue);
   AddButtonStatus(button, "Invert^7 inch", &Green);
@@ -15755,6 +15849,15 @@ void Start_Highlights_Menu43()
   else
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 9), 2);
+  }
+
+  if (Getforce_pwm_open() == 0)
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 13), 0); // 
+  }
+  else
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 13), 2); // Grey-out Invert 7 inch
   }
 
   if (strcmp(DisplayType, "Element14_7") == 0)
