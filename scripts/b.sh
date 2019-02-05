@@ -88,7 +88,8 @@ MODE_OUTPUT=$(get_config_var modeoutput $PCONFIGFILE)
   sudo killall keyedstream >/dev/null 2>/dev/null
 
   # Kill the keyed transmit process
-  sudo killall keyedtx >/dev/null 2>/dev/null
+  # Commented out, because b.sh is called by keyedtx, causing it to stop!
+  #sudo killall keyedtx >/dev/null 2>/dev/null
 
   # Check if driver for Logitech C270 or C525 needs to be reloaded
   dmesg | grep -E -q "046d:0825|Webcam C525"

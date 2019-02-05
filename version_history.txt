@@ -1,3 +1,6 @@
+201902072
+Fix keyedTX bug
+
 201902070
 Automatic driver switch and reboot for 7 inch screen
 C920 driver load after boot (can now co-exist with Pi Cam)
