@@ -178,7 +178,11 @@ void Start_Function(void)
 {
   /* Start the transmission */
   system(startCommand);
-    
+
+  // start the PTT for Lime after a delay
+  // Should have no effect in other modes as PTT will already be active from rpidatv
+  system("/home/pi/rpidatv/scripts/lime_ptt.sh &");
+
   if(IndicationGPIO >= 0)
   {
     digitalWrite(IndicationGPIO, HIGH);
