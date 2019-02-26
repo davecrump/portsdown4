@@ -15,8 +15,12 @@ SR_BIT0=16
 SR_BIT1=26
 SR_BIT2=20
 
-# Set PTT BIT as an output
+# Set PTT BIT and SR Bits as outputs
 gpio -g mode $PTT_BIT out
+gpio -g mode $SR_BIT0 out
+gpio -g mode $SR_BIT1 out
+gpio -g mode $SR_BIT2 out
+
 
 ############### MAIN PROGRAM ###########
 
