@@ -1,3 +1,10 @@
+201902250
+Fix DVB-S2 FEC 1/4
+Fix webcam streaming with H264 selected
+Add console menus for DVB-S2, FECs and LimeGain
+Enable delayed PTT for Lime from console and keyedTX
+Set all SR lines high to indicate transmit with LimeSDR, not F-M board
+
 201902072
 Fix keyedTX bug
 

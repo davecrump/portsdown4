@@ -33,6 +33,8 @@ chmod +x install.sh
 ./install.sh
 ```
 
+The initial build can take between 45 minutes and one hour, however it does not need any user input, so go and make a cup of coffee and keep an eye on the touchscreen.  When the build is finished the Pi will reboot and start-up with the touchscreen menu.
+
 - If your ISP is Virgin Media and you receive an error after entering the wget line: 'GnuTLS: A TLS fatal alert has been received.', it may be that your ISP is blocking access to GitHub.  If (only if) you get this error with Virgin Media, paste the following command in, and press return.
 ```sh
 sudo sed -i 's/^#name_servers.*/name_servers=8.8.8.8/' /etc/resolvconf.conf
@@ -46,13 +48,9 @@ Then reboot, and try again.  The command asks your RPi to use Google's DNS, not 
 ./install.sh fr
 ```
 
-- When it has finished, the installation will reboot.  If you have a Waveshare touchscreen fitted, the touchscreen should be activated.  You will need to log in to the console to set up any other displays or advanced options.
+- When it has finished, the installation will reboot.  If you have a Waveshare or 7 inch touchscreen fitted, the touchscreen should be activated.  You will need to log in to the console to set up any other displays or advanced options.
 
-```sh
-/home/pi/rpidatv/scripts/menu.sh menu
-```
-
-Note that you do not need to load any touchscreen drivers - if the touchscreen does not work try powering off and on again.  If your touchscreen appears as if the touch sense is 90 degrees out, try selecting the TonTec display in the Setup menu.  If the colours seem wrong, try selecting the Waveshare Type B display and rebooting.
+Note that you do not need to load any touchscreen drivers - if the touchscreen does not work try powering off and on again.
 
 After initial installation, on selecting transmit, the RPi is configured to generate a direct RF output (from GPIO pin 32) on 437 MHz at 333KS using the BATC Portsdown logo image as the source.  
 

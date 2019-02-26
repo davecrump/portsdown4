@@ -47,6 +47,9 @@ int ModeDvb = 0;
 int Pilot = 0;
 unsigned int SymbolRate = 0;
 int FEC = CR_1_2;
+bool Simu=false;
+float GainSimu=1.0; // Gain QSB
+float TimingSimu=1.0; //Cycle QSB
 
 static uint64_t _timestamp_ns(void)
 {
@@ -137,7 +140,7 @@ bool RunWithFile(bool live)
 
 	static uint64_t DebugReceivedpacket = 0;
 	//fprintf(stderr, "Output samplerate is %u\n", CalibrateOutput());
-	if(FEC == 0)
+	if(FEC == -1)
 	{
 		Tune(0);
 		return true; // Bypass real modulation
@@ -219,8 +222,20 @@ bool RunWithFile(bool live)
 				Frame = Dvbs_get_IQ();
 			if (ModeDvb == DVBS2)
 				Frame = Dvbs2_get_IQ();
+			if(Simu==false)
+				fwrite(Frame, sizeof(sfcmplx), len, output);
+			/*else
+			{
+				sfcmplx *FrameSimu=(sfcmplx *)malloc(len*sizeof(sfcmplx));
+				for(int j=0;j<len;j++)
+				{
+					static int ComptSample=0;
+					FrameSimu[j].re=Frame[j].re*(0.5+0.5*GainSimu*sin(2*3.1415*(ComptSample/(SymbolRate*TimingSimu)))));
+					FrameSimu[j].im=Frame[j].im*(0.5+0.5*GainSimu*sin(2*3.1415*(ComptSample/(SymbolRate*TimingSimu)))));
+				}
 
-			fwrite(Frame, sizeof(sfcmplx), len, output);
+			}*/
+
 		}
 	}
 	int n, ret;
@@ -335,10 +350,10 @@ int main(int argc, char **argv)
 
 			if (strcmp("carrier", optarg) == 0)
 			{
-				FEC = 0;
+				FEC = -1;
 			} //CARRIER MODE
 			if (strcmp("test", optarg) == 0)
-				FEC = -1; //TEST MODE
+				FEC = -2; //TEST MODE
 			break;
 		case 'h': // help
 			print_usage();
@@ -396,13 +411,13 @@ int main(int argc, char **argv)
 		fprintf(stderr, "SymbolRate is mandatory !\n");
 		exit(0);
 	}
-	if (ModeDvb == DVBS)
+	if ((ModeDvb == DVBS)&&(FEC>=0))
 	{
 		Bitrate = DvbsInit(SymbolRate, FEC, Constellation, upsample);
 	}
-	if (ModeDvb == DVBS2)
+	if ((ModeDvb == DVBS2)&&(FEC>=0))
 	{
-		Bitrate = Dvbs2Init(SymbolRate, FEC, Constellation, 1, RO_0_35, upsample);
+		Bitrate = Dvbs2Init(SymbolRate, FEC, Constellation, Pilot, RO_0_35, upsample);
 	}
 
 	fprintf(stderr, "Net TS bitrate input should be %d\n", Bitrate);

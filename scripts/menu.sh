@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Version 201802040
+# Version 201902250
 
 ############ Set Environment Variables ###############
 
@@ -715,69 +715,167 @@ do_symbolrate_setup()
   fi
 }
 
+
+do_fec_lookup()
+{
+  case "$FEC" in
+  1) 
+    FECNUM=1
+    FECDEN=2
+  ;;
+  2)
+    FECNUM=2
+    FECDEN=3
+  ;;
+  3)
+    FECNUM=3
+    FECDEN=4
+  ;;
+  5)
+    FECNUM=5
+    FECDEN=6
+  ;;
+  7)
+    FECNUM=7
+    FECDEN=8
+  ;;
+  14)
+    FECNUM=1
+    FECDEN=4
+  ;;
+  13)
+    FECNUM=1
+    FECDEN=3
+  ;;
+  12)
+    FECNUM=1
+    FECDEN=2
+  ;;
+  35)
+    FECNUM=3
+    FECDEN=5
+  ;;
+  23)
+    FECNUM=2
+    FECDEN=3
+  ;;
+  34)
+    FECNUM=3
+    FECDEN=4
+  ;;
+  56)
+    FECNUM=5
+    FECDEN=6
+  ;;
+  89)
+    FECNUM=8
+    FECDEN=9
+  ;;
+  91)
+    FECNUM=9
+    FECDEN=10
+  ;;
+  *)
+    FECNUM=0
+    FECDEN=0
+  ;;
+  esac
+}
+
+
 do_fec_setup()
 {
-	FEC=$(get_config_var fec $PCONFIGFILE)
-	case "$FEC" in
-	1) 
-	Radio1=ON
-	Radio2=OFF
-	Radio3=OFF
-	Radio4=OFF
-	Radio5=OFF
-	;;
-	2)
-	Radio1=OFF
-	Radio2=ON
-	Radio3=OFF
-	Radio4=OFF
-	Radio5=OFF
-	;;
-	3)
-	Radio1=OFF
-	Radio2=OFF
-	Radio3=ON
-	Radio4=OFF
-	Radio5=OFF
-	;;
-	5)
-	Radio1=OFF
-	Radio2=OFF
-	Radio3=OFF
-	Radio4=ON
-	Radio5=OFF
-	;;
-	7)
-	Radio1=OFF
-	Radio2=OFF
-	Radio3=OFF
-	Radio4=OFF
-	Radio5=ON
-	;;
-	*)
-	Radio1=ON
-	Radio2=OFF
-	Radio3=OFF
-	Radio4=OFF
-	Radio5=OFF
-	;;
-	esac
-	FEC=$(whiptail --title "$StrOutputFECTitle" --radiolist \
-		"$StrOutputFECContext" 20 78 8 \
-		"1" "1/2" $Radio1 \
-		"2" "2/3" $Radio2 \
-		"3" "3/4" $Radio3 \
-		"5" "5/6" $Radio4 \
-		"7" "7/8" $Radio5 3>&2 2>&1 1>&3)
-if [ $? -eq 0 ]; then
-	set_config_var fec "$FEC" $PCONFIGFILE
-fi
+  Radio1=OFF
+  Radio2=OFF
+  Radio3=OFF
+  Radio4=OFF
+  Radio5=OFF
+  Radio6=OFF
+  Radio7=OFF
+  Radio8=OFF
+  Radio9=OFF
+  Radio10=OFF
+  Radio11=OFF
+  Radio12=OFF
+  Radio13=OFF
+  Radio14=OFF
+
+  FEC=$(get_config_var fec $PCONFIGFILE)
+  case "$FEC" in
+  1) 
+    Radio1=ON
+  ;;
+  2)
+    Radio2=ON
+  ;;
+  3)
+    Radio3=ON
+  ;;
+  5)
+    Radio4=ON
+  ;;
+  7)
+    Radio5=ON
+  ;;
+  14)
+    Radio6=ON
+  ;;
+  13)
+    Radio7=ON
+  ;;
+  12)
+    Radio8=ON
+  ;;
+  35)
+    Radio9=ON
+  ;;
+  23)
+    Radio10=ON
+  ;;
+  34)
+    Radio11=ON
+  ;;
+  56)
+    Radio12=ON
+  ;;
+  89)
+    Radio13=ON
+  ;;
+  91)
+    Radio14=ON
+  ;;
+  *)
+    Radio1=ON
+  ;;
+  esac
+
+  FEC=$(whiptail --title "$StrOutputFECTitle" --radiolist \
+    "$StrOutputFECContext" 20 78 14 \
+    "1" "DVB-S FEC 1/2" $Radio1 \
+    "2" "DVB-S FEC 2/3" $Radio2 \
+    "3" "DVB-S FEC 3/4" $Radio3 \
+    "5" "DVB-S FEC 5/6" $Radio4 \
+    "7" "DVB-S FEC 7/8" $Radio5 \
+    "14" "DVB-S2 QPSK FEC 1/4" $Radio6 \
+    "13" "DVB-S2 QPSK FEC 1/3" $Radio7 \
+    "12" "DVB-S2 QPSK FEC 1/2" $Radio8 \
+    "35" "DVB-S2 FEC 3/5" $Radio9 \
+    "23" "DVB-S2 FEC 2/3" $Radio10 \
+    "34" "DVB-S2 FEC 3/4" $Radio11 \
+    "56" "DVB-S2 FEC 5/6" $Radio12 \
+    "89" "DVB-S2 FEC 8/9" $Radio13 \
+    "91" "DVB-S2 FEC 9/10" $Radio14 \
+  3>&2 2>&1 1>&3)
+
+  if [ $? -eq 0 ]; then
+    set_config_var fec "$FEC" $PCONFIGFILE
+  fi
 }
 
 do_PID_setup()
 {
   PIDPMT=$(get_config_var pidpmt $PCONFIGFILE)
-  PIDPMT=$(whiptail --inputbox "$StrPIDSetupContext" 8 78 $PIDPMT --title "$StrPIDSetupTitle" 3>&1 1>&2 2>&3)
+  PIDPMT=$(whiptail --inputbox "$StrPIDSetupContext" 18 78 $PIDPMT --title "$StrPIDSetupTitle" 3>&1 1>&2 2>&3)
   if [ $? -eq 0 ]; then
     set_config_var pidpmt "$PIDPMT" $PCONFIGFILE
   fi
@@ -886,6 +984,8 @@ do_freq_setup()
   d1)
     ATTENLEVEL=$(get_config_var d1attenlevel $PATH_PPRESETS)
     set_config_var attenlevel "$ATTENLEVEL" $PCONFIGFILE
+    LIMEGAIN=$(get_config_var d1limegain $PATH_PPRESETS)
+    set_config_var limegain "$LIMEGAIN" $PCONFIGFILE
     EXPLEVEL=$(get_config_var d1explevel $PATH_PPRESETS)
     set_config_var explevel "$EXPLEVEL" $PCONFIGFILE
     EXPPORTS=$(get_config_var d1expports $PATH_PPRESETS)
@@ -898,6 +998,8 @@ do_freq_setup()
   d2)
     ATTENLEVEL=$(get_config_var d2attenlevel $PATH_PPRESETS)
     set_config_var attenlevel "$ATTENLEVEL" $PCONFIGFILE
+    LIMEGAIN=$(get_config_var d2limegain $PATH_PPRESETS)
+    set_config_var limegain "$LIMEGAIN" $PCONFIGFILE
     EXPLEVEL=$(get_config_var d2explevel $PATH_PPRESETS)
     set_config_var explevel "$EXPLEVEL" $PCONFIGFILE
     EXPPORTS=$(get_config_var d2expports $PATH_PPRESETS)
@@ -910,6 +1012,8 @@ do_freq_setup()
   d3)
     ATTENLEVEL=$(get_config_var d3attenlevel $PATH_PPRESETS)
     set_config_var attenlevel "$ATTENLEVEL" $PCONFIGFILE
+    LIMEGAIN=$(get_config_var d3limegain $PATH_PPRESETS)
+    set_config_var limegain "$LIMEGAIN" $PCONFIGFILE
     EXPLEVEL=$(get_config_var d3explevel $PATH_PPRESETS)
     set_config_var explevel "$EXPLEVEL" $PCONFIGFILE
     EXPPORTS=$(get_config_var d3expports $PATH_PPRESETS)
@@ -922,6 +1026,8 @@ do_freq_setup()
   d4)
     ATTENLEVEL=$(get_config_var d4attenlevel $PATH_PPRESETS)
     set_config_var attenlevel "$ATTENLEVEL" $PCONFIGFILE
+    LIMEGAIN=$(get_config_var d4limegain $PATH_PPRESETS)
+    set_config_var limegain "$LIMEGAIN" $PCONFIGFILE
     EXPLEVEL=$(get_config_var d4explevel $PATH_PPRESETS)
     set_config_var explevel "$EXPLEVEL" $PCONFIGFILE
     EXPPORTS=$(get_config_var d4expports $PATH_PPRESETS)
@@ -934,6 +1040,8 @@ do_freq_setup()
   d5)
     ATTENLEVEL=$(get_config_var d5attenlevel $PATH_PPRESETS)
     set_config_var attenlevel "$ATTENLEVEL" $PCONFIGFILE
+    LIMEGAIN=$(get_config_var d5limegain $PATH_PPRESETS)
+    set_config_var limegain "$LIMEGAIN" $PCONFIGFILE
     EXPLEVEL=$(get_config_var d5explevel $PATH_PPRESETS)
     set_config_var explevel "$EXPLEVEL" $PCONFIGFILE
     EXPPORTS=$(get_config_var d5expports $PATH_PPRESETS)
@@ -946,6 +1054,8 @@ do_freq_setup()
   t1)
     ATTENLEVEL=$(get_config_var t1attenlevel $PATH_PPRESETS)
     set_config_var attenlevel "$ATTENLEVEL" $PCONFIGFILE
+    LIMEGAIN=$(get_config_var t1limegain $PATH_PPRESETS)
+    set_config_var limegain "$LIMEGAIN" $PCONFIGFILE
     EXPLEVEL=$(get_config_var t1explevel $PATH_PPRESETS)
     set_config_var explevel "$EXPLEVEL" $PCONFIGFILE
     EXPPORTS=$(get_config_var t1expports $PATH_PPRESETS)
@@ -958,6 +1068,8 @@ do_freq_setup()
   t2)
     ATTENLEVEL=$(get_config_var t2attenlevel $PATH_PPRESETS)
     set_config_var attenlevel "$ATTENLEVEL" $PCONFIGFILE
+    LIMEGAIN=$(get_config_var t2limegain $PATH_PPRESETS)
+    set_config_var limegain "$LIMEGAIN" $PCONFIGFILE
     EXPLEVEL=$(get_config_var t2explevel $PATH_PPRESETS)
     set_config_var explevel "$EXPLEVEL" $PCONFIGFILE
     EXPPORTS=$(get_config_var t2expports $PATH_PPRESETS)
@@ -970,6 +1082,8 @@ do_freq_setup()
   t3)
     ATTENLEVEL=$(get_config_var t3attenlevel $PATH_PPRESETS)
     set_config_var attenlevel "$ATTENLEVEL" $PCONFIGFILE
+    LIMEGAIN=$(get_config_var t3limegain $PATH_PPRESETS)
+    set_config_var limegain "$LIMEGAIN" $PCONFIGFILE
     EXPLEVEL=$(get_config_var t3explevel $PATH_PPRESETS)
     set_config_var explevel "$EXPLEVEL" $PCONFIGFILE
     EXPPORTS=$(get_config_var t3expports $PATH_PPRESETS)
@@ -982,6 +1096,8 @@ do_freq_setup()
   t4)
     ATTENLEVEL=$(get_config_var t4attenlevel $PATH_PPRESETS)
     set_config_var attenlevel "$ATTENLEVEL" $PCONFIGFILE
+    LIMEGAIN=$(get_config_var t4limegain $PATH_PPRESETS)
+    set_config_var limegain "$LIMEGAIN" $PCONFIGFILE
     EXPLEVEL=$(get_config_var t4explevel $PATH_PPRESETS)
     set_config_var explevel "$EXPLEVEL" $PCONFIGFILE
     EXPPORTS=$(get_config_var t4expports $PATH_PPRESETS)
@@ -994,6 +1110,8 @@ do_freq_setup()
   *)
     ATTENLEVEL=$(get_config_var d1attenlevel $PATH_PPRESETS)
     set_config_var attenlevel "$ATTENLEVEL" $PCONFIGFILE
+    LIMEGAIN=$(get_config_var d1limegain $PATH_PPRESETS)
+    set_config_var limegain "$LIMEGAIN" $PCONFIGFILE
     EXPLEVEL=$(get_config_var d1explevel $PATH_PPRESETS)
     set_config_var explevel "$EXPLEVEL" $PCONFIGFILE
     EXPPORTS=$(get_config_var d1expports $PATH_PPRESETS)
@@ -1064,9 +1182,53 @@ do_output_standard()
   fi
 }
 
+do_modulation()
+{
+  MODULATION=$(get_config_var modulation $PCONFIGFILE)
+  Radio1=OFF
+  Radio2=OFF
+  Radio3=OFF
+  Radio4=OFF
+  Radio5=OFF
+
+  case "$MODULATION" in
+  DVB-S)
+    Radio1=ON
+  ;;
+  S2QPSK)
+    Radio2=ON
+  ;;
+  8PSK)
+    Radio3=ON
+  ;;
+  16APSK)
+    Radio4=ON
+  ;;
+  32APSK)
+    Radio5=ON
+  ;;
+  *)
+    Radio1=ON
+  ;;
+  esac
+
+  MODULATION=$(whiptail --title "SET MODULATION" --radiolist \
+    "Select one" 20 78 8 \
+    "DVB-S" "DVB-S" $Radio1 \
+    "S2QPSK" "DVB-S2 QPSK (Lime only)" $Radio2 \
+    "8PSK" "DVB-S2 8PSK (Lime only)" $Radio3 \
+    "16APSK" "DVB-S2 16APSK (Lime only)" $Radio4 \
+    "32APSK" "DVB-S2 32APSK (Lime only)" $Radio5 \
+    3>&2 2>&1 1>&3)
+
+  if [ $? -eq 0 ]; then                     ## If the selection has changed
+    set_config_var modulation "$MODULATION" $PCONFIGFILE
+  fi
+}
+
 
 do_output_setup() {
-menuchoice=$(whiptail --title "$StrOutputTitle" --menu "$StrOutputContext" 16 78 7 \
+menuchoice=$(whiptail --title "$StrOutputTitle" --menu "$StrOutputContext" 16 78 8 \
   "1 SymbolRate" "$StrOutputSR"  \
   "2 FEC" "$StrOutputFEC" \
   "3 Output mode" "$StrOutputMode" \
@@ -1074,6 +1236,7 @@ menuchoice=$(whiptail --title "$StrOutputTitle" --menu "$StrOutputContext" 16 78
   "5 Frequency" "$StrOutputRFFreqContext" \
   "6 Caption" "Callsign Caption in MPEG-2 on/off" \
   "7 Standard" "Output 576PAL or 480NTSC" \
+  "8 Modulation" "DVB-S or DVB-S2 modes" \
 	3>&2 2>&1 1>&3)
 	case "$menuchoice" in
             1\ *) do_symbolrate_setup ;;
@@ -1083,6 +1246,7 @@ menuchoice=$(whiptail --title "$StrOutputTitle" --menu "$StrOutputContext" 16 78
 	    5\ *) do_freq_setup ;;
 	    6\ *) do_caption_setup ;;
 	    7\ *) do_output_standard ;;
+	    8\ *) do_modulation ;;
         esac
 }
 
@@ -1097,6 +1261,15 @@ do_transmit()
     do_display_on
   else
     do_display_off
+  fi
+
+  # Turn the PTT on after a delay for the Lime
+  # rpidatv turns it on for other modes
+  if [ "$MODE_OUTPUT" == "LIMEMINI" ]; then
+    /home/pi/rpidatv/scripts/lime_ptt.sh &
+  fi
+  if [ "$MODE_OUTPUT" == "LIMEUSB" ]; then
+    /home/pi/rpidatv/scripts/lime_ptt.sh &
   fi
 
   # Wait here transmitting until user presses a key
@@ -1146,6 +1319,9 @@ do_stop_transmit()
   # Make sure that the PTT is released (required for carrier and test modes)
   gpio mode $GPIO_PTT out
   gpio write $GPIO_PTT 0
+
+  # Set the SR Filter correctly, because it might have been set all high by Lime
+  /home/pi/rpidatv/scripts/ctlSR.sh
 
   # Display the BATC Logo on the Touchscreen
   sudo fbi -T 1 -noverbose -a /home/pi/rpidatv/scripts/images/BATC_Black.png >/dev/null 2>/dev/null
@@ -1820,6 +1996,102 @@ do_atten_levels()
   fi
 }
 
+
+do_set_limegain()
+{
+  LIMEGAIN0=$(get-config_var d1limegain $PATH_PPRESETS)
+  LIMEGAIN0=$(whiptail --inputbox "Enter 0 to 100" 8 78 $LIMEGAIN0 --title "SET LIME GAIN FOR THE 71 MHz BAND" 3>&1 1>&2 2>&3)
+  if [ $? -eq 0 ]; then
+    set_config_var d1limegain "$LIMEGAIN0" $PATH_PPRESETS
+  fi
+
+  LIMEGAIN1=$(get-config_var d2limegain $PATH_PPRESETS)
+  LIMEGAIN1=$(whiptail --inputbox "Enter 0 to 100" 8 78 $LIMEGAIN1 --title "SET LIME GAIN FOR THE 146 MHz BAND" 3>&1 1>&2 2>&3)
+  if [ $? -eq 0 ]; then
+    set_config_var d2limegain "$LIMEGAIN1" $PATH_PPRESETS
+  fi
+
+  LIMEGAIN2=$(get-config_var d3limegain $PATH_PPRESETS)
+  LIMEGAIN2=$(whiptail --inputbox "Enter 0 to 100" 8 78 $LIMEGAIN2 --title "SET LIME GAIN FOR THE 437MHz BAND" 3>&1 1>&2 2>&3)
+  if [ $? -eq 0 ]; then
+    set_config_var d3limegain "$LIMEGAIN2" $PATH_PPRESETS
+  fi
+
+  LIMEGAIN3=$(get-config_var d4limegain $PATH_PPRESETS)
+  LIMEGAIN3=$(whiptail --inputbox "Enter 0 to 100" 8 78 $LIMEGAIN3 --title "SET LIME GAIN FOR THE 1255 MHz BAND" 3>&1 1>&2 2>&3)
+  if [ $? -eq 0 ]; then
+    set_config_var d4limegain "$LIMEGAIN3" $PATH_PPRESETS
+  fi
+
+  LIMEGAIN4=$(get-config_var d5limegain $PATH_PPRESETS)
+  LIMEGAIN4=$(whiptail --inputbox "Enter 0 to 100" 8 78 $LIMEGAIN4 --title "SET LIME GAIN FOR THE 2400 MHz BAND" 3>&1 1>&2 2>&3)
+  if [ $? -eq 0 ]; then
+    set_config_var d5limegain "$LIMEGAIN4" $PATH_PPRESETS
+  fi
+
+  LIMEGAIN5=$(get-config_var t1limegain $PATH_PPRESETS)
+  LIMEGAIN5=$(whiptail --inputbox "Enter 0 to 100" 8 78 $LIMEGAIN5 --title "SET LIME GAIN FOR TRANSVERTER 1" 3>&1 1>&2 2>&3)
+  if [ $? -eq 0 ]; then
+    set_config_var t1limegain "$LIMEGAIN5" $PATH_PPRESETS
+  fi
+
+  LIMEGAIN6=$(get-config_var t2limegain $PATH_PPRESETS)
+  LIMEGAIN6=$(whiptail --inputbox "Enter 0 to 100" 8 78 $LIMEGAIN6 --title "SET LIME GAIN FOR TRANSVERTER 2" 3>&1 1>&2 2>&3)
+  if [ $? -eq 0 ]; then
+    set_config_var t2limegain "$LIMEGAIN6" $PATH_PPRESETS
+  fi
+
+  LIMEGAIN7=$(get-config_var t3limegain $PATH_PPRESETS)
+  LIMEGAIN7=$(whiptail --inputbox "Enter 0 to 100" 8 78 $LIMEGAIN7 --title "SET LIME GAIN FOR TRANSVERTER 3" 3>&1 1>&2 2>&3)
+  if [ $? -eq 0 ]; then
+    set_config_var t3limegain "$LIMEGAIN7" $PATH_PPRESETS
+  fi
+
+  LIMEGAIN8=$(get-config_var t4limegain $PATH_PPRESETS)
+  LIMEGAIN8=$(whiptail --inputbox "Enter 0 to 100" 8 78 $LIMEGAIN8 --title "SET LIME GAIN FOR TRANSVERTER 4" 3>&1 1>&2 2>&3)
+  if [ $? -eq 0 ]; then
+    set_config_var t4limegain "$LIMEGAIN8" $PATH_PPRESETS
+  fi
+
+  ## Now set the Lime Gain for the current band
+  BAND=$(get_config_var band $PCONFIGFILE)
+
+  case "$BAND" in
+  d1)
+    set_config_var limegain "$LIMEGAIN0" $PCONFIGFILE
+  ;;
+  d2)
+    set_config_var limegain "$LIMEGAIN1" $PCONFIGFILE
+  ;;
+  d3)
+    set_config_var limegain "$LIMEGAIN2" $PCONFIGFILE
+  ;;
+  d4)
+    set_config_var limegain "$LIMEGAIN3" $PCONFIGFILE
+  ;;
+  d5)
+    set_config_var limegain "$LIMEGAIN4" $PCONFIGFILE
+  ;;
+  t1)
+    set_config_var limegain "$LIMEGAIN5" $PCONFIGFILE
+  ;;
+  t2)
+    set_config_var limegain "$LIMEGAIN6" $PCONFIGFILE
+  ;;
+  t3)
+    set_config_var limegain "$LIMEGAIN7" $PCONFIGFILE
+  ;;
+  t4)
+    set_config_var limegain "$LIMEGAIN8" $PCONFIGFILE
+  ;;
+  *)
+    set_config_var limegain "$LIMEGAIN0" $PCONFIGFILE
+  ;;
+  esac
+
+}
+
+
 do_set_express()
 {
   EXPLEVEL0=$(get_config_var d1explevel $PATH_PPRESETS)
@@ -2448,7 +2720,7 @@ menuchoice=$(whiptail --title "$StrSystemTitle" --menu "$StrSystemContext" 20 78
     "9 Attenuator" "Select Output Attenuator Type"  \
     "10 Lime Status" "Check the LimeSDR Firmware Version"  \
     "11 Lime Update" "Update the LimeSDR Firmware Version"  \
-    "12 Update" "Check for Updated rpidatv Software"  \
+    "12 Update" "Check for Updated Portsdown Software"  \
     3>&2 2>&1 1>&3)
     case "$menuchoice" in
         1\ *) do_autostart_setup ;;
@@ -2468,33 +2740,35 @@ menuchoice=$(whiptail --title "$StrSystemTitle" --menu "$StrSystemContext" 20 78
 
 do_system_setup_2()
 {
-  menuchoice=$(whiptail --title "$StrSystemTitle" --menu "$StrSystemContext" 20 78 13 \
+  menuchoice=$(whiptail --title "$StrSystemTitle 2" --menu "$StrSystemContext" 20 78 13 \
     "1 Set Freq Presets" "For Touchscreen Frequencies"  \
     "2 Set SR Presets" "For Touchscreen Symbol Rates"  \
     "3 ADF4351 Ref Freq" "Set ADF4351 Reference Freq and Cal" \
     "4 Attenuator Levels" "Set Attenuator Levels for Each Band" \
-    "5 DATV Express" "Configure DATV Express Settings for each band" \
-    "6 Contest Numbers" "Set Contest Numbers for each band" \
-    "7 Viewfinder" "Disable or Enable Viewfinder on Touchscreen" \
-    "8 SD Card Info" "Show SD Card Information"  \
-    "9 Factory Settings" "Restore Initial Configuration" \
-    "10 Reset Touch Cal" "Reset Touchscreen Calibration to zero" \
-    "11 Back-up Settings" "Save Settings to a USB drive" \
-    "12 Load Settings" "Load settings from a USB Drive" \
+    "5 Lime Gain" "Set the LimeGain for Each Band" \
+    "6 DATV Express" "Configure DATV Express Settings for each band" \
+    "7 Contest Numbers" "Set Contest Numbers for each band" \
+    "8 Viewfinder" "Disable or Enable Viewfinder on Touchscreen" \
+    "9 SD Card Info" "Show SD Card Information"  \
+    "10 Factory Settings" "Restore Initial Configuration" \
+    "11 Reset Touch Cal" "Reset Touchscreen Calibration to zero" \
+    "12 Back-up Settings" "Save Settings to a USB drive" \
+    "13 Load Settings" "Load settings from a USB Drive" \
     3>&2 2>&1 1>&3)
   case "$menuchoice" in
     1\ *) do_presets ;;
     2\ *) do_preset_SRs ;;
     3\ *) do_4351_ref  ;;
     4\ *) do_atten_levels ;;
-    5\ *) do_set_express ;;
-    6\ *) do_numbers ;;
-    7\ *) do_vfinder ;;
-    8\ *) do_SD_info ;;
-    9\ *) do_factory;;
-    10\ *) do_touch_factory;;
-    11\ *) do_back_up;;
-    12\ *) do_load_settings;;
+    5\ *) do_set_limegain ;;
+    6\ *) do_set_express ;;
+    7\ *) do_numbers ;;
+    8\ *) do_vfinder ;;
+    9\ *) do_SD_info ;;
+    10\ *) do_factory;;
+    11\ *) do_touch_factory;;
+    12\ *) do_back_up;;
+    13\ *) do_load_settings;;
   esac
 }
 
@@ -2645,8 +2919,7 @@ FEC=$(get_config_var fec $PCONFIGFILE)
 PATHTS=$(get_config_var pathmedia $PCONFIGFILE)
 FREQ_OUTPUT=$(get_config_var freqoutput $PCONFIGFILE)
 GAIN_OUTPUT=$(get_config_var rfpower $PCONFIGFILE)
-let FECNUM=FEC
-let FECDEN=FEC+1
+do_fec_lookup
 V_FINDER=$(get_config_var vfinder $PCONFIGFILE)
 
 INFO=$CALL":"$MODE_INPUT"-->"$MODE_OUTPUT"("$SYMBOLRATEK"KSymbol FEC "$FECNUM"/"$FECDEN") on "$FREQ_OUTPUT"Mhz"
@@ -2731,8 +3004,7 @@ while [ "$status" -eq 0 ]
     PATHTS=$(get_config_var pathmedia $PCONFIGFILE)
     FREQ_OUTPUT=$(get_config_var freqoutput $PCONFIGFILE)
     GAIN_OUTPUT=$(get_config_var rfpower $PCONFIGFILE)
-    let FECNUM=FEC
-    let FECDEN=FEC+1
+    do_fec_lookup
     INFO=$CALL":"$MODE_INPUT"-->"$MODE_OUTPUT"("$SYMBOLRATEK"KSymbol FEC "$FECNUM"/"$FECDEN") on "$FREQ_OUTPUT"Mhz"
     V_FINDER=$(get_config_var vfinder $PCONFIGFILE)
 

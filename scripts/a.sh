@@ -579,11 +579,14 @@ case "$MODE_OUTPUT" in
     if [ "$MODE_INPUT" == "ANALOGCAM" ]; then
       MODE_INPUT="ANALOGMPEG-2"
     fi
+    # If WEBCAMH264 is selected, temporarily select WEBCAMMPEG-2
+    if [ "$MODE_INPUT" == "WEBCAMH264" ]; then
+      MODE_INPUT="WEBCAMMPEG-2"
+    fi
     # If CARDH264 is selected, temporarily select CARDMPEG-2
     if [ "$MODE_INPUT" == "CARDH264" ]; then
       MODE_INPUT="CARDMPEG-2"
     fi
-
   ;;
 
   DIGITHIN)
@@ -1205,7 +1208,7 @@ fi
       # ******************************* H264 VIDEO WITH AUDIO ************************************
       arecord -f S16_LE -r 48000 -c 2 -B 100 -D plughw:$AUDIO_CARD_NUMBER,0 > audioin.wav &
 
-      let BITRATE_VIDEO=$BITRATE_VIDEO-30000  # Make room for audio
+      let BITRATE_VIDEO=$BITRATE_VIDEO-50000  # Make room for audio
 
       $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
         -f $VIDEO_FPS -i $IDRPERIOD $OUTPUT_FILE -t 2 -e $ANALOGCAMNAME -p $PIDPMT -s $CHANNEL $OUTPUT_IP \

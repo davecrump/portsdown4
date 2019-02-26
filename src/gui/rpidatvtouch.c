@@ -3283,7 +3283,14 @@ void CheckLimeReady()
   {
     if (CheckLimeMiniConnect() == 1)
     {
-      MsgBox2("No LimeMini Detected", "Check Connections");
+      if (CheckLimeUSBConnect() == 0)
+      {
+        MsgBox2("LimeUSB Detected, LimeMini Selected", "Please select LimeMini");
+      }
+      else
+      {
+        MsgBox2("No LimeMini Detected", "Check Connections");
+      }
       wait_touch();
     }
   }
@@ -3291,7 +3298,14 @@ void CheckLimeReady()
   {
     if (CheckLimeUSBConnect() == 1)
     {
-      MsgBox2("No Lime USB Detected", "Check Connections");
+      if (CheckLimeMiniConnect() == 0)
+      {
+        MsgBox2("LimeMini Detected, LimeUSB Selected", "Please select LimeUSB");
+      }
+      else
+      {
+        MsgBox2("No Lime USB Detected", "Check Connections");
+      }
       wait_touch();
     }
   }
@@ -6721,6 +6735,9 @@ void TransmitStop()
   // Ensure PTT off.  Required for carrier mode
   pinMode(GPIO_PTT, OUTPUT);
   digitalWrite(GPIO_PTT, LOW);
+
+  // Re-enable SR selection which might have been set all high by a LimeSDR
+  system("/home/pi/rpidatv/scripts/ctlSR.sh");
 
   // Make sure that a.sh has stopped
   system("sudo killall a.sh >/dev/null 2>/dev/null");

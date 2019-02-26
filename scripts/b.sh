@@ -81,6 +81,9 @@ MODE_OUTPUT=$(get_config_var modeoutput $PCONFIGFILE)
   gpio mode $GPIO_PTT out
   gpio write $GPIO_PTT 0
 
+  # Re-enable SR selection which might have been set all high by a LimeSDR
+  /home/pi/rpidatv/scripts/ctlSR.sh
+
   # Kill a.sh which sometimes hangs during testing
   sudo killall a.sh >/dev/null 2>/dev/null
 
