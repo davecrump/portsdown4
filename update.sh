@@ -310,6 +310,7 @@ cd /home/pi/rpidatv/src/libdvbmod
 make dirmake
 make
 cd ../DvbTsToIQ
+rm DvbTsToIQ.o
 make
 cp dvb2iq ../../bin/
 
