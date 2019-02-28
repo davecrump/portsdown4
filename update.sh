@@ -310,6 +310,7 @@ cd /home/pi/rpidatv/src/libdvbmod
 make dirmake
 make
 cd ../DvbTsToIQ
+touch DvbTsToIQ.cpp # To make sure that failed Dev updates get remade
 rm DvbTsToIQ.o
 make
 cp dvb2iq ../../bin/
