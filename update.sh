@@ -102,8 +102,8 @@ if ! grep -q MountFlags=shared systemd-udevd.service; then
 fi
 
 # Check if Lime needs to be updated
-# Look for Commit 809c16c
-grep -Fxqs "809c16c" /home/pi/LimeSuite/commit_tag.txt
+# Look for Commit 42f752a
+grep -Fxqs "42f752a" /home/pi/LimeSuite/commit_tag.txt
 Lime_Update_Not_Required=$?
 
 if [ $Lime_Update_Not_Required != 0 ]; then
@@ -120,13 +120,14 @@ if [ $Lime_Update_Not_Required != 0 ]; then
   sudo rm -rf /usr/local/bin/LimeQuickTest >/dev/null 2>/dev/null
   sudo rm -rf /home/pi/LimeSuite >/dev/null 2>/dev/null
 
-  # Install LimeSuite 18.04 as at 14 Nov 18
-  # Commit 809c16ccb88fe1b714200777d1676b3f35757832
+  # Install LimeSuite 19.01 as at 12 Feb 19
+  # Commit 42f752af905a5b4464cdb95964e408a4682b4ffa
   cd /home/pi
-  wget https://github.com/myriadrf/LimeSuite/archive/809c16ccb88fe1b714200777d1676b3f35757832.zip -O master.zip
+  wget https://github.com/myriadrf/LimeSuite/archive/42f752af905a5b4464cdb95964e408a4682b4ffa.zip -O master.zip
   unzip -o master.zip
-  cp -f -r LimeSuite-809c16ccb88fe1b714200777d1676b3f35757832 LimeSuite
-  rm -rf LimeSuite-809c16ccb88fe1b714200777d1676b3f35757832
+  cp -f -r LimeSuite-42f752af905a5b4464cdb95964e408a4682b4ffa LimeSuite
+  rm -rf LimeSuite-42f752af905a5b4464cdb95964e408a4682b4ffa
+
   rm master.zip
 
   # Compile LimeSuite
@@ -145,7 +146,7 @@ if [ $Lime_Update_Not_Required != 0 ]; then
   sudo /home/pi/LimeSuite/udev-rules/install.sh
 
   # Record the LimeSuite Version
-  echo "809c16c" >/home/pi/LimeSuite/commit_tag.txt
+  echo "42f752a" >/home/pi/LimeSuite/commit_tag.txt
 fi
 
 # Delete old limetool and binary

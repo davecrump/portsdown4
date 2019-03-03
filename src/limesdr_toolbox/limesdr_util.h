@@ -35,7 +35,8 @@ int limesdr_init( const double sample_rate,
 		  const char* antenna,
 		  const int is_tx,
 		  lms_device_t** device,
-		  double* host_sample_rate
+		  double* host_sample_rate,
+		  bool WithCalibration
 		  );
 
 int limesdr_set_channel( const unsigned int freq,
@@ -44,7 +45,11 @@ int limesdr_set_channel( const unsigned int freq,
 			 const unsigned int channel,
 			 const char* antenna,
 			 const int is_tx,
-			 lms_device_t* device );
+			 lms_device_t* device,
+			 bool WithCalibration );
 			 
 int SetGFIR(lms_device_t* device,int Upsample);
+int16_t LoadCal(lms_device_t *device,char *FileCalib);
+int16_t SaveCal(lms_device_t *device,char *FileCalib);
+
 #endif /* !_LIMESDR_UTIL_H_ */

@@ -77,7 +77,7 @@ MODE_OUTPUT=$(get_config_var modeoutput $PCONFIGFILE)
   # Stop the audio for CompVid mode
   sudo killall arecord >/dev/null 2>/dev/null
 
-  # Make sure that the PTT is released (required for carrier and test modes)
+  # Make sure that the PTT is released (required for carrier, test and Lime modes)
   gpio mode $GPIO_PTT out
   gpio write $GPIO_PTT 0
 
