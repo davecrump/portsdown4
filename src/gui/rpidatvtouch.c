@@ -915,9 +915,9 @@ void LimeFWUpdate()
     MsgBox4("Upgrading Lime Firmware", " ", " ", " ");
     system("LimeUtil --update");
     usleep(250000);
-    if (LimeGWRev() == 27)
+    if (LimeGWRev() == 29)
     {
-      MsgBox4("Firmware Upgrade Successful", "Now at Gateware 1.27", "Touch Screen to Continue" ," ");
+      MsgBox4("Firmware Upgrade Successful", "Now at Gateware 1.29", "Touch Screen to Continue" ," ");
     }
     else
     {
@@ -3648,7 +3648,7 @@ void LimeMiniTest()
     snprintf(version_info, 50, "Hardware V1.%d, Firmware V%d, Gateware V%d.%d", LHWVer, LFWVer, LGWVer, LGWRev);
     Text(wscreen/12, hscreen - (2.8 * th), version_info, SansTypeface, 20);
 
-    if ((LFWVer == 5) && (LGWVer == 1) && (LGWRev == 27))  // All correct
+    if ((LFWVer == 6) && (LGWVer == 1) && (LGWRev == 29))  // All correct
     {
       Fill(127, 255, 127, 1);    // Green text
       Text(wscreen/12, hscreen - (3.9 * th), "This is the correct standard for this Portsdown", SansTypeface, 20);
@@ -3783,28 +3783,28 @@ void LimeMiniTest()
       Fill(255, 63, 63, 1);    // Red text
       if (LFWVer < 5)
       {
-        Text(wscreen/12, hscreen - 5 * th, "Firmware version needs to be V5 for Portsdown", SansTypeface, 20);
+        Text(wscreen/12, hscreen - 5 * th, "Firmware version needs to be V6 for Portsdown", SansTypeface, 20);
         Text(wscreen/12, hscreen - 7 * th, "Please \"Update Lime FW\"", SansTypeface, 20);
       }
       else
       {
         if ((LGWRev < 27) && (LGWVer == 1))
         {
-          Text(wscreen/12, hscreen - 5 * th, "Gateware version needs to be V1.27 for Portsdown", SansTypeface, 20);
+          Text(wscreen/12, hscreen - 5 * th, "Gateware version needs to be V1.29 for Portsdown", SansTypeface, 20);
           Text(wscreen/12, hscreen - 7 * th, "Please \"Update Lime FW\"", SansTypeface, 20);
         }
         else
         {
           if (LFWVer > 5)
           {
-            Text(wscreen/12, hscreen - 5 * th, "Firmware version needs to be V5 for Portsdown", SansTypeface, 20);
+            Text(wscreen/12, hscreen - 5 * th, "Firmware version needs to be V6 for Portsdown", SansTypeface, 20);
             Text(wscreen/12, hscreen - 7 * th, "Please \"Force Lime FW\"", SansTypeface, 20);
           }
           else
           {
             if ((LGWRev > 27) || (LGWVer > 1))
             {
-              Text(wscreen/12, hscreen - 5 * th, "Gateware version needs to be V1.27 for Portsdown", SansTypeface, 20);
+              Text(wscreen/12, hscreen - 5 * th, "Gateware version needs to be V1.29 for Portsdown", SansTypeface, 20);
               Text(wscreen/12, hscreen - 7 * th, "Please \"Force Lime FW\"", SansTypeface, 20);
             }
           }
@@ -7675,9 +7675,9 @@ void YesNo(int i)  // i == 6 Yes, i == 8 No
         MsgBox4("Upgrading Lime Firmware", " ", " ", " ");
         system("LimeUtil --force --update");
         usleep(250000);
-        if (LimeGWRev() == 27)
+        if (LimeGWRev() == 29)
         {
-          MsgBox4("Firmware Upgrade Successful", "Now at Gateware 1.27", "Touch Screen to Continue" ," ");
+          MsgBox4("Firmware Upgrade Successful", "Now at Gateware 1.29", "Touch Screen to Continue" ," ");
         }
         else
         {

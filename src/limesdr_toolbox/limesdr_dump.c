@@ -96,7 +96,8 @@ int main(int argc, char** argv)
 			   antenna,
 			   LMS_CH_RX,
 			   &device,
-			   &host_sample_rate) < 0 ) {
+			   &host_sample_rate,
+			   true) < 0 ) {
 		return 1;
 	}
 	fprintf(stderr, "sample_rate: %f\n", host_sample_rate);

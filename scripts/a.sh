@@ -755,7 +755,9 @@ else
 fi
 
 # Set h264 aac audio bitrate for avc2ts
-BITRATE_AUDIO=24000
+# Input sampling rate to arecord is adjusted depending on source
+BITRATE_AUDIO=32000  # aac encoder output
+AUDIO_MARGIN=50000   # headroom allowed in TS
 
 # Set IDRPeriod for avc2ts
 # Default is 100, ie one every 4 sec at 25 fps
@@ -861,9 +863,9 @@ case "$MODE_INPUT" in
         -f $VIDEO_FPS -i $IDRPERIOD $OUTPUT_FILE -t 0 -e $ANALOGCAMNAME -p $PIDPMT -s $CHANNEL $OUTPUT_IP > /dev/null &
     else
       # ******************************* H264 VIDEO WITH AUDIO ************************************
-      arecord -f S16_LE -r 48000 -c 2 -B 100 -D plughw:$AUDIO_CARD_NUMBER,0 > audioin.wav &
+      arecord -f S16_LE -r $AUDIO_SAMPLE -c 2 -B 100 -D plughw:$AUDIO_CARD_NUMBER,0 > audioin.wav &
 
-      let BITRATE_VIDEO=$BITRATE_VIDEO-30000  # Make room for audio
+      let BITRATE_VIDEO=$BITRATE_VIDEO-$AUDIO_MARGIN  # Make room for audio
 
       $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
         -f $VIDEO_FPS -i $IDRPERIOD $OUTPUT_FILE -t 0 -e $ANALOGCAMNAME -p $PIDPMT -s $CHANNEL $OUTPUT_IP \
@@ -1081,9 +1083,9 @@ fi
     else
       # ******************************* H264 TCANIM WITH AUDIO ************************************
 
-      arecord -f S16_LE -r 48000 -c 2 -B 100 -D plughw:$AUDIO_CARD_NUMBER,0 > audioin.wav &
+      arecord -f S16_LE -r $AUDIO_SAMPLE -c 2 -B 100 -D plughw:$AUDIO_CARD_NUMBER,0 > audioin.wav &
 
-      let BITRATE_VIDEO=$BITRATE_VIDEO-30000  # Make room for audio
+      let BITRATE_VIDEO=$BITRATE_VIDEO-$AUDIO_MARGIN  # Make room for audio
 
       $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
         -f $VIDEO_FPS -i $IDRPERIOD $OUTPUT_FILE -t 3 -p $PIDPMT -s $CHANNEL $OUTPUT_IP \
@@ -1132,9 +1134,9 @@ fi
         > /dev/null &
     else
       # ******************************* H264 VIDEO WITH AUDIO ************************************
-      arecord -f S16_LE -r 48000 -c 2 -B 100 -D plughw:$AUDIO_CARD_NUMBER,0 > audioin.wav &
+      arecord -f S16_LE -r $AUDIO_SAMPLE -c 2 -B 100 -D plughw:$AUDIO_CARD_NUMBER,0 > audioin.wav &
 
-      let BITRATE_VIDEO=$BITRATE_VIDEO-30000  # Make room for audio
+      let BITRATE_VIDEO=$BITRATE_VIDEO-$AUDIO_MARGIN  # Make room for audio
 
       $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
         -f $VIDEO_FPS -i $IDRPERIOD $OUTPUT_FILE -t 4 -e $VNCADDR -p $PIDPMT -s $CHANNEL $OUTPUT_IP \
@@ -1206,9 +1208,9 @@ fi
       > /dev/null &
     else
       # ******************************* H264 VIDEO WITH AUDIO ************************************
-      arecord -f S16_LE -r 48000 -c 2 -B 100 -D plughw:$AUDIO_CARD_NUMBER,0 > audioin.wav &
+      arecord -f S16_LE -r $AUDIO_SAMPLE -c 2 -B 100 -D plughw:$AUDIO_CARD_NUMBER,0 > audioin.wav &
 
-      let BITRATE_VIDEO=$BITRATE_VIDEO-30000  # Make room for audio
+      let BITRATE_VIDEO=$BITRATE_VIDEO-$AUDIO_MARGIN  # Make room for audio
 
       $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
         -f $VIDEO_FPS -i $IDRPERIOD $OUTPUT_FILE -t 2 -e $ANALOGCAMNAME -p $PIDPMT -s $CHANNEL $OUTPUT_IP \
@@ -1304,9 +1306,9 @@ fi
         > /dev/null  &
     else
       # ******************************* H264 VIDEO WITH AUDIO ************************************
-      arecord -f S16_LE -r 48000 -c 2 -B 100 -D plughw:$AUDIO_CARD_NUMBER,0 > audioin.wav &
+      arecord -f S16_LE -r $AUDIO_SAMPLE -c 2 -B 100 -D plughw:$AUDIO_CARD_NUMBER,0 > audioin.wav &
 
-      let BITRATE_VIDEO=$BITRATE_VIDEO-30000  # Make room for audio
+      let BITRATE_VIDEO=$BITRATE_VIDEO-$AUDIO_MARGIN  # Make room for audio
 
       $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
         -f $VIDEO_FPS -i $IDRPERIOD $OUTPUT_FILE -t 3 -p $PIDPMT -s $CHANNEL $OUTPUT_IP \

@@ -39,22 +39,24 @@ static void signal_handler(int signal)
 
 int main(int argc, char** argv)
 {
-	if ( argc < 2 ) {
-		printf("Usage: %s <OPTIONS>\n", argv[0]);
-		printf("  -f <FREQUENCY>\n"
-		       "  -b <BANDWIDTH_CALIBRATING> (default: 8e6)\n"
-		       "  -s <SAMPLE_RATE> (default: 2e6)\n"
-		       "  -g <GAIN_NORMALIZED> (default: 1)\n"
-                       "  -l <BUFFER_SIZE> (default: 1024*1024)\n"
-		       "  -p <POSTPONE_EMITTING_SEC> (default: 3)\n"
-		       "  -d <DEVICE_INDEX> (default: 0)\n"
-		       "  -c <CHANNEL_INDEX> (default: 0)\n"
-		       "  -a <ANTENNA> (BAND1 | BAND2) (default: BAND1)\n"
-		       "  -r <RRC FILTER> (0 | 2 | 4) (default: 0)\n"
-		       "  -i <INPUT_FILENAME> (default: stdin)\n"
-		       "  -e <GPIO_BAND> (default: 0)\n");
-		return 1;
-	}
+  if ( argc < 2 )
+  {
+    printf("Usage: %s <OPTIONS>\n", argv[0]);
+    printf("  -f <FREQUENCY>\n"
+           "  -b <BANDWIDTH_CALIBRATING> (default: 8e6)\n"
+           "  -s <SAMPLE_RATE> (default: 2e6)\n"
+           "  -g <GAIN_NORMALIZED> (default: 1)\n"
+           "  -l <BUFFER_SIZE> (default: 1024*1024)\n"
+           "  -p <POSTPONE_EMITTING_SEC> (default: 3)\n"
+           "  -d <DEVICE_INDEX> (default: 0)\n"
+           "  -c <CHANNEL_INDEX> (default: 0)\n"
+           "  -a <ANTENNA> (BAND1 | BAND2) (default: BAND1)\n"
+           "  -r <RRC FILTER> (0 | 2 | 4) (default: 0)\n"
+           "  -i <INPUT_FILENAME> (default: stdin)\n"
+           "  -e <GPIO_BAND> (default: 0)\n"
+           "  -q <CalibrationEnable> (default: 1)\n");
+    return 1;
+  }
 	int i;
 	unsigned int freq = 0;
 	double bandwidth_calibrating = 8e6;
@@ -68,6 +70,7 @@ int main(int argc, char** argv)
 	char* antenna = "BAND1";
 	char* input_filename = NULL;
 	uint8_t gpio_band = 0;
+	bool WithCalibration=true;
 	for ( i = 1; i < argc-1; i += 2 ) {
 		if      (strcmp(argv[i], "-f") == 0) { freq = atof( argv[i+1] ); }
 		else if (strcmp(argv[i], "-b") == 0) { bandwidth_calibrating = atof( argv[i+1] ); }
@@ -80,7 +83,8 @@ int main(int argc, char** argv)
 		else if (strcmp(argv[i], "-a") == 0) { antenna = argv[i+1]; }
 		else if (strcmp(argv[i], "-r") == 0) { rrc = atoi( argv[i+1] ); }
 		else if (strcmp(argv[i], "-i") == 0) { input_filename = argv[i+1]; }
-		else if (strcmp(argv[i], "-e") == 0) { gpio_band = atoi( argv[i+1] ); }
+                else if (strcmp(argv[i], "-e") == 0) { gpio_band = atoi( argv[i+1] ); }
+		else if (strcmp(argv[i], "-q") == 0) { WithCalibration = atoi(argv[i+1]); }
 	}
 	if ( freq == 0 ) {
 		fprintf( stderr, "ERROR: invalid frequency : %d\n", freq );
@@ -103,6 +107,10 @@ int main(int argc, char** argv)
 			return 1;
 		}
 	}
+    bool isapipe = (fseek(fd, 0, SEEK_CUR) < 0); //Dirty trick to see if it is a pipe or not
+	if (isapipe)
+		fprintf(stderr, "Using IQ live mode\n");
+
 	lms_device_t* device = NULL;
 	double host_sample_rate;
 	if(rrc>1) sample_rate=sample_rate*rrc; // Upsampling
@@ -115,7 +123,8 @@ int main(int argc, char** argv)
 			   antenna,
 			   LMS_CH_TX,
 			   &device,
-			   &host_sample_rate) < 0 ) {
+			   &host_sample_rate,
+			   WithCalibration) < 0 ) {
 		return 1;
 	}
 	fprintf(stderr, "sample_rate: %f\n", host_sample_rate);
@@ -171,7 +180,6 @@ int main(int argc, char** argv)
 		return 1;
     	}
 
-
 	//LMS_StartStream(&tx_stream);
 	if(rrc>1)
 		LMS_SetGFIR(device, LMS_CH_TX, 0, LMS_GFIR3, true);
@@ -181,7 +189,7 @@ int main(int argc, char** argv)
 	tx_meta.waitForTimestamp = true;
 	tx_meta.flushPartialPacket = false;
 
-	LMS_EnableChannel(device, LMS_CH_RX, 0, true);
+	/*LMS_EnableChannel(device, LMS_CH_RX, 0, true);
 	lms_stream_t rx_stream = {
 		.channel = 0,
 		.fifoSize = buffer_size ,
@@ -194,7 +202,7 @@ int main(int argc, char** argv)
 		return 1;
 	}
 	LMS_StartStream(&rx_stream);
-
+	*/
 	
 	
 	signal(SIGINT, signal_handler);
@@ -205,22 +213,47 @@ int main(int argc, char** argv)
 
 	tx_meta.timestamp = postpone_emitting_sec * sample_rate;
 	bool FirstTx=true;
-
+	bool Transition=true;
+	int TotalSampleSent=0;
+	
 	while( !want_quit ) {
+		lms_stream_status_t Status;
+		LMS_GetStreamStatus(&tx_stream,&Status);
+		if(Status.fifoFilledCount<Status.fifoSize*0.4)
+		{
+				fprintf(stderr,"Fifo=%d/%d\n",Status.fifoFilledCount,Status.fifoSize);
+				//memset(buff,0,buffer_size*sizeof(*buff));
+				//LMS_SendStream( &tx_stream, buff, (Status.fifoSize-Status.fifoFilledCount)/sizeof( *buff ), NULL, 1000 );
+		}		
 		int nb_samples_to_send = fread( buff, sizeof( *buff ), buffer_size, fd );
 		if(FirstTx)
 		{
-			LMS_SetNormalizedGain( device, LMS_CH_TX, channel, gain );
+			
 			LMS_StartStream(&tx_stream);
 			FirstTx=false;
 		}
-		if ( nb_samples_to_send == 0 ) { // no more samples to send, quit
-			break;
+		if ( nb_samples_to_send == 0 ) { // no more samples to send, quit if pipe, loop if a file
+            if(!isapipe)
+            {
+                 fseek(fd, 0, SEEK_SET);
+                 continue;
+            }
+            else
+			    break;
 		}
-	        int nb_samples = LMS_SendStream( &tx_stream, buff, nb_samples_to_send, &tx_meta, 1000 );
+	    int nb_samples = LMS_SendStream( &tx_stream, buff, nb_samples_to_send, NULL/*&tx_meta*/, 1000 );
+		TotalSampleSent+=nb_samples;
 		if ( nb_samples < 0 ) {
 			fprintf(stderr, "LMS_SendStream() : %s\n", LMS_GetLastErrorMessage());
 			break;
+		}
+		if(Transition)
+		{
+			if(TotalSampleSent>sample_rate) // 1 second
+			{
+				LMS_SetNormalizedGain( device, LMS_CH_TX, channel, gain );
+				Transition=false;		
+			}
 		}
 		tx_meta.timestamp += nb_samples;
 	}
@@ -229,11 +262,9 @@ int main(int argc, char** argv)
 	free( buff );
 	fclose( fd );
 
-
+	// Set PTT off
 	gpio_band = gpio_band - 128;
 	LMS_GPIOWrite(device, &gpio_band, 1);
-
-
 
 	LMS_EnableChannel( device, LMS_CH_TX, channel, false);
 	LMS_Close(device);

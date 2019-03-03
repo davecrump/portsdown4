@@ -27,22 +27,23 @@
 #include <unistd.h>
 #include "limesdr_util.h"
 
-int main(int argc, char** argv)
+int main(int argc, char **argv)
 {
-	if ( argc < 2 ) {
+	if (argc < 2)
+	{
 		printf("Usage: %s <OPTIONS>\n", argv[0]);
 		printf("  -f <INPUT_FREQUENCY>\n"
-		       "  -F <OUTPUT_FREQUENCY>\n"
-		       "  -b <BANDWIDTH_CALIBRATING> (default: 8e6)\n"
-		       "  -s <SAMPLE_RATE> (default: 2e6)\n"
-		       "  -g <INPUT_GAIN_NORMALIZED> (default: unused)\n"
-		       "  -G <OUTPUT_GAIN_NORMALIZED> (default: 1)\n"
-                       "  -l <BUFFER_SIZE> (default: 1024*1024)\n"
-		       "  -d <DEVICE_INDEX> (default: 0)\n"
-		       "  -c <INPUT_CHANNEL_INDEX> (default: 0)\n"
-		       "  -C <OUTPUT_CHANNEL_INDEX> (default: 0)\n"
-		       "  -a <INPUT_ANTENNA> (LNAL | LNAH | LNAW) (default: LNAW)\n"
-		       "  -A <OUTPUT_ANTENNA> (BAND1 | BAND2) (default: BAND1)\n");
+			   "  -F <OUTPUT_FREQUENCY>\n"
+			   "  -b <BANDWIDTH_CALIBRATING> (default: 8e6)\n"
+			   "  -s <SAMPLE_RATE> (default: 2e6)\n"
+			   "  -g <INPUT_GAIN_NORMALIZED> (default: unused)\n"
+			   "  -G <OUTPUT_GAIN_NORMALIZED> (default: 1)\n"
+			   "  -l <BUFFER_SIZE> (default: 1024*1024)\n"
+			   "  -d <DEVICE_INDEX> (default: 0)\n"
+			   "  -c <INPUT_CHANNEL_INDEX> (default: 0)\n"
+			   "  -C <OUTPUT_CHANNEL_INDEX> (default: 0)\n"
+			   "  -a <INPUT_ANTENNA> (LNAL | LNAH | LNAW) (default: LNAW)\n"
+			   "  -A <OUTPUT_ANTENNA> (BAND1 | BAND2) (default: BAND1)\n");
 		return 1;
 	}
 	int i;
@@ -52,45 +53,87 @@ int main(int argc, char** argv)
 	double sample_rate = 2e6;
 	double gain_input = -1;
 	double gain_output = 1;
-	unsigned int buffer_size = 1024*1024;
+	unsigned int buffer_size = 1024 * 1024;
 	unsigned int device_i = 0;
 	unsigned int channel_input = 0;
 	unsigned int channel_output = 0;
-	char* antenna_input = "LNAW";
-	char* antenna_output = "BAND1";
-        for ( i = 1; i < argc-1; i += 2 ) {
-		if      (strcmp(argv[i], "-f") == 0) { freq_input = atof( argv[i+1] ); }
-		else if (strcmp(argv[i], "-F") == 0) { freq_output = atof( argv[i+1] ); }
-		else if (strcmp(argv[i], "-b") == 0) { bandwidth_calibrating = atof( argv[i+1] ); }
-		else if (strcmp(argv[i], "-s") == 0) { sample_rate = atof( argv[i+1] ); }
-		else if (strcmp(argv[i], "-g") == 0) { gain_input = atof( argv[i+1] ); }
-		else if (strcmp(argv[i], "-G") == 0) { gain_output = atof( argv[i+1] ); }
-		else if (strcmp(argv[i], "-l") == 0) { buffer_size = atoi( argv[i+1] ); }
-		else if (strcmp(argv[i], "-d") == 0) { device_i = atoi( argv[i+1] ); }
-		else if (strcmp(argv[i], "-c") == 0) { channel_input = atoi( argv[i+1] ); }
-		else if (strcmp(argv[i], "-C") == 0) { channel_output = atoi( argv[i+1] ); }
-		else if (strcmp(argv[i], "-a") == 0) { antenna_input = argv[i+1]; }
-		else if (strcmp(argv[i], "-A") == 0) { antenna_output = argv[i+1]; }
+	char *antenna_input = "LNAW";
+	char *antenna_output = "BAND1";
+	for (i = 1; i < argc - 1; i += 2)
+	{
+		if (strcmp(argv[i], "-f") == 0)
+		{
+			freq_input = atof(argv[i + 1]);
+		}
+		else if (strcmp(argv[i], "-F") == 0)
+		{
+			freq_output = atof(argv[i + 1]);
+		}
+		else if (strcmp(argv[i], "-b") == 0)
+		{
+			bandwidth_calibrating = atof(argv[i + 1]);
+		}
+		else if (strcmp(argv[i], "-s") == 0)
+		{
+			sample_rate = atof(argv[i + 1]);
+		}
+		else if (strcmp(argv[i], "-g") == 0)
+		{
+			gain_input = atof(argv[i + 1]);
+		}
+		else if (strcmp(argv[i], "-G") == 0)
+		{
+			gain_output = atof(argv[i + 1]);
+		}
+		else if (strcmp(argv[i], "-l") == 0)
+		{
+			buffer_size = atoi(argv[i + 1]);
+		}
+		else if (strcmp(argv[i], "-d") == 0)
+		{
+			device_i = atoi(argv[i + 1]);
+		}
+		else if (strcmp(argv[i], "-c") == 0)
+		{
+			channel_input = atoi(argv[i + 1]);
+		}
+		else if (strcmp(argv[i], "-C") == 0)
+		{
+			channel_output = atoi(argv[i + 1]);
+		}
+		else if (strcmp(argv[i], "-a") == 0)
+		{
+			antenna_input = argv[i + 1];
+		}
+		else if (strcmp(argv[i], "-A") == 0)
+		{
+			antenna_output = argv[i + 1];
+		}
 	}
-	if ( freq_input == 0 ) {
-		fprintf( stderr, "ERROR: invalid input frequency : %d\n", freq_input );
+	if (freq_input == 0)
+	{
+		fprintf(stderr, "ERROR: invalid input frequency : %d\n", freq_input);
 		return 1;
 	}
-	if ( freq_output == 0 ) {
-		fprintf( stderr, "ERROR: invalid output frequency : %d\n", freq_output );
+	if (freq_output == 0)
+	{
+		fprintf(stderr, "ERROR: invalid output frequency : %d\n", freq_output);
 		return 1;
 	}
-	struct s16iq_sample_s {
-	        short i;
+	struct s16iq_sample_s
+	{
+		short i;
 		short q;
 	} __attribute__((packed));
-	struct s16iq_sample_s *buff = (struct s16iq_sample_s*)malloc(sizeof(struct s16iq_sample_s) * buffer_size);
-	if ( buff == NULL ) {
+	struct s16iq_sample_s *buff = (struct s16iq_sample_s *)malloc(sizeof(struct s16iq_sample_s) * buffer_size);
+	if (buff == NULL)
+	{
 		perror("malloc()");
 		return 1;
 	}
-	lms_device_t* device = NULL;
+	lms_device_t *device = NULL;
 	double host_sample_rate;
+	/*
 	if ( limesdr_init( sample_rate,
 			   freq_output,
 			   bandwidth_calibrating,
@@ -100,20 +143,80 @@ int main(int argc, char** argv)
 			   antenna_output,
 			   LMS_CH_TX,
 			   &device,
-			   &host_sample_rate) < 0 ) {
+			   &host_sample_rate,
+			   true) < 0 )
+			   */
+	if (limesdr_init(sample_rate,
+					 freq_input,
+					 bandwidth_calibrating,
+					 gain_input,
+					 device_i,
+					 channel_input,
+					 antenna_input,
+					 LMS_CH_RX,
+					 &device,
+					 &host_sample_rate,
+					 true) < 0)
+	{
 		return 1;
 	}
 	fprintf(stderr, "sample_rate: %f\n", host_sample_rate);
 
-	if ( limesdr_set_channel( freq_input,
+	if (/* limesdr_set_channel( freq_input,
 				  bandwidth_calibrating,
 				  gain_input,
 				  channel_input,
 				  antenna_input,
 				  LMS_CH_RX,
-				  device ) < 0 ) {
+				  device,true ) < 0 ) {
+		return 1;*/
+		limesdr_set_channel(freq_output,
+							bandwidth_calibrating,
+							gain_output,
+							channel_output,
+							antenna_output,
+							LMS_CH_TX,
+							device, true) < 0)
+	{
 		return 1;
 	}
+	
+	if(SetGFIR(device,4)<0)
+	{
+		fprintf(stderr, "SetGFIR() : %s\n", LMS_GetLastErrorMessage());
+		return -1;
+	}
+	LMS_SetGFIR(device, LMS_CH_RX, 0, LMS_GFIR3, true);
+	
+	uint16_t val;
+	LMS_ReadParam(device, LMS7_TX_MUX, &val);
+	fprintf(stderr, "Val =%x\n", val);
+	LMS_WriteParam(device, LMS7_TX_MUX, 2);
+	LMS_ReadParam(device, LMS7_TX_MUX, &val);
+	fprintf(stderr, "After Val =%x\n", val);
+	LMS_WriteParam(device, LMS7_TXWRCLK_MUX, 2);
+	
+
+	
+	while (1)
+	{
+		sleep(1);
+	}
+	//static const struct LMS7Parameter LMS7_TX_MUX = { 0x002A, 9, 8, 0, "TX_MUX", "Port selection for data transmit to TSP" };
+	//static const struct LMS7Parameter LMS7_TXRDCLK_MUX = { 0x002A, 7, 6, 2, "TXRDCLK_MUX", "TX FIFO read clock selection" };
+	//static const struct LMS7Parameter LMS7_TXWRCLK_MUX = { 0x002A, 5, 4, 0, "TXWRCLK_MUX", "TX FIFO write clock selection" };
+	/*uint16_t val;
+LMS_ReadLMSReg(device,0x002A,&val);
+fprintf(stderr,"Val =%x\n",val);
+LMS_WriteLMSReg(device,0x002A,0x02A6);
+LMS_ReadLMSReg(device,0x002A,&val);
+fprintf(stderr,"Val after=%x\n",val);
+while( 1 )
+{
+	sleep(1);
+}*/
+
+	/*
 	lms_stream_t tx_stream = {
 		.channel = channel_output,
 		.fifoSize = 2 * buffer_size,
@@ -165,6 +268,7 @@ int main(int argc, char** argv)
 	LMS_DestroyStream(device, &tx_stream);
 	free( buff );
 	LMS_EnableChannel( device, LMS_CH_TX, channel_output, false);
+	*/
 	LMS_Close(device);
 	return 0;
 }
