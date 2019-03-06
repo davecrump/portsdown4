@@ -293,10 +293,6 @@ if [ ! -f "/usr/bin/omxplayer" ]; then
   sudo apt-get -y install omxplayer
 fi
 
-# Delete Limetool
-rm -rf /home/pi/rpidatv/src/limetool
-rm -rf /home/pi/rpidatv/bin/limetx
-
 # Install limesdr_toolbox
 cd /home/pi/rpidatv/src/limesdr_toolbox
 cmake .

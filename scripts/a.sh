@@ -1,7 +1,7 @@
 #! /bin/bash
 # set -x #Uncomment for testing
 
-# Version 201811170
+# Version 201903030
 
 ############# SET GLOBAL VARIABLES ####################
 
@@ -754,10 +754,12 @@ else
   fi
 fi
 
-# Set h264 aac audio bitrate for avc2ts
+# Set H264 Audio Settings
+ARECORD_BUF=5000     # arecord buffer in us
 # Input sampling rate to arecord is adjusted depending on source
 BITRATE_AUDIO=32000  # aac encoder output
-AUDIO_MARGIN=50000   # headroom allowed in TS
+# Set h264 aac audio bitrate for avc2ts
+AUDIO_MARGIN=60000   # headroom allowed in TS
 
 # Set IDRPeriod for avc2ts
 # Default is 100, ie one every 4 sec at 25 fps
@@ -790,6 +792,8 @@ case "$MODE_OUTPUT" in
   ;;
 esac
 
+# Set the LimeSDR Send buffer size
+LIMESENDBUF=10000
 
 # Clean up before starting fifos
 sudo rm videoes
@@ -845,7 +849,7 @@ case "$MODE_INPUT" in
         $PATHRPI"/dvb2iq" -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
           -r $UPSAMPLE -m $MODTYPE -c $CONSTLN \
            | sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s $SYMBOLRATE \
-           -g $LIME_GAINF -p 0.05 -a $OUTPORT -r $UPSAMPLE -l 102400 -e $BAND_GPIO &
+           -g $LIME_GAINF -p 0.05 -a $OUTPORT -r $UPSAMPLE -l $LIMESENDBUF -e $BAND_GPIO &
       ;;
       "COMPVID")
         OUTPUT_FILE="/dev/null" #Send avc2ts output to /dev/null
@@ -863,7 +867,7 @@ case "$MODE_INPUT" in
         -f $VIDEO_FPS -i $IDRPERIOD $OUTPUT_FILE -t 0 -e $ANALOGCAMNAME -p $PIDPMT -s $CHANNEL $OUTPUT_IP > /dev/null &
     else
       # ******************************* H264 VIDEO WITH AUDIO ************************************
-      arecord -f S16_LE -r $AUDIO_SAMPLE -c 2 -B 100 -D plughw:$AUDIO_CARD_NUMBER,0 > audioin.wav &
+      arecord -f S16_LE -r $AUDIO_SAMPLE -c 2 -B $ARECORD_BUF -D plughw:$AUDIO_CARD_NUMBER,0 > audioin.wav &
 
       let BITRATE_VIDEO=$BITRATE_VIDEO-$AUDIO_MARGIN  # Make room for audio
 
@@ -934,7 +938,7 @@ fi
         $PATHRPI"/dvb2iq" -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
           -r $UPSAMPLE -m $MODTYPE -c $CONSTLN \
            | sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s $SYMBOLRATE \
-           -g $LIME_GAINF -p 0.05 -a $OUTPORT -r $UPSAMPLE -l 102400 -e $BAND_GPIO &
+           -g $LIME_GAINF -p 0.05 -a $OUTPORT -r $UPSAMPLE -l $LIMESENDBUF -e $BAND_GPIO &
       ;;
       *)
         # For IQ, QPSKRF, DIGITHIN and DTX1 rpidatv generates the IQ (and RF for QPSKRF)
@@ -1060,7 +1064,7 @@ fi
         $PATHRPI"/dvb2iq" -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
           -r $UPSAMPLE -m $MODTYPE -c $CONSTLN \
            | sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s $SYMBOLRATE \
-           -g $LIME_GAINF -p 0.05 -a $OUTPORT -r $UPSAMPLE -l 102400 -e $BAND_GPIO &
+           -g $LIME_GAINF -p 0.05 -a $OUTPORT -r $UPSAMPLE -l $LIMESENDBUF -e $BAND_GPIO &
       ;;
       *)
         sudo  $PATHRPI"/rpidatv" -i videots -s $SYMBOLRATE_K -c $FECNUM"/"$FECDEN -f $FREQUENCY_OUT -p $GAIN -m $MODE -x $PIN_I -y $PIN_Q &
@@ -1083,7 +1087,7 @@ fi
     else
       # ******************************* H264 TCANIM WITH AUDIO ************************************
 
-      arecord -f S16_LE -r $AUDIO_SAMPLE -c 2 -B 100 -D plughw:$AUDIO_CARD_NUMBER,0 > audioin.wav &
+      arecord -f S16_LE -r $AUDIO_SAMPLE -c 2 -B $ARECORD_BUF -D plughw:$AUDIO_CARD_NUMBER,0 > audioin.wav &
 
       let BITRATE_VIDEO=$BITRATE_VIDEO-$AUDIO_MARGIN  # Make room for audio
 
@@ -1116,7 +1120,7 @@ fi
         $PATHRPI"/dvb2iq" -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
           -r $UPSAMPLE -m $MODTYPE -c $CONSTLN \
            | sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s $SYMBOLRATE \
-           -g $LIME_GAINF -p 0.05 -a $OUTPORT -r $UPSAMPLE -l 102400 -e $BAND_GPIO &
+           -g $LIME_GAINF -p 0.05 -a $OUTPORT -r $UPSAMPLE -l $LIMESENDBUF -e $BAND_GPIO &
       ;;
       "COMPVID")
         OUTPUT_FILE="/dev/null" #Send avc2ts output to /dev/null
@@ -1134,7 +1138,7 @@ fi
         > /dev/null &
     else
       # ******************************* H264 VIDEO WITH AUDIO ************************************
-      arecord -f S16_LE -r $AUDIO_SAMPLE -c 2 -B 100 -D plughw:$AUDIO_CARD_NUMBER,0 > audioin.wav &
+      arecord -f S16_LE -r $AUDIO_SAMPLE -c 2 -B $ARECORD_BUF -D plughw:$AUDIO_CARD_NUMBER,0 > audioin.wav &
 
       let BITRATE_VIDEO=$BITRATE_VIDEO-$AUDIO_MARGIN  # Make room for audio
 
@@ -1191,7 +1195,7 @@ fi
         $PATHRPI"/dvb2iq" -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
           -r $UPSAMPLE -m $MODTYPE -c $CONSTLN \
            | sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s $SYMBOLRATE \
-           -g $LIME_GAINF -p 0.05 -a $OUTPORT -r $UPSAMPLE -l 102400 -e $BAND_GPIO &
+           -g $LIME_GAINF -p 0.05 -a $OUTPORT -r $UPSAMPLE -l $LIMESENDBUF -e $BAND_GPIO &
       ;;
       *)
         sudo $PATHRPI"/rpidatv" -i videots -s $SYMBOLRATE_K -c $FECNUM"/"$FECDEN -f $FREQUENCY_OUT -p $GAIN -m $MODE -x $PIN_I -y $PIN_Q &
@@ -1208,7 +1212,7 @@ fi
       > /dev/null &
     else
       # ******************************* H264 VIDEO WITH AUDIO ************************************
-      arecord -f S16_LE -r $AUDIO_SAMPLE -c 2 -B 100 -D plughw:$AUDIO_CARD_NUMBER,0 > audioin.wav &
+      arecord -f S16_LE -r $AUDIO_SAMPLE -c 2 -B $ARECORD_BUF -D plughw:$AUDIO_CARD_NUMBER,0 > audioin.wav &
 
       let BITRATE_VIDEO=$BITRATE_VIDEO-$AUDIO_MARGIN  # Make room for audio
 
@@ -1282,8 +1286,8 @@ fi
       "LIMEMINI" | "LIMEUSB")
         $PATHRPI"/dvb2iq" -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
           -r $UPSAMPLE -m $MODTYPE -c $CONSTLN \
-           | sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s $SYMBOLRATE \
-           -g $LIME_GAINF -p 0.05 -a $OUTPORT -r $UPSAMPLE -l 102400 -e $BAND_GPIO &
+           |buffer| sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s $SYMBOLRATE \
+           -g $LIME_GAINF -p 0.05 -a $OUTPORT -r $UPSAMPLE -l $LIMESENDBUF -e $BAND_GPIO &
       ;;
       *)
         sudo nice -n -30 $PATHRPI"/rpidatv" -i videots -s $SYMBOLRATE_K -c $FECNUM"/"$FECDEN -f $FREQUENCY_OUT -p $GAIN -m $MODE -x $PIN_I -y $PIN_Q &
@@ -1306,7 +1310,7 @@ fi
         > /dev/null  &
     else
       # ******************************* H264 VIDEO WITH AUDIO ************************************
-      arecord -f S16_LE -r $AUDIO_SAMPLE -c 2 -B 100 -D plughw:$AUDIO_CARD_NUMBER,0 > audioin.wav &
+      arecord -f S16_LE -r $AUDIO_SAMPLE -c 2 -B $ARECORD_BUF -D plughw:$AUDIO_CARD_NUMBER,0 > audioin.wav &
 
       let BITRATE_VIDEO=$BITRATE_VIDEO-$AUDIO_MARGIN  # Make room for audio
 
@@ -1333,7 +1337,7 @@ fi
         $PATHRPI"/dvb2iq" -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
           -r $UPSAMPLE -m $MODTYPE -c $CONSTLN \
            | sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s $SYMBOLRATE \
-           -g $LIME_GAINF -p 0.05 -a $OUTPORT -r $UPSAMPLE -l 102400 -e $BAND_GPIO &
+           -g $LIME_GAINF -p 0.05 -a $OUTPORT -r $UPSAMPLE -l $LIMESENDBUF -e $BAND_GPIO &
       ;;
       *)
         sudo $PATHRPI"/rpidatv" -i videots -s $SYMBOLRATE_K -c $FECNUM"/"$FECDEN -f $FREQUENCY_OUT -p $GAIN -m $MODE -x $PIN_I -y $PIN_Q &
@@ -1360,7 +1364,7 @@ fi
         $PATHRPI"/dvb2iq" -i $TSVIDEOFILE -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
           -r $UPSAMPLE -m $MODTYPE -c $CONSTLN \
            | sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s $SYMBOLRATE \
-           -g $LIME_GAINF -p 0.05 -a $OUTPORT -r $UPSAMPLE -l 102400 -e $BAND_GPIO &
+           -g $LIME_GAINF -p 0.05 -a $OUTPORT -r $UPSAMPLE -l $LIMESENDBUF -e $BAND_GPIO &
       ;;
       *)
         sudo $PATHRPI"/rpidatv" -i $TSVIDEOFILE -s $SYMBOLRATE_K -c $FECNUM"/"$FECDEN -f $FREQUENCY_OUT -p $GAIN -m $MODE -l -x $PIN_I -y $PIN_Q &;;
@@ -1378,7 +1382,7 @@ fi
       "LIMEMINI" | "LIMEUSB")
         $PATHRPI"/dvb2iq" -f carrier -r 1 -s 50 \
            | sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s 50000 \
-           -g $LIME_GAINF -p 0.05 -a $OUTPORT -r 1 -l 102400 -e $BAND_GPIO &
+           -g $LIME_GAINF -p 0.05 -a $OUTPORT -r 1 -l $LIMESENDBUF -e $BAND_GPIO &
       ;;
       *)
         # sudo $PATHRPI"/rpidatv" -i videots -s $SYMBOLRATE_K -c "carrier" -f $FREQUENCY_OUT -p $GAIN -m $MODE -x $PIN_I -y $PIN_Q &
@@ -1508,7 +1512,7 @@ fi
         $PATHRPI"/dvb2iq" -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
           -r $UPSAMPLE -m $MODTYPE -c $CONSTLN \
            | sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s $SYMBOLRATE \
-           -g $LIME_GAINF -p 0.05 -a $OUTPORT -r $UPSAMPLE -l 102400 -e $BAND_GPIO &
+           -g $LIME_GAINF -p 0.05 -a $OUTPORT -r $UPSAMPLE -l $LIMESENDBUF -e $BAND_GPIO &
       ;;
       *)
         # For IQ, QPSKRF, DIGITHIN and DTX1 rpidatv generates the IQ (and RF for QPSKRF)
@@ -1699,7 +1703,7 @@ fi
         $PATHRPI"/dvb2iq" -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
           -r $UPSAMPLE -m $MODTYPE -c $CONSTLN \
            | sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s $SYMBOLRATE \
-           -g $LIME_GAINF -p 0.05 -a $OUTPORT -r $UPSAMPLE -l 102400 -e $BAND_GPIO &
+           -g $LIME_GAINF -p 0.05 -a $OUTPORT -r $UPSAMPLE -l $LIMESENDBUF -e $BAND_GPIO &
       ;;
       *)
         # For IQ, QPSKRF, DIGITHIN and DTX1 rpidatv generates the IQ (and RF for QPSKRF)
@@ -1819,7 +1823,7 @@ fi
         $PATHRPI"/dvb2iq" -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
           -r $UPSAMPLE -m $MODTYPE -c $CONSTLN \
            | sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s $SYMBOLRATE \
-           -g $LIME_GAINF -p 0.05 -a $OUTPORT -r $UPSAMPLE -l 102400 -e $BAND_GPIO &
+           -g $LIME_GAINF -p 0.05 -a $OUTPORT -r $UPSAMPLE -l $LIMESENDBUF -e $BAND_GPIO &
       ;;
       *)
         # For IQ, QPSKRF, DIGITHIN and DTX1 rpidatv generates the IQ (and RF for QPSKRF)
