@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Stretch Version by davecrump on 201811300
+# Stretch Version by davecrump on 201903030
 
 # Update the package manager
 sudo dpkg --configure -a
@@ -253,8 +253,16 @@ cd /home/pi/rpidatv/src/libdvbmod
 make dirmake
 make
 cd ../DvbTsToIQ
+
+# First compile the dvb2iq to be used for mpeg-2
+cp DvbTsToIQ2.cpp DvbTsToIQ.cpp
 make
-cp dvb2iq ../../bin/
+cp dvb2iq ../../bin/dvb2iq2
+
+# Now compile the dvb2iq to be used for H264
+cp DvbTsToIQ0.cpp DvbTsToIQ.cpp
+make
+cp dvb2iq ../../bin/dvb2iq
 
 cd /home/pi/rpidatv/scripts/
 

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Updated by davecrump 201811300
+# Updated by davecrump 201903030
 
 DisplayUpdateMsg() {
   # Delete any old update message image  201802040
@@ -307,10 +307,16 @@ cd /home/pi/rpidatv/src/libdvbmod
 make dirmake
 make
 cd ../DvbTsToIQ
-touch DvbTsToIQ.cpp # To make sure that failed Dev updates get remade
-rm DvbTsToIQ.o
+
+# First compile the dvb2iq to be used for mpeg-2
+cp DvbTsToIQ2.cpp DvbTsToIQ.cpp
 make
-cp dvb2iq ../../bin/
+cp dvb2iq ../../bin/dvb2iq2
+
+# Now compile the dvb2iq to be used for H264
+cp DvbTsToIQ0.cpp DvbTsToIQ.cpp
+make
+cp dvb2iq ../../bin/dvb2iq
 
 # There is no step 7!
 

@@ -717,6 +717,8 @@ fi
 
 let SYMBOLRATE_K=SYMBOLRATE/1000
 
+
+
 # Increase video resolution for CAMHDMPEG-2 and CAM16MPEG-2
 if [ "$MODE_INPUT" == "CAMHDMPEG-2" ] && [ "$BITRATE_VIDEO" -gt 500000 ]; then
   VIDEO_WIDTH=1280
@@ -740,6 +742,10 @@ else
       VIDEO_HEIGHT=$IMAGE_HEIGHT
     fi
   fi
+  if [ "$BITRATE_VIDEO" -lt 40000 ]; then
+    VIDEO_WIDTH=96
+    VIDEO_HEIGHT=80
+  fi
 
   # Reduce frame rate at low bit rates
   if [ "$BITRATE_VIDEO" -lt 300000 ]; then
@@ -760,6 +766,13 @@ ARECORD_BUF=5000     # arecord buffer in us
 BITRATE_AUDIO=32000  # aac encoder output
 # Set h264 aac audio bitrate for avc2ts
 AUDIO_MARGIN=60000   # headroom allowed in TS
+
+# Reduce audio bitrate at lower video bitrates
+if [ "$BITRATE_VIDEO" -lt 300000 ]; then
+  BITRATE_AUDIO=16000  # aac encoder output
+  # Set h264 aac audio bitrate for avc2ts
+  AUDIO_MARGIN=30000   # headroom allowed in TS
+fi
 
 # Set IDRPeriod for avc2ts
 # Default is 100, ie one every 4 sec at 25 fps
@@ -782,13 +795,24 @@ case "$MODE_OUTPUT" in
       LIME_GAINF=`echo - | awk '{print ( '$LIME_GAIN' - 6 ) / 100}'`
     fi
 
-    # Equalise Carrier Mode Level fgor Lime
+    # Equalise Carrier Mode Level for Lime
     if [ "$MODE_INPUT" == "CARRIER" ]; then
       if [ "$LIME_GAIN" -lt 6 ]; then
         LIMEGAIN=6
       fi
       LIME_GAINF=`echo - | awk '{print ( '$LIME_GAIN' - 6 ) / 100}'`
     fi
+
+    # Calculate the exact TS Bitrate for Lime
+    NEW_BITRATE_TS="$($PATHRPI"/dvb2iq" -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
+                      -d -r $UPSAMPLE -m $MODTYPE -c $CONSTLN )"
+
+    echo
+    echo Old Bitrate $BITRATE_TS
+    echo New Bitrate $NEW_BITRATE_TS
+    echo
+
+    BITRATE_TS=$NEW_BITRATE_TS
   ;;
 esac
 
@@ -846,7 +870,8 @@ case "$MODE_INPUT" in
         sudo nice -n -30 netcat -u -4 127.0.0.1 1314 < videots & 
       ;;
       "LIMEMINI" | "LIMEUSB")
-        $PATHRPI"/dvb2iq" -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
+
+        sudo $PATHRPI"/dvb2iq" -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
           -r $UPSAMPLE -m $MODTYPE -c $CONSTLN \
            | sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s $SYMBOLRATE \
            -g $LIME_GAINF -p 0.05 -a $OUTPORT -r $UPSAMPLE -l $LIMESENDBUF -e $BAND_GPIO &
@@ -867,7 +892,9 @@ case "$MODE_INPUT" in
         -f $VIDEO_FPS -i $IDRPERIOD $OUTPUT_FILE -t 0 -e $ANALOGCAMNAME -p $PIDPMT -s $CHANNEL $OUTPUT_IP > /dev/null &
     else
       # ******************************* H264 VIDEO WITH AUDIO ************************************
-      arecord -f S16_LE -r $AUDIO_SAMPLE -c 2 -B $ARECORD_BUF -D plughw:$AUDIO_CARD_NUMBER,0 > audioin.wav &
+   #   arecord -f S16_LE -r $AUDIO_SAMPLE -c 2 -B $ARECORD_BUF -D plughw:$AUDIO_CARD_NUMBER,0 > audioin.wav &
+
+      arecord -f S16_LE -r 48000 -c 2 -B $ARECORD_BUF -D plughw:$AUDIO_CARD_NUMBER,0 > audioin.wav &
 
       let BITRATE_VIDEO=$BITRATE_VIDEO-$AUDIO_MARGIN  # Make room for audio
 
@@ -935,7 +962,7 @@ fi
         : # Do nothing
       ;;
       "LIMEMINI" | "LIMEUSB")
-        $PATHRPI"/dvb2iq" -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
+        $PATHRPI"/dvb2iq2" -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
           -r $UPSAMPLE -m $MODTYPE -c $CONSTLN \
            | sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s $SYMBOLRATE \
            -g $LIME_GAINF -p 0.05 -a $OUTPORT -r $UPSAMPLE -l $LIMESENDBUF -e $BAND_GPIO &
@@ -1509,7 +1536,7 @@ fi
         # ffmpeg sends the stream directly to DATVEXPRESS
       ;;
       "LIMEMINI" | "LIMEUSB")
-        $PATHRPI"/dvb2iq" -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
+        $PATHRPI"/dvb2iq2" -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
           -r $UPSAMPLE -m $MODTYPE -c $CONSTLN \
            | sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s $SYMBOLRATE \
            -g $LIME_GAINF -p 0.05 -a $OUTPORT -r $UPSAMPLE -l $LIMESENDBUF -e $BAND_GPIO &
@@ -1594,7 +1621,8 @@ fi
         # PCR PID ($PIDSTART) seems to be fixed as the same as the video PID.  
         # PMT, Vid and Audio PIDs can all be set.
 
-        sudo nice -n -30 $PATHRPI"/ffmpeg" -loglevel $MODE_DEBUG -itsoffset "$ITS_OFFSET"\
+#        sudo nice -n -30 $PATHRPI"/ffmpeg" -loglevel $MODE_DEBUG -itsoffset "$ITS_OFFSET"\
+        $PATHRPI"/ffmpeg" -loglevel $MODE_DEBUG -itsoffset "$ITS_OFFSET"\
           -analyzeduration 0 -probesize 2048  -fpsprobesize 0 -thread_queue_size 512\
           -f v4l2 -framerate $VIDEO_FPS -video_size "$VIDEO_WIDTH"x"$VIDEO_HEIGHT"\
           -i $VID_USB -fflags nobuffer \
@@ -1700,7 +1728,7 @@ fi
         : # Do nothing
       ;;
       "LIMEMINI" | "LIMEUSB")
-        $PATHRPI"/dvb2iq" -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
+        $PATHRPI"/dvb2iq2" -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
           -r $UPSAMPLE -m $MODTYPE -c $CONSTLN \
            | sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s $SYMBOLRATE \
            -g $LIME_GAINF -p 0.05 -a $OUTPORT -r $UPSAMPLE -l $LIMESENDBUF -e $BAND_GPIO &
