@@ -668,24 +668,9 @@ case "$MODE_OUTPUT" in
 
     BAND_GPIO=$(get_config_var expports $PCONFIGFILE)
 
-    # CALCULATE FREQUENCY IN KHz and Hz
-    FREQ_OUTPUTK=`echo - | awk '{print '$FREQ_OUTPUT' * 1000}'`
+    # CALCULATE FREQUENCY in Hz
     FREQ_OUTPUTHZ=`echo - | awk '{print '$FREQ_OUTPUT' * 1000000}'`
 
-    # Set correct output port for LimeSDR Mini
-    if [ "$FREQ_OUTPUTK" -lt 2000000 ]; then
-      OUTPORT="BAND2"
-    else
-      OUTPORT="BAND1"
-    fi
-    # Switch Output Port for LimeSDR USB
-    if [ "$MODE_OUTPUT" == "LIMEUSB" ]; then
-      if [ "$OUTPORT" = "BAND1" ]; then
-        OUTPORT="BAND2"
-      else
-        OUTPORT="BAND1"
-      fi
-    fi
     LIME_GAIN=$(get_config_var limegain $PCONFIGFILE)
     $PATHSCRIPT"/ctlfilter.sh"
   ;;
@@ -716,8 +701,6 @@ else # h264
 fi
 
 let SYMBOLRATE_K=SYMBOLRATE/1000
-
-
 
 # Increase video resolution for CAMHDMPEG-2 and CAM16MPEG-2
 if [ "$MODE_INPUT" == "CAMHDMPEG-2" ] && [ "$BITRATE_VIDEO" -gt 500000 ]; then
@@ -812,7 +795,7 @@ case "$MODE_OUTPUT" in
     echo New Bitrate $NEW_BITRATE_TS
     echo
 
-    BITRATE_TS=$NEW_BITRATE_TS
+   BITRATE_TS=$NEW_BITRATE_TS+1000
   ;;
 esac
 
@@ -874,7 +857,10 @@ case "$MODE_INPUT" in
         sudo $PATHRPI"/dvb2iq" -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
           -r $UPSAMPLE -m $MODTYPE -c $CONSTLN \
            | sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s $SYMBOLRATE \
-           -g $LIME_GAINF -p 0.05 -a $OUTPORT -r $UPSAMPLE -l $LIMESENDBUF -e $BAND_GPIO &
+           -g $LIME_GAINF -p 0.05 -r $UPSAMPLE -l $LIMESENDBUF -e $BAND_GPIO &
+
+        # Set audio sample rate to avoid Helium sound
+        AUDIO_SAMPLE=48000
       ;;
       "COMPVID")
         OUTPUT_FILE="/dev/null" #Send avc2ts output to /dev/null
@@ -892,9 +878,7 @@ case "$MODE_INPUT" in
         -f $VIDEO_FPS -i $IDRPERIOD $OUTPUT_FILE -t 0 -e $ANALOGCAMNAME -p $PIDPMT -s $CHANNEL $OUTPUT_IP > /dev/null &
     else
       # ******************************* H264 VIDEO WITH AUDIO ************************************
-   #   arecord -f S16_LE -r $AUDIO_SAMPLE -c 2 -B $ARECORD_BUF -D plughw:$AUDIO_CARD_NUMBER,0 > audioin.wav &
-
-      arecord -f S16_LE -r 48000 -c 2 -B $ARECORD_BUF -D plughw:$AUDIO_CARD_NUMBER,0 > audioin.wav &
+      arecord -f S16_LE -r $AUDIO_SAMPLE -c 2 -B $ARECORD_BUF -D plughw:$AUDIO_CARD_NUMBER,0 > audioin.wav &
 
       let BITRATE_VIDEO=$BITRATE_VIDEO-$AUDIO_MARGIN  # Make room for audio
 
@@ -965,7 +949,7 @@ fi
         $PATHRPI"/dvb2iq2" -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
           -r $UPSAMPLE -m $MODTYPE -c $CONSTLN \
            | sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s $SYMBOLRATE \
-           -g $LIME_GAINF -p 0.05 -a $OUTPORT -r $UPSAMPLE -l $LIMESENDBUF -e $BAND_GPIO &
+           -g $LIME_GAINF -p 0.05 -r $UPSAMPLE -l $LIMESENDBUF -e $BAND_GPIO &
       ;;
       *)
         # For IQ, QPSKRF, DIGITHIN and DTX1 rpidatv generates the IQ (and RF for QPSKRF)
@@ -1091,7 +1075,10 @@ fi
         $PATHRPI"/dvb2iq" -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
           -r $UPSAMPLE -m $MODTYPE -c $CONSTLN \
            | sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s $SYMBOLRATE \
-           -g $LIME_GAINF -p 0.05 -a $OUTPORT -r $UPSAMPLE -l $LIMESENDBUF -e $BAND_GPIO &
+           -g $LIME_GAINF -p 0.05 -r $UPSAMPLE -l $LIMESENDBUF -e $BAND_GPIO &
+
+       # Set audio sample rate to avoid Helium sound
+        AUDIO_SAMPLE=48000
       ;;
       *)
         sudo  $PATHRPI"/rpidatv" -i videots -s $SYMBOLRATE_K -c $FECNUM"/"$FECDEN -f $FREQUENCY_OUT -p $GAIN -m $MODE -x $PIN_I -y $PIN_Q &
@@ -1147,7 +1134,10 @@ fi
         $PATHRPI"/dvb2iq" -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
           -r $UPSAMPLE -m $MODTYPE -c $CONSTLN \
            | sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s $SYMBOLRATE \
-           -g $LIME_GAINF -p 0.05 -a $OUTPORT -r $UPSAMPLE -l $LIMESENDBUF -e $BAND_GPIO &
+           -g $LIME_GAINF -p 0.05 -r $UPSAMPLE -l $LIMESENDBUF -e $BAND_GPIO &
+
+       # Set audio sample rate to avoid Helium sound
+        AUDIO_SAMPLE=48000
       ;;
       "COMPVID")
         OUTPUT_FILE="/dev/null" #Send avc2ts output to /dev/null
@@ -1222,7 +1212,10 @@ fi
         $PATHRPI"/dvb2iq" -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
           -r $UPSAMPLE -m $MODTYPE -c $CONSTLN \
            | sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s $SYMBOLRATE \
-           -g $LIME_GAINF -p 0.05 -a $OUTPORT -r $UPSAMPLE -l $LIMESENDBUF -e $BAND_GPIO &
+           -g $LIME_GAINF -p 0.05 -r $UPSAMPLE -l $LIMESENDBUF -e $BAND_GPIO &
+
+        # Set audio sample rate to avoid Helium sound
+        AUDIO_SAMPLE=48000
       ;;
       *)
         sudo $PATHRPI"/rpidatv" -i videots -s $SYMBOLRATE_K -c $FECNUM"/"$FECDEN -f $FREQUENCY_OUT -p $GAIN -m $MODE -x $PIN_I -y $PIN_Q &
@@ -1311,10 +1304,13 @@ fi
         OUTPUT_FILE="/dev/null" #Send avc2ts output to /dev/null
       ;;
       "LIMEMINI" | "LIMEUSB")
-        $PATHRPI"/dvb2iq" -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
+        $PATHRPI"/dvb2iq2" -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
           -r $UPSAMPLE -m $MODTYPE -c $CONSTLN \
            |buffer| sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s $SYMBOLRATE \
-           -g $LIME_GAINF -p 0.05 -a $OUTPORT -r $UPSAMPLE -l $LIMESENDBUF -e $BAND_GPIO &
+           -g $LIME_GAINF -p 0.05 -r $UPSAMPLE -l $LIMESENDBUF -e $BAND_GPIO &
+
+        # Set audio sample rate to avoid Helium sound
+        AUDIO_SAMPLE=48000
       ;;
       *)
         sudo nice -n -30 $PATHRPI"/rpidatv" -i videots -s $SYMBOLRATE_K -c $FECNUM"/"$FECDEN -f $FREQUENCY_OUT -p $GAIN -m $MODE -x $PIN_I -y $PIN_Q &
@@ -1364,7 +1360,7 @@ fi
         $PATHRPI"/dvb2iq" -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
           -r $UPSAMPLE -m $MODTYPE -c $CONSTLN \
            | sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s $SYMBOLRATE \
-           -g $LIME_GAINF -p 0.05 -a $OUTPORT -r $UPSAMPLE -l $LIMESENDBUF -e $BAND_GPIO &
+           -g $LIME_GAINF -p 0.05 -r $UPSAMPLE -l $LIMESENDBUF -e $BAND_GPIO &
       ;;
       *)
         sudo $PATHRPI"/rpidatv" -i videots -s $SYMBOLRATE_K -c $FECNUM"/"$FECDEN -f $FREQUENCY_OUT -p $GAIN -m $MODE -x $PIN_I -y $PIN_Q &
@@ -1391,7 +1387,7 @@ fi
         $PATHRPI"/dvb2iq" -i $TSVIDEOFILE -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
           -r $UPSAMPLE -m $MODTYPE -c $CONSTLN \
            | sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s $SYMBOLRATE \
-           -g $LIME_GAINF -p 0.05 -a $OUTPORT -r $UPSAMPLE -l $LIMESENDBUF -e $BAND_GPIO &
+           -g $LIME_GAINF -p 0.05 -r $UPSAMPLE -l $LIMESENDBUF -e $BAND_GPIO &
       ;;
       *)
         sudo $PATHRPI"/rpidatv" -i $TSVIDEOFILE -s $SYMBOLRATE_K -c $FECNUM"/"$FECDEN -f $FREQUENCY_OUT -p $GAIN -m $MODE -l -x $PIN_I -y $PIN_Q &;;
@@ -1409,7 +1405,7 @@ fi
       "LIMEMINI" | "LIMEUSB")
         $PATHRPI"/dvb2iq" -f carrier -r 1 -s 50 \
            | sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s 50000 \
-           -g $LIME_GAINF -p 0.05 -a $OUTPORT -r 1 -l $LIMESENDBUF -e $BAND_GPIO &
+           -g $LIME_GAINF -p 0.05 -r 1 -l $LIMESENDBUF -e $BAND_GPIO &
       ;;
       *)
         # sudo $PATHRPI"/rpidatv" -i videots -s $SYMBOLRATE_K -c "carrier" -f $FREQUENCY_OUT -p $GAIN -m $MODE -x $PIN_I -y $PIN_Q &
@@ -1539,7 +1535,7 @@ fi
         $PATHRPI"/dvb2iq2" -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
           -r $UPSAMPLE -m $MODTYPE -c $CONSTLN \
            | sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s $SYMBOLRATE \
-           -g $LIME_GAINF -p 0.05 -a $OUTPORT -r $UPSAMPLE -l $LIMESENDBUF -e $BAND_GPIO &
+           -g $LIME_GAINF -p 0.05 -r $UPSAMPLE -l $LIMESENDBUF -e $BAND_GPIO &
       ;;
       *)
         # For IQ, QPSKRF, DIGITHIN and DTX1 rpidatv generates the IQ (and RF for QPSKRF)
@@ -1731,7 +1727,7 @@ fi
         $PATHRPI"/dvb2iq2" -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
           -r $UPSAMPLE -m $MODTYPE -c $CONSTLN \
            | sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s $SYMBOLRATE \
-           -g $LIME_GAINF -p 0.05 -a $OUTPORT -r $UPSAMPLE -l $LIMESENDBUF -e $BAND_GPIO &
+           -g $LIME_GAINF -p 0.05 -r $UPSAMPLE -l $LIMESENDBUF -e $BAND_GPIO &
       ;;
       *)
         # For IQ, QPSKRF, DIGITHIN and DTX1 rpidatv generates the IQ (and RF for QPSKRF)
@@ -1851,7 +1847,7 @@ fi
         $PATHRPI"/dvb2iq" -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
           -r $UPSAMPLE -m $MODTYPE -c $CONSTLN \
            | sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s $SYMBOLRATE \
-           -g $LIME_GAINF -p 0.05 -a $OUTPORT -r $UPSAMPLE -l $LIMESENDBUF -e $BAND_GPIO &
+           -g $LIME_GAINF -p 0.05 -r $UPSAMPLE -l $LIMESENDBUF -e $BAND_GPIO &
       ;;
       *)
         # For IQ, QPSKRF, DIGITHIN and DTX1 rpidatv generates the IQ (and RF for QPSKRF)
