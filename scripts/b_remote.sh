@@ -54,6 +54,31 @@ sudo killall a_remote.sh
 
 source /home/pi/rpidatv/scripts/b.sh
 
-sleep 1
+# Check user-requested display type
+DISPLAY=$(get_config_var display $PCONFIGFILE)
+
+# If framebuffer copy is not already running, start it for non-Element 14 displays
+if [ "$DISPLAY" != "Element14_7" ]; then
+  ps -cax | grep 'fbcp' >/dev/null 2>/dev/null
+  RESULT="$?"
+  if [ "$RESULT" -ne 0 ]; then
+    fbcp &
+  fi
+fi
+
+# Make sure that the gui is not running
+sudo killall rpidatvgui
+
+# Read the desired start-up behaviour
+MODE_STARTUP=$(get_config_var startup $PCONFIGFILE)
+
+sleep 2
+
+if [ "$MODE_STARTUP" == "Display_boot" ]; then # restart the gui
+  /home/pi/rpidatv/scripts/scheduler.sh &
+fi
+
+exit
+
 
 

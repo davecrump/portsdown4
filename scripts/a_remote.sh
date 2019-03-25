@@ -48,7 +48,7 @@ sudo fbi -T 1 -noverbose -a /home/pi/tmp/update.jpg >/dev/null 2>/dev/null
 
 # stop the gui
 # Once gui dynamically updates, this can be removed
-killall rpidatvgui >/dev/null 2>/dev/null
+killall -9 rpidatvgui >/dev/null 2>/dev/null
 killall siggen >/dev/null 2>/dev/null
 
 # Check user-requested display type
@@ -82,5 +82,5 @@ source /home/pi/rpidatv/scripts/a.sh &
 # Until it is killed by b_remote.sh
 while [ 1 -eq 1 ]
 do
-:
+  sleep 1
 done

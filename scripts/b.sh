@@ -53,6 +53,7 @@ MODE_OUTPUT=$(get_config_var modeoutput $PCONFIGFILE)
   sudo killall avc2ts.old >/dev/null 2>/dev/null
   sudo killall netcat >/dev/null 2>/dev/null
   sudo killall dvb2iq >/dev/null 2>/dev/null
+  sudo killall dvb2iq2 >/dev/null 2>/dev/null
   sudo killall limesdr_send >/dev/null 2>/dev/null
 
   # Kill the key RX processes as nicely as possible
