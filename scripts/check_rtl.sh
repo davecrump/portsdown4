@@ -8,3 +8,5 @@ if [ $? == 0 ]; then   ## Present
 else
   echo "1"
 fi 
+
+exit

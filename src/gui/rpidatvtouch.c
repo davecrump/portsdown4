@@ -85,8 +85,6 @@ typedef struct {
 	int NoStatus;                  // This is the active status (colour and text)
 } button_t;
 
-// 	int LastEventTime; Was part of button_t.  No longer used
-
 #define MAX_BUTTON 675
 int IndexButtonInArray=0;
 button_t ButtonArray[MAX_BUTTON];
@@ -131,6 +129,7 @@ int GPIO_5355_LE = 15;
 int GPIO_Band_LSB = 31;
 int GPIO_Band_MSB = 24;
 int GPIO_Tverter = 7;
+int GPIO_SD_LED = 2;
 
 char ScreenState[255] = "NormalMenu";  // NormalMenu SpecialMenu TXwithMenu TXwithImage RXwithImage VideoOut SnapView VideoView Snap SigGen
 char MenuTitle[50][127];
@@ -912,16 +911,23 @@ void LimeFWUpdate()
   MsgBox4("Please wait", " ", " ", " ");
   if ((CheckLimeMiniConnect() == 0) || (CheckLimeUSBConnect() == 0))
   {
-    MsgBox4("Upgrading Lime Firmware", " ", " ", " ");
-    system("LimeUtil --update");
-    usleep(250000);
-    if (LimeGWRev() == 29)
+    if (CheckGoogle() == 0)
     {
-      MsgBox4("Firmware Upgrade Successful", "Now at Gateware 1.29", "Touch Screen to Continue" ," ");
+      MsgBox4("Upgrading Lime Firmware", " ", " ", " ");
+      system("LimeUtil --update");
+      usleep(250000);
+      if (LimeGWRev() == 29)
+      {
+        MsgBox4("Firmware Upgrade Successful", "Now at Gateware 1.29", "Touch Screen to Continue" ," ");
+      }
+      else
+      {
+        MsgBox4("Firmware Upgrade Unsuccessful", "Further Investigation required", "Touch Screen to Continue" ," ");
+      }
     }
     else
     {
-      MsgBox4("Firmware Upgrade Unsuccessful", "Further Investifgation required", "Touch Screen to Continue" ," ");
+      MsgBox4("No Internet Connection", "Please connect before upgrading", "Touch Screen to Continue" ," ");
     }
   }
   else
@@ -2229,6 +2235,7 @@ int CheckRTL()
 {
   char RTLStatus[256];
   FILE *fp;
+  int rtlstat = 1;
 
   /* Open the command for reading. */
   fp = popen("/home/pi/rpidatv/scripts/check_rtl.sh", "r");
@@ -2237,23 +2244,22 @@ int CheckRTL()
     printf("Failed to run command\n" );
     exit(1);
   }
-  /* Read the output a line at a time - output it. */
+
+  // Read the output a line at a time - output it
   while (fgets(RTLStatus, sizeof(RTLStatus)-1, fp) != NULL)
   {
+    if (RTLStatus[0] == '0')
+    {
+      printf("RTL Detected\n" );
+      rtlstat = 0;
+    }
+    else
+    {
+      printf("No RTL Detected\n" );
+    }
   }
-  if (RTLStatus[0] == '0')
-  {
-    printf("RTL Detected\n" );
-    return(0);
-  }
-  else
-  {
-    printf("No RTL Detected\n" );
-    return(1);
-  }
-
-  /* close */
   pclose(fp);
+  return(rtlstat);
 }
 
 /***************************************************************************//**
@@ -5870,7 +5876,7 @@ void DoFreqChange()
   strcat(Param, "lo");
   GetConfigParam(PATH_PPRESETS, Param, Value);
 
-  TabBandLO[CurrentBand] = atoi(Value);
+  TabBandLO[CurrentBand] = atof(Value);
 
   strcpy(Param, "lo");
   SetConfigParam(PATH_PPRESETS, Param, Value);
@@ -6394,6 +6400,7 @@ void CompVidStart()
   if (strcmp(CurrentVidSource, "Pi Cam") == 0)
   {
     finish();
+    system("sudo modprobe bcm2835_v4l2");
     system("v4l2-ctl --set-fmt-overlay=left=0,top=0,width=656,height=512");
     system("v4l2-ctl --overlay=1 >/dev/null 2>/dev/null");
     //system("v4l2-ctl -p 25"); // Set framerate??
@@ -6406,7 +6413,7 @@ void CompVidStart()
   {
     finish();
     strcpy(fbicmd, "/home/pi/rpidatv/bin/tcanim1v16 \"/home/pi/rpidatv/video/*10\" ");
-    strcat(fbicmd, " \"48\" \"72\" \"CQ\" \"CQ CQ CQ de ");
+    strcat(fbicmd, " \"720\" \"576\" \"48\" \"72\" \"CQ\" \"CQ CQ CQ de ");
     strcat(fbicmd, CallSign);
     strcat(fbicmd, " - ATV on ");
     strcat(fbicmd, TabBandLabel[CompVidBand]);
@@ -6424,11 +6431,11 @@ void CompVidStart()
 
     // Create the new image
     strcpy(fbicmd, "convert -size 720x576 xc:white ");
-    strcat(fbicmd, "-gravity North -pointsize 125 -annotate 0 ");
+    strcat(fbicmd, "-gravity North -pointsize 125 -annotate 0,0,0,20 ");
     strcat(fbicmd, CallSign); 
-    strcat(fbicmd, " -gravity Center -pointsize 200 -annotate 0 ");
+    strcat(fbicmd, " -gravity Center -pointsize 200 -annotate 0,0,0,20 ");
     strcat(fbicmd, TabBandNumbers[CompVidBand]);
-    strcat(fbicmd, " -gravity South -pointsize 75 -annotate 0 \"");
+    strcat(fbicmd, " -gravity South -pointsize 75 -annotate 0,0,0,20 \"");
     strcat(fbicmd, Locator);
     strcat(fbicmd, "    ");
     strcat(fbicmd, TabBandLabel[CompVidBand]);
@@ -6675,6 +6682,9 @@ void TransmitStop()
 
   printf("Transmit Stop\n");
 
+  // If transmit menu is displayed, blue-out the TX button here
+  // code to be added
+
   // Turn the VCO off
   system("sudo /home/pi/rpidatv/bin/adf4351 off");
 
@@ -6696,17 +6706,18 @@ void TransmitStop()
   }
 
   // Stop Lime transmitting
-  if((strcmp(ModeOutput, "LIMEMINI") == 0) || (strcmp(ModeOutput, "LIMEUSB") ==0 ))
+  if((strcmp(ModeOutput, "LIMEMINI") == 0) || (strcmp(ModeOutput, "LIMEUSB") == 0))
   {
     system("sudo killall dvb2iq >/dev/null 2>/dev/null");
+    system("sudo killall dvb2iq2 >/dev/null 2>/dev/null");
     system("sudo killall limesdr_send >/dev/null 2>/dev/null");
+    usleep(500000);
     system("/home/pi/rpidatv/bin/limesdr_stopchannel");
   }
 
   // Kill the key processes as nicely as possible
   system("sudo killall rpidatv >/dev/null 2>/dev/null");
   system("sudo killall ffmpeg >/dev/null 2>/dev/null");
-  system("sudo killall tcanim >/dev/null 2>/dev/null");
   system("sudo killall tcanim1v16 >/dev/null 2>/dev/null");
   system("sudo killall avc2ts >/dev/null 2>/dev/null");
   system("sudo killall netcat >/dev/null 2>/dev/null");
@@ -7583,6 +7594,7 @@ void ReceiveStart2()
   strcpy(ScreenState, "RXwithImage");  //  Signal to display touch menu without further touch
   system("sudo killall hello_video.bin >/dev/null 2>/dev/null");
   system("sudo killall hello_video2.bin >/dev/null 2>/dev/null");
+  system("sudo rm /home/pi/fifo.iq >/dev/null 2>/dev/null");  // Clean up before receive
   ProcessLeandvb2();
 }
 
@@ -7681,7 +7693,7 @@ void YesNo(int i)  // i == 6 Yes, i == 8 No
         }
         else
         {
-          MsgBox4("Firmware Upgrade Unsuccessful", "Further Investifgation required", "Touch Screen to Continue" ," ");
+          MsgBox4("Firmware Upgrade Unsuccessful", "Further Investigation required", "Touch Screen to Continue" ," ");
         }
         break;
       case 8:     // No
@@ -11669,6 +11681,13 @@ void waituntil(int w,int h)
           Start_Highlights_Menu1();
           UpdateWindow();
           break;
+        case 0:                               // Delete Lime FW File on Portsdown
+          system("rm -rf /home/pi/.local/share/LimeSuite/images/");
+          MsgBox4("Lime firmware file on Portsdown", "deleted.", " ", "Touch screeen to continue");
+          wait_touch();
+          BackgroundRGB(0,0,0,255);
+          UpdateWindow();
+          break;
         case 5:                               // Display LimeSuite Info Page
           LimeUtilInfo();
           wait_touch();
@@ -11692,11 +11711,15 @@ void waituntil(int w,int h)
           LimeFWUpdate();
           CurrentMenu=34;
           BackgroundRGB(0,0,0,255);
-          Start_Highlights_Menu34();
           UpdateWindow();
           break;
         case 9:                               // Force Lime firmware update
           printf("Force Lime Firmware Update\n");
+          if (CheckGoogle() != 0)
+          {
+            MsgBox4("Warning - No internet Connection!", " ", "Cancel at the next step unless", "you have previously upgraded.");
+            wait_touch();
+          }
           CallingMenu = 349;
           CurrentMenu = 38;
           MsgBox4("Force update should only be used to", "downgrade LimeSDR Mini for Portdsown", "Continue?", " ");
@@ -11705,7 +11728,6 @@ void waituntil(int w,int h)
         default:
           printf("Menu 34 Error\n");
         }
-        // stay in Menu 34 if parameter changed
         continue;   // Completed Menu 34 action, go and wait for touch
       }
 
@@ -12020,6 +12042,8 @@ void waituntil(int w,int h)
           {
             system("rm /home/pi/.pi-sdn");  // Stop it being loaded at log-on
             system("sudo pkill -x pi-sdn"); // kill the current process
+            pinMode(GPIO_SD_LED, OUTPUT);   // Turn the LED Off
+            digitalWrite(GPIO_SD_LED, LOW);
           }
           else
           {
@@ -15403,6 +15427,10 @@ void Define_Menu34()
   strcpy(MenuTitle[34], "Lime Configuration Menu (34)"); 
 
   // Bottom Row, Menu 34
+
+  button = CreateButton(34, 0);
+  AddButtonStatus(button, "Del Lime^FW on RPi", &Blue);
+  AddButtonStatus(button, "Del Lime^FW on RPi", &Green);
 
   button = CreateButton(34, 4);
   AddButtonStatus(button, "Exit", &DBlue);

@@ -47,10 +47,8 @@ MODE_OUTPUT=$(get_config_var modeoutput $PCONFIGFILE)
   # Kill the key TX processes as nicely as possible
   sudo killall rpidatv >/dev/null 2>/dev/null
   sudo killall ffmpeg >/dev/null 2>/dev/null
-  sudo killall tcanim >/dev/null 2>/dev/null
   sudo killall tcanim1v16 >/dev/null 2>/dev/null
   sudo killall avc2ts >/dev/null 2>/dev/null
-  sudo killall avc2ts.old >/dev/null 2>/dev/null
   sudo killall netcat >/dev/null 2>/dev/null
   sudo killall dvb2iq >/dev/null 2>/dev/null
   sudo killall dvb2iq2 >/dev/null 2>/dev/null
@@ -67,13 +65,14 @@ MODE_OUTPUT=$(get_config_var modeoutput $PCONFIGFILE)
   # Then pause and make sure that avc2ts has really been stopped (needed at high SRs)
   sleep 0.1
   sudo killall -9 avc2ts >/dev/null 2>/dev/null
-  sudo killall -9 avc2ts.old >/dev/null 2>/dev/null
-
   # And make sure rpidatv has been stopped (required for brief transmit selections)
   sudo killall -9 rpidatv >/dev/null 2>/dev/null
 
   # And make sure limesdr_send has been stopped
   sudo killall -9 limesdr_send >/dev/null 2>/dev/null
+
+  # Reset the LimeSDR
+  /home/pi/rpidatv/bin/limesdr_stopchannel >/dev/null 2>/dev/null
 
   # Stop the audio for CompVid mode
   sudo killall arecord >/dev/null 2>/dev/null
