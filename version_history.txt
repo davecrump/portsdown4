@@ -1,3 +1,13 @@
+201904200
+LimeSDR reliability Improvements
+Allow fractional MHz Transverter Offset
+Lime FW Update checks or warns for internet connection
+Contest number appearance improvement
+Console menu improvements for Lime DVB-S2
+Animated Test card resized for 7 inch display
+LeanDVB Receive stability improvement
+Based on Stretch Lite 2019-04-08
+
 201903250
 Improve H264 Audio with LimeSDR
 New scripts for network remote control from Windows

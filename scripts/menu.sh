@@ -869,8 +869,10 @@ do_fec_setup()
 
   if [ $? -eq 0 ]; then
     set_config_var fec "$FEC" $PCONFIGFILE
+    do_fec_lookup
   fi
 }
+
 
 do_PID_setup()
 {
@@ -1251,8 +1253,55 @@ menuchoice=$(whiptail --title "$StrOutputTitle" --menu "$StrOutputContext" 16 78
 }
 
 
+do_set_DVBS_FEC()
+{
+  FEC="7"
+  do_fec_lookup
+  INFO=$CALL": "$MODE_INPUT" -> "$MODE_OUTPUT" "$FREQ_OUTPUT" MHz "$SYMBOLRATEK" KS, "$MODULATION", FEC "$FECNUM"/"$FECDEN""
+  set_config_var fec "$FEC" $PCONFIGFILE
+}
+
+ 
+do_set_DVBS2_FEC()
+{
+  FEC="91"
+  do_fec_lookup
+  INFO=$CALL": "$MODE_INPUT" -> "$MODE_OUTPUT" "$FREQ_OUTPUT" MHz "$SYMBOLRATEK" KS, "$MODULATION", FEC "$FECNUM"/"$FECDEN""
+  set_config_var fec "$FEC" $PCONFIGFILE
+}
+
+
+do_check_FEC()
+{
+  if [ "$MODULATION" == "DVB-S" ]; then
+    case "$FEC" in
+      14) do_set_DVBS_FEC ;;
+      13) do_set_DVBS_FEC ;;
+      12) do_set_DVBS_FEC ;;
+      35) do_set_DVBS_FEC ;;
+      23) do_set_DVBS_FEC ;;
+      34) do_set_DVBS_FEC ;;
+      56) do_set_DVBS_FEC ;;
+      89) do_set_DVBS_FEC ;;
+      91) do_set_DVBS_FEC ;;
+    esac
+  else
+    case "$FEC" in
+      1) do_set_DVBS2_FEC ;;
+      2) do_set_DVBS2_FEC ;;
+      3) do_set_DVBS2_FEC ;;
+      5) do_set_DVBS2_FEC ;;
+      7) do_set_DVBS2_FEC ;;
+    esac
+  fi
+}
+
+
 do_transmit() 
 {
+  # Check the FEC is valid for DVB-S or DVB-S2
+  do_check_FEC
+
   # Call a.sh in an additional process to start the transmitter
   $PATHSCRIPT"/a.sh" >/dev/null 2>/dev/null &
 
@@ -1295,23 +1344,19 @@ do_stop_transmit()
   # Kill the key processes as nicely as possible
   sudo killall rpidatv >/dev/null 2>/dev/null
   sudo killall ffmpeg >/dev/null 2>/dev/null
-  sudo killall tcanim >/dev/null 2>/dev/null
+  sudo killall tcanim1v16 >/dev/null 2>/dev/null
   sudo killall avc2ts >/dev/null 2>/dev/null
-  sudo killall avc2ts.old >/dev/null 2>/dev/null
   sudo killall netcat >/dev/null 2>/dev/null
   sudo killall dvb2iq >/dev/null 2>/dev/null
+  sudo killall dvb2iq2 >/dev/null 2>/dev/null
   sudo killall limetx >/dev/null 2>/dev/null
 
   # Then pause and make sure that avc2ts has really been stopped (needed at high SRs)
   sleep 0.1
   sudo killall -9 avc2ts >/dev/null 2>/dev/null
-  sudo killall -9 avc2ts.old >/dev/null 2>/dev/null
 
   # And make sure rpidatv has been stopped (required for brief transmit selections)
   sudo killall -9 rpidatv >/dev/null 2>/dev/null
-
-  # And make sure limetx has been stopped
-  sudo killall -9 limetx >/dev/null 2>/dev/null
 
   # Stop the audio for CompVid mode
   sudo killall arecord >/dev/null 2>/dev/null
@@ -1322,6 +1367,9 @@ do_stop_transmit()
 
   # Set the SR Filter correctly, because it might have been set all high by Lime
   /home/pi/rpidatv/scripts/ctlSR.sh
+
+  # Reset the LimeSDR
+  /home/pi/rpidatv/bin/limesdr_stopchannel >/dev/null 2>/dev/null
 
   # Display the BATC Logo on the Touchscreen
   sudo fbi -T 1 -noverbose -a /home/pi/rpidatv/scripts/images/BATC_Black.png >/dev/null 2>/dev/null
@@ -2911,20 +2959,21 @@ display_splash()
 
 OnStartup()
 {
-CALL=$(get_config_var call $PCONFIGFILE)
-MODE_INPUT=$(get_config_var modeinput $PCONFIGFILE)
-MODE_OUTPUT=$(get_config_var modeoutput $PCONFIGFILE)
-SYMBOLRATEK=$(get_config_var symbolrate $PCONFIGFILE)
-FEC=$(get_config_var fec $PCONFIGFILE)
-PATHTS=$(get_config_var pathmedia $PCONFIGFILE)
-FREQ_OUTPUT=$(get_config_var freqoutput $PCONFIGFILE)
-GAIN_OUTPUT=$(get_config_var rfpower $PCONFIGFILE)
-do_fec_lookup
-V_FINDER=$(get_config_var vfinder $PCONFIGFILE)
+  CALL=$(get_config_var call $PCONFIGFILE)
+  MODE_INPUT=$(get_config_var modeinput $PCONFIGFILE)
+  MODE_OUTPUT=$(get_config_var modeoutput $PCONFIGFILE)
+  SYMBOLRATEK=$(get_config_var symbolrate $PCONFIGFILE)
+  FEC=$(get_config_var fec $PCONFIGFILE)
+  MODULATION=$(get_config_var modulation $PCONFIGFILE)
+  PATHTS=$(get_config_var pathmedia $PCONFIGFILE)
+  FREQ_OUTPUT=$(get_config_var freqoutput $PCONFIGFILE)
+  GAIN_OUTPUT=$(get_config_var rfpower $PCONFIGFILE)
+  do_fec_lookup
+  V_FINDER=$(get_config_var vfinder $PCONFIGFILE)
 
-INFO=$CALL":"$MODE_INPUT"-->"$MODE_OUTPUT"("$SYMBOLRATEK"KSymbol FEC "$FECNUM"/"$FECDEN") on "$FREQ_OUTPUT"Mhz"
+  INFO=$CALL":"$MODE_INPUT"-->"$MODE_OUTPUT" "$FREQ_OUTPUT" MHz "$SYMBOLRATEK" KS, "$MODULATION", FEC "$FECNUM"/"$FECDEN""
 
-do_transmit
+  do_transmit
 }
 
 #********************************************* MAIN MENU *********************************
@@ -3001,17 +3050,18 @@ while [ "$status" -eq 0 ]
     MODE_OUTPUT=$(get_config_var modeoutput $PCONFIGFILE)
     SYMBOLRATEK=$(get_config_var symbolrate $PCONFIGFILE)
     FEC=$(get_config_var fec $PCONFIGFILE)
+    MODULATION=$(get_config_var modulation $PCONFIGFILE)
     PATHTS=$(get_config_var pathmedia $PCONFIGFILE)
     FREQ_OUTPUT=$(get_config_var freqoutput $PCONFIGFILE)
     GAIN_OUTPUT=$(get_config_var rfpower $PCONFIGFILE)
     do_fec_lookup
-    INFO=$CALL":"$MODE_INPUT"-->"$MODE_OUTPUT"("$SYMBOLRATEK"KSymbol FEC "$FECNUM"/"$FECDEN") on "$FREQ_OUTPUT"Mhz"
+    INFO=$CALL": "$MODE_INPUT" -> "$MODE_OUTPUT" "$FREQ_OUTPUT" MHz "$SYMBOLRATEK" KS, "$MODULATION", FEC "$FECNUM"/"$FECDEN""
     V_FINDER=$(get_config_var vfinder $PCONFIGFILE)
 
     # Display main menu
 
     menuchoice=$(whiptail --title "$StrMainMenuTitle" --menu "$INFO" 16 82 9 \
-	"0 Transmit" $FREQ_OUTPUT" Mhz, "$SYMBOLRATEK" KS, FEC "$FECNUM"/"$FECDEN"." \
+	"0 Transmit" $FREQ_OUTPUT" MHz, "$SYMBOLRATEK" KS, "$MODULATION", FEC "$FECNUM"/"$FECDEN"" \
         "1 Source" "$StrMainMenuSource"" ("$MODE_INPUT" selected)" \
 	"2 Output" "$StrMainMenuOutput"" ("$MODE_OUTPUT" selected)" \
 	"3 Station" "$StrMainMenuCall" \

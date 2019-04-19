@@ -40,7 +40,6 @@ sudo killall -9 avc2ts >/dev/null 2>/dev/null
 sudo killall -9 avc2ts.old >/dev/null 2>/dev/null
 #sudo killall express_server >/dev/null 2>/dev/null
 # Leave Express Server running
-sudo killall tcanim >/dev/null 2>/dev/null
 sudo killall tcanim1v16 >/dev/null 2>/dev/null
 # Kill netcat that night have been started for Express Srver
 sudo killall netcat >/dev/null 2>/dev/null
@@ -1085,11 +1084,17 @@ fi
       ;;
     esac
 
-    # Stop fbcp, becuase it conficts with avc2ts desktop
+    # Stop fbcp, because it conficts with avc2ts desktop
     killall fbcp
 
-    # Start the animated test card
-    $PATHRPI"/tcanim1v16" $PATERNFILE"/*10" "48" "72" "CQ" "CQ CQ CQ DE "$CALL" IN $LOCATOR - DATV $SYMBOLRATEK KS FEC "$FECNUM"/"$FECDEN &
+    # Start the animated test card and resize for different displays
+    if [ "$DISPLAY" == "Element14_7" ]; then
+      $PATHRPI"/tcanim1v16" $PATERNFILE"/7inch/*10" "800" "480" "59" "72" \
+        "CQ" "CQ CQ CQ DE "$CALL" IN $LOCATOR - $MODULATION $SYMBOLRATEK KS FEC "$FECNUM"/"$FECDEN &
+    else
+      $PATHRPI"/tcanim1v16" $PATERNFILE"/*10" "720" "576" "48" "72" \
+        "CQ" "CQ CQ CQ DE "$CALL" IN $LOCATOR - $MODULATION $SYMBOLRATEK KS FEC "$FECNUM"/"$FECDEN &
+    fi
 
     # Generate the stream
 
@@ -1250,21 +1255,23 @@ fi
       # Delete the old numbers image
       rm /home/pi/tmp/contest.jpg >/dev/null 2>/dev/null
 
-      # Create the numbers image in the tempfs folder
-      convert -size 720x576 xc:white \
-        -gravity North -pointsize 125 -annotate 0 "$CALL" \
-        -gravity Center -pointsize 200 -annotate 0 "$NUMBERS" \
-        -gravity South -pointsize 75 -annotate 0 "$LOCATOR   ""$BAND_LABEL" \
-        /home/pi/tmp/contest.jpg
-
-      # Modify size to fill 7 inch screen if required
+      # Set size of contest numbers image up front to save resizing afterwards.
+      CNGEOMETRY="720x576"
       if [ "$DISPLAY" == "Element14_7" ]; then
-        convert /home/pi/tmp/contest.jpg -resize '800x480!' /home/pi/tmp/contest.jpg
+        CNGEOMETRY="800x480"
       fi
+
+      # Create the numbers image in the tempfs folder
+      convert -size "${CNGEOMETRY}" xc:white \
+        -gravity North -pointsize 125 -annotate 0,0,0,20 "$CALL" \
+        -gravity Center -pointsize 225 -annotate 0,0,0,20 "$NUMBERS" \
+        -gravity South -pointsize 75 -annotate 0,0,0,20 "$LOCATOR   ""$BAND_LABEL" \
+        /home/pi/tmp/contest.jpg
 
       # Display the numbers on the desktop
       sudo fbi -T 1 -noverbose -a /home/pi/tmp/contest.jpg >/dev/null 2>/dev/null
       (sleep 1; sudo killall -9 fbi >/dev/null 2>/dev/null) &  ## kill fbi once it has done its work
+
     elif [ "$MODE_INPUT" == "CARDH264" ]; then
       rm /home/pi/tmp/caption.png >/dev/null 2>/dev/null
       rm /home/pi/tmp/tcf2.jpg >/dev/null 2>/dev/null
@@ -1647,13 +1654,19 @@ fi
       # Delete the old numbers image
       rm /home/pi/tmp/contest.jpg >/dev/null 2>/dev/null
 
+      # Set size of contest numbers image up front to save resizing afterwards
+      CNGEOMETRY="720x576"
+      if [ "$DISPLAY" == "Element14_7" ]; then
+        CNGEOMETRY="800x480"
+      fi
+
       # Create the numbers image in the tempfs folder
-      convert -size 720x576 xc:white \
-        -gravity North -pointsize 125 -annotate 0 "$CALL" \
-        -gravity Center -pointsize 200 -annotate 0 "$NUMBERS" \
-        -gravity South -pointsize 75 -annotate 0 "$LOCATOR   ""$BAND_LABEL" \
+      convert -size "${CNGEOMETRY}" xc:white \
+        -gravity North -pointsize 125 -annotate 0,0,0,20 "$CALL" \
+        -gravity Center -pointsize 225 -annotate 0,0,0,20 "$NUMBERS" \
+        -gravity South -pointsize 75 -annotate 0,0,0,20 "$LOCATOR   ""$BAND_LABEL" \
         /home/pi/tmp/contest.jpg
-        IMAGEFILE="/home/pi/tmp/contest.jpg"
+      IMAGEFILE="/home/pi/tmp/contest.jpg"
 
       # Display the numbers on the desktop
       sudo fbi -T 1 -noverbose -a /home/pi/tmp/contest.jpg >/dev/null 2>/dev/null
