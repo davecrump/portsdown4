@@ -183,21 +183,6 @@ rm master.zip
 rm -rf portsdown-master
 cd /home/pi
 
-# Check which avc2ts to download.  Default is production
-# option d is development from davecrump
-if [ "$1" == "-d" ]; then
-  echo "Installing development avc2ts"
-  wget https://github.com/davecrump/avc2ts/archive/master.zip
-else
-  echo "Installing BATC Production avc2ts"
-  wget https://github.com/BritishAmateurTelevisionClub/avc2ts/archive/master.zip
-fi
-
-# Unzip the avc2ts software and copy to the Pi
-unzip -o master.zip
-cp -f -r avc2ts-master/* /home/pi/avc2ts
-rm master.zip
-rm -rf avc2ts-master
 
 DisplayUpdateMsg "Step 6 of 10\nCompiling Portsdown SW\n\nXXXXXX----"
 
@@ -218,7 +203,7 @@ sudo make install
 cd ../
 
 # Check if avc2ts dependencies need to be installed 201810270
-if [ ! -f "/home/pi/avc2ts/libmpegts/version.sh" ]; then
+if [ ! -f "/home/pi/avc2ts/libmpegts/README" ]; then
   DisplayUpdateMsg "Step 6a of 10\nTakes 20 Minutes\n\nXXXXXX----"
 
   # For libmpegts
@@ -256,6 +241,22 @@ if [ ! -f "/home/pi/avc2ts/libmpegts/version.sh" ]; then
   # Delete the old version of avc2ts (owned by root)
   sudo rm /home/pi/rpidatv/bin/avc2ts
 fi
+
+# Check which avc2ts to download.  Default is production
+# option d is development from davecrump
+if [ "$1" == "-d" ]; then
+  echo "Installing development avc2ts"
+  wget https://github.com/davecrump/avc2ts/archive/master.zip
+else
+  echo "Installing BATC Production avc2ts"
+  wget https://github.com/BritishAmateurTelevisionClub/avc2ts/archive/master.zip
+fi
+
+# Unzip the avc2ts software and copy to the Pi
+unzip -o master.zip
+cp -f -r avc2ts-master/* /home/pi/avc2ts
+rm master.zip
+rm -rf avc2ts-master
 
 # Make the new avc2ts
 cd /home/pi/avc2ts
