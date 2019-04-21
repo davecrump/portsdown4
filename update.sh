@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Updated by davecrump 201903030
+# Updated by davecrump 201904200
 
 DisplayUpdateMsg() {
   # Delete any old update message image  201802040
@@ -187,7 +187,9 @@ cd /home/pi
 avc2ts_Deps_Not_Required=1
 if [ -f /home/pi/avc2ts/libmpegts/README ]; then
   avc2ts_Deps_Not_Required=0
-  echo "avcts dependencies not required"
+  echo "avc2ts dependencies not required"
+else
+  echo "avc2ts dependencies required and will be installed after avc2ts"
 fi
 
 # Check which avc2ts to download.  Default is production
@@ -229,7 +231,7 @@ sudo make install
 cd ../
 
 
-if [ avc2ts_Deps_Not_Required != 0 ]; then
+if [ $avc2ts_Deps_Not_Required != 0 ]; then
   DisplayUpdateMsg "Step 6a of 10\nTakes 20 Minutes\n\nXXXXXX----"
 
   # For libmpegts
