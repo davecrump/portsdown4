@@ -6,6 +6,7 @@ Contest number appearance improvement
 Console menu improvements for Lime DVB-S2
 Animated Test card resized for 7 inch display
 LeanDVB Receive stability improvement
+Correct update H264 error for older versions
 Based on Stretch Lite 2019-04-08
 
 201903250
