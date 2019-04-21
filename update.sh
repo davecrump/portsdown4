@@ -183,63 +183,11 @@ rm master.zip
 rm -rf portsdown-master
 cd /home/pi
 
-
-DisplayUpdateMsg "Step 6 of 10\nCompiling Portsdown SW\n\nXXXXXX----"
-
-# Compile rpidatv core
-sudo killall -9 rpidatv
-cd rpidatv/src
-touch rpidatv.c
-make clean
-make
-sudo make install
-
-# Compile rpidatv gui
-sudo killall -9 rpidatvgui
-cd gui
-make clean
-make
-sudo make install
-cd ../
-
-# Check if avc2ts dependencies need to be installed 201810270
-if [ ! -f "/home/pi/avc2ts/libmpegts/README" ]; then
-  DisplayUpdateMsg "Step 6a of 10\nTakes 20 Minutes\n\nXXXXXX----"
-
-  # For libmpegts
-  cd /home/pi/avc2ts
-  git clone git://github.com/F5OEO/libmpegts
-  cd libmpegts
-  ./configure
-  make
-  cd ../
-
-  # For libfdkaac
-  sudo apt-get -y install autoconf libtool
-  git clone https://github.com/mstorsjo/fdk-aac
-  cd fdk-aac
-  ./autogen.sh
-  ./configure
-  make && sudo make install
-  sudo ldconfig
-  cd ../
-
-  #libyuv should be used for fast picture transformation : not yet implemented
-  git clone https://chromium.googlesource.com/libyuv/libyuv
-  cd libyuv
-  #should patch linux.mk with -DHAVE_JPEG on CXX and CFLAGS
-  #seems to be link with libjpeg9-dev
-  make V=1 -f linux.mk
-  cd ../
-
-  # Required for ffmpegsrc.cpp
-  sudo apt-get -y install libvncserver-dev libavcodec-dev libavformat-dev libswscale-dev libavdevice-dev
-
-  # Rename the old avc2ts binary
-  # cp /home/pi/rpidatv/bin/avc2ts /home/pi/rpidatv/bin/avc2ts.old
-
-  # Delete the old version of avc2ts (owned by root)
-  sudo rm /home/pi/rpidatv/bin/avc2ts
+# Check if avc2ts dependencies need to be installed 20190420
+avc2ts_Deps_Not_Required=1
+if [ -f /home/pi/avc2ts/libmpegts/README ]; then
+  avc2ts_Deps_Not_Required=0
+  echo "avcts dependencies not required"
 fi
 
 # Check which avc2ts to download.  Default is production
@@ -252,13 +200,77 @@ else
   wget https://github.com/BritishAmateurTelevisionClub/avc2ts/archive/master.zip
 fi
 
-# Unzip the avc2ts software and copy to the Pi
+# Unzip the avc2ts software
 unzip -o master.zip
-cp -f -r avc2ts-master/* /home/pi/avc2ts
+
+# Overwrite files in ~/avc2ts without deleting dependencies
+cp -f -r -T avc2ts-master/ /home/pi/avc2ts/
 rm master.zip
 rm -rf avc2ts-master
 
+DisplayUpdateMsg "Step 6 of 10\nCompiling Portsdown SW\n\nXXXXXX----"
+
+# Compile rpidatv core
+sudo killall -9 rpidatv
+echo "Installing rpidatv"
+cd rpidatv/src
+touch rpidatv.c
+make clean
+make
+sudo make install
+
+# Compile rpidatv gui
+sudo killall -9 rpidatvgui
+echo "Installing rpidatvgui"
+cd gui
+make clean
+make
+sudo make install
+cd ../
+
+
+if [ avc2ts_Deps_Not_Required != 0 ]; then
+  DisplayUpdateMsg "Step 6a of 10\nTakes 20 Minutes\n\nXXXXXX----"
+
+  # For libmpegts
+  echo "Installing libmpegts"
+  cd /home/pi/avc2ts
+  git clone git://github.com/F5OEO/libmpegts
+  cd libmpegts
+  ./configure
+  make
+  cd ../
+
+  # For libfdkaac
+  echo "Installing libfdkaac"
+  sudo apt-get -y install autoconf libtool
+  git clone https://github.com/mstorsjo/fdk-aac
+  cd fdk-aac
+  ./autogen.sh
+  ./configure
+  make && sudo make install
+  sudo ldconfig
+  cd ../
+
+  #libyuv should be used for fast picture transformation : not yet implemented
+  echo "Installing libyuv"
+  git clone https://chromium.googlesource.com/libyuv/libyuv
+  cd libyuv
+  #should patch linux.mk with -DHAVE_JPEG on CXX and CFLAGS
+  #seems to be link with libjpeg9-dev
+  make V=1 -f linux.mk
+  cd ../
+
+  # Required for ffmpegsrc.cpp
+  sudo apt-get -y install libvncserver-dev libavcodec-dev libavformat-dev libswscale-dev libavdevice-dev
+
+fi
+
+# Delete the old version of avc2ts (owned by root)
+sudo rm /home/pi/rpidatv/bin/avc2ts
+
 # Make the new avc2ts
+echo "Installing avc2ts"
 cd /home/pi/avc2ts
 touch avc2ts.cpp
 make
@@ -266,6 +278,7 @@ cp avc2ts ../rpidatv/bin/
 cd ..
 
 #install adf4351
+echo "Installing adf4351"
 cd /home/pi/rpidatv/src/adf4351
 touch adf4351.c
 make
@@ -278,12 +291,14 @@ cd /opt/vc/src/hello_pi/
 sudo ./rebuild.sh
 
 # install H264 player
+echo "Installing hello_video"
 cd /home/pi/rpidatv/src/hello_video
 touch video.c
 make
 cp hello_video.bin ../../bin/
 
 # install MPEG-2 player
+echo "Installing hello_video2"
 cd /home/pi/rpidatv/src/hello_video2
 touch video.c
 make
@@ -291,10 +306,12 @@ cp hello_video2.bin ../../bin/
 
 # Check if omxplayer needs to be installed 201807150
 if [ ! -f "/usr/bin/omxplayer" ]; then
+  echo "Installing omxplayer"
   sudo apt-get -y install omxplayer
 fi
 
 # Install limesdr_toolbox
+echo "Installing limesdr_toolbox"
 cd /home/pi/rpidatv/src/limesdr_toolbox
 cmake .
 make
@@ -304,6 +321,7 @@ cp limesdr_stopchannel ../../bin/
 cp limesdr_forward ../../bin/
 
 # Update libdvbmod and DvbTsToIQ
+echo "Installing libdvbmod and DvbTsToIQ"
 cd /home/pi/rpidatv/src/libdvbmod
 make dirmake
 make
@@ -383,6 +401,7 @@ if ! grep -q timeout /etc/dhcpcd.conf; then
 fi
 
 # Compile updated pi-sdn that sets swapoff
+echo "Installing pi-sdn"
 cp -f /home/pi/rpidatv/src/pi-sdn/main.c /home/pi/pi-sdn-build/main.c
 cd /home/pi/pi-sdn-build
 make
@@ -390,24 +409,28 @@ mv pi-sdn /home/pi/
 cd /home/pi
 
 # Compile and install the executable for switched repeater streaming (201708150)
+echo "Installing switched repeater streaming"
 cd /home/pi/rpidatv/src/rptr
 make
 mv keyedstream /home/pi/rpidatv/bin/
 cd /home/pi
 
 # Compile and install the executable for GPIO-switched transmission (201710080)
+echo "Installing keyedtx"
 cd /home/pi/rpidatv/src/keyedtx
 make
 mv keyedtx /home/pi/rpidatv/bin/
 cd /home/pi
 
 # Compile and install the executable for the Stream Receiver (201807290)
+echo "Installing streamrx"
 cd /home/pi/rpidatv/src/streamrx
 make
 mv streamrx /home/pi/rpidatv/bin/
 cd /home/pi
 
 # Compile the Signal Generator (201710280)
+echo "Installing siggen"
 cd /home/pi/rpidatv/src/siggen
 make clean
 make
@@ -415,12 +438,14 @@ sudo make install
 cd /home/pi
 
 # Compile the Attenuator Driver (201801060)
+echo "Installing atten"
 cd /home/pi/rpidatv/src/atten
 make
 cp /home/pi/rpidatv/src/atten/set_attenuator /home/pi/rpidatv/bin/set_attenuator
 cd /home/pi
 
 # Compile the x-y display (201811100)
+echo "Installing xy display"
 cd /home/pi/rpidatv/src/xy
 make
 cp -f /home/pi/rpidatv/src/xy/xy /home/pi/rpidatv/bin/xy

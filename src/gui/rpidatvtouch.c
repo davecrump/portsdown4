@@ -12397,9 +12397,18 @@ void Start_Highlights_Menu1()
     printf("Value=%s %s\n",Value,"Freq");
     if ((TabBandLO[CurrentBand] < 0.1) && (TabBandLO[CurrentBand] > -0.1))
     {
-      strcpy(Freqtext, "Freq^");
-      strcat(Freqtext, Value);
-      strcat(Freqtext, " MHz");
+      if (strlen(Freqtext) > 5)
+      {
+        strcpy(Freqtext, "Freq^");
+        strcat(Freqtext, Value);
+        strcat(Freqtext, " M");
+      }
+      else
+      {
+        strcpy(Freqtext, "Freq^");
+        strcat(Freqtext, Value);
+        strcat(Freqtext, " MHz");
+      }
     }
     else
     {
