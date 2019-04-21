@@ -1,9 +1,9 @@
 ![portsdown banner](/doc/img/Portsdown3.jpg)
 # portsdown
 
-**The Portsdown** is a DVB-S and DVB-S2 digital television transmitter for the Raspberry Pi 3.  The core of the transmitter was written by Evariste Courjaud F5OEO and is maintained by him.  This BATC Version, known as the Portsdown Transmitter, has been developed by a team of BATC members for use with an external synthesized oscillator and modulator/filter board (or an SDR) to produce a signal suitable for driving a high power amateur television transmitter on the 146, 432 or 1296 MHz bands.  The intention is that the design should be reproducible by someone who has never used Linux before.  Detailed instructions on loading the software are listed below, and further details of the complete transmitter design and build are on the BATC Wiki at https://wiki.batc.org.uk/The_Portsdown_Transmitter.  There is a Forum for discussion of the project here: https://forum.batc.org.uk/viewforum.php?f=103
+**The Portsdown** is a DVB-S and DVB-S2 digital television transmitter for the Raspberry Pi 3B and 3B+.  The core of the transmitter was written by Evariste Courjaud F5OEO and is maintained by him.  This BATC Version, known as the Portsdown Transmitter, has been developed by a team of BATC members for use with a LimeSDR Mini, a DTAV Express PCB or an external synthesized oscillator and modulator/filter board to produce a signal suitable for driving a high power amateur television transmitter on the amateur bands.  The intention is that the design should be reproducible by someone who has never used Linux before.  Detailed instructions on loading the software are listed below, and further details of the complete transmitter design and build are on the BATC Wiki at https://wiki.batc.org.uk/The_Portsdown_Transmitter.  There is a Forum for discussion of the project here: https://forum.batc.org.uk/viewforum.php?f=103
 
-The Portsdown software can also be used with a LimeSDR (Mini or USB) or a DATV Express instead of the bespoke filter-modulator board.
+The Portsdown software can also be used with a LimeSDR (Mini or USB) or a DATV Express or the bespoke filter-modulator board.
 
 This version is based on Raspbian Stretch and is compatible with the Raspberry Pi 3B and 3B+.  It is the version on which development effort will be focused.  The older Jessie version will still be supported, but may not be updated with as many new features.
 
@@ -13,7 +13,7 @@ Our thanks to Evariste and all the other contributors to this community project.
 
 The preferred installation method only needs a Windows PC connected to the same (internet-connected) network as your Raspberry Pi.  Do not connect a keyboard or HDMI display directly to your Raspberry Pi.
 
-- First download the 13 November 2018 release of Raspbian Stretch Lite on to your Windows PC from here http://downloads.raspberrypi.org/raspbian_lite/images/raspbian_lite-2018-11-15/2018-11-13-raspbian-stretch-lite.zip
+- First download the 2019-04-08 release of Raspbian Stretch Lite on to your Windows PC from here http://downloads.raspberrypi.org/raspbian_lite/images/raspbian_lite-2019-04-09/2019-04-08-raspbian-stretch-lite.zip
 
 - Unzip the image and then transfer it to a Micro-SD Card using Win32diskimager https://sourceforge.net/projects/win32diskimager/
 
