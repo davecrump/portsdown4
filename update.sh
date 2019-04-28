@@ -351,6 +351,11 @@ sudo sed -i '/static domain_name_servers=192.168.1.1/d' dhcpcd.conf
 sudo sed -i '/interface eth0/d' dhcpcd.conf
 sudo sed -i '/fallback static_eth0/d' dhcpcd.conf
 
+# Install the menu alias if required
+if ! grep -q "menu" /home/pi/.bash_aliases; then
+  echo "alias menu='/home/pi/rpidatv/scripts/menu.sh menu'" >> /home/pi/.bash_aliases
+fi
+
 DisplayUpdateMsg "Step 8 of 10\nRestoring Config\n\nXXXXXXXX--"
 
 # Restore portsdown_config.txt
@@ -535,6 +540,16 @@ if ! grep -q streamurl1 /home/pi/rpidatv/scripts/stream_presets.txt; then
   echo "streamurl8=rtmp://rtmp.batc.org.uk/live" >> /home/pi/rpidatv/scripts/stream_presets.txt
   echo "streamkey8=callsign-keykey" >> /home/pi/rpidatv/scripts/stream_presets.txt
   echo "" >> /home/pi/rpidatv/scripts/stream_presets.txt
+fi
+
+# If user is upgrading a repeater streamer, add the cron job for 12-hourly reboot
+if grep -q "startup=Cont_Stream_boot" /home/pi/rpidatv/scripts/portsdown_config.txt; then
+  sudo crontab /home/pi/rpidatv/scripts/configs/rptrcron
+fi
+
+# If user is upgrading a keyed streamer, add the cron job for 12-hourly reboot
+if grep -q "startup=Keyed_Stream_boot" /home/pi/rpidatv/scripts/portsdown_config.txt; then
+  sudo crontab /home/pi/rpidatv/scripts/configs/rptrcron
 fi
 
 DisplayUpdateMsg "Step 9 of 10\nInstalling FreqShow SW\n\nXXXXXXXXX-"
