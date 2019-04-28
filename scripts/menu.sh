@@ -1586,6 +1586,13 @@ do_autostart_setup()
       set_config_var stream0 "$STREAM0" $PATH_STREAMPRESETS
     fi
   fi
+
+  # If Keyed or Continuous stream selected, set up cron for 12-hourly reboot
+  if [[ "$chstartup" == "Keyed_Stream_boot" || "$chstartup" == "Cont_Stream_boot" ]]; then
+    sudo crontab /home/pi/rpidatv/scripts/configs/rptrcron
+  else
+    sudo crontab /home/pi/rpidatv/scripts/configs/blankcron
+  fi
 }
 
 do_display_setup()

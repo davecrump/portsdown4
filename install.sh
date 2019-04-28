@@ -367,6 +367,9 @@ cp /home/pi/rpidatv/scripts/configs/freqshow/waveshare_freqshow.py /home/pi/Freq
 rm /home/pi/FreqShow/model.py
 cp /home/pi/rpidatv/scripts/configs/freqshow/waveshare_146_model.py /home/pi/FreqShow/model.py
 
+# Install the menu alias
+echo "alias menu='/home/pi/rpidatv/scripts/menu.sh menu'" >> /home/pi/.bash_aliases
+
 # Record Version Number
 cd /home/pi/rpidatv/scripts/
 cp latest_version.txt installed_version.txt
