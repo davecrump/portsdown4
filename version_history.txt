@@ -2,6 +2,8 @@
 For repeater streaming, moved 12-hourly reboot from app to cron
 Repeater stream processes killed before restarting stream after failure
 Added menu alias to call console menu without typing path
+Error-check and correct all DVB-S2 FEC selections in console menu
+Fix LimeSDR reset after TX in console menu
 
 201904200
 LimeSDR reliability Improvements
