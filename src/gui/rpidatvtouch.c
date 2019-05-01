@@ -5096,7 +5096,13 @@ void EnforceValidTXMode()
 {
   char Param[15]="modulation";
 
-  if ((strcmp(CurrentModeOP, TabModeOP[3]) != 0) && (strcmp(CurrentModeOP, TabModeOP[8]) != 0)) // not Lime Mini or USB
+  if ((strcmp(CurrentModeOP, "LIMEUSB") != 0)
+       && (strcmp(CurrentModeOP, "LIMEMINI") != 0)
+       && (strcmp(CurrentModeOP, "STREAMER") != 0)
+       && (strcmp(CurrentModeOP, "COMPVID") != 0)
+       && (strcmp(CurrentModeOP, "IP") != 0)
+       && (strcmp(CurrentModeOP, "EXPRESS2") != 0)
+       && (strcmp(CurrentModeOP, "PLUTO") != 0)) // not DVB-S2-capable
   {
     if ((strcmp(CurrentTXMode, TabTXMode[0]) != 0) && (strcmp(CurrentTXMode, TabTXMode[1]) != 0))  // Not DVB-S and not Carrier
     {
@@ -12393,11 +12399,10 @@ void Start_Highlights_Menu1()
   {
     // Not Streaming, so display Frequency
     strcpy(Param,"freqoutput");
-    GetConfigParam(PATH_PCONFIG,Param,Value);
-    printf("Value=%s %s\n",Value,"Freq");
+    GetConfigParam(PATH_PCONFIG, Param, Value);
     if ((TabBandLO[CurrentBand] < 0.1) && (TabBandLO[CurrentBand] > -0.1))
     {
-      if (strlen(Freqtext) > 5)
+      if (strlen(Value) > 5)
       {
         strcpy(Freqtext, "Freq^");
         strcat(Freqtext, Value);
