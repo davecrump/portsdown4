@@ -730,7 +730,7 @@ else
   fi
 
   # Reduce frame rate at low bit rates
-  if [ "$BITRATE_VIDEO" -lt 300000 ]; then
+  if [ "$BITRATE_VIDEO" -lt 150000 ]; then  # was 300000
     VIDEO_FPS=15
   else
     # Switch to 30 fps if required
@@ -744,8 +744,10 @@ fi
 
 # Set H264 Audio Settings
 ARECORD_BUF=5000     # arecord buffer in us
+
 # Input sampling rate to arecord is adjusted depending on source
 BITRATE_AUDIO=32000  # aac encoder output
+
 # Set h264 aac audio bitrate for avc2ts
 AUDIO_MARGIN=60000   # headroom allowed in TS
 
@@ -785,16 +787,35 @@ case "$MODE_OUTPUT" in
       LIME_GAINF=`echo - | awk '{print ( '$LIME_GAIN' - 6 ) / 100}'`
     fi
 
+    # Turn pilots on if required
+    PILOT=$(get_config_var pilots $PCONFIGFILE)
+    if [ "$PILOT" == "on" ]; then
+      PILOTS="-p"
+    else
+      PILOTS=""
+    fi
+
+    # Select Short Frames if required
+    FRAME=$(get_config_var frames $PCONFIGFILE)
+    if [ "$FRAME" == "short" ]; then
+      FRAMES="-v"
+    else
+      FRAMES=""
+    fi
+
     # Calculate the exact TS Bitrate for Lime
     NEW_BITRATE_TS="$($PATHRPI"/dvb2iq" -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
-                      -d -r $UPSAMPLE -m $MODTYPE -c $CONSTLN )"
+                      -d -r $UPSAMPLE -m $MODTYPE -c $CONSTLN $PILOTS $FRAMES )"
 
     echo
     echo Old Bitrate $BITRATE_TS
     echo New Bitrate $NEW_BITRATE_TS
-    echo
 
-   BITRATE_TS=$NEW_BITRATE_TS+1000
+    # Fudge the bitrate for an improvement (maybe not!)
+    #let BITRATE_TS=$NEW_BITRATE_TS+1000
+
+    echo Corrected Bitrate $BITRATE_TS
+    echo
   ;;
 esac
 
@@ -802,11 +823,12 @@ esac
 LIMESENDBUF=10000
 
 # Clean up before starting fifos
-sudo rm videoes
-sudo rm videots
-sudo rm netfifo
-sudo rm audioin.wav
+sudo rm videoes >/dev/null 2>/dev/null
+sudo rm videots >/dev/null 2>/dev/null
+sudo rm netfifo >/dev/null 2>/dev/null
+sudo rm audioin.wav >/dev/null 2>/dev/null
 
+# Create the fifos
 mkfifo videoes
 mkfifo videots
 mkfifo netfifo
@@ -854,7 +876,7 @@ case "$MODE_INPUT" in
       "LIMEMINI" | "LIMEUSB")
 
         sudo $PATHRPI"/dvb2iq" -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
-          -r $UPSAMPLE -m $MODTYPE -c $CONSTLN \
+          -r $UPSAMPLE -m $MODTYPE -c $CONSTLN $PILOTS $FRAMES \
            | sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s $SYMBOLRATE \
            -g $LIME_GAINF -p 0.05 -r $UPSAMPLE -l $LIMESENDBUF -e $BAND_GPIO &
 
@@ -946,7 +968,7 @@ fi
       ;;
       "LIMEMINI" | "LIMEUSB")
         $PATHRPI"/dvb2iq2" -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
-          -r $UPSAMPLE -m $MODTYPE -c $CONSTLN \
+          -r $UPSAMPLE -m $MODTYPE -c $CONSTLN $PILOTS $FRAMES \
            | sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s $SYMBOLRATE \
            -g $LIME_GAINF -p 0.05 -r $UPSAMPLE -l $LIMESENDBUF -e $BAND_GPIO &
       ;;
@@ -1072,7 +1094,7 @@ fi
       ;;
       "LIMEMINI" | "LIMEUSB")
         $PATHRPI"/dvb2iq" -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
-          -r $UPSAMPLE -m $MODTYPE -c $CONSTLN \
+          -r $UPSAMPLE -m $MODTYPE -c $CONSTLN $PILOTS $FRAMES \
            | sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s $SYMBOLRATE \
            -g $LIME_GAINF -p 0.05 -r $UPSAMPLE -l $LIMESENDBUF -e $BAND_GPIO &
 
@@ -1137,7 +1159,7 @@ fi
       ;;
       "LIMEMINI" | "LIMEUSB")
         $PATHRPI"/dvb2iq" -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
-          -r $UPSAMPLE -m $MODTYPE -c $CONSTLN \
+          -r $UPSAMPLE -m $MODTYPE -c $CONSTLN $PILOTS $FRAMES \
            | sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s $SYMBOLRATE \
            -g $LIME_GAINF -p 0.05 -r $UPSAMPLE -l $LIMESENDBUF -e $BAND_GPIO &
 
@@ -1191,7 +1213,6 @@ fi
          v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=800,height=600,pixelformat=0
       fi
       ANALOGCAMNAME=$VID_WEBCAM
-      #ANALOGCAMNAME="/dev/video2"
     fi
 
     # If PiCam is present unload driver   
@@ -1215,7 +1236,7 @@ fi
       ;;
       "LIMEMINI" | "LIMEUSB")
         $PATHRPI"/dvb2iq" -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
-          -r $UPSAMPLE -m $MODTYPE -c $CONSTLN \
+          -r $UPSAMPLE -m $MODTYPE -c $CONSTLN $PILOTS $FRAMES \
            | sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s $SYMBOLRATE \
            -g $LIME_GAINF -p 0.05 -r $UPSAMPLE -l $LIMESENDBUF -e $BAND_GPIO &
 
@@ -1237,6 +1258,7 @@ fi
       > /dev/null &
     else
       # ******************************* H264 VIDEO WITH AUDIO ************************************
+
       arecord -f S16_LE -r $AUDIO_SAMPLE -c 2 -B $ARECORD_BUF -D plughw:$AUDIO_CARD_NUMBER,0 > audioin.wav &
 
       let BITRATE_VIDEO=$BITRATE_VIDEO-$AUDIO_MARGIN  # Make room for audio
@@ -1312,7 +1334,7 @@ fi
       ;;
       "LIMEMINI" | "LIMEUSB")
         $PATHRPI"/dvb2iq2" -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
-          -r $UPSAMPLE -m $MODTYPE -c $CONSTLN \
+          -r $UPSAMPLE -m $MODTYPE -c $CONSTLN $PILOTS $FRAMES \
            |buffer| sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s $SYMBOLRATE \
            -g $LIME_GAINF -p 0.05 -r $UPSAMPLE -l $LIMESENDBUF -e $BAND_GPIO &
 
@@ -1365,7 +1387,7 @@ fi
       ;;
       "LIMEMINI" | "LIMEUSB")
         $PATHRPI"/dvb2iq" -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
-          -r $UPSAMPLE -m $MODTYPE -c $CONSTLN \
+          -r $UPSAMPLE -m $MODTYPE -c $CONSTLN $PILOTS $FRAMES \
            | sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s $SYMBOLRATE \
            -g $LIME_GAINF -p 0.05 -r $UPSAMPLE -l $LIMESENDBUF -e $BAND_GPIO &
       ;;
@@ -1392,7 +1414,7 @@ fi
       ;;
       "LIMEMINI" | "LIMEUSB")
         $PATHRPI"/dvb2iq" -i $TSVIDEOFILE -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
-          -r $UPSAMPLE -m $MODTYPE -c $CONSTLN \
+          -r $UPSAMPLE -m $MODTYPE -c $CONSTLN $PILOTS $FRAMES \
            | sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s $SYMBOLRATE \
            -g $LIME_GAINF -p 0.05 -r $UPSAMPLE -l $LIMESENDBUF -e $BAND_GPIO &
       ;;
@@ -1540,7 +1562,7 @@ fi
       ;;
       "LIMEMINI" | "LIMEUSB")
         $PATHRPI"/dvb2iq2" -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
-          -r $UPSAMPLE -m $MODTYPE -c $CONSTLN \
+          -r $UPSAMPLE -m $MODTYPE -c $CONSTLN $PILOTS $FRAMES \
            | sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s $SYMBOLRATE \
            -g $LIME_GAINF -p 0.05 -r $UPSAMPLE -l $LIMESENDBUF -e $BAND_GPIO &
       ;;
@@ -1738,7 +1760,7 @@ fi
       ;;
       "LIMEMINI" | "LIMEUSB")
         $PATHRPI"/dvb2iq2" -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
-          -r $UPSAMPLE -m $MODTYPE -c $CONSTLN \
+          -r $UPSAMPLE -m $MODTYPE -c $CONSTLN $PILOTS $FRAMES \
            | sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s $SYMBOLRATE \
            -g $LIME_GAINF -p 0.05 -r $UPSAMPLE -l $LIMESENDBUF -e $BAND_GPIO &
       ;;
@@ -1858,7 +1880,7 @@ fi
       ;;
       "LIMEMINI" | "LIMEUSB")
         $PATHRPI"/dvb2iq" -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
-          -r $UPSAMPLE -m $MODTYPE -c $CONSTLN \
+          -r $UPSAMPLE -m $MODTYPE -c $CONSTLN $PILOTS $FRAMES \
            | sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s $SYMBOLRATE \
            -g $LIME_GAINF -p 0.05 -r $UPSAMPLE -l $LIMESENDBUF -e $BAND_GPIO &
       ;;
