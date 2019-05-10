@@ -364,9 +364,10 @@ cp -f -r /home/pi/portsdown_presets.txt /home/pi/rpidatv/scripts/portsdown_prese
 rm -f /home/pi/portsdown_config.txt
 rm -f /home/pi/portsdown_presets.txt
 
+# Update config file with modulation and limegain
 if ! grep -q modulation /home/pi/rpidatv/scripts/portsdown_config.txt; then
   # File needs updating
-  printf "Adding new entries to user's portsdown_config.txt\n"
+  printf "Adding modulation and limegain to user's portsdown_config.txt\n"
   # Delete any blank lines
   sed -i -e '/^$/d' /home/pi/rpidatv/scripts/portsdown_config.txt
   # Add the 2 new entries and a new line 
@@ -375,9 +376,22 @@ if ! grep -q modulation /home/pi/rpidatv/scripts/portsdown_config.txt; then
   echo "" >> /home/pi/rpidatv/scripts/portsdown_config.txt
 fi
 
+# Update config file with pilots and frames              201905090
+if ! grep -q frames /home/pi/rpidatv/scripts/portsdown_config.txt; then
+  # File needs updating
+  printf "Adding pilots and frames to user's portsdown_config.txt\n"
+  # Delete any blank lines
+  sed -i -e '/^$/d' /home/pi/rpidatv/scripts/portsdown_config.txt
+  # Add the 2 new entries and a new line 
+  echo "pilots=off" >> /home/pi/rpidatv/scripts/portsdown_config.txt
+  echo "frames=long" >> /home/pi/rpidatv/scripts/portsdown_config.txt
+  echo "" >> /home/pi/rpidatv/scripts/portsdown_config.txt
+fi
+
+# Update presets file with limegains for each band
 if ! grep -q d1limegain /home/pi/rpidatv/scripts/portsdown_presets.txt; then
   # File needs updating
-  printf "Adding new entries to user's portsdown_presets.txt\n"
+  printf "Adding band limegains to user's portsdown_presets.txt\n"
   # Delete any blank lines
   sed -i -e '/^$/d' /home/pi/rpidatv/scripts/portsdown_presets.txt
   # Add the 9 new entries and a new line 
@@ -458,6 +472,9 @@ make
 cp -f /home/pi/rpidatv/src/xy/xy /home/pi/rpidatv/bin/xy
 cd /home/pi
 
+# Install the components for Lime Grove
+cp -r /home/pi/rpidatv/scripts/configs/dvbsdr/ /home/pi/dvbsdr/
+
 # Always auto-logon and run .bashrc (and hence startup.sh) (20180729)
 sudo ln -fs /etc/systemd/system/autologin@.service\
  /etc/systemd/system/getty.target.wants/getty@tty1.service
@@ -481,9 +498,10 @@ fi
 if [ -f "/home/pi/rtl-fm_presets.txt" ]; then
   cp -f -r /home/pi/rtl-fm_presets.txt /home/pi/rpidatv/scripts/rtl-fm_presets.txt
 fi
+
 if ! grep -q r0gain /home/pi/rpidatv/scripts/rtl-fm_presets.txt; then
   # File needs updating
-  printf "Adding new entries to user's rtl-fm_presets.txt\n"
+  printf "Adding preset gains to user's rtl-fm_presets.txt\n"
   # Delete any blank lines
   sed -i -e '/^$/d' /home/pi/rpidatv/scripts/rtl-fm_presets.txt
   # Add the 9 new entries and a new line 
@@ -517,9 +535,11 @@ fi
 if [ -f "/home/pi/stream_presets.txt" ]; then
   cp -f -r /home/pi/stream_presets.txt /home/pi/rpidatv/scripts/stream_presets.txt
 fi
+
+# Update Stream presets if required
 if ! grep -q streamurl1 /home/pi/rpidatv/scripts/stream_presets.txt; then
   # File needs updating
-  printf "Adding new entries to user's stream_presets.txt\n"
+  printf "Adding treamurls and streamkeys to user's stream_presets.txt\n"
   # Delete any blank lines
   sed -i -e '/^$/d' /home/pi/rpidatv/scripts/stream_presets.txt
   # Add the 9 new entries and a new line 

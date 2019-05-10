@@ -40,4 +40,6 @@ streamurl=rtmp://rtmp.batc.org.uk/live
 streamkey=callsign-keykey
 outputstandard=576
 numbers=3333
+pilots=off
+frames=long
 

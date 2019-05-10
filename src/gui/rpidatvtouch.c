@@ -164,6 +164,8 @@ char CurrentModeOP[31] = "QPSKRF";
 char CurrentModeOPtext[31] = " UGLY ";
 char TabTXMode[6][255] = {"DVB-S", "Carrier", "S2QPSK", "8PSK", "16APSK", "32APSK"};
 char CurrentTXMode[255] = "DVB-S";
+char CurrentPilots[7] = "off";
+char CurrentFrames[7] = "long";
 char CurrentModeInput[255] = "DESKTOP";
 char TabEncoding[5][15] = {"MPEG-2", "H264", "H265", "IPTS in", "TS File"};
 char CurrentEncoding[255] = "H264";
@@ -1251,9 +1253,10 @@ void GetThrottled(char Throttled[256])
 void ReadModeInput(char coding[256], char vsource[256])
 {
   char ModeInput[31];
-  GetConfigParam(PATH_PCONFIG,"modeinput", ModeInput);
-
+  char value[31];
   char ModulationMode[31];
+
+  // Read the current Modulation
   GetConfigParam(PATH_PCONFIG,"modulation", ModulationMode);
   if (strlen(ModulationMode) < 1)
   {
@@ -1264,8 +1267,24 @@ void ReadModeInput(char coding[256], char vsource[256])
     strcpy(CurrentTXMode, ModulationMode);
   }
 
+  // Read the current pilots and frames
+  GetConfigParam(PATH_PCONFIG,"pilots", value);
+  if (strlen(value) > 1)
+  {
+    strcpy(CurrentPilots, value);
+  }
+  GetConfigParam(PATH_PCONFIG,"frames", value);
+  if (strlen(value) > 1)
+  {
+    strcpy(CurrentFrames, value);
+  }
+
   strcpy(coding, "notset");
   strcpy(vsource, "notset");
+
+
+  // Read the current vision source and encoding
+  GetConfigParam(PATH_PCONFIG,"modeinput", ModeInput);
 
   if (strcmp(ModeInput, "CAMH264") == 0) 
   {
@@ -5274,12 +5293,36 @@ void GreyOutReset11()
 
 void GreyOut11()
 {
-  if ((strcmp(CurrentModeOP, TabModeOP[3]) != 0) && (strcmp(CurrentModeOP, TabModeOP[8]) != 0)) // not Lime Mini or USB
+  if ((strcmp(CurrentModeOP, "LIMEUSB") != 0)
+   && (strcmp(CurrentModeOP, "LIMEMINI") != 0)
+   && (strcmp(CurrentModeOP, "STREAMER") != 0)
+   && (strcmp(CurrentModeOP, "COMPVID") != 0)
+   && (strcmp(CurrentModeOP, "IP") != 0)
+   && (strcmp(CurrentModeOP, "EXPRESS2") != 0)
+   && (strcmp(CurrentModeOP, "PLUTO") != 0)) // not DVB-S2-capable
   {
-    SetButtonStatus(ButtonNumber(CurrentMenu, 0), 2); // S2 QPSK
-    SetButtonStatus(ButtonNumber(CurrentMenu, 1), 2); // 8PSK
-    SetButtonStatus(ButtonNumber(CurrentMenu, 2), 2); // 16 APSK
-    SetButtonStatus(ButtonNumber(CurrentMenu, 3), 2); // 32APSK
+    SetButtonStatus(ButtonNumber(CurrentMenu, 0), 2); // grey-out S2 QPSK
+    SetButtonStatus(ButtonNumber(CurrentMenu, 1), 2); // grey-out 8PSK
+    SetButtonStatus(ButtonNumber(CurrentMenu, 2), 2); // grey-out 16 APSK
+    SetButtonStatus(ButtonNumber(CurrentMenu, 3), 2); // grey-out 32APSK
+    SetButtonStatus(ButtonNumber(CurrentMenu, 8), 2); // grey-out Pilots on/off
+    SetButtonStatus(ButtonNumber(CurrentMenu, 9), 2); // grey-out Frames long/short
+  }
+  else
+  {
+    if(strcmp(CurrentTXMode, "DVB-S") == 0) // DVB-S selected
+    {
+      SetButtonStatus(ButtonNumber(CurrentMenu, 8), 2); // grey-out Pilots on/off
+      SetButtonStatus(ButtonNumber(CurrentMenu, 9), 2); // grey-out Frames long/short
+    }
+    else
+    {
+      SetButtonStatus(ButtonNumber(CurrentMenu, 8), 0); // Show Pilots on/off
+      SetButtonStatus(ButtonNumber(CurrentMenu, 9), 0); // Show Frames long/short
+    }
+
+    // Until short/long frames working, grey out frames
+    SetButtonStatus(ButtonNumber(CurrentMenu, 9), 2); // grey-out Frames long/short
   }
 }
 
@@ -5446,6 +5489,34 @@ void SelectTX(int NoButton)  // TX RF Output Mode
   EnforceValidTXMode();
   EnforceValidFEC();
   ApplyTXConfig();
+}
+
+void SelectPilots()  // Toggle pilots on/off
+{
+  if (strcmp(CurrentPilots, "off") == 0)  // Currently off
+  {
+    strcpy(CurrentPilots, "on");
+    SetConfigParam(PATH_PCONFIG, "pilots", "on");
+  }
+  else                                   // Currently on
+  {
+    strcpy(CurrentPilots, "off");
+    SetConfigParam(PATH_PCONFIG, "pilots", "off");
+  }
+}
+
+void SelectFrames()  // Toggle frames long/short
+{
+  if (strcmp(CurrentFrames, "long") == 0)  // Currently long
+  {
+    strcpy(CurrentFrames, "short");
+    SetConfigParam(PATH_PCONFIG, "frames", "short");
+  }
+  else                                   // Currently short
+  {
+    strcpy(CurrentFrames, "long");
+    SetConfigParam(PATH_PCONFIG, "frames", "long");
+  }
 }
 
 void SelectEncoding(int NoButton)  // Encoding
@@ -9594,9 +9665,9 @@ void waituntil(int w,int h)
     // Now Sort TXwithMenu:
     if (strcmp(ScreenState, "TXwithMenu") == 0)
     {
-      TransmitStop();
-      SelectPTT(20, 0);
+      SelectPTT(20, 0);  // Update screen first
       UpdateWindow();
+      TransmitStop();
       if (strcmp(ScreenState, "WebcamWait") != 0)
       {
         strcpy(ScreenState, "NormalMenu");
@@ -10652,9 +10723,19 @@ void waituntil(int w,int h)
           SelectTX(i);
           printf("S2 32APSK\n");
           break;
+        case 8:                               // Pilots off/on
+          SelectPilots();
+          printf("Toggle Pilots\n");
+          break;
+        case 9:                               // Frames Long/short
+          //SelectFrames();                   // Not yet working
+          printf("Toggle Frames\n");
+          break;
+
         default:
           printf("Menu 11 Error\n");
         }
+        Start_Highlights_Menu11();
         UpdateWindow();
         usleep(500000);
         SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 0); // Reset cancel (even if not selected)
@@ -13468,40 +13549,55 @@ void Define_Menu11()
   AddButtonStatus(button, "Cancel", &LBlue);
 
   button = CreateButton(11, 0);
-  AddButtonStatus(button, TabTXMode[2], &Blue);
-  AddButtonStatus(button, TabTXMode[2], &Green);
-  AddButtonStatus(button, TabTXMode[2], &Grey);
+  AddButtonStatus(button, "DVB-S2^QPSK", &Blue);
+  AddButtonStatus(button, "DVB-S2^QPSK", &Green);
+  AddButtonStatus(button, "DVB-S2^QPSK", &Grey);
 
   button = CreateButton(11, 1);
-  AddButtonStatus(button, TabTXMode[3], &Blue);
-  AddButtonStatus(button, TabTXMode[3], &Green);
-  AddButtonStatus(button, TabTXMode[3], &Grey);
+  AddButtonStatus(button, "DVB-S2^8 PSK", &Blue);
+  AddButtonStatus(button, "DVB-S2^8 PSK", &Green);
+  AddButtonStatus(button, "DVB-S2^8 PSK", &Grey);
 
   button = CreateButton(11, 2);
-  AddButtonStatus(button, TabTXMode[4], &Blue);
-  AddButtonStatus(button, TabTXMode[4], &Green);
-  AddButtonStatus(button, TabTXMode[4], &Grey);
+  AddButtonStatus(button, "DVB-S2^16 APSK", &Blue);
+  AddButtonStatus(button, "DVB-S2^16 APSK", &Green);
+  AddButtonStatus(button, "DVB-S2^16 APSK", &Grey);
 
   button = CreateButton(11, 3);
-  AddButtonStatus(button, TabTXMode[5], &Blue);
-  AddButtonStatus(button, TabTXMode[5], &Green);
-  AddButtonStatus(button, TabTXMode[5], &Grey);
+  AddButtonStatus(button, "DVB-S2^32 APSK", &Blue);
+  AddButtonStatus(button, "DVB-S2^32 APSK", &Green);
+  AddButtonStatus(button, "DVB-S2^32 APSK", &Grey);
 
   // 2nd Row, Menu 11
 
   button = CreateButton(11, 5);
-  AddButtonStatus(button, TabTXMode[0], &Blue);
-  AddButtonStatus(button, TabTXMode[0], &Green);
+  AddButtonStatus(button, "DVB-S^QPSK", &Blue);
+  AddButtonStatus(button, "DVB-S^QPSK", &Green);
 
   button = CreateButton(11, 6);
-  AddButtonStatus(button, TabTXMode[1], &Blue);
-  AddButtonStatus(button, TabTXMode[1], &Green);
+  AddButtonStatus(button, "Carrier", &Blue);
+  AddButtonStatus(button, "Carrier", &Green);
+
+  button = CreateButton(11, 8);
+  AddButtonStatus(button, "Pilots^Off", &LBlue);
+  AddButtonStatus(button, "Pilots^Off", &Green);
+  AddButtonStatus(button, "Pilots^Off", &Grey);
+
+  button = CreateButton(11, 9);
+  AddButtonStatus(button, "Frames^Long", &LBlue);
+  AddButtonStatus(button, "Frames^Long", &Green);
+  AddButtonStatus(button, "Frames^Long", &Grey);
 }
 
 void Start_Highlights_Menu11()
 {
   char vcoding[256];
   char vsource[256];
+  color_t Grey;
+  color_t LBlue;
+  Grey.r=127; Grey.g=127; Grey.b=127;
+  LBlue.r=64; LBlue.g=64; LBlue.b=192;
+
   ReadModeInput(vcoding, vsource);
 
   GreyOutReset11();
@@ -13534,6 +13630,26 @@ void Start_Highlights_Menu11()
   {
     SelectInGroupOnMenu(11, 5, 6, 3, 1);
     SelectInGroupOnMenu(11, 0, 3, 3, 1);
+  }
+  if(strcmp(CurrentPilots, "on") == 0)
+  {
+    AmendButtonStatus(ButtonNumber(11, 8), 0, "Pilots^On", &LBlue);
+    AmendButtonStatus(ButtonNumber(11, 8), 2, "Pilots^On", &Grey);
+  }
+  else
+  {
+    AmendButtonStatus(ButtonNumber(11, 8), 0, "Pilots^Off", &LBlue);
+    AmendButtonStatus(ButtonNumber(11, 8), 2, "Pilots^Off", &Grey);
+  }
+  if(strcmp(CurrentFrames, "short") == 0)
+  {
+    AmendButtonStatus(ButtonNumber(11, 9), 0, "Frames^Short", &LBlue);
+    AmendButtonStatus(ButtonNumber(11, 9), 2, "Frames^Short", &Grey);
+  }
+  else
+  {
+    AmendButtonStatus(ButtonNumber(11, 9), 0, "Frames^Long", &LBlue);
+    AmendButtonStatus(ButtonNumber(11, 9), 2, "Frames^Long", &Grey);
   }
   GreyOut11();
 }

@@ -8,8 +8,8 @@ band=d3
 labelofband=70_cm
 attenlevel=-10.0
 explevel=30
-limegain=88
-expports=2
+limegain=90
+expports=3
 rfpower=7
 analogcamname=auto
 analogcaminput=0
@@ -40,4 +40,6 @@ streamurl=rtmp://rtmp.batc.org.uk/live
 streamkey=callsign-keykey
 outputstandard=576
 numbers=3333
+pilots=off
+frames=long
 
