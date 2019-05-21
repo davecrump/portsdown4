@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Updated by davecrump 201904200
+# Updated by davecrump 201905090
 
 DisplayUpdateMsg() {
   # Delete any old update message image  201802040
@@ -415,7 +415,7 @@ if ! grep -q modulation /home/pi/rpidatv/scripts/portsdown_config.txt; then
 fi
 
 # Update config file with pilots, frames format and encoding          201905090
-if ! grep -q frames /home/pi/rpidatv/scripts/portsdown_config.txt; then
+if ! grep -q encoding /home/pi/rpidatv/scripts/portsdown_config.txt; then
   # File needs updating
   printf "Adding pilots and frames to user's portsdown_config.txt\n"
   # Delete any blank lines
