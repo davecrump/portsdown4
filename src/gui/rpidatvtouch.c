@@ -150,15 +150,15 @@ char SRLabel[9][255]={"SR 125","SR 333","SR1000","SR2000","SR4000", "SR 88", "SR
 int TabFec[5]={1, 2, 3, 5, 7};
 int TabS2Fec[9]={14, 13, 12, 35, 23, 34, 56, 89, 91};
 char S2FECLabel[9][7]={"1/4", "1/3", "1/2", "3/5", "2/3", "3/4", "5/6", "8/9", "9/10"};
-char TabModeInput[12][255]={"CAMMPEG-2","CAMH264","PATERNAUDIO","ANALOGCAM","CARRIER","CONTEST"\
-  ,"IPTSIN","ANALOGMPEG-2", "CARDMPEG-2", "CAMHDMPEG-2", "DESKTOP", "FILETS"};
 char TabFreq[9][255]={"71", "146.5", "437", "1249", "1255", "436", "436.5", "437.5", "438"};
 char FreqLabel[31][255];
 char TabModeAudio[6][15]={"auto", "mic", "video", "bleeps", "no_audio", "webcam"};
 char TabModeSTD[2][7]={"6","0"};
 char TabModeVidIP[2][7]={"0","1"};
-char TabModeOP[14][31]={"IQ", "QPSKRF", "DATVEXPRESS", "LIMEUSB", "STREAMER", "COMPVID", "DTX1", "IP", "LIMEMINI", " ", " ", "EXPRESS2", "PLUTO", " "};
-char TabModeOPtext[14][31]={"Portsdown", " Ugly ", "Express", "Lime USB", "BATC^Stream", "Comp Vid", " DTX1 ", "IPTS out", "Lime Mini", " ", " ", "Express S2", "Pluto", " "};
+char TabModeOP[14][31]={"IQ", "QPSKRF", "DATVEXPRESS", "LIMEUSB", "STREAMER", "COMPVID", \
+  "DTX1", "IP", "LIMEMINI", "JLIME", "JEXPRESS", "EXPRESS2", "PLUTO", " "};
+char TabModeOPtext[14][31]={"Portsdown", " Ugly ", "Express", "Lime USB", "BATC^Stream", "Comp Vid", \
+  " DTX1 ", "IPTS out", "Lime Mini", "Jetson^Lime", "Jetson^Express", "Express S2", "Pluto", " "};
 char TabAtten[4][15] = {"NONE", "PE4312", "PE43713", "HMC1119"};
 char CurrentModeOP[31] = "QPSKRF";
 char CurrentModeOPtext[31] = " UGLY ";
@@ -169,9 +169,9 @@ char CurrentFrames[7] = "long";
 char CurrentModeInput[255] = "DESKTOP";
 char TabEncoding[5][15] = {"MPEG-2", "H264", "H265", "IPTS in", "TS File"};
 char CurrentEncoding[255] = "H264";
-char TabSource[8][15] = {"Pi Cam", "CompVid", "TCAnim", "TestCard", "PiScreen", "Contest", "Webcam", "C920"};
+char TabSource[10][15] = {"Pi Cam", "CompVid", "TCAnim", "TestCard", "PiScreen", "Contest", "Webcam", "C920", "HDMI", "PC"};
 char CurrentSource[15] = "PiScreen";
-char TabFormat[4][15] = {"4:3", "16:9","720p", "1080p"};
+char TabFormat[4][15] = {"4:3", "16:9", "720p", "1080p"};
 char CurrentFormat[15] = "4:3";
 char CurrentCaptionState[15] = "on";
 char CurrentAudioState[255] = "auto";
@@ -180,6 +180,12 @@ int CurrentBand = 2; // 0 thru 8
 char KeyboardReturn[64];
 char FreqBtext[31];
 char MenuText[5][63];
+
+// Valid Input Modes:
+// "CAMMPEG-2", "CAMH264", "PATERNAUDIO", "ANALOGCAM" ,"CARRIER" ,"CONTEST"
+// "IPTSIN","ANALOGMPEG-2", "CARDMPEG-2", "CAMHDMPEG-2", "DESKTOP", "FILETS"
+// "C920"
+// "JHDMI", "JCAM", "JPC", "JCARD", "JTCANIM"
 
 // Composite Video Output variables
 char TabVidSource[8][15] = {"Pi Cam", "CompVid", "TCAnim", "TestCard", "Snap", "Contest", "Webcam", "Movie"};
@@ -1282,9 +1288,61 @@ void ReadModeInput(char coding[256], char vsource[256])
   strcpy(coding, "notset");
   strcpy(vsource, "notset");
 
-
   // Read the current vision source and encoding
   GetConfigParam(PATH_PCONFIG,"modeinput", ModeInput);
+  GetConfigParam(PATH_PCONFIG,"modeoutput", ModeOutput);
+
+  // Correct Jetson modes if Jetson not selected
+  printf ("Mode Output in ReadModeInput() is %s\n", ModeOutput);
+  if ((strcmp(ModeOutput, "JLIME") != 0) && (strcmp(ModeOutput, "JEXPRESS") != 0))
+  {
+    // Set format to 4:3
+    strcpy(CurrentFormat, "4:3");
+    SetConfigParam(PATH_PCONFIG, "format", CurrentFormat);
+
+    // Set Encoding to H264
+    strcpy(CurrentEncoding, "H264");
+    strcpy(coding, "H264");
+    SetConfigParam(PATH_PCONFIG, "encoding", CurrentEncoding);
+
+    // Read ModeInput from Config and set
+    if (strcmp(ModeInput, "JHDMI") == 0)
+    {
+      strcpy(vsource, "Screen");
+      strcpy(CurrentSource, TabSource[4]); // Desktop
+      SetConfigParam(PATH_PCONFIG, "modeinput", "DESKTOP");
+    }
+    if (strcmp(ModeInput, "JCAM") == 0)
+    {
+      strcpy(vsource, "RPi Camera");
+      strcpy(CurrentSource, TabSource[0]); // Pi Cam
+      SetConfigParam(PATH_PCONFIG, "modeinput", "DESKTOP");
+    } 
+    if (strcmp(ModeInput, "JPC") == 0)
+    {
+      strcpy(vsource, "Screen");
+      strcpy(CurrentSource, TabSource[4]); // Desktop
+      SetConfigParam(PATH_PCONFIG, "modeinput", "DESKTOP");
+    }
+    if (strcmp(ModeInput, "JWEBCAM") == 0)
+    {
+      strcpy(vsource, "Webcam");
+      strcpy(CurrentSource, TabSource[6]); // Webcam
+      SetConfigParam(PATH_PCONFIG, "modeinput", "WEBCAMH264");
+    }      
+    if (strcmp(ModeInput, "JCARD") == 0)
+    {
+      strcpy(vsource, "Static Test Card F");
+      strcpy(CurrentSource, TabSource[3]); // TestCard
+      SetConfigParam(PATH_PCONFIG, "modeinput", "CARDH264");
+    }      
+    if (strcmp(ModeInput, "JTCANIM") == 0)
+    {
+      strcpy(vsource, "Test Card");
+      strcpy(CurrentSource, TabSource[2]); // TCAnim
+      SetConfigParam(PATH_PCONFIG, "modeinput", "PATERNAUDIO");
+    }      
+  }
 
   if (strcmp(ModeInput, "CAMH264") == 0) 
   {
@@ -1498,6 +1556,48 @@ void ReadModeInput(char coding[256], char vsource[256])
     strcpy(coding, "notset");
     strcpy(vsource, "notset");
   }
+
+  // Override all of the above for Jetson modes
+  if ((strcmp(ModeOutput, "JLIME") == 0) || (strcmp(ModeOutput, "JEXPRESS") == 0))
+  {
+    // Read format from config and set
+    GetConfigParam(PATH_PCONFIG, "format", CurrentFormat);
+
+    // Read Encoding from Config and set
+    GetConfigParam(PATH_PCONFIG, "encoding", CurrentEncoding);
+
+    // Read ModeInput from Config and set
+    if (strcmp(ModeInput, "JHDMI") == 0)
+    {
+      strcpy(vsource, "Jetson HDMI");
+      strcpy(CurrentSource, "HDMI");
+    }      
+    if (strcmp(ModeInput, "JCAM") == 0)
+    {
+      strcpy(vsource, "Jetson Pi Camera");
+      strcpy(CurrentSource, "Pi Cam");
+    }      
+    if (strcmp(ModeInput, "JPC") == 0)
+    {
+      strcpy(vsource, "Jetson PC Input");
+      strcpy(CurrentSource, "PC");
+    }      
+    if (strcmp(ModeInput, "JWEBCAM") == 0)
+    {
+      strcpy(vsource, "Jetson Webcam");
+      strcpy(CurrentSource, "Webcam");
+    }      
+    if (strcmp(ModeInput, "JCARD") == 0)
+    {
+      strcpy(vsource, "Jetson Test Card");
+      strcpy(CurrentSource, "TestCard");
+    }      
+    if (strcmp(ModeInput, "JTCANIM") == 0)
+    {
+      strcpy(vsource, "Jetson Animated Test Card");
+      strcpy(CurrentSource, "PATERNAUDIO");
+    }      
+  }
 }
 
 /***************************************************************************//**
@@ -1564,15 +1664,15 @@ void ReadModeOutput(char Moutput[256])
   {
     strcpy(Moutput, "DigiThin Board");
   } 
-  else if (strcmp(ModeOutput, "EXPRESS2") == 0) 
+  else if (strcmp(ModeOutput, "JLIME") == 0) 
   {
-    strcpy(Moutput, "DATV Express DVB-S2");
-    strcpy(CurrentModeOPtext, TabModeOPtext[2]);
+    strcpy(Moutput, "Jetson with Lime");
+    strcpy(CurrentModeOPtext, TabModeOPtext[9]);
   } 
-  else if (strcmp(ModeOutput, "PLUTO") == 0) 
+  else if (strcmp(ModeOutput, "JEXPRESS") == 0) 
   {
-    strcpy(Moutput, "ADALM Pluto");
-    strcpy(CurrentModeOPtext, TabModeOPtext[2]);
+    strcpy(Moutput, "Jetson with DATV Express");
+    strcpy(CurrentModeOPtext, TabModeOPtext[10]);
   } 
   else
   {
@@ -4831,6 +4931,18 @@ void ApplyTXConfig()
   {
     strcpy(ModeInput, "CARRIER");
   }
+  else if ((strcmp(CurrentModeOP, "JLIME") == 0) || (strcmp(CurrentModeOP, "JEXPRESS") == 0))
+  {
+    if (strcmp(CurrentSource, "HDMI") ==0)
+    {
+      strcpy(ModeInput, "JHDMI");
+    }
+    if (strcmp(CurrentSource, "Pi Cam") ==0)
+    {
+      strcpy(ModeInput, "JCAM");
+    }
+
+  }
   else
   {
     if (strcmp(CurrentEncoding, "IPTS in") == 0)
@@ -5120,8 +5232,8 @@ void EnforceValidTXMode()
        && (strcmp(CurrentModeOP, "STREAMER") != 0)
        && (strcmp(CurrentModeOP, "COMPVID") != 0)
        && (strcmp(CurrentModeOP, "IP") != 0)
-       && (strcmp(CurrentModeOP, "EXPRESS2") != 0)
-       && (strcmp(CurrentModeOP, "PLUTO") != 0)) // not DVB-S2-capable
+       && (strcmp(CurrentModeOP, "JLIME") != 0)
+       && (strcmp(CurrentModeOP, "JEXPRESS") != 0)) // not DVB-S2-capable
   {
     if ((strcmp(CurrentTXMode, TabTXMode[0]) != 0) && (strcmp(CurrentTXMode, TabTXMode[1]) != 0))  // Not DVB-S and not Carrier
     {
@@ -5271,7 +5383,8 @@ void GreyOut1()
       if ((strcmp(CurrentAtten, "NONE") == 0) 
         && (strcmp(CurrentModeOP, "DATVEXPRESS") != 0) 
         && (strcmp(CurrentModeOP, TabModeOP[3]) != 0) 
-        && (strcmp(CurrentModeOP, TabModeOP[8]) != 0))
+        && (strcmp(CurrentModeOP, TabModeOP[8]) != 0) 
+        && (strcmp(CurrentModeOP, TabModeOP[9]) != 0))
       {
         SetButtonStatus(ButtonNumber(CurrentMenu, 14), 2); // Attenuator Level
       }
@@ -5298,8 +5411,8 @@ void GreyOut11()
    && (strcmp(CurrentModeOP, "STREAMER") != 0)
    && (strcmp(CurrentModeOP, "COMPVID") != 0)
    && (strcmp(CurrentModeOP, "IP") != 0)
-   && (strcmp(CurrentModeOP, "EXPRESS2") != 0)
-   && (strcmp(CurrentModeOP, "PLUTO") != 0)) // not DVB-S2-capable
+   && (strcmp(CurrentModeOP, "JLIME") != 0)
+   && (strcmp(CurrentModeOP, "JEXPRESS") != 0)) // not DVB-S2-capable
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 0), 2); // grey-out S2 QPSK
     SetButtonStatus(ButtonNumber(CurrentMenu, 1), 2); // grey-out 8PSK
@@ -5328,42 +5441,52 @@ void GreyOut11()
 
 void GreyOut15()
 {
-  if (strcmp(CurrentFormat, "1080p") == 0)
+  if ((strcmp(CurrentModeOP, "JLIME") == 0) || (strcmp(CurrentModeOP, "JEXPRESS") == 0)) // Jetson
   {
-    SetButtonStatus(ButtonNumber(CurrentMenu, 5), 2); // Pi Cam
-    SetButtonStatus(ButtonNumber(CurrentMenu, 6), 2); // CompVid
-    SetButtonStatus(ButtonNumber(CurrentMenu, 7), 2); // TCAnim
-    SetButtonStatus(ButtonNumber(CurrentMenu, 8), 2); // TestCard
-    SetButtonStatus(ButtonNumber(CurrentMenu, 9), 2); // PiScreen
     SetButtonStatus(ButtonNumber(CurrentMenu, 0), 2); // Contest
-    SetButtonStatus(ButtonNumber(CurrentMenu, 1), 2); // Webcam
+    SetButtonStatus(ButtonNumber(CurrentMenu, 3), 0); // HDMI
   }
   else
   {
-    SetButtonStatus(ButtonNumber(CurrentMenu, 5), 0); // Pi Cam
-    SetButtonStatus(ButtonNumber(CurrentMenu, 6), 0); // CompVid
-    SetButtonStatus(ButtonNumber(CurrentMenu, 7), 0); // TCAnim
-    SetButtonStatus(ButtonNumber(CurrentMenu, 8), 0); // TestCard
-    SetButtonStatus(ButtonNumber(CurrentMenu, 9), 0); // PiScreen
-    SetButtonStatus(ButtonNumber(CurrentMenu, 0), 0); // Contest
-    SetButtonStatus(ButtonNumber(CurrentMenu, 1), 0); // Webcam
+    SetButtonStatus(ButtonNumber(CurrentMenu, 3), 2); // HDMI
 
-    if (strcmp(CurrentEncoding, "H264") == 0)
+    if (strcmp(CurrentFormat, "1080p") == 0)
     {
-      SetButtonStatus(ButtonNumber(CurrentMenu, 7), 0); // TCAnim
-      SetButtonStatus(ButtonNumber(CurrentMenu, 9), 0); // PiScreen
-      SetButtonStatus(ButtonNumber(CurrentMenu, 6), 0); // CompVid
-    }
-    else //MPEG-2
-    {
-
+      SetButtonStatus(ButtonNumber(CurrentMenu, 5), 2); // Pi Cam
+      SetButtonStatus(ButtonNumber(CurrentMenu, 6), 2); // CompVid
       SetButtonStatus(ButtonNumber(CurrentMenu, 7), 2); // TCAnim
+      SetButtonStatus(ButtonNumber(CurrentMenu, 8), 2); // TestCard
       SetButtonStatus(ButtonNumber(CurrentMenu, 9), 2); // PiScreen
+      SetButtonStatus(ButtonNumber(CurrentMenu, 0), 2); // Contest
+      SetButtonStatus(ButtonNumber(CurrentMenu, 1), 2); // Webcam
+    }
+    else
+    {
+      SetButtonStatus(ButtonNumber(CurrentMenu, 5), 0); // Pi Cam
       SetButtonStatus(ButtonNumber(CurrentMenu, 6), 0); // CompVid
+      SetButtonStatus(ButtonNumber(CurrentMenu, 7), 0); // TCAnim
+      SetButtonStatus(ButtonNumber(CurrentMenu, 8), 0); // TestCard
+      SetButtonStatus(ButtonNumber(CurrentMenu, 9), 0); // PiScreen
+      SetButtonStatus(ButtonNumber(CurrentMenu, 0), 0); // Contest
+      SetButtonStatus(ButtonNumber(CurrentMenu, 1), 0); // Webcam
 
-      if (strcmp(CurrentFormat, "720p") == 0)
+      if (strcmp(CurrentEncoding, "H264") == 0)
       {
-        SetButtonStatus(ButtonNumber(CurrentMenu, 6), 2); // CompVid
+        SetButtonStatus(ButtonNumber(CurrentMenu, 7), 0); // TCAnim
+        SetButtonStatus(ButtonNumber(CurrentMenu, 9), 0); // PiScreen
+        SetButtonStatus(ButtonNumber(CurrentMenu, 6), 0); // CompVid
+      }
+      else //MPEG-2
+      {
+
+        SetButtonStatus(ButtonNumber(CurrentMenu, 7), 2); // TCAnim
+        SetButtonStatus(ButtonNumber(CurrentMenu, 9), 2); // PiScreen
+        SetButtonStatus(ButtonNumber(CurrentMenu, 6), 0); // CompVid
+
+        if (strcmp(CurrentFormat, "720p") == 0)
+        {
+          SetButtonStatus(ButtonNumber(CurrentMenu, 6), 2); // CompVid
+        }
       }
     }
   }
@@ -5425,15 +5548,6 @@ void GreyOut42()
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 8), 2); // Lime USB
   }
-  //if (CheckExpressConnect() == 1)   // DATV Express not connected so GreyOut
-  {
-    SetButtonStatus(ButtonNumber(CurrentMenu, 12), 2); // DATV Express
-  }
-  //if (CheckLimeMiniConnect() == 1)  // Pluto not connected so GreyOut
-  {
-    SetButtonStatus(ButtonNumber(CurrentMenu, 13), 2); // Lime Mini
-  }
-
 }
 
 void SelectInGroup(int StartButton,int StopButton,int NoButton,int Status)
@@ -5523,6 +5637,9 @@ void SelectEncoding(int NoButton)  // Encoding
 {
   SelectInGroupOnMenu(CurrentMenu, 5, 9, NoButton, 1);
   strcpy(CurrentEncoding, TabEncoding[NoButton - 5]);
+  char Param[15]="encoding";
+  SetConfigParam(PATH_PCONFIG, Param, CurrentEncoding);
+
   ApplyTXConfig();
 }
 
@@ -5535,8 +5652,12 @@ void SelectOP(int NoButton)      // Output device
     system("sudo rm /tmp/expctrl >/dev/null 2>/dev/null");
   }
 
-  SelectInGroupOnMenu(CurrentMenu, 5, 9, NoButton, 1);
+  SelectInGroupOnMenu(CurrentMenu, 5, 10, NoButton, 1);
   SelectInGroupOnMenu(CurrentMenu, 0, 3, NoButton, 1);
+  if (NoButton > 9 ) // allow for stupid numbering of rows
+  {
+    NoButton = NoButton + 4;
+  }
   if (NoButton < 4) // allow for reverse numbering of rows
   {
     NoButton = NoButton + 10;
@@ -5566,13 +5687,14 @@ void SelectFormat(int NoButton)  // Video Format
 {
   SelectInGroupOnMenu(CurrentMenu, 5, 8, NoButton, 1);
   strcpy(CurrentFormat, TabFormat[NoButton - 5]);
+  SetConfigParam(PATH_PCONFIG, "format", CurrentFormat);
   ApplyTXConfig();
 }
 
 void SelectSource(int NoButton)  // Video Source
 {
   SelectInGroupOnMenu(CurrentMenu, 5, 9, NoButton, 1);
-  SelectInGroupOnMenu(CurrentMenu, 0, 2, NoButton, 1);
+  SelectInGroupOnMenu(CurrentMenu, 0, 3, NoButton, 1);
   if (NoButton < 4) // allow for reverse numbering of rows
   {
     NoButton = NoButton + 10;
@@ -6112,7 +6234,8 @@ void SetAttenLevel()
     strcpy(Param, "explevel");
     SetConfigParam(PATH_PCONFIG, Param, KeyboardReturn);
   }
-  else if ((strcmp(CurrentModeOP, TabModeOP[3]) == 0) || (strcmp(CurrentModeOP, TabModeOP[8]) == 0))  // Lime Mini or USB
+  else if ((strcmp(CurrentModeOP, TabModeOP[3]) == 0) || (strcmp(CurrentModeOP, TabModeOP[8]) == 0)
+        || (strcmp(CurrentModeOP, TabModeOP[9]) == 0))  // Lime Mini or USB or JLIME
   {
     while ((LimeGain < 0) || (LimeGain > 100))
     {
@@ -6735,10 +6858,19 @@ void TransmitStart()
     ||(strcmp(ModeInput,"WEBCAMHDMPEG-2") == 0)
     ||(strcmp(ModeInput,"C920H264") == 0)
     ||(strcmp(ModeInput,"C920HDH264") == 0)
-    ||(strcmp(ModeInput,"C920FHDH264") == 0))
+    ||(strcmp(ModeInput,"C920FHDH264") == 0)
+    ||(strcmp(ModeInput,"JHDMI") == 0)
+    ||(strcmp(ModeInput,"JCAM") == 0)
+    ||(strcmp(ModeInput,"JPC") == 0)
+    ||(strcmp(ModeInput,"JWEBCAM") == 0)
+    ||(strcmp(ModeInput,"JCARD") == 0)
+    ||(strcmp(ModeInput,"JTCANIM") == 0))
   {
      strcpy(ScreenState, "TXwithMenu");
   }
+
+  // Run the Extrascript for TX start
+  system("/home/pi/rpidatv/scripts/TXstartextras.sh &");
 
   // Call a.sh to transmit
   system(PATH_SCRIPT_A);
@@ -6764,6 +6896,9 @@ void TransmitStop()
 
   // Turn the VCO off
   system("sudo /home/pi/rpidatv/bin/adf4351 off");
+
+  // Run the Extra script for TX stop
+  system("/home/pi/rpidatv/scripts/TXstopextras.sh &");
 
   // Check for C910, C525, C310 or C270 webcam
   WebcamPresent = DetectLogitechWebcam();
@@ -7904,7 +8039,7 @@ void YesNo(int i)  // i == 6 Yes, i == 8 No
     break;
 
 
-  case 4313:         // Change PWM Mode (Choos popping or TX after audio use)
+  case 4313:         // Change PWM Mode (Choose popping or TX after audio use)
     switch (i)
     {
     case 6:     // Yes
@@ -9976,6 +10111,7 @@ void waituntil(int w,int h)
         {
         case 0:                               // Shutdown
           MsgBox4("", "Shutting down now", "", "");
+          system("/home/pi/rpidatv/scripts/s_jetson.sh &");  // Shutdown the Jetson
           system("sudo killall express_server >/dev/null 2>/dev/null");
           system("sudo rm /tmp/expctrl >/dev/null 2>/dev/null");
           sync();            // Prevents shutdown hang in Stretch
@@ -10674,6 +10810,36 @@ void waituntil(int w,int h)
         printf("Button Event %d, Entering Menu 7 Case Statement\n",i);
         switch (i)
         {
+        case 0:
+          SelectInGroupOnMenu(CurrentMenu, 0, 4, 0, 1);
+          system("/home/pi/rpidatv/scripts/user_button1.sh &");
+          UpdateWindow();
+          usleep(500000);
+          break;
+        case 1:
+          SelectInGroupOnMenu(CurrentMenu, 0, 4, 1, 1);
+          system("/home/pi/rpidatv/scripts/user_button2.sh &");
+          UpdateWindow();
+          usleep(500000);
+          break;
+        case 2:
+          SelectInGroupOnMenu(CurrentMenu, 0, 4, 2, 1);
+          system("/home/pi/rpidatv/scripts/user_button3.sh &");
+          UpdateWindow();
+          usleep(500000);
+          break;
+        case 3:
+          SelectInGroupOnMenu(CurrentMenu, 0, 4, 3, 1);
+          system("/home/pi/rpidatv/scripts/user_button4.sh &");
+          UpdateWindow();
+          usleep(500000);
+          break;
+        case 4:
+          SelectInGroupOnMenu(CurrentMenu, 0, 4, 4, 1);
+          system("/home/pi/rpidatv/scripts/user_button5.sh &");
+          UpdateWindow();
+          usleep(500000);
+          break;
         case 15:                               // Start XY display and Exit
           cleanexit(134);
           break;
@@ -10682,11 +10848,12 @@ void waituntil(int w,int h)
           CurrentMenu=1;
           BackgroundRGB(255,255,255,255);
           Start_Highlights_Menu1();
-          UpdateWindow();
           break;
         default:
           printf("Menu 7 Error\n");
         }
+        SelectInGroupOnMenu(CurrentMenu, 0, 4, 21, 1);
+        UpdateWindow();
         continue;   // Completed Menu 7 action, go and wait for touch
       }
 
@@ -10746,6 +10913,7 @@ void waituntil(int w,int h)
         UpdateWindow();
         continue;   // Completed Menu 11 action, go and wait for touch
       }
+
       if (CurrentMenu == 12)  // Menu 12 Encoding
       {
         printf("Button Event %d, Entering Menu 12 Case Statement\n",i);
@@ -10764,7 +10932,7 @@ void waituntil(int w,int h)
           printf("H264\n");
           break;
         case 7:                               // H265
-          //SelectEncoding(i);
+          SelectEncoding(i);
           printf("H265\n");
           break;
         case 8:                               // IPTS in
@@ -10788,50 +10956,15 @@ void waituntil(int w,int h)
         UpdateWindow();
         continue;   // Completed Menu 12 action, go and wait for touch
       }
-      if (CurrentMenu == 13)  // Menu 13 Output Device
+
+      if (CurrentMenu == 13)  // Menu 13 Not used, was Output Device
       {
         printf("Button Event %d, Entering Menu 13 Case Statement\n",i);
         switch (i)
         {
         case 4:                               // Cancel
           SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 1);
-          printf("Encoding Cancel\n");
-          break;
-        case 5:                               // IQ
-          SelectOP(i);
-          printf("IQ\n");
-          break;
-        case 6:                               // QPSKRF
-          SelectOP(i);
-          printf("QPSKRF\n");
-          break;
-        case 7:                               // EXPRESS
-          SelectOP(i);
-          printf("EXPRESS\n");
-          break;
-        case 8:                               // Lime USB
-          SelectOP(i);
-          printf("LIME USB\n");
-          break;
-        case 9:                               // STREAMER
-          SelectOP(i);
-          printf("STREAMER\n");
-          break;
-        case 0:                               // COMPVID
-          SelectOP(i);
-          printf("COMPVID\n");
-          break;
-        case 1:                               // DTX-1
-          SelectOP(i);
-          printf("DTX-1\n");
-          break;
-        case 2:                               // IPTS
-          SelectOP(i);
-          printf("IPTS\n");
-          break;
-        case 3:                               // LIME Mini
-          SelectOP(i);
-          printf("LIME Mini\n");
+          printf("Menu 13 Cancel\n");
           break;
         default:
           printf("Menu 13 Error\n");
@@ -10847,6 +10980,7 @@ void waituntil(int w,int h)
         UpdateWindow();
         continue;   // Completed Menu 13 action, go and wait for touch
       }
+
       if (CurrentMenu == 14)  // Menu 14 Video Format
       {
         printf("Button Event %d, Entering Menu 14 Case Statement\n",i);
@@ -10885,6 +11019,7 @@ void waituntil(int w,int h)
         UpdateWindow();
         continue;   // Completed Menu 14 action, go and wait for touch
       }
+
       if (CurrentMenu == 15)  // Menu 15 Video Source
       {
         printf("Button Event %d, Entering Menu 15 Case Statement\n",i);
@@ -10926,6 +11061,10 @@ void waituntil(int w,int h)
           SelectSource(i);
           printf("C920\n");
           break;
+        case 3:                               // HDMI
+          SelectSource(i);
+          printf("HDMI\n");
+          break;
         default:
           printf("Menu 15 Error\n");
         }
@@ -10939,6 +11078,7 @@ void waituntil(int w,int h)
         UpdateWindow();
         continue;   // Completed Menu 15 action, go and wait for touch
       }
+
       if (CurrentMenu == 16)  // Menu 16 Frequency
       {
         printf("Button Event %d, Entering Menu 16 Case Statement\n",i);
@@ -10990,6 +11130,7 @@ void waituntil(int w,int h)
         UpdateWindow();
         continue;   // Completed Menu 16 action, go and wait for touch
       }
+
       if (CurrentMenu == 17)  // Menu 17 Symbol Rate
       {
         printf("Button Event %d, Entering Menu 17 Case Statement\n",i);
@@ -11058,6 +11199,7 @@ void waituntil(int w,int h)
         UpdateWindow();
         continue;   // Completed Menu 17 action, go and wait for touch
       }
+
       if (CurrentMenu == 18)  // Menu 18 FEC
       {
         printf("Button Event %d, Entering Menu 18 Case Statement\n",i);
@@ -11978,6 +12120,10 @@ void waituntil(int w,int h)
           SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 1);
           printf("Encoding Cancel\n");
           break;
+        case 10:                              // Jetson Lime
+          SelectOP(i);
+          printf("Jetson Lime\n");
+          break;
         case 5:                               // IQ
           SelectOP(i);
           printf("IQ\n");
@@ -12616,7 +12762,9 @@ void Start_Highlights_Menu1()
   {
     snprintf(Leveltext, 20, "Exp Level^%d", TabBandExpLevel[CurrentBand]);
   }
-  else if ((strcmp(CurrentModeOP, TabModeOP[3]) == 0) || (strcmp(CurrentModeOP, TabModeOP[8]) == 0))  // Lime
+  else if ((strcmp(CurrentModeOP, TabModeOP[3]) == 0)
+        || (strcmp(CurrentModeOP, TabModeOP[8]) == 0)
+        || (strcmp(CurrentModeOP, TabModeOP[9]) == 0))  // Lime
   {
     snprintf(Leveltext, 20, "Lime Gain^%d", TabBandLimeGain[CurrentBand]);
   }
@@ -12654,6 +12802,10 @@ void Start_Highlights_Menu1()
   if (strcmp(CurrentModeOPtext, "BATC^Stream") == 0)
   {
     strcpy(Outputtext, "Output to^BATC");
+  }
+  else if (strcmp(CurrentModeOPtext, "Jetson^Lime") == 0)
+  {
+    strcpy(Outputtext, "Output to^Jtsn Lime");
   }
   else
   {
@@ -13468,51 +13620,37 @@ void Define_Menu7()
 
   strcpy(MenuTitle[7], "Menu 7 Extra Utilities");
 
-  // Bottom Line Menu 7: Check for Update
+  // Bottom Line Menu 7: User Buttons
 
-//  button = CreateButton(7, 0);
-//  AddButtonStatus(button, "Check for^Update", &Blue);
-//  AddButtonStatus(button, "Checking^for Update", &Green);
+  button = CreateButton(7, 0);
+  AddButtonStatus(button, "Button 1", &Blue);
+  AddButtonStatus(button, "Button 1", &Green);
+
+  button = CreateButton(7, 1);
+  AddButtonStatus(button, "Button 2", &Blue);
+  AddButtonStatus(button, "Button 2", &Green);
+
+  button = CreateButton(7, 2);
+  AddButtonStatus(button, "Button 3", &Blue);
+  AddButtonStatus(button, "Button 3", &Green);
+
+  button = CreateButton(7, 3);
+  AddButtonStatus(button, "Button 4", &Blue);
+  AddButtonStatus(button, "Button 4", &Green);
+
+  button = CreateButton(7, 4);
+  AddButtonStatus(button, "Button 5", &Blue);
+  AddButtonStatus(button, "Button 5", &Green);
 
   // 2nd line up Menu 7: Lime Config 
 
-//  button = CreateButton(7, 5);
-//  AddButtonStatus(button, "Lime^Config", &Blue);
+  // 3rd line up Menu 7: 
 
-  // 3rd line up Menu 7: Amend Sites/Beacons, Set Receive LOs and set Stream Outputs 
-
-//  button = CreateButton(7, 10);
-//  AddButtonStatus(button, "Amend^Sites/Bcns", &Blue);
-
-//  button = CreateButton(7, 11);
-//  AddButtonStatus(button, "Set RX^LOs", &Blue);
-//  AddButtonStatus(button, "Set RX^LOs", &Green);
-
-//  button = CreateButton(7, 12);
-//  AddButtonStatus(button, "Set Stream^Outputs", &Blue);
-//  AddButtonStatus(button, "Set Stream^Outputs", &Green);
-
-  // 4th line up Menu 7: Band Details, Preset Freqs, Preset SRs, Call and ADFRef
+  // 4th line up Menu 7: XY Display
 
   button = CreateButton(7, 15);
   AddButtonStatus(button, "XY^Display", &Blue);
   AddButtonStatus(button, "XY^Display", &Green);
-
-//  button = CreateButton(7, 16);
-//  AddButtonStatus(button, "Set Preset^Freqs", &Blue);
-//  AddButtonStatus(button, "Set Preset^Freqs", &Green);
-
-//  button = CreateButton(7, 17);
-//  AddButtonStatus(button, "Set Preset^SRs", &Blue);
-//  AddButtonStatus(button, "Set Preset^SRs", &Green);
-
-//  button = CreateButton(7, 18);
-//  AddButtonStatus(button, "Set Call,^Loc & PIDs", &Blue);
-//  AddButtonStatus(button, "Set Call,^Loc & PIDs", &Green);
-
-//  button = CreateButton(7, 19);
-//  AddButtonStatus(button, "Set ADF^Ref Freq", &Blue);
-//  AddButtonStatus(button, "Set ADF^Ref Freq", &Green);
 
   // Top of Menu 7
 
@@ -13684,9 +13822,9 @@ void Define_Menu12()
   AddButtonStatus(button, TabEncoding[1], &Blue);
   AddButtonStatus(button, TabEncoding[1], &Green);
 
-  //button = CreateButton(12, 7);
-  //AddButtonStatus(button, TabEncoding[2], &Blue);
-  //AddButtonStatus(button, TabEncoding[2], &Green);
+  button = CreateButton(12, 7);
+  AddButtonStatus(button, TabEncoding[2], &Blue);
+  AddButtonStatus(button, TabEncoding[2], &Green);
 
   button = CreateButton(12, 8);
   AddButtonStatus(button, TabEncoding[3], &Blue);
@@ -13711,10 +13849,10 @@ void Start_Highlights_Menu12()
   {
     SelectInGroupOnMenu(12, 5, 9, 6, 1);
   }
-  //if(strcmp(CurrentEncoding, TabEncoding[2]) == 0)
-  //{
-  //  SelectInGroupOnMenu(12, 5, 9, 7, 1);
-  //}
+  if(strcmp(CurrentEncoding, TabEncoding[2]) == 0)
+  {
+    SelectInGroupOnMenu(12, 5, 9, 7, 1);
+  }
   if(strcmp(CurrentEncoding, TabEncoding[3]) == 0)
   {
     SelectInGroupOnMenu(12, 5, 9, 8, 1);
@@ -13851,6 +13989,11 @@ void Define_Menu15()
   AddButtonStatus(button, TabSource[7], &Green);
   AddButtonStatus(button, TabSource[7], &Grey);
 
+  button = CreateButton(15, 3);
+  AddButtonStatus(button, TabSource[8], &Blue);
+  AddButtonStatus(button, TabSource[8], &Green);
+  AddButtonStatus(button, TabSource[8], &Grey);
+
   button = CreateButton(15, 4);
   AddButtonStatus(button, "Cancel", &DBlue);
   AddButtonStatus(button, "Cancel", &LBlue);
@@ -13895,42 +14038,47 @@ void Start_Highlights_Menu15()
   if(strcmp(CurrentSource, TabSource[0]) == 0)
   {
     SelectInGroupOnMenu(15, 5, 9, 5, 1);
-    SelectInGroupOnMenu(15, 0, 2, 5, 1);
+    SelectInGroupOnMenu(15, 0, 3, 5, 1);
   }
   if(strcmp(CurrentSource, TabSource[1]) == 0)
   {
     SelectInGroupOnMenu(15, 5, 9, 6, 1);
-    SelectInGroupOnMenu(15, 0, 2, 6, 1);
+    SelectInGroupOnMenu(15, 0, 3, 6, 1);
   }
   if(strcmp(CurrentSource, TabSource[2]) == 0)
   {
     SelectInGroupOnMenu(15, 5, 9, 7, 1);
-    SelectInGroupOnMenu(15, 0, 2, 7, 1);
+    SelectInGroupOnMenu(15, 0, 3, 7, 1);
   }
   if(strcmp(CurrentSource, TabSource[3]) == 0)
   {
     SelectInGroupOnMenu(15, 5, 9, 8, 1);
-    SelectInGroupOnMenu(15, 0, 2, 8, 1);
+    SelectInGroupOnMenu(15, 0, 3, 8, 1);
   }
   if(strcmp(CurrentSource, TabSource[4]) == 0)
   {
     SelectInGroupOnMenu(15, 5, 9, 9, 1);
-    SelectInGroupOnMenu(15, 0, 2, 9, 1);
+    SelectInGroupOnMenu(15, 0, 3, 9, 1);
   }
   if(strcmp(CurrentSource, TabSource[5]) == 0)
   {
     SelectInGroupOnMenu(15, 5, 9, 0, 1);
-    SelectInGroupOnMenu(15, 0, 2, 0, 1);
+    SelectInGroupOnMenu(15, 0, 3, 0, 1);
   }
   if(strcmp(CurrentSource, TabSource[6]) == 0)
   {
     SelectInGroupOnMenu(15, 5, 9, 1, 1);
-    SelectInGroupOnMenu(15, 0, 2, 1, 1);
+    SelectInGroupOnMenu(15, 0, 3, 1, 1);
   }
   if(strcmp(CurrentSource, TabSource[7]) == 0)
   {
     SelectInGroupOnMenu(15, 5, 9, 2, 1);
-    SelectInGroupOnMenu(15, 0, 2, 2, 1);
+    SelectInGroupOnMenu(15, 0, 3, 2, 1);
+  }
+  if(strcmp(CurrentSource, TabSource[8]) == 0)
+  {
+    SelectInGroupOnMenu(15, 5, 9, 3, 1);
+    SelectInGroupOnMenu(15, 0, 3, 3, 1);
   }
 }
 
@@ -15877,64 +16025,64 @@ void Define_Menu42()
 
   // 3rd Row, Menu 42
 
-  button = CreateButton(42, 12);
-  AddButtonStatus(button, TabModeOPtext[11], &Blue);
-  AddButtonStatus(button, TabModeOPtext[11], &Green);
-  AddButtonStatus(button, TabModeOPtext[11], &Grey);
-
-  button = CreateButton(42, 13);
-  AddButtonStatus(button, TabModeOPtext[12], &Blue);
-  AddButtonStatus(button, TabModeOPtext[12], &Green);
-  AddButtonStatus(button, TabModeOPtext[12], &Grey);
+  button = CreateButton(42, 10);
+  AddButtonStatus(button, TabModeOPtext[9], &Blue);
+  AddButtonStatus(button, TabModeOPtext[9], &Green);
+  AddButtonStatus(button, TabModeOPtext[9], &Grey);
 }
 
 void Start_Highlights_Menu42()
 {
   GreyOutReset42();
-  if(strcmp(CurrentModeOP, TabModeOP[0]) == 0)
+  if(strcmp(CurrentModeOP, TabModeOP[0]) == 0) // IQ
   {
-    SelectInGroupOnMenu(42, 5, 9, 5, 1);
-    SelectInGroupOnMenu(42, 0, 2, 5, 1);
+    SelectInGroupOnMenu(42, 5, 10, 5, 1);
+    SelectInGroupOnMenu(42, 0, 3, 5, 1);
   }
-  if(strcmp(CurrentModeOP, TabModeOP[1]) == 0)
+  if(strcmp(CurrentModeOP, TabModeOP[1]) == 0)  //QPSKRF
   {
-    SelectInGroupOnMenu(42, 5, 9, 6, 1);
-    SelectInGroupOnMenu(42, 0, 2, 6, 1);
+    SelectInGroupOnMenu(42, 5, 10, 6, 1);
+    SelectInGroupOnMenu(42, 0, 3, 6, 1);
   }
-  if(strcmp(CurrentModeOP, TabModeOP[2]) == 0)
+  if(strcmp(CurrentModeOP, TabModeOP[2]) == 0)  //DATVEXPRESS
   {
-    SelectInGroupOnMenu(42, 5, 9, 7, 1);
-    SelectInGroupOnMenu(42, 0, 2, 7, 1);
+    SelectInGroupOnMenu(42, 5, 10, 7, 1);
+    SelectInGroupOnMenu(42, 0, 3, 7, 1);
   }
-  if(strcmp(CurrentModeOP, TabModeOP[3]) == 0)
+  if(strcmp(CurrentModeOP, TabModeOP[3]) == 0)  // LIMEUSB
   {
-    SelectInGroupOnMenu(42, 5, 9, 8, 1);
-    SelectInGroupOnMenu(42, 0, 2, 8, 1);
+    SelectInGroupOnMenu(42, 5, 10, 8, 1);
+    SelectInGroupOnMenu(42, 0, 3, 8, 1);
   }
-  if(strcmp(CurrentModeOP, TabModeOP[4]) == 0)
+  if(strcmp(CurrentModeOP, TabModeOP[4]) == 0)  // STREAMER
   {
-    SelectInGroupOnMenu(42, 5, 9, 9, 1);
-    SelectInGroupOnMenu(42, 0, 2, 9, 1);
+    SelectInGroupOnMenu(42, 5, 10, 9, 1);
+    SelectInGroupOnMenu(42, 0, 3, 9, 1);
   }
-  if(strcmp(CurrentModeOP, TabModeOP[5]) == 0)
+  if(strcmp(CurrentModeOP, TabModeOP[5]) == 0)  // COMPVID
   {
-    SelectInGroupOnMenu(42, 5, 9, 0, 1);
-    SelectInGroupOnMenu(42, 0, 2, 0, 1);
+    SelectInGroupOnMenu(42, 5, 10, 0, 1);
+    SelectInGroupOnMenu(42, 0, 3, 0, 1);
   }
-  if(strcmp(CurrentModeOP, TabModeOP[6]) == 0)
+  if(strcmp(CurrentModeOP, TabModeOP[6]) == 0)  // DTX1
   {
-    SelectInGroupOnMenu(42, 5, 9, 1, 1);
-    SelectInGroupOnMenu(42, 0, 2, 1, 1);
+    SelectInGroupOnMenu(42, 5, 10, 1, 1);
+    SelectInGroupOnMenu(42, 0, 3, 1, 1);
   }
-  if(strcmp(CurrentModeOP, TabModeOP[7]) == 0)
+  if(strcmp(CurrentModeOP, TabModeOP[7]) == 0)  // IP
   {
-    SelectInGroupOnMenu(42, 5, 9, 2, 1);
-    SelectInGroupOnMenu(42, 0, 2, 2, 1);
+    SelectInGroupOnMenu(42, 5, 10, 2, 1);
+    SelectInGroupOnMenu(42, 0, 3, 2, 1);
   }
-  if(strcmp(CurrentModeOP, TabModeOP[8]) == 0)
+  if(strcmp(CurrentModeOP, TabModeOP[8]) == 0)  // LIMEMINI
   {
-    SelectInGroupOnMenu(42, 5, 9, 2, 1);
+    SelectInGroupOnMenu(42, 5, 10, 3, 1);
     SelectInGroupOnMenu(42, 0, 3, 3, 1);
+  }
+  if(strcmp(CurrentModeOP, TabModeOP[9]) == 0)  //JLIME
+  {
+    SelectInGroupOnMenu(42, 5, 10, 10, 1);
+    SelectInGroupOnMenu(42, 0, 3, 10, 1);
   }
   GreyOut42();
 }

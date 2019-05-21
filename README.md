@@ -61,3 +61,11 @@ wget https://raw.githubusercontent.com/davecrump/portsdown/master/install.sh
 chmod +x install.sh
 ./install.sh -d
 ```
+
+To load a version from your own GitHub repo (github.com/your_account/portsdown), cut, paste and amend the following lines:
+```sh
+wget https://raw.githubusercontent.com/your_account/portsdown/master/install.sh
+chmod +x install.sh
+./install.sh -u your_account
+```
+

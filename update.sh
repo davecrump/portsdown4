@@ -38,6 +38,32 @@ reset
 
 printf "\nCommencing update.\n\n"
 
+## Check which update to load. From M0DNY 201905090
+GIT_SRC_FILE=".portsdown_gitsrc"
+if [ -e ${GIT_SRC_FILE} ]; then
+  GIT_SRC=$(</home/pi/${GIT_SRC_FILE})
+else
+  GIT_SRC="BritishAmateurTelevisionClub"
+fi
+
+## If previous version was Dev (davecrump), load production by default
+if [ "$GIT_SRC" == "davecrump" ]; then
+  GIT_SRC="BritishAmateurTelevisionClub"
+fi
+
+if [ "$1" == "-d" ]; then
+  echo "Overriding to update to latest development version"
+  GIT_SRC="davecrump"
+fi
+
+if [ "$GIT_SRC" == "BritishAmateurTelevisionClub" ]; then
+  echo "Updating to latest Production Portsdown build";
+elif [ "$GIT_SRC" == "davecrump" ]; then
+  echo "Updating to latest development Portsdown build";
+else
+  echo "Updating to latest ${GIT_SRC} development Portsdown build";
+fi
+
 printf "Pausing Streamer or TX if running.\n\n"
 killall keyedstream >/dev/null 2>/dev/null
 sudo killall ffmpeg >/dev/null 2>/dev/null
@@ -72,6 +98,9 @@ cp -f -r /home/pi/rpidatv/scripts/rx_presets.txt /home/pi/rx_presets.txt
 # Make a safe copy of the Stream Presets if required
 cp -f -r /home/pi/rpidatv/scripts/stream_presets.txt /home/pi/stream_presets.txt
 
+# Make a safe copy of the Jetson config if required
+cp -f -r /home/pi/rpidatv/scripts/jetson_config.txt /home/pi/jetson_config.txt
+
 # Delete any old update message image  201802040
 rm /home/pi/tmp/update.jpg >/dev/null 2>/dev/null
 
@@ -94,6 +123,9 @@ sudo apt-get -y dist-upgrade # Upgrade all the installed packages to their lates
 # --------- Install the Random Number Generator ------
 
 sudo apt-get -y install rng-tools # This makes sure that there is enough entropy for wget
+
+# --------- Install sshpass ------
+sudo apt-get -y install sshpass  # For controlling the Jetson Nano
 
 # Enable USB Storage automount in Stretch (only) 20180704
 cd /lib/systemd/system/
@@ -159,17 +191,20 @@ DisplayUpdateMsg "Step 5 of 10\nDownloading Portsdown SW\n\nXXXXX-----"
 
 cd /home/pi
 
+# Download selected source of rpidatv
+wget https://github.com/${GIT_SRC}/portsdown/archive/master.zip -O master.zip
+
 # Check which source to download.  Default is production
 # option -p or null is the production load
 # option -d is development from davecrump
 
-if [ "$1" == "-d" ]; then
-  echo "Installing development load"
-  wget https://github.com/davecrump/portsdown/archive/master.zip -O master.zip
-else
-  echo "Installing BATC Production load"
-  wget https://github.com/BritishAmateurTelevisionClub/portsdown/archive/master.zip -O master.zip
-fi
+#if [ "$1" == "-d" ]; then
+#  echo "Installing development load"
+#  wget https://github.com/davecrump/portsdown/archive/master.zip -O master.zip
+#else
+#  echo "Installing BATC Production load"
+#  wget https://github.com/BritishAmateurTelevisionClub/portsdown/archive/master.zip -O master.zip
+#fi
 
 # Unzip and overwrite where we need to
 unzip -o master.zip
@@ -192,15 +227,18 @@ else
   echo "avc2ts dependencies required and will be installed after avc2ts"
 fi
 
+# Download selected source of rpidatv
+wget https://github.com/${GIT_SRC}/avc2ts/archive/master.zip
+
 # Check which avc2ts to download.  Default is production
 # option d is development from davecrump
-if [ "$1" == "-d" ]; then
-  echo "Installing development avc2ts"
-  wget https://github.com/davecrump/avc2ts/archive/master.zip
-else
-  echo "Installing BATC Production avc2ts"
-  wget https://github.com/BritishAmateurTelevisionClub/avc2ts/archive/master.zip
-fi
+#if [ "$1" == "-d" ]; then
+#  echo "Installing development avc2ts"
+#  wget https://github.com/davecrump/avc2ts/archive/master.zip
+#else
+#  echo "Installing BATC Production avc2ts"
+#  wget https://github.com/BritishAmateurTelevisionClub/avc2ts/archive/master.zip
+#fi
 
 # Unzip the avc2ts software
 unzip -o master.zip
@@ -376,15 +414,17 @@ if ! grep -q modulation /home/pi/rpidatv/scripts/portsdown_config.txt; then
   echo "" >> /home/pi/rpidatv/scripts/portsdown_config.txt
 fi
 
-# Update config file with pilots and frames              201905090
+# Update config file with pilots, frames format and encoding          201905090
 if ! grep -q frames /home/pi/rpidatv/scripts/portsdown_config.txt; then
   # File needs updating
   printf "Adding pilots and frames to user's portsdown_config.txt\n"
   # Delete any blank lines
   sed -i -e '/^$/d' /home/pi/rpidatv/scripts/portsdown_config.txt
-  # Add the 2 new entries and a new line 
+  # Add the 4 new entries and a new line 
   echo "pilots=off" >> /home/pi/rpidatv/scripts/portsdown_config.txt
   echo "frames=long" >> /home/pi/rpidatv/scripts/portsdown_config.txt
+  echo "format=4:3" >> /home/pi/rpidatv/scripts/portsdown_config.txt
+  echo "encoding=H264" >> /home/pi/rpidatv/scripts/portsdown_config.txt
   echo "" >> /home/pi/rpidatv/scripts/portsdown_config.txt
 fi
 
@@ -567,6 +607,11 @@ if grep -q "startup=Cont_Stream_boot" /home/pi/rpidatv/scripts/portsdown_config.
   sudo crontab /home/pi/rpidatv/scripts/configs/rptrcron
 fi
 
+# Restore the user's original Jetson configuration if required
+if [ -f "/home/pi/jetson_config.txt" ]; then
+  cp -f -r /home/pi/jetson_config.txt /home/pi/rpidatv/scripts/jetson_config.txt
+fi
+
 # If user is upgrading a keyed streamer, add the cron job for 12-hourly reboot
 if grep -q "startup=Keyed_Stream_boot" /home/pi/rpidatv/scripts/portsdown_config.txt; then
   sudo crontab /home/pi/rpidatv/scripts/configs/rptrcron
@@ -594,6 +639,9 @@ rm -rf /home/pi/rpidatv/scripts/installed_version.txt
 cp /home/pi/rpidatv/scripts/latest_version.txt /home/pi/rpidatv/scripts/installed_version.txt
 cp -f -r /home/pi/prev_installed_version.txt /home/pi/rpidatv/scripts/prev_installed_version.txt
 rm -rf /home/pi/prev_installed_version.txt
+
+# Save (overwrite) the git source used
+echo "${GIT_SRC}" >> /home/pi/${GIT_SRC_FILE}
 
 # Reboot
 DisplayRebootMsg "Step 10 of 10\nRebooting\n\nUpdate Complete"

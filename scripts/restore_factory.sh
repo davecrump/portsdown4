@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Version 201811100
+# Version 201905090
 
 ############ Set Environment Variables ###############
 
@@ -38,6 +38,11 @@ cp -f $PATHSCRIPT"/configs/portsdown_locators.txt.factory" $PATHSCRIPT"/portsdow
 cp -f $PATHSCRIPT"/rx_presets.txt" $PATHSCRIPT"/rx_presets.txt.bak"
 cp -f $PATHSCRIPT"/configs/rx_presets.txt.factory" $PATHSCRIPT"/rx_presets.txt"
 
-# Make a safe copy of the Stream Presets if required
+# stream_presets.txt
 cp -f $PATHSCRIPT"/stream_presets.txt" $PATHSCRIPT"/stream_presets.txt.bak"
 cp -f $PATHSCRIPT"/configs/stream_presets.txt.factory" $PATHSCRIPT"/stream_presets.txt"
+
+# jetson_config.txt
+cp -f $PATHSCRIPT"/jetson_config.txt" $PATHSCRIPT"/jetson_config.txt.bak"
+cp -f $PATHSCRIPT"/configs/jetson_config.txt.factory" $PATHSCRIPT"/jetson_config.txt"
+
