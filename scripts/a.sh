@@ -1990,8 +1990,8 @@ esac
 # Now send the correct commands to the Jetson
 case "$MODE_OUTPUT" in
 "JLIME")
-  case "ENCODING" in
-  H265)
+  case "$ENCODING" in
+  "H265")
     case "$MODE_INPUT" in
     "JHDMI")
       # Write the assembled Jetson command to a temp file
