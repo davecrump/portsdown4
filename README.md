@@ -54,7 +54,9 @@ Note that you do not need to load any touchscreen drivers - if the touchscreen d
 
 After initial installation, on selecting transmit, the RPi is configured to generate a direct RF output (from GPIO pin 32) on 437 MHz at 333KS using the BATC Portsdown logo image as the source.  
 
-Advanced notes:  To load the development version, cut and paste in the following lines:
+# Advanced notes
+
+To load the development version, cut and paste in the following lines:
 
 ```sh
 wget https://raw.githubusercontent.com/davecrump/portsdown/master/install.sh
@@ -68,4 +70,4 @@ wget https://raw.githubusercontent.com/your_account/portsdown/master/install.sh
 chmod +x install.sh
 ./install.sh -u your_account
 ```
-
+The alternative github user account will need to include forks of both the portsdown and avc2ts repositories.

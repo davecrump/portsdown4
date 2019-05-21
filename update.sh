@@ -414,15 +414,25 @@ if ! grep -q modulation /home/pi/rpidatv/scripts/portsdown_config.txt; then
   echo "" >> /home/pi/rpidatv/scripts/portsdown_config.txt
 fi
 
-# Update config file with pilots, frames format and encoding          201905090
-if ! grep -q encoding /home/pi/rpidatv/scripts/portsdown_config.txt; then
+# Update config file with pilots and frames          201905090
+if ! grep -q frames /home/pi/rpidatv/scripts/portsdown_config.txt; then
   # File needs updating
   printf "Adding pilots and frames to user's portsdown_config.txt\n"
   # Delete any blank lines
   sed -i -e '/^$/d' /home/pi/rpidatv/scripts/portsdown_config.txt
-  # Add the 4 new entries and a new line 
+  # Add the 2 new entries and a new line 
   echo "pilots=off" >> /home/pi/rpidatv/scripts/portsdown_config.txt
   echo "frames=long" >> /home/pi/rpidatv/scripts/portsdown_config.txt
+  echo "" >> /home/pi/rpidatv/scripts/portsdown_config.txt
+fi
+
+# Update config file with format and encoding          201905090
+if ! grep -q encoding /home/pi/rpidatv/scripts/portsdown_config.txt; then
+  # File needs updating
+  printf "Adding format and encoding to user's portsdown_config.txt\n"
+  # Delete any blank lines
+  sed -i -e '/^$/d' /home/pi/rpidatv/scripts/portsdown_config.txt
+  # Add the 2 new entries and a new line 
   echo "format=4:3" >> /home/pi/rpidatv/scripts/portsdown_config.txt
   echo "encoding=H264" >> /home/pi/rpidatv/scripts/portsdown_config.txt
   echo "" >> /home/pi/rpidatv/scripts/portsdown_config.txt
