@@ -1558,7 +1558,7 @@ void ReadModeInput(char coding[256], char vsource[256])
   }
 
   // Override all of the above for Jetson modes
-  if ((strcmp(ModeOutput, "JLIME") == 0) || (strcmp(ModeOutput, "JLIME") == 0))
+  if ((strcmp(ModeOutput, "JLIME") == 0) || (strcmp(ModeOutput, "JEXPRESS") == 0))
   {
     // Read format from config and set
     GetConfigParam(PATH_PCONFIG, "format", CurrentFormat);
@@ -5701,8 +5701,6 @@ void SelectSource(int NoButton)  // Video Source
   }
   strcpy(CurrentSource, TabSource[NoButton - 5]);
   ApplyTXConfig();
-  printf("Selected source %s\n", CurrentSource);
-  printf("Leaving Select source\n");
 }
 
 void SelectFreq(int NoButton)  //Frequency
@@ -6872,7 +6870,7 @@ void TransmitStart()
   }
 
   // Run the Extrascript for TX start
-  //system("/home/pi/rpidatv/scripts/TXstartextras.sh &");
+  system("/home/pi/rpidatv/scripts/TXstartextras.sh &");
 
   // Call a.sh to transmit
   system(PATH_SCRIPT_A);
@@ -10113,7 +10111,7 @@ void waituntil(int w,int h)
         {
         case 0:                               // Shutdown
           MsgBox4("", "Shutting down now", "", "");
-          system("/home/pi/rpidatv/scripts/s_jetson.sh &");  // Shudown the Jetson
+          system("/home/pi/rpidatv/scripts/s_jetson.sh &");  // Shutdown the Jetson
           system("sudo killall express_server >/dev/null 2>/dev/null");
           system("sudo rm /tmp/expctrl >/dev/null 2>/dev/null");
           sync();            // Prevents shutdown hang in Stretch

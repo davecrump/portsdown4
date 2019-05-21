@@ -1,7 +1,7 @@
 #! /bin/bash
 
-# This script is called when the transmitter is stopped.  The primary role is to stop the Jetson transmitting
-# But it can be added to for any purpose
+# This script is called when the transmitter is started. 
+# It can be added to for any purpose
 
 ############ Set Environment Variables ###############
 

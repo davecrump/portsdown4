@@ -1,7 +1,8 @@
 #! /bin/bash
- set -x #Uncomment for testing
 
-# Version 201903030
+# set -x # Uncomment for testing
+
+# Version 201905090
 
 ############# SET GLOBAL VARIABLES ####################
 
@@ -1971,8 +1972,8 @@ case "$MODE_OUTPUT" in
 
   AUDIO_BITRATE=20000
   let TS_AUDIO_BITRATE=AUDIO_BITRATE*14/10
-  let VIDEOBITRATE=(BITRATE_TS-12000-TS_AUDIO_BITRATE)*650/1000    # Evariste
-  # let VIDEOBITRATE=(BITRATE_TS-12000-TS_AUDIO_BITRATE)*600/1000  # Mike
+  # let VIDEOBITRATE=(BITRATE_TS-12000-TS_AUDIO_BITRATE)*650/1000    # Evariste
+  let VIDEOBITRATE=(BITRATE_TS-12000-TS_AUDIO_BITRATE)*600/1000  # Mike
   let VIDEOPEAKBITRATE=VIDEOBITRATE*110/100
 
   echo
