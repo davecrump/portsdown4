@@ -2,6 +2,9 @@
 Add DVB-S2 pilots on/off
 Improve DVB-S2 selection labelling
 Add binaries for limesdr_dvb
+Add initial code for Jetson control
+Add user-configurable buttons
+Enable update from other GitHub users' repos
 
 201904290
 For repeater streaming, moved 12-hourly reboot from app to cron

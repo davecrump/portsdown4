@@ -41,6 +41,9 @@ MODE_OUTPUT=$(get_config_var modeoutput $PCONFIGFILE)
     sudo killall netcat >/dev/null 2>/dev/null
   fi
 
+  # Run the Extra script for TX stop
+  /home/pi/rpidatv/scripts/TXstopextras.sh &
+
   # Turn the Local Oscillator off
   sudo $PATHRPI"/adf4351" off
 

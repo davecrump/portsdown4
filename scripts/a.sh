@@ -1,5 +1,5 @@
 #! /bin/bash
-# set -x #Uncomment for testing
+ set -x #Uncomment for testing
 
 # Version 201903030
 
@@ -8,6 +8,7 @@
 PATHRPI="/home/pi/rpidatv/bin"
 PATHSCRIPT="/home/pi/rpidatv/scripts"
 PCONFIGFILE="/home/pi/rpidatv/scripts/portsdown_config.txt"
+JCONFIGFILE="/home/pi/rpidatv/scripts/jetson_config.txt"
 
 ############# MAKE SURE THAT WE KNOW WHERE WE ARE ##################
 
@@ -673,6 +674,10 @@ case "$MODE_OUTPUT" in
     LIME_GAIN=$(get_config_var limegain $PCONFIGFILE)
     $PATHSCRIPT"/ctlfilter.sh"
   ;;
+
+  "JLIME" | "JEXPRESS")
+    LIME_GAIN=$(get_config_var limegain $PCONFIGFILE)
+  ;;
 esac
 
 OUTPUT_QPSK="videots"
@@ -764,7 +769,7 @@ IDRPERIOD=100
 
 # Set the SDR Up-sampling rate and correct gain for Lime
 case "$MODE_OUTPUT" in
-  "LIMEMINI" | "LIMEUSB")
+  "LIMEMINI" | "LIMEUSB" | "JLIME" | "JEXPRESS")
     if [ "$SYMBOLRATE_K" -lt 990 ] ; then
       UPSAMPLE=2
       LIME_GAINF=`echo - | awk '{print '$LIME_GAIN' / 100}'`
@@ -1920,6 +1925,116 @@ fi
 
   ;;
 esac
+
+# None of these input modes were valid for the Jetson, so we can put the Jetson code here
+
+# First sort out the environment variables
+case "$MODE_OUTPUT" in
+"JLIME" | "JEXPRESS" )
+  JETSONIP=$(get_config_var jetsonip $JCONFIGFILE)
+  JETSONUSER=$(get_config_var jetsonuser $JCONFIGFILE)
+  JETSONPW=$(get_config_var jetsonpw $JCONFIGFILE)
+  LKVUDP=$(get_config_var lkvudp $JCONFIGFILE)
+  LKVPORT=$(get_config_var lkvport $JCONFIGFILE)
+  FORMAT=$(get_config_var format $PCONFIGFILE)
+  ENCODING=$(get_config_var encoding $PCONFIGFILE)
+  CMDFILE="/home/pi/tmp/jetson_command.txt"
+
+  # Set the video format
+  if [ "$FORMAT" == "1080p" ]; then
+    VIDEO_WIDTH=1920
+    VIDEO_HEIGHT=1080
+  elif [ "$FORMAT" == "720p" ]; then
+    VIDEO_WIDTH=1280
+    VIDEO_HEIGHT=720
+  elif [ "$FORMAT" == "16:9" ]; then
+    VIDEO_WIDTH=720
+    VIDEO_HEIGHT=405
+  else  # SD
+    if [ "$BITRATE_VIDEO" -lt 75000 ]; then
+      VIDEO_WIDTH=160
+      VIDEO_HEIGHT=140
+    else
+      if [ "$BITRATE_VIDEO" -lt 150000 ]; then
+        VIDEO_WIDTH=352
+        VIDEO_HEIGHT=288
+      else
+        VIDEO_WIDTH=720
+        VIDEO_HEIGHT=576
+      fi
+    fi
+  fi
+
+  # Calculate the exact TS Bitrate for Lime
+  BITRATE_TS="$($PATHRPI"/dvb2iq" -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
+    -d -r $UPSAMPLE -m $MODTYPE -c $CONSTLN $PILOTS $FRAMES )"
+
+  AUDIO_BITRATE=20000
+  let TS_AUDIO_BITRATE=AUDIO_BITRATE*14/10
+  let VIDEOBITRATE=(BITRATE_TS-12000-TS_AUDIO_BITRATE)*650/1000    # Evariste
+  # let VIDEOBITRATE=(BITRATE_TS-12000-TS_AUDIO_BITRATE)*600/1000  # Mike
+  let VIDEOPEAKBITRATE=VIDEOBITRATE*110/100
+
+  echo
+  echo BITRATETS $BITRATE_TS
+  echo VIDEOBITRATE $VIDEOBITRATE
+  echo VIDEOPEAKBITRATE $VIDEOPEAKBITRATE
+  echo AUDIO_BITRATE $AUDIO_BITRATE
+  echo TS_AUDIO_BITRATE $TS_AUDIO_BITRATE
+  echo
+
+;;
+esac
+
+# Now send the correct commands to the Jetson
+case "$MODE_OUTPUT" in
+"JLIME")
+  case "ENCODING" in
+  H265)
+    case "$MODE_INPUT" in
+    "JHDMI")
+      # Write the assembled Jetson command to a temp file
+      /bin/cat <<EOM >$CMDFILE
+      (sshpass -p $JETSONPW ssh -o StrictHostKeyChecking=no $JETSONUSER@$JETSONIP 'bash -s' <<'ENDSSH' 
+      cd ~/dvbsdr/scripts
+      gst-launch-1.0 udpsrc address=$LKVUDP port=$LKVPORT \
+        '!' video/mpegts '!' tsdemux name=dem dem. '!' queue '!' h264parse '!' omxh264dec \
+        '!' nvvidconv \
+        '!' 'video/x-raw(memory:NVMM), width=(int)$VIDEO_WIDTH, height=(int)$VIDEO_HEIGHT, format=(string)I420' \
+        '!' omxh265enc control-rate=2 bitrate=$VIDEOBITRATE peak-bitrate=$VIDEOPEAKBITRATE preset-level=3 iframeinterval=100 \
+        '!' 'video/x-h265,stream-format=(string)byte-stream' '!' mux. dem. '!' queue \
+        '!' mpegaudioparse '!' avdec_mp2float '!' audioconvert '!' audioresample \
+        '!' 'audio/x-raw, format=S16LE, layout=interleaved, rate=48000, channels=1' '!' voaacenc bitrate=20000 \
+        '!' queue '!' mux. mpegtsmux alignment=7 name=mux '!' fdsink \
+      | ffmpeg -i - -ss 8 \
+        -c:v copy -max_delay 200000 -muxrate $BITRATE_TS \
+        -c:a copy -f mpegts \
+        -metadata service_provider="$CALL" -metadata service_name="$CALL" \
+        -mpegts_pmt_start_pid $PIDPMT -streamid 0:"$PIDVIDEO" -streamid 1:"$PIDAUDIO" - \
+      | ../bin/limesdr_dvb -s "$SYMBOLRATE_K"000 -f $FECNUM/$FECDEN -r $UPSAMPLE -m $MODTYPE -c $CONSTLN $PILOTS $FRAMES \
+        -t "$FREQ_OUTPUT"e6 -g $LIME_GAINF -q 1
+ENDSSH
+      ) &
+EOM
+    ;;
+    esac
+  ;;
+  esac
+  # Run the Command on the Jetson
+  source "$CMDFILE"
+;;
+
+"JEXPRESS")
+
+
+
+;;
+
+  *)
+    exit
+;;
+esac
+
 
 # ============================================ END =============================================================
 

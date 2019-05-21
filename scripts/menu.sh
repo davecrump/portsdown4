@@ -1341,6 +1341,9 @@ do_transmit()
   # Call a.sh in an additional process to start the transmitter
   $PATHSCRIPT"/a.sh" >/dev/null 2>/dev/null &
 
+  # Call TXstartextras.sh in an additional process
+  $PATHSCRIPT"/TXstartextras.sh" >/dev/null 2>/dev/null &
+
   # Start the Viewfinder display if user sets it on
   if [ "$V_FINDER" == "on" ]; then
     do_display_on
@@ -1373,6 +1376,9 @@ do_stop_transmit()
     echo "set ptt rx" >> /tmp/expctrl
     sudo killall netcat >/dev/null 2>/dev/null
   fi
+
+  # Call TXstopextras.sh in an additional process
+  $PATHSCRIPT"/TXstopextras.sh" >/dev/null 2>/dev/null &
 
   # Turn the Local Oscillator off
   sudo $PATHRPI"/adf4351" off

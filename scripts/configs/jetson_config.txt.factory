@@ -1,0 +1,6 @@
+jetsonip=192.168.2.113
+jetsonuser=nano
+jetsonpw=jetson
+jetsonrootpw=jetson
+lkvudp=239.255.42.42
+lkvport=5004

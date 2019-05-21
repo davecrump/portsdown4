@@ -42,4 +42,6 @@ outputstandard=576
 numbers=3333
 pilots=off
 frames=long
+format=4;3
+encoding=H264
 
