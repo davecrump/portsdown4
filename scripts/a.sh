@@ -817,10 +817,12 @@ case "$MODE_OUTPUT" in
     echo Old Bitrate $BITRATE_TS
     echo New Bitrate $NEW_BITRATE_TS
 
-    # Fudge the bitrate for an improvement (maybe not!)
-    #let BITRATE_TS=$NEW_BITRATE_TS+1000
+    # Fudge the bitrate for an improvement
+    let BITRATE_TS=$NEW_BITRATE_TS #+1000
+    let BITRATE_VIDEO=($BITRATE_TS-12000)*650/1000
 
     echo Corrected Bitrate $BITRATE_TS
+    echo Video Bitrate $BITRATE_VIDEO
     echo
   ;;
 esac
@@ -2023,6 +2025,9 @@ EOM
   esac
   # Run the Command on the Jetson
   source "$CMDFILE"
+
+  # Turn the PTT on after a 15 second delay
+  /home/pi/rpidatv/scripts/jetson_lime_ptt.sh &
 ;;
 
 "JEXPRESS")

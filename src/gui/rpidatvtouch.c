@@ -1565,6 +1565,7 @@ void ReadModeInput(char coding[256], char vsource[256])
 
     // Read Encoding from Config and set
     GetConfigParam(PATH_PCONFIG, "encoding", CurrentEncoding);
+    strcpy(coding, CurrentEncoding);
 
     // Read ModeInput from Config and set
     if (strcmp(ModeInput, "JHDMI") == 0)
