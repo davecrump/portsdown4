@@ -123,7 +123,7 @@ cp -f -r "$PATHSCRIPT"/TXstartextras.sh "$PATHUBACKUP"/TXstartextras.sh
 cp -f -r "$PATHSCRIPT"/TXstopextras.sh "$PATHUBACKUP"/TXstopextras.sh
 
 # Delete any old backups in the home directory
-if [ -e "/home/pi/portsdown_config.txt ]; then
+if [ -e "/home/pi/portsdown_config.txt" ]; then
   rm /home/pi/portsdown_config.txt
   rm /home/pi/portsdown_presets.txt
   rm /home/pi/siggencal.txt
