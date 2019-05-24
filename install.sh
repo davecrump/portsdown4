@@ -1,6 +1,25 @@
 #!/bin/bash
 
-# Stretch Version by davecrump on 201903030
+# Stretch Version by davecrump on 201905090
+
+# Check which source needs to be loaded # From M0DNY 201905090
+GIT_SRC="BritishAmateurTelevisionClub"
+GIT_SRC_FILE=".portsdown_gitsrc"
+
+if [ "$1" == "-d" ]; then
+  GIT_SRC="davecrump";
+  echo "Installing development version";
+elif [ "$1" == "-u" -a ! -z "$2" ]; then
+  GIT_SRC="$2"
+  echo "WARNING: Installing ${GIT_SRC} development version, press enter to continue or 'q' to quit."
+  read -n1 -r -s key;
+  if [[ $key == q ]]; then
+    exit 1;
+  fi
+  echo "ok!";
+else
+  echo "Installing BATC Production portsdown.";
+fi
 
 # Update the package manager
 sudo dpkg --configure -a
@@ -26,31 +45,6 @@ sudo apt-get -y install libsqlite3-dev libi2c-dev # 201811300 Lime
 sudo apt-get -y install sshpass  # 201905090 For Jetson Nano
 
 sudo pip install pyrtlsdr  #20180101 FreqShow
-
-# Check which source needs to be loaded # From M0DNY 201905090
-GIT_SRC="BritishAmateurTelevisionClub"
-GIT_SRC_FILE=".portsdown_gitsrc"
-
-if [ "$1" == "-d" ]; then
-  GIT_SRC="davecrump";
-  echo "WARNING: Installing development version, press enter to continue or 'q' to quit.";
-  read -n1 -r -s key;
-  if [[ $key == q ]]; then
-    exit 1;
-  fi
-  echo "ok!";
-elif [ "$1" == "-u" -a ! -z "$2" ]; then
-  GIT_SRC="$2"
-  echo "WARNING: Installing ${GIT_SRC} development version, press enter to continue or 'q' to quit."
-  read -n1 -r -s key;
-  if [[ $key == q ]]; then
-    exit 1;
-  fi
-  echo "ok!";
-else
-  echo "Installing BATC Production portsdown.";
-fi
-
 
 # Enable USB Storage automount in Stretch (only) 20180704
 cd /lib/systemd/system/
