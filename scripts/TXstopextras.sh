@@ -9,6 +9,7 @@ PATHSCRIPT=/home/pi/rpidatv/scripts
 PATHRPI=/home/pi/rpidatv/bin
 PCONFIGFILE="/home/pi/rpidatv/scripts/portsdown_config.txt"
 PATHCONFIGS="/home/pi/rpidatv/scripts/configs"  ## Path to config files
+JCONFIGFILE="/home/pi/rpidatv/scripts/jetson_config.txt"
 
 ############ Function to Read from Config File ###############
 
@@ -34,10 +35,14 @@ MODE_OUTPUT=$(get_config_var modeoutput $PCONFIGFILE)
 case "$MODE_OUTPUT" in
 "JLIME" | "JEXPRESS")
 
-sshpass -p "jetson" ssh nano@192.168.2.113 'bash -s' <<'ENDSSH' 
-killall gst-launch-1.0
-killall ffmpeg
-killall limesdr_dvb
+  JETSONIP=$(get_config_var jetsonip $JCONFIGFILE)
+  JETSONUSER=$(get_config_var jetsonuser $JCONFIGFILE)
+  JETSONPW=$(get_config_var jetsonpw $JCONFIGFILE)
+
+  sshpass -p $JETSONPW ssh -o StrictHostKeyChecking=no $JETSONUSER@$JETSONIP 'bash -s' <<'ENDSSH' 
+    killall gst-launch-1.0
+    killall ffmpeg
+    killall limesdr_dvb
 ENDSSH
 ;;
 esac
