@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Updated by davecrump 201905090
+# Updated by davecrump 201906060
 
 DisplayUpdateMsg() {
   # Delete any old update message image  201802040
@@ -675,7 +675,7 @@ cp -f -r /home/pi/prev_installed_version.txt /home/pi/rpidatv/scripts/prev_insta
 rm -rf /home/pi/prev_installed_version.txt
 
 # Save (overwrite) the git source used
-echo "${GIT_SRC}" >> /home/pi/${GIT_SRC_FILE}
+echo "${GIT_SRC}" > /home/pi/${GIT_SRC_FILE}
 
 # Reboot
 DisplayRebootMsg "Step 10 of 10\nRebooting\n\nUpdate Complete"

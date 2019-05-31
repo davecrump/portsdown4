@@ -5907,7 +5907,7 @@ void ChangeBandDetails(int NoButton)
   strcpy(Param, TabBand[band]);
   strcat(Param, "expports");
   GetConfigParam(PATH_PPRESETS, Param, Value);
-  while ((ExpPorts < 0) || (ExpPorts > 15))
+  while ((ExpPorts < 0) || (ExpPorts > 31))
   {
     snprintf(Prompt, 63, "Enter the Express & Lime Port Settings for %s:", TabBandLabel[band]);
     Keyboard(Prompt, Value, 2);
