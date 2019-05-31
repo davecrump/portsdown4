@@ -1,3 +1,7 @@
+201906060
+Overide RPi GPIOs when Express GPIOs 16-31 selected
+Improve IPTS IN performance with LimeSDR
+
 201905090
 Add DVB-S2 pilots on/off
 Improve DVB-S2 selection labelling

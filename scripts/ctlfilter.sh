@@ -124,87 +124,137 @@ else
                 gpio -g write $filter_bit2 1;
 fi
 
-############### Read Frequency and Band #########################
+############### Check if GPIOs are to be set directly, or by band ##############
 
-FREQ_OUTPUT=$(get_config_var freqoutput $PCONFIGFILE)
-INT_FREQ_OUTPUT=${FREQ_OUTPUT%.*}
-BAND=$(get_config_var band $PCONFIGFILE)
-DIRECT=TRUE
-
-case "$BAND" in
-d1)
-  DIRECT=TRUE
-;;
-d2)
-  DIRECT=TRUE
-;;
-d3)
-  DIRECT=TRUE
-;;
-d4)
-  DIRECT=TRUE
-;;
-d5)
-  DIRECT=TRUE
-;;
-t1)
-  DIRECT=FALSE
-  gpio -g write $band_bit0 0;
-  gpio -g write $band_bit1 0;
-  gpio -g write $tverter_bit 1;
-;;
-t2)
-  DIRECT=FALSE
-  gpio -g write $band_bit0 1;
-  gpio -g write $band_bit1 0;
-  gpio -g write $tverter_bit 1;
-;;
-t3)
-  DIRECT=FALSE
-  gpio -g write $band_bit0 0;
-  gpio -g write $band_bit1 1;
-  gpio -g write $tverter_bit 1;
-;;
-t4)
-  DIRECT=FALSE
-  gpio -g write $band_bit0 1;
-  gpio -g write $band_bit1 1;
-  gpio -g write $tverter_bit 1;
-;;
-esac
-
-####### SET BAND/TRANSVERTER SWITCHING ##########################
-
-if [ "$DIRECT" == "TRUE" ]; then
-
-# Switch GPIOs based on Frequency #
-
-  if (( $INT_FREQ_OUTPUT \< 100 )); then
+EXPPORTS=$(get_config_var expports $PCONFIGFILE)
+if [ "$EXPPORTS" -gt "15" ]; then  # Set directly
+  case "$EXPPORTS" in
+  "16" | "24" )
     gpio -g write $band_bit0 0;
     gpio -g write $band_bit1 0;
-  elif (( $INT_FREQ_OUTPUT \< 250 )); then
-    gpio -g write $band_bit0 1;
-    gpio -g write $band_bit1 0;
-  elif (( $INT_FREQ_OUTPUT \< 950 )); then
-    gpio -g write $band_bit0 0;
-    gpio -g write $band_bit1 1;
-  elif (( $INT_FREQ_OUTPUT \< 4400 )); then
-    gpio -g write $band_bit0 1;
-    gpio -g write $band_bit1 1;
-  else
-    gpio -g write $band_bit0 0;
-    gpio -g write $band_bit1 0;
-  fi
-
-  # Set the transverter bit low but first, read the start-up behaviour
-  #  so we don't mess up the TX indication which shares a GPIO pin
-
-  MODE_STARTUP=$(get_config_var startup $PCONFIGFILE)
-  if [ "$MODE_STARTUP" == "Keyed_TX_boot" ] || [ "$MODE_STARTUP" == "Keyed_Stream_boot" ]\
-    || [ "$MODE_STARTUP" == "Cont_Stream_boot" ]; then
-    :
-  else
     gpio -g write $tverter_bit 0;
+  ;;
+  "17" | "25" )
+    gpio -g write $band_bit0 1;
+    gpio -g write $band_bit1 0;
+    gpio -g write $tverter_bit 0;
+  ;;
+  "18" | "26" )
+    gpio -g write $band_bit0 0;
+    gpio -g write $band_bit1 1;
+    gpio -g write $tverter_bit 0;
+  ;;
+  "19" | "27" )
+    gpio -g write $band_bit0 1;
+    gpio -g write $band_bit1 1;
+    gpio -g write $tverter_bit 0;
+  ;;
+  "20" | "28" )
+    gpio -g write $band_bit0 0;
+    gpio -g write $band_bit1 0;
+    gpio -g write $tverter_bit 1;
+  ;;
+  "21 " | "29" )
+    gpio -g write $band_bit0 1;
+    gpio -g write $band_bit1 0;
+    gpio -g write $tverter_bit 1;
+  ;;
+  "22" | "30" )
+    gpio -g write $band_bit0 0;
+    gpio -g write $band_bit1 1;
+    gpio -g write $tverter_bit 1;
+  ;;
+  "23" | "31" )
+    gpio -g write $band_bit0 1;
+    gpio -g write $band_bit1 1;
+    gpio -g write $tverter_bit 1;
+  ;;
+  esac
+
+  let EXPPORTS=$EXPPORTS-16
+
+else
+
+  ############### Read Frequency and Band #########################
+
+  FREQ_OUTPUT=$(get_config_var freqoutput $PCONFIGFILE)
+  INT_FREQ_OUTPUT=${FREQ_OUTPUT%.*}
+  BAND=$(get_config_var band $PCONFIGFILE)
+  DIRECT=TRUE
+
+  case "$BAND" in
+  d1)
+    DIRECT=TRUE
+  ;;
+  d2)
+    DIRECT=TRUE
+  ;;
+  d3)
+    DIRECT=TRUE
+  ;;
+  d4)
+    DIRECT=TRUE
+  ;;
+  d5)
+    DIRECT=TRUE
+  ;;
+  t1)
+    DIRECT=FALSE
+    gpio -g write $band_bit0 0;
+    gpio -g write $band_bit1 0;
+    gpio -g write $tverter_bit 1;
+  ;;
+  t2)
+    DIRECT=FALSE
+    gpio -g write $band_bit0 1;
+    gpio -g write $band_bit1 0;
+    gpio -g write $tverter_bit 1;
+  ;;
+  t3)
+    DIRECT=FALSE
+    gpio -g write $band_bit0 0;
+    gpio -g write $band_bit1 1;
+    gpio -g write $tverter_bit 1;
+  ;;
+  t4)
+    DIRECT=FALSE
+    gpio -g write $band_bit0 1;
+    gpio -g write $band_bit1 1;
+    gpio -g write $tverter_bit 1;
+  ;;
+  esac
+
+  if [ "$DIRECT" == "TRUE" ]; then
+
+  # Switch GPIOs based on Frequency #
+
+    if (( $INT_FREQ_OUTPUT \< 100 )); then
+      gpio -g write $band_bit0 0;
+      gpio -g write $band_bit1 0;
+    elif (( $INT_FREQ_OUTPUT \< 250 )); then
+      gpio -g write $band_bit0 1;
+      gpio -g write $band_bit1 0;
+    elif (( $INT_FREQ_OUTPUT \< 950 )); then
+      gpio -g write $band_bit0 0;
+      gpio -g write $band_bit1 1;
+    elif (( $INT_FREQ_OUTPUT \< 4400 )); then
+      gpio -g write $band_bit0 1;
+      gpio -g write $band_bit1 1;
+    else
+      gpio -g write $band_bit0 0;
+      gpio -g write $band_bit1 0;
+    fi
+
+    # Set the transverter bit low but first, read the start-up behaviour
+    #  so we don't mess up the TX indication which shares a GPIO pin
+
+    MODE_STARTUP=$(get_config_var startup $PCONFIGFILE)
+    if [ "$MODE_STARTUP" == "Keyed_TX_boot" ] || [ "$MODE_STARTUP" == "Keyed_Stream_boot" ]\
+      || [ "$MODE_STARTUP" == "Cont_Stream_boot" ]; then
+      :
+    else
+      gpio -g write $tverter_bit 0;
+    fi
   fi
 fi
 
@@ -239,7 +289,6 @@ esac
 
 MODE_OUTPUT=$(get_config_var modeoutput $PCONFIGFILE)
 if [ $MODE_OUTPUT = "DATVEXPRESS" ]; then
-  EXPPORTS=$(get_config_var expports $PCONFIGFILE)
   echo "set port "$EXPPORTS >> /tmp/expctrl
 fi
 

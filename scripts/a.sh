@@ -669,6 +669,11 @@ case "$MODE_OUTPUT" in
 
     BAND_GPIO=$(get_config_var expports $PCONFIGFILE)
 
+    # Allow for GPIOs in 16 - 31 range (direct setting)
+    if [ "$BAND_GPIO" -gt "15" ]; then
+      let BAND_GPIO=$BAND_GPIO-16
+    fi
+
     # CALCULATE FREQUENCY in Hz
     FREQ_OUTPUTHZ=`echo - | awk '{print '$FREQ_OUTPUT' * 1000000}'`
 
@@ -1393,8 +1398,8 @@ fi
       "COMPVID")
         : # Do nothing.  Mode does not work yet
       ;;
-      "LIMEMINI" | "LIMEUSB")
-        $PATHRPI"/dvb2iq" -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
+      "LIMEMINI" | "LIMEUSB") # did use dvb2iq, but dvb2iq2 might be better
+        $PATHRPI"/dvb2iq2" -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
           -r $UPSAMPLE -m $MODTYPE -c $CONSTLN $PILOTS $FRAMES \
            | sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s $SYMBOLRATE \
            -g $LIME_GAINF -p 0.05 -r $UPSAMPLE -l $LIMESENDBUF -e $BAND_GPIO &
