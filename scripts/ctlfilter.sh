@@ -154,7 +154,7 @@ if [ "$EXPPORTS" -gt "15" ]; then  # Set directly
     gpio -g write $band_bit1 0;
     gpio -g write $tverter_bit 1;
   ;;
-  "21 " | "29" )
+  "21" | "29" )
     gpio -g write $band_bit0 1;
     gpio -g write $band_bit1 0;
     gpio -g write $tverter_bit 1;
