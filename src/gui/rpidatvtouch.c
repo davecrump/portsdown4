@@ -55,10 +55,12 @@ Rewitten by Dave, G8GKQ
 #define PATH_LOCATORS "/home/pi/rpidatv/scripts/portsdown_locators.txt"
 #define PATH_RXPRESETS "/home/pi/rpidatv/scripts/rx_presets.txt"
 #define PATH_STREAMPRESETS "/home/pi/rpidatv/scripts/stream_presets.txt"
+#define PATH_JCONFIG "/home/pi/rpidatv/scripts/jetson_config.txt"
 
 #define PI 3.14159265358979323846
 #define deg2rad(DEG) ((DEG)*((PI)/(180.0)))
 #define rad2deg(RAD) ((RAD)*180/PI)
+#define DELIM "."
 
 char ImageFolder[63]="/home/pi/rpidatv/image/";
 
@@ -185,7 +187,7 @@ char MenuText[5][63];
 // "CAMMPEG-2", "CAMH264", "PATERNAUDIO", "ANALOGCAM" ,"CARRIER" ,"CONTEST"
 // "IPTSIN","ANALOGMPEG-2", "CARDMPEG-2", "CAMHDMPEG-2", "DESKTOP", "FILETS"
 // "C920"
-// "JHDMI", "JCAM", "JPC", "JCARD", "JTCANIM"
+// "JHDMI", "JCAM", "JPC", "JCARD", "JTCANIM", "JWEBCAM"
 
 // Composite Video Output variables
 char TabVidSource[8][15] = {"Pi Cam", "CompVid", "TCAnim", "TestCard", "Snap", "Contest", "Webcam", "Movie"};
@@ -262,6 +264,7 @@ void Start_Highlights_Menu4();
 void Start_Highlights_Menu5();
 void Start_Highlights_Menu6();
 void Start_Highlights_Menu7();
+void Start_Highlights_Menu8();
 void Start_Highlights_Menu11();
 void Start_Highlights_Menu12();
 void Start_Highlights_Menu13();
@@ -293,6 +296,7 @@ void Start_Highlights_Menu38();
 void Start_Highlights_Menu39();
 void Start_Highlights_Menu42();
 void Start_Highlights_Menu43();
+void Start_Highlights_Menu44();
 
 void MsgBox(const char *);
 void MsgBox2(const char *, const char *);
@@ -666,6 +670,125 @@ int CheckGoogle()
     return 1;
   }
 }
+
+/***************************************************************************//**
+ * @brief Checks whether a ping to a connected Jetson works
+ *
+ * @param nil
+ *
+ * @return 0 if it pings OK, 1 if it doesn't
+*******************************************************************************/
+
+int CheckJetson()
+{
+  FILE *fp;
+  char response[127];
+  char pingcommand[127];
+  
+  strcpy(pingcommand, "timeout 0.1 ping ");
+  GetConfigParam(PATH_JCONFIG, "jetsonip", response);
+  strcat(pingcommand, response);
+  strcat(pingcommand, " -c1 | head -n 5 | tail -n 1 | grep -o \"1 received,\" | head -c 11");
+
+  /* Open the command for reading. */
+  fp = popen(pingcommand, "r");
+  if (fp == NULL) {
+    printf("Failed to run command\n" );
+    exit(1);
+  }
+
+  /* Read the output a line at a time - output it. */
+  while (fgets(response, 12, fp) != NULL)
+  {
+    printf("%s", response);
+  }
+  //  printf("%s", response);
+  /* close */
+  pclose(fp);
+  if (strcmp (response, "1 received,") == 0)
+  {
+    return 0;
+  }
+  else
+  {
+    return 1;
+  }
+}
+
+/***************************************************************************//**
+ * @brief int is_valid_ip(char *ip_str) Checks whether an IP address is valid
+ *
+ * @param char *ip_str (which gets mangled)
+ *
+ * @return 1 if IP string is valid, else return 0
+*******************************************************************************/
+
+/* return 1 if string contain only digits, else return 0 */
+int valid_digit(char *ip_str) 
+{ 
+  while (*ip_str) 
+  { 
+    if (*ip_str >= '0' && *ip_str <= '9')
+    { 
+      ++ip_str; 
+    }
+    else
+    {
+      return 0; 
+    }
+  } 
+  return 1; 
+} 
+
+int is_valid_ip(char *ip_str) 
+{ 
+  int num, dots = 0; 
+  char *ptr; 
+  
+  if (ip_str == NULL) 
+  {
+    return 0; 
+  }
+
+  ptr = strtok(ip_str, DELIM); 
+  if (ptr == NULL) 
+  {
+    return 0; 
+  }
+  
+  while (ptr)
+  { 
+    // after parsing string, it must contain only digits
+    if (!valid_digit(ptr)) 
+    {
+      return 0; 
+    }  
+    num = atoi(ptr); 
+  
+    // check for valid numbers
+    if (num >= 0 && num <= 255)
+    { 
+      // parse remaining string
+      ptr = strtok(NULL, DELIM); 
+      if (ptr != NULL)
+      {
+      printf("dots++ \n");
+        ++dots; 
+      }
+    }
+    else
+    {
+      return 0; 
+    }
+  }
+
+  // valid IP string must contain 3 dots
+  if (dots != 3)
+  { 
+    return 0;
+  }
+  return 1;
+} 
 
 /***************************************************************************//**
  * @brief Displays a splash screen with update progress
@@ -2380,6 +2503,45 @@ int CheckRTL()
   }
   pclose(fp);
   return(rtlstat);
+}
+
+/***************************************************************************//**
+ * @brief Checks for the presence of an FTDI Device
+ *        
+ * @param None
+ *
+ * @return 0 if present, 1 if not present
+*******************************************************************************/
+
+int CheckFTDI()
+{
+  char FTDIStatus[256];
+  FILE *fp;
+  int ftdistat = 1;
+
+  /* Open the command for reading. */
+  fp = popen("/home/pi/rpidatv/scripts/check_ftdi.sh", "r");
+  if (fp == NULL)
+  {
+    printf("Failed to run command\n" );
+    exit(1);
+  }
+
+  // Read the output a line at a time - output it
+  while (fgets(FTDIStatus, sizeof(FTDIStatus)-1, fp) != NULL)
+  {
+    if (FTDIStatus[0] == '0')
+    {
+      printf("FTDI Detected\n" );
+      ftdistat = 0;
+    }
+    else
+    {
+      printf("No FTDI Detected\n" );
+    }
+  }
+  pclose(fp);
+  return(ftdistat);
 }
 
 /***************************************************************************//**
@@ -4934,13 +5096,21 @@ void ApplyTXConfig()
   }
   else if ((strcmp(CurrentModeOP, "JLIME") == 0) || (strcmp(CurrentModeOP, "JEXPRESS") == 0))
   {
-    if (strcmp(CurrentSource, "HDMI") ==0)
+    if (strcmp(CurrentSource, "HDMI") == 0)
     {
       strcpy(ModeInput, "JHDMI");
     }
-    if (strcmp(CurrentSource, "Pi Cam") ==0)
+    if (strcmp(CurrentSource, "Pi Cam") == 0)
     {
       strcpy(ModeInput, "JCAM");
+    }
+    if (strcmp(CurrentSource, "C920") == 0)
+    {
+      strcpy(ModeInput, "JWEBCAM");
+    }
+    if (strcmp(CurrentSource, "Webcam") == 0)
+    {
+      strcpy(ModeInput, "JWEBCAM");
     }
 
   }
@@ -5533,6 +5703,7 @@ void GreyOutReset42()
   SetButtonStatus(ButtonNumber(CurrentMenu, 3), 0); // Lime Mini
   SetButtonStatus(ButtonNumber(CurrentMenu, 7), 0); // DATV Express
   SetButtonStatus(ButtonNumber(CurrentMenu, 8), 0); // Lime USB
+  SetButtonStatus(ButtonNumber(CurrentMenu, 10), 0); // Jetson
 }
 
 void GreyOut42()
@@ -5548,6 +5719,25 @@ void GreyOut42()
   if (CheckLimeUSBConnect() == 1)  // Lime USB not connected so GreyOut
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 8), 2); // Lime USB
+  }
+  if (CheckJetson() == 1)  // Jetson not connected so GreyOut
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 10), 2); // Jetson
+  }
+}
+
+void GreyOutReset44()
+{
+  SetButtonStatus(ButtonNumber(CurrentMenu, 0), 0); // Shutdown Jetson
+  SetButtonStatus(ButtonNumber(CurrentMenu, 1), 0); // Reboot Jetson
+}
+
+void GreyOut44()
+{
+  if (CheckJetson() == 1)  // Jetson not connected so GreyOut
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 0), 2); // Shutdown Jetson
+    SetButtonStatus(ButtonNumber(CurrentMenu, 1), 2); // Reboot Jetson
   }
 }
 
@@ -9377,7 +9567,7 @@ void ChangePresetFreq(int NoButton)
   float PDfreq;
   char Param[15] = "pfreq";
 
-  //Convert button number to frequency array index
+  // Convert button number to frequency array index
   if (NoButton < 4)
   {
     FreqIndex = NoButton + 5;
@@ -9387,7 +9577,7 @@ void ChangePresetFreq(int NoButton)
     FreqIndex = NoButton - 5;
   }
 
-  //Define request string depending on transverter or not
+  // Define request string depending on transverter or not
   if (((TabBandLO[CurrentBand] < 0.1) && (TabBandLO[CurrentBand] > -0.1)) || (CallingMenu == 5))
   {
     strcpy(RequestText, "Enter new frequency for Button ");
@@ -9400,7 +9590,7 @@ void ChangePresetFreq(int NoButton)
   strcat(RequestText, PresetNo);
   strcat(RequestText, " in MHz:");
 
-  // Calulate initial value
+  // Calculate initial value
   if (((TabBandLO[CurrentBand] < 0.1) && (TabBandLO[CurrentBand] > -0.1)) || (CallingMenu == 5))
   {
     snprintf(InitText, 10, "%s", TabFreq[FreqIndex]);
@@ -9412,7 +9602,7 @@ void ChangePresetFreq(int NoButton)
     {
       TvtrFreq = TvtrFreq * -1;
     }
-    snprintf(InitText, 10, "%.1f", TvtrFreq);
+    snprintf(InitText, 10, "%.2f", TvtrFreq);
   }
   
   Keyboard(RequestText, InitText, 10);
@@ -9432,7 +9622,7 @@ void ChangePresetFreq(int NoButton)
     {
       PDfreq = -1 * (atof(KeyboardReturn) + TabBandLO[CurrentBand]);
     }
-    snprintf(KeyboardReturn, 10, "%.1f", PDfreq);
+    snprintf(KeyboardReturn, 10, "%.2f", PDfreq);
   }
   
   // Write freq to tabfreq
@@ -9743,6 +9933,172 @@ void ChangePID(int NoButton)
     break;
   }
   printf("PID set to: %s\n", KeyboardReturn);
+}
+
+void ChangeJetsonIP()
+{
+  char RequestText[64];
+  char InitText[64];
+  bool IsValid = FALSE;
+  char JetsonIP[31];
+  char JetsonIPCopy[31];
+
+  //Retrieve (17 char) Current IP from Config file
+  GetConfigParam(PATH_JCONFIG, "jetsonip", JetsonIP);
+
+  while (IsValid == FALSE)
+  {
+    strcpy(RequestText, "Enter new IP address for Jetson Nano");
+    snprintf(InitText, 17, "%s", JetsonIP);
+    Keyboard(RequestText, InitText, 17);
+  
+    strcpy(JetsonIPCopy, KeyboardReturn);
+    if(is_valid_ip(JetsonIPCopy) == 1)
+    {
+      IsValid = TRUE;
+    }
+  }
+  printf("Jetson IP set to: %s\n", KeyboardReturn);
+
+  // Save IP to config file
+  SetConfigParam(PATH_JCONFIG, "jetsonip", KeyboardReturn);
+}
+
+void ChangeLKVIP()
+{
+  char RequestText[64];
+  char InitText[64];
+  bool IsValid = FALSE;
+  char LKVIP[31];
+  char LKVIPCopy[31];
+
+  //Retrieve (17 char) Current IP from Config file
+  GetConfigParam(PATH_JCONFIG, "lkvudp", LKVIP);
+
+  while (IsValid == FALSE)
+  {
+    strcpy(RequestText, "Enter new UDP IP address for LKV373A");
+    snprintf(InitText, 17, "%s", LKVIP);
+    Keyboard(RequestText, InitText, 17);
+  
+    strcpy(LKVIPCopy, KeyboardReturn);
+    if(is_valid_ip(LKVIPCopy) == 1)
+    {
+      IsValid = TRUE;
+    }
+  }
+  printf("LKV UDP IP set to: %s\n", KeyboardReturn);
+
+  // Save IP to Config File
+  SetConfigParam(PATH_JCONFIG, "lkvudp", KeyboardReturn);
+}
+
+void ChangeLKVPort()
+{
+  char RequestText[64];
+  char InitText[64];
+  bool IsValid = FALSE;
+  char LKVPort[15];
+
+  //Retrieve (10 char) Current port from Config file
+  GetConfigParam(PATH_JCONFIG, "lkvport", LKVPort);
+
+  while (IsValid == FALSE)
+  {
+    strcpy(RequestText, "Enter the new UDP port for the LKV373A");
+    snprintf(InitText, 10, "%s", LKVPort);
+    Keyboard(RequestText, InitText, 10);
+  
+    if(strlen(KeyboardReturn) > 0)
+    {
+      IsValid = TRUE;
+    }
+  }
+  printf("LKV UDP Port set to: %s\n", KeyboardReturn);
+
+  // Save port to Config File
+  SetConfigParam(PATH_JCONFIG, "lkvport", KeyboardReturn);
+}
+
+void ChangeJetsonUser()
+{
+  char RequestText[64];
+  char InitText[64];
+  bool IsValid = FALSE;
+  char JetsonUser[15];
+
+  //Retrieve (15 char) Username from Config file
+  GetConfigParam(PATH_JCONFIG, "jetsonuser", JetsonUser);
+
+  while (IsValid == FALSE)
+  {
+    strcpy(RequestText, "Enter the username for the Jetson Nano");
+    snprintf(InitText, 15, "%s", JetsonUser);
+    Keyboard(RequestText, InitText, 10);
+  
+    if(strlen(KeyboardReturn) > 0)
+    {
+      IsValid = TRUE;
+    }
+  }
+  printf("Jetson Username set to: %s\n", KeyboardReturn);
+
+  // Save username to Config File
+  SetConfigParam(PATH_JCONFIG, "jetsonuser", KeyboardReturn);
+}
+
+void ChangeJetsonPW()
+{
+  char RequestText[64];
+  char InitText[64];
+  bool IsValid = FALSE;
+  char JetsonPW[31];
+
+  //Retrieve (31 char)Password from Config file
+  GetConfigParam(PATH_JCONFIG, "jetsonpw", JetsonPW);
+
+  while (IsValid == FALSE)
+  {
+    strcpy(RequestText, "Enter the password for the Jetson Nano");
+    snprintf(InitText, 31, "%s", JetsonPW);
+    Keyboard(RequestText, InitText, 10);
+  
+    if(strlen(KeyboardReturn) > 0)
+    {
+      IsValid = TRUE;
+    }
+  }
+  printf("Jetson password set to: %s\n", KeyboardReturn);
+
+  // Save username to Config File
+  SetConfigParam(PATH_JCONFIG, "jetsonpw", KeyboardReturn);
+}
+
+void ChangeJetsonRPW()
+{
+  char RequestText[64];
+  char InitText[64];
+  bool IsValid = FALSE;
+  char JetsonPW[31];
+
+  //Retrieve (31 char) root password from Config file
+  GetConfigParam(PATH_JCONFIG, "jetsonrootpw", JetsonPW);
+
+  while (IsValid == FALSE)
+  {
+    strcpy(RequestText, "Enter the root password for the Jetson Nano");
+    snprintf(InitText, 31, "%s", JetsonPW);
+    Keyboard(RequestText, InitText, 10);
+  
+    if(strlen(KeyboardReturn) > 0)
+    {
+      IsValid = TRUE;
+    }
+  }
+  printf("Jetson root password set to: %s\n", KeyboardReturn);
+
+  // Save username to Config File
+  SetConfigParam(PATH_JCONFIG, "jetsonrootpw", KeyboardReturn);
 }
 
 
@@ -10079,10 +10435,20 @@ void waituntil(int w,int h)
           }
           break;
         case 21:                       // RX
-          printf("MENU 5 \n");
-          CurrentMenu=5;
-          BackgroundRGB(0,0,0,255);
-          Start_Highlights_Menu5();
+          if (CheckFTDI() == 1)
+          {
+            printf("MENU 5 \n");
+            CurrentMenu=5;
+            BackgroundRGB(0,0,0,255);
+            Start_Highlights_Menu5();
+          }
+          else
+          {
+            printf("MENU 8 \n");
+            CurrentMenu=8;
+            BackgroundRGB(0,0,0,255);
+            Start_Highlights_Menu8();
+          }
           UpdateWindow();
           break;
         case 22:                      // Select Menu 2
@@ -10300,14 +10666,19 @@ void waituntil(int w,int h)
           break;
         case 4:                               // 
           break;
-        case 5:                              // 
+        case 5:                              // Lime Config
           printf("MENU 34 \n"); 
           CurrentMenu=34;
           BackgroundRGB(0,0,0,255);
           Start_Highlights_Menu34();
           UpdateWindow();
           break;
-        case 6:                              // 
+        case 6:                              // Jetson Config 
+          printf("MENU 44 \n"); 
+          CurrentMenu=44;
+          BackgroundRGB(0,0,0,255);
+          Start_Highlights_Menu44();
+          UpdateWindow();
           break;
         case 7:                              // 
           break;
@@ -10857,6 +11228,26 @@ void waituntil(int w,int h)
         UpdateWindow();
         continue;   // Completed Menu 7 action, go and wait for touch
       }
+
+      if (CurrentMenu == 8)  // Menu 8
+      {
+        printf("Button Event %d, Entering Menu 8 Case Statement\n",i);
+        CallingMenu = 8;
+        switch (i)
+        {
+        case 22:                                          // Back to Menu 1
+          printf("MENU 1 \n");
+          CurrentMenu=1;
+          BackgroundRGB(255,255,255,255);
+          Start_Highlights_Menu1();
+          UpdateWindow();
+          break;
+        default:
+          printf("Menu 8 Error\n");
+        }
+        continue;   // Completed Menu 8 action, go and wait for touch
+      }
+
 
       if (CurrentMenu == 11)  // Menu 11 TX RF Output Mode
       {
@@ -12325,6 +12716,88 @@ void waituntil(int w,int h)
         continue;   // Completed Menu 43 action, go and wait for touch
       }
 
+      if (CurrentMenu == 44)  // Menu 44 Jetson Configuration
+      {
+        printf("Button Event %d, Entering Menu 44 Case Statement\n",i);
+        switch (i)
+        {
+        case 4:                               // Cancel
+          SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 1);
+          printf("Cancelling System Config Menu\n");
+          UpdateWindow();
+          usleep(500000);
+          SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 0); // Reset cancel (even if not selected)
+          printf("Returning to MENU 1 from Menu 44\n");
+          CurrentMenu=1;
+          BackgroundRGB(255,255,255,255);
+          Start_Highlights_Menu1();
+          UpdateWindow();
+          break;
+        case 0:
+          system("/home/pi/rpidatv/scripts/s_jetson.sh");
+          SetButtonStatus(ButtonNumber(CurrentMenu, 0), 2); // Greyout Shutdown Jetson
+          SetButtonStatus(ButtonNumber(CurrentMenu, 1), 2); // Greyout Reboot Jetson
+          UpdateWindow();
+          break;
+        case 1:
+          system("/home/pi/rpidatv/scripts/r_jetson.sh");
+          SetButtonStatus(ButtonNumber(CurrentMenu, 0), 2); // Greyout Shutdown Jetson
+          SetButtonStatus(ButtonNumber(CurrentMenu, 1), 2); // Greyout Reboot Jetson
+          UpdateWindow();
+          break;
+        case 2:
+          printf("Changing Jetson IP\n");
+          ChangeJetsonIP();
+          CurrentMenu=44;
+          BackgroundRGB(0,0,0,255);
+          Start_Highlights_Menu44();
+          UpdateWindow();
+          break;
+        case 3:
+          printf("Changing LKV373A UDP IP\n");
+          ChangeLKVIP();
+          CurrentMenu=44;
+          BackgroundRGB(0,0,0,255);
+          Start_Highlights_Menu44();
+          UpdateWindow();
+          break;
+        case 5:
+          printf("Changing Jetson User name\n");
+          ChangeJetsonUser();
+          CurrentMenu=44;
+          BackgroundRGB(0,0,0,255);
+          Start_Highlights_Menu44();
+          UpdateWindow();
+          break;
+        case 6:
+          printf("Changing Jetson passord\n");
+          ChangeJetsonPW();
+          CurrentMenu=44;
+          BackgroundRGB(0,0,0,255);
+          Start_Highlights_Menu44();
+          UpdateWindow();
+          break;
+        case 7:
+          printf("Changing Jetson root password\n");
+          ChangeJetsonRPW();
+          CurrentMenu=44;
+          BackgroundRGB(0,0,0,255);
+          Start_Highlights_Menu44();
+          UpdateWindow();
+          break;
+        case 8:
+          printf("Changing LKV373A UDP Port\n");
+          ChangeLKVPort();
+          CurrentMenu=44;
+          BackgroundRGB(0,0,0,255);
+          Start_Highlights_Menu44();
+          UpdateWindow();
+          break;
+        default:
+          printf("Menu 44 Error\n");
+        }
+      }
+
       if (CurrentMenu == 41)  // Menu 41 Keyboard (should not get here)
       {
         //break;
@@ -12653,7 +13126,7 @@ void Start_Highlights_Menu1()
       {
         TvtrFreq = TvtrFreq * -1;
       }
-      snprintf(Value, 10, "%.1f", TvtrFreq);
+      snprintf(Value, 10, "%.2f", TvtrFreq);
       strcat(Freqtext, Value);
     }
   }
@@ -12981,6 +13454,9 @@ void Define_Menu3()
 
   button = CreateButton(3, 5);
   AddButtonStatus(button, "Lime^Config", &Blue);
+
+  button = CreateButton(3, 6);
+  AddButtonStatus(button, "Jetson^Config", &Blue);
 
   // 3rd line up Menu 3: Amend Sites/Beacons, Set Receive LOs and set Stream Outputs 
 
@@ -13664,6 +14140,123 @@ void Start_Highlights_Menu7()
   ;
 }
 
+void Define_Menu8()
+{
+  int button = 0;
+  color_t Green;
+  color_t Blue;
+  color_t Red;
+  color_t Grey;
+  strcpy(MenuTitle[8], "DATV Menu (8)"); 
+
+  Green.r=0; Green.g=96; Green.b=0;
+  Blue.r=0; Blue.g=0; Blue.b=128;
+  Red.r=255; Red.g=0; Red.b=0;
+  Grey.r=127; Grey.g=127; Grey.b=127;
+
+  // Bottom Row, Menu 8
+
+  button = CreateButton(8, 0);
+  AddButtonStatus(button, " ", &Blue);
+  AddButtonStatus(button, " ", &Green);
+
+  button = CreateButton(8, 1);
+  AddButtonStatus(button, " ", &Blue);
+  AddButtonStatus(button, " ", &Green);
+
+  button = CreateButton(8, 2);
+  AddButtonStatus(button, " ", &Blue);
+  AddButtonStatus(button, " ", &Green);
+
+  button = CreateButton(8, 3);
+  AddButtonStatus(button, " ", &Blue);
+  AddButtonStatus(button, " ", &Green);
+
+  button = CreateButton(8, 4);
+  AddButtonStatus(button, " ", &Blue);
+  AddButtonStatus(button, " ", &Red);
+
+  // 2nd Row, Menu 8.  
+
+  button = CreateButton(8, 5);
+  AddButtonStatus(button, " ", &Blue);
+  AddButtonStatus(button, " ", &Green);
+
+  //button = CreateButton(8, 6);
+  //AddButtonStatus(button, " ", &Blue);
+  //AddButtonStatus(button, " ", &Green);
+
+  button = CreateButton(8, 7);
+  AddButtonStatus(button, " ", &Blue);
+  AddButtonStatus(button, " ", &Green);
+
+  //button = CreateButton(8, 8);
+  //AddButtonStatus(button, " ", &Blue);
+  //AddButtonStatus(button, " ", &Green);
+
+  button = CreateButton(8, 9);
+  AddButtonStatus(button, " ", &Blue);
+  AddButtonStatus(button, " ", &Green);
+
+  // 3rd line up Menu 8
+
+  button = CreateButton(8, 10);    
+  AddButtonStatus(button, " ", &Blue);
+  AddButtonStatus(button, " ", &Green);
+
+  button = CreateButton(8, 11);
+  AddButtonStatus(button, " ", &Blue);
+  AddButtonStatus(button, " ", &Green);
+
+  button = CreateButton(8, 12);
+  AddButtonStatus(button, " ", &Blue);
+  AddButtonStatus(button, " ", &Green);
+
+  button = CreateButton(8, 13);
+  AddButtonStatus(button," ",&Blue);
+  AddButtonStatus(button," ",&Green);
+
+  button = CreateButton(8, 14);
+  AddButtonStatus(button," ",&Blue);
+  AddButtonStatus(button," ",&Green);
+
+  // 4th line up Menu 8
+
+  button = CreateButton(8, 15);
+  AddButtonStatus(button, " ", &Blue);
+  AddButtonStatus(button, "Modulation^not set", &Green);
+
+  button = CreateButton(8, 16);
+  AddButtonStatus(button, " ", &Blue);
+  AddButtonStatus(button, " ", &Green);
+  AddButtonStatus(button, " ", &Grey);
+
+  button = CreateButton(8, 17);
+  AddButtonStatus(button, " ", &Blue);
+  AddButtonStatus(button, " ", &Blue);
+
+  button = CreateButton(8, 18);
+  AddButtonStatus(button, " ", &Blue);
+  AddButtonStatus(button, " ", &Green);
+
+  button = CreateButton(8, 19);
+  AddButtonStatus(button, " ", &Blue);
+  AddButtonStatus(button, " ", &Green);
+
+  // - Top of Menu 8
+
+  button = CreateButton(8, 21);
+  AddButtonStatus(button,"   ",&Blue);
+  AddButtonStatus(button," ",&Red);
+
+  button = CreateButton(8, 22);
+  AddButtonStatus(button,"EXIT",&Blue);
+  AddButtonStatus(button,"EXIT",&Green);
+}
+
+void Start_Highlights_Menu8()
+{
+}
 
 void Define_Menu11()
 {
@@ -14117,7 +14710,7 @@ void Define_Menu16()
     {
       TvtrFreq = TvtrFreq * -1;
     }
-    snprintf(Value, 10, "%.1f", TvtrFreq);
+    snprintf(Value, 10, "%.2f", TvtrFreq);
     strcat(Freqtext, Value);
   }
  
@@ -14194,7 +14787,7 @@ void MakeFreqText(int index)
       {
         TvtrFreq = TvtrFreq * -1;
       }
-      snprintf(Value, 10, "%.1f", TvtrFreq);
+      snprintf(Value, 10, "%.2f", TvtrFreq);
       strcat(FreqBtext, Value);
     }
     else
@@ -14207,7 +14800,7 @@ void MakeFreqText(int index)
       {
         TvtrFreq = TvtrFreq * -1;
       }
-      snprintf(Value, 10, "%.1f", TvtrFreq);
+      snprintf(Value, 10, "%.2f", TvtrFreq);
       strcat(FreqBtext, Value);
     }
   }
@@ -16183,15 +16776,92 @@ void Start_Highlights_Menu43()
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 13), 2); // Grey-out Invert 7 inch
   }
+}
 
-  if (strcmp(DisplayType, "Element14_7") == 0)
-  {
-    SetButtonStatus(ButtonNumber(CurrentMenu, 14), 0); // Display Invert 7 inch
-  }
-  else
-  {
-    SetButtonStatus(ButtonNumber(CurrentMenu, 14), 2); // Grey-out Invert 7 inch
-  }
+void Define_Menu44()
+{
+  int button;
+  color_t Blue;
+  color_t LBlue;
+  color_t DBlue;
+  color_t Green;
+  color_t Grey;
+  Blue.r=0; Blue.g=0; Blue.b=128;
+  LBlue.r=64; LBlue.g=64; LBlue.b=192;
+  DBlue.r=0; DBlue.g=0; DBlue.b=64;
+  Green.r=0; Green.g=128; Green.b=0;
+  Grey.r=127; Grey.g=127; Grey.b=127;
+
+  strcpy(MenuTitle[44], "Jetson Configuration Menu (44)"); 
+
+  // Bottom Row, Menu 44
+
+  button = CreateButton(44, 4);
+  AddButtonStatus(button, "Exit", &DBlue);
+  AddButtonStatus(button, "Exit", &LBlue);
+
+  button = CreateButton(44, 0);
+  AddButtonStatus(button, "Shutdown^Jetson", &Blue);
+  AddButtonStatus(button, "Shutdown^Jetson", &Green);
+  AddButtonStatus(button, "Shutdown^Jetson", &Grey);
+
+  button = CreateButton(44, 1);
+  AddButtonStatus(button, "Reboot^Jetson", &Blue);
+  AddButtonStatus(button, "Reboot^Jetson", &Green);
+  AddButtonStatus(button, "Reboot^Jetson", &Grey);
+
+  button = CreateButton(44, 2);
+  AddButtonStatus(button, "Set Jetson^IP address", &Blue);
+
+  button = CreateButton(44, 3);
+  AddButtonStatus(button, "LKV373^UDP IP", &Blue);
+
+  button = CreateButton(44, 8);
+  AddButtonStatus(button, "LKV373^UDP port", &Blue);
+
+  // 2nd Row, Menu 44
+
+  button = CreateButton(44, 5);
+  AddButtonStatus(button, "Set Jetson^Username", &Blue);
+
+  button = CreateButton(44, 6);
+  AddButtonStatus(button, "Set Jetson^Password", &Blue);
+
+  button = CreateButton(44, 7);
+  AddButtonStatus(button, "Set Jetson^Root PW", &Blue);
+
+//  button = CreateButton(44, 9);
+//  AddButtonStatus(button, "SD Button^Enabled", &Blue);
+//  AddButtonStatus(button, "SD Button^Enabled", &Green);
+//  AddButtonStatus(button, "SD Button^Disabled", &Blue);
+//  AddButtonStatus(button, "SD Button^Disabled", &Green);
+
+  // 3rd Row, Menu 44
+
+//  button = CreateButton(44, 10);
+//  AddButtonStatus(button, "", &Blue);
+//  AddButtonStatus(button, "", &Green);
+
+//  button = CreateButton(44, 11);
+//  AddButtonStatus(button, "", &Blue);
+//  AddButtonStatus(button, "", &Green);
+
+//  button = CreateButton(44, 13);
+//  AddButtonStatus(button, "force pwm^open = 0", &Blue);
+//  AddButtonStatus(button, "force pwm^open = 0", &Green);
+//  AddButtonStatus(button, "force pwm^open = 1", &Blue);
+//  AddButtonStatus(button, "force pwm^open = 1", &Green);
+
+//  button = CreateButton(44, 14);
+//  AddButtonStatus(button, "Invert^7 inch", &Blue);
+//  AddButtonStatus(button, "Invert^7 inch", &Green);
+//  AddButtonStatus(button, "Invert^7 inch", &Grey);
+}
+
+void Start_Highlights_Menu44()
+{
+  GreyOutReset44();
+  GreyOut44();
 }
 
 void Define_Menu41()
@@ -16615,6 +17285,7 @@ int main(int argc, char **argv)
   Define_Menu5();
   Define_Menu6();
   Define_Menu7();
+  Define_Menu8();
 
   Define_Menu11();
   Define_Menu12();
@@ -16649,6 +17320,7 @@ int main(int argc, char **argv)
   Define_Menu41();
   Define_Menu42();
   Define_Menu43();
+  Define_Menu44();
 
   // Start the button Menu
   Start(wscreen,hscreen);

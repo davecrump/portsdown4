@@ -2050,6 +2050,32 @@ ENDSSH
       ) &
 EOM
     ;;
+    "JWEBCAM")
+      # Write the assembled Jetson command to a temp file
+      /bin/cat <<EOM >$CMDFILE
+      (sshpass -p $JETSONPW ssh -o StrictHostKeyChecking=no $JETSONUSER@$JETSONIP 'bash -s' <<'ENDSSH' 
+      cd ~/dvbsdr/scripts
+      gst-launch-1.0 -vvv -e \
+        v4l2src device=/dev/video0 do-timestamp=true '!' 'video/x-h264,width=1280,height=720,framerate=30/1' \
+        '!' h264parse '!' omxh264dec '!' nvvidconv \
+        '!' "video/x-raw(memory:NVMM), width=(int)$VIDEO_WIDTH, height=(int)$VIDEO_HEIGHT, format=(string)I420" \
+        '!' omxh265enc control-rate=2 bitrate=$VIDEOBITRATE peak-bitrate=$VIDEOPEAKBITRATE preset-level=3 iframeinterval=100 \
+        '!' 'video/x-h265,width=(int)$VIDEO_WIDTH,height=(int)$VIDEO_HEIGHT,stream-format=(string)byte-stream' '!' queue \
+        '!' mux. alsasrc device=hw:2 \
+        '!' 'audio/x-raw, format=S16LE, layout=interleaved, rate=32000, channels=2' \
+        '!' audioconvert '!' 'audio/x-raw, channels=1' '!' voaacenc bitrate=20000 \
+        '!' queue '!' mux. mpegtsmux alignment=7 name=mux '!' fdsink \
+      | ffmpeg -i - -ss 8 \
+        -c:v copy -max_delay 200000 -muxrate $BITRATE_TS \
+        -c:a copy -f mpegts \
+        -metadata service_provider="$CALL" -metadata service_name="$CALL" \
+        -mpegts_pmt_start_pid $PIDPMT -streamid 0:"$PIDVIDEO" -streamid 1:"$PIDAUDIO" - \
+      | ../bin/limesdr_dvb -s "$SYMBOLRATE_K"000 -f $FECNUM/$FECDEN -r $UPSAMPLE -m $MODTYPE -c $CONSTLN $PILOTS $FRAMES \
+        -t "$FREQ_OUTPUT"e6 -g $LIME_GAINF -q 1
+ENDSSH
+      ) &
+EOM
+    ;;
     esac
   ;;
   "H264")
@@ -2094,6 +2120,33 @@ EOM
         '!' 'video/x-h264, level=(string)4.1, stream-format=(string)byte-stream' '!' queue \
         '!' mux. alsasrc device=hw:2 \
         '!' 'audio/x-raw, format=S16LE, layout=interleaved, rate=48000, channels=1' '!' voaacenc bitrate=20000 \
+        '!' queue '!' mux. mpegtsmux alignment=7 name=mux '!' fdsink \
+      | ffmpeg -i - -ss 8 \
+        -c:v copy -max_delay 200000 -muxrate $BITRATE_TS \
+        -c:a copy -f mpegts \
+        -metadata service_provider="$CALL" -metadata service_name="$CALL" \
+        -mpegts_pmt_start_pid $PIDPMT -streamid 0:"$PIDVIDEO" -streamid 1:"$PIDAUDIO" - \
+      | ../bin/limesdr_dvb -s "$SYMBOLRATE_K"000 -f $FECNUM/$FECDEN -r $UPSAMPLE -m $MODTYPE -c $CONSTLN $PILOTS $FRAMES \
+        -t "$FREQ_OUTPUT"e6 -g $LIME_GAINF -q 1
+ENDSSH
+      ) &
+EOM
+    ;;
+    "JWEBCAM")
+      # Write the assembled Jetson command to a temp file
+      /bin/cat <<EOM >$CMDFILE
+      (sshpass -p $JETSONPW ssh -o StrictHostKeyChecking=no $JETSONUSER@$JETSONIP 'bash -s' <<'ENDSSH' 
+      cd ~/dvbsdr/scripts
+      gst-launch-1.0 -vvv -e \
+        v4l2src device=/dev/video0 do-timestamp=true '!' 'video/x-h264,width=1280,height=720,framerate=30/1' \
+        '!' h264parse '!' omxh264dec '!' nvvidconv \
+        '!' "video/x-raw(memory:NVMM), width=(int)$VIDEO_WIDTH, height=(int)$VIDEO_HEIGHT, format=(string)I420" \
+        '!' omxh264enc vbv-size=15 control-rate=2 bitrate=$VIDEOBITRATE peak-bitrate=$VIDEOPEAKBITRATE \
+        insert-sps-pps=1 insert-vui=1 cabac-entropy-coding=1 preset-level=3 profile=8 iframeinterval=100 \
+        '!' 'video/x-h264, level=(string)4.1, stream-format=(string)byte-stream' '!' queue \
+        '!' mux. alsasrc device=hw:2 \
+        '!' 'audio/x-raw, format=S16LE, layout=interleaved, rate=32000, channels=2' \
+        '!' audioconvert '!' 'audio/x-raw, channels=1' '!' voaacenc bitrate=20000 \
         '!' queue '!' mux. mpegtsmux alignment=7 name=mux '!' fdsink \
       | ffmpeg -i - -ss 8 \
         -c:v copy -max_delay 200000 -muxrate $BITRATE_TS \
