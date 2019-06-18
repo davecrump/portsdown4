@@ -1208,6 +1208,13 @@ fi
   #============================================ ANALOG and WEBCAM H264 =============================================================
   "ANALOGCAM" | "WEBCAMH264")
 
+    # Allow for experimental widescreen
+    FORMAT=$(get_config_var format $PCONFIGFILE)
+    if [ "$FORMAT" == "16:9" ]; then
+      VIDEO_WIDTH=768
+      VIDEO_HEIGHT=400
+    fi
+
     # Turn off the viewfinder (which would show Pi Cam)
     v4l2-ctl --overlay=0
 
@@ -2166,7 +2173,8 @@ EOM
   source "$CMDFILE"
 
   # Turn the PTT on after a 15 second delay
-  /home/pi/rpidatv/scripts/jetson_lime_ptt.sh &
+  /home/pi/rpidatv/scripts/jetson_lime_ptt.sh &  # PTT on RPi GPIO
+  /home/pi/rpidatv/scripts/jetson_tx_on.sh &     # PTT on Jetson GPIO Pin 40
 ;;
 
 "JEXPRESS")
