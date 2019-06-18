@@ -168,7 +168,7 @@ char TabTXMode[6][255] = {"DVB-S", "Carrier", "S2QPSK", "8PSK", "16APSK", "32APS
 char CurrentTXMode[255] = "DVB-S";
 char CurrentPilots[7] = "off";
 char CurrentFrames[7] = "long";
-char CurrentModeInput[255] = "DESKTOP";
+//char CurrentModeInput[255] = "DESKTOP";
 char TabEncoding[5][15] = {"MPEG-2", "H264", "H265", "IPTS in", "TS File"};
 char CurrentEncoding[255] = "H264";
 char TabSource[10][15] = {"Pi Cam", "CompVid", "TCAnim", "TestCard", "PiScreen", "Contest", "Webcam", "C920", "HDMI", "PC"};
@@ -1414,15 +1414,12 @@ void ReadModeInput(char coding[256], char vsource[256])
   // Read the current vision source and encoding
   GetConfigParam(PATH_PCONFIG,"modeinput", ModeInput);
   GetConfigParam(PATH_PCONFIG,"modeoutput", ModeOutput);
+  GetConfigParam(PATH_PCONFIG,"format", CurrentFormat);
 
   // Correct Jetson modes if Jetson not selected
   printf ("Mode Output in ReadModeInput() is %s\n", ModeOutput);
   if ((strcmp(ModeOutput, "JLIME") != 0) && (strcmp(ModeOutput, "JEXPRESS") != 0))
   {
-    // Set format to 4:3
-    strcpy(CurrentFormat, "4:3");
-    SetConfigParam(PATH_PCONFIG, "format", CurrentFormat);
-
     // Set Encoding to H264
     strcpy(CurrentEncoding, "H264");
     strcpy(coding, "H264");
@@ -1480,7 +1477,10 @@ void ReadModeInput(char coding[256], char vsource[256])
     strcpy(coding, "H264");
     strcpy(vsource, "Ext Video Input");
     strcpy(CurrentEncoding, "H264");
-    strcpy(CurrentFormat, "4:3");
+    if(strcmp(CurrentFormat, "16:9") !=0)
+    {
+      strcpy(CurrentFormat, "4:3");
+    }
     strcpy(CurrentSource, TabSource[1]); // EasyCap
   }
   else if (strcmp(ModeInput, "WEBCAMH264") == 0)
@@ -5170,6 +5170,17 @@ void ApplyTXConfig()
             strcpy(CurrentFormat, "4:3");
           }
         }
+        else 
+        {
+          if (strcmp(CurrentSource, "CompVid") == 0)
+          {
+            strcpy(CurrentFormat, "16:9");
+          }
+          else
+          {
+            strcpy(CurrentFormat, "4:3");
+          }
+        }
       }
       if (strcmp(CurrentFormat, "4:3") == 0)
       {
@@ -5381,6 +5392,10 @@ void ApplyTXConfig()
   SetConfigParam(PATH_PCONFIG, Param, ModeInput);
   printf("a.sh will be called with %s\n", ModeInput);
 
+  strcpy(Param, "format");
+  SetConfigParam(PATH_PCONFIG, Param, CurrentFormat);
+  printf("a.sh will be called with format %s\n", CurrentFormat);
+
   // Load the Pi Cam driver for CAMMPEG-2 and Streaming modes
   printf("TESTING FOR STREAMER\n");
   if ((strcmp(ModeInput,"CAMMPEG-2")==0)
@@ -5425,7 +5440,14 @@ void EnforceValidFEC()
   {
     if (fec > 10)
     {
-      fec = 7;
+      if(fec == 12)
+      {
+        fec = 1;
+      }
+      else
+      {
+        fec = 7;
+      }
       FECChanged = 1;
     }
   }
@@ -5433,7 +5455,14 @@ void EnforceValidFEC()
   {
     if (fec < 9)
     {
-      fec = 91;
+      if(fec == 1)
+      {
+        fec = 12;
+      }
+      else
+      {
+        fec = 91;
+      }
       FECChanged = 1;
     }
   }
@@ -10107,7 +10136,8 @@ void waituntil(int w,int h)
   // Wait for a screen touch and act on its position
 
   int rawX, rawY, rawPressure, i;
-
+rawX = 0;
+rawY = 0;
   // printf("Entering WaitUntil\n");
   // Start the main loop for the Touchscreen
   for (;;)
@@ -10136,7 +10166,7 @@ void waituntil(int w,int h)
       // SigGen?                                    SigGen      (not implemented yet)
       // WebcamWait                                 Waiting for Webcam reset. Touch listens but does not respond
 
-      //printf("Screenstate is %s \n", ScreenState);
+      // printf("Screenstate is %s \n", ScreenState);
 
      // Sort TXwithImage first:
     if (strcmp(ScreenState, "TXwithImage") == 0)

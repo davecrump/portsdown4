@@ -2,8 +2,10 @@
 Overide RPi GPIOs when Express GPIOs 16-31 selected
 Improve IPTS IN performance with LimeSDR
 Jetson H264 and Pi Cam Support
-Jetson C920 Webcam support at 500KS only
+Jetson C920 Webcam support at 500KS and below only
 Jetson Config Menu
+Delayed PTT switching on Jetson GPIO Pin 40
+Added 16:9 Comp Vid H264 mode
 
 201905090
 Add DVB-S2 pilots on/off

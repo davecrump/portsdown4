@@ -35,6 +35,8 @@ MODE_OUTPUT=$(get_config_var modeoutput $PCONFIGFILE)
 case "$MODE_OUTPUT" in
 "JLIME" | "JEXPRESS")
 
+  # Stop the processes
+
   JETSONIP=$(get_config_var jetsonip $JCONFIGFILE)
   JETSONUSER=$(get_config_var jetsonuser $JCONFIGFILE)
   JETSONPW=$(get_config_var jetsonpw $JCONFIGFILE)
@@ -44,6 +46,10 @@ case "$MODE_OUTPUT" in
     killall ffmpeg
     killall limesdr_dvb
 ENDSSH
+
+  # Turn the PTT off
+  /home/pi/rpidatv/scripts/jetson_tx_off.sh &
+
 ;;
 esac
 
