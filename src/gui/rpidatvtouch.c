@@ -7117,7 +7117,8 @@ void TransmitStop()
   // Turn the VCO off
   system("sudo /home/pi/rpidatv/bin/adf4351 off");
 
-  // Run the Extra script for TX stop
+  // Run the Extra scripts for TX stop
+  system("/home/pi/rpidatv/scripts/TXstop.sh &");
   system("/home/pi/rpidatv/scripts/TXstopextras.sh &");
 
   // Check for C910, C525, C310 or C270 webcam

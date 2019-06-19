@@ -1378,6 +1378,7 @@ do_stop_transmit()
   fi
 
   # Call TXstopextras.sh in an additional process
+  $PATHSCRIPT"/TXstop.sh" >/dev/null 2>/dev/null &
   $PATHSCRIPT"/TXstopextras.sh" >/dev/null 2>/dev/null &
 
   # Turn the Local Oscillator off
