@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Version 20190207
+# Version 20190606
 
 ############ Set Environment Variables ###############
 
@@ -40,4 +40,8 @@ sudo cp -f $PATHSCRIPT"/rx_presets.txt" /boot/portsdown_settings/rx_presets.txt
 # Stream Presets
 sudo cp -f $PATHSCRIPT"/stream_presets.txt" /boot/portsdown_settings/stream_presets.txt
 
-# 9 files
+# Jetson Config
+sudo cp -f $PATHSCRIPT"/jetson_config.txt" /boot/portsdown_settings/jetson_config.txt
+
+
+# 10 files

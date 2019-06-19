@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Version 20190207
+# Version 20190606
 
 # set -x
 
@@ -40,4 +40,7 @@ sudo cp -f $PATHSCRIPT"/rx_presets.txt" /media/usb/portsdown_settings/rx_presets
 # Stream Presets
 sudo cp -f $PATHSCRIPT"/stream_presets.txt" /media/usb/portsdown_settings/stream_presets.txt
 
-# 9 files
+# Jetson Config
+sudo cp -f $PATHSCRIPT"/jetson_config.txt" /media/usb/portsdown_settings/jetson_config.txt
+
+# 10 files

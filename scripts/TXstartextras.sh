@@ -1,7 +1,7 @@
 #! /bin/bash
 
 # This script is called when the transmitter is started. 
-# It can be added to for any purpose
+# It can be added to for any purpose and is not overwritten on software update
 
 ############ Set Environment Variables ###############
 

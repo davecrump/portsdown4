@@ -1,7 +1,7 @@
 #! /bin/bash
 
-# This script is called when the transmitter is stopped.  The primary role is to stop the Jetson transmitting
-# But it can be added to for any purpose
+# This script is called when the transmitter is stopped.
+# It can be added to for any purpose, and is not overwritten on software update
 
 ############ Set Environment Variables ###############
 
@@ -28,29 +28,5 @@ end
 EOF
 }
 
-MODE_OUTPUT=$(get_config_var modeoutput $PCONFIGFILE)
-
-# Stop Jetson transmitting if required
-
-case "$MODE_OUTPUT" in
-"JLIME" | "JEXPRESS")
-
-  # Stop the processes
-
-  JETSONIP=$(get_config_var jetsonip $JCONFIGFILE)
-  JETSONUSER=$(get_config_var jetsonuser $JCONFIGFILE)
-  JETSONPW=$(get_config_var jetsonpw $JCONFIGFILE)
-
-  sshpass -p $JETSONPW ssh -o StrictHostKeyChecking=no $JETSONUSER@$JETSONIP 'bash -s' <<'ENDSSH' 
-    killall gst-launch-1.0
-    killall ffmpeg
-    killall limesdr_dvb
-ENDSSH
-
-  # Turn the PTT off
-  /home/pi/rpidatv/scripts/jetson_tx_off.sh &
-
-;;
-esac
 
 exit
