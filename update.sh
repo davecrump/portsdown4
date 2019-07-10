@@ -293,6 +293,18 @@ make clean
 make
 sudo make install
 
+# Test if the device is a LimeNet Micro which needs the dt-blob.bin changing
+# (0 for LimeNet Micro detected, 1 for not detected)
+cat /proc/device-tree/model | grep 'Raspberry Pi Compute Module 3' >/dev/null 2>/dev/null
+LIMENET_RESULT="$?"
+
+if [ "$LIMENET_RESULT" == 0 ]; then
+  # LimeNET-micro detected, so change dt-blob.bin
+  sudo cp /home/pi/rpidatv/scripts/configs/dt-blob.bin.lmn /boot/dt-blob.bin
+fi
+
+
+
 # Compile rpidatv gui
 sudo killall -9 rpidatvgui
 echo "Installing rpidatvgui"

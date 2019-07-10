@@ -180,6 +180,11 @@ int main(int argc, char** argv)
 		return 1;
     	}
 
+	// Set  Fan on
+   	LMS_WriteFPGAReg(device, 0xCC, 0x01);  // Enable manual fan control
+        LMS_WriteFPGAReg(device, 0xCD, 0x01);  // Turn fan on
+
+
 	//LMS_StartStream(&tx_stream);
 	if(rrc>1)
 		LMS_SetGFIR(device, LMS_CH_TX, 0, LMS_GFIR3, true);
@@ -265,6 +270,10 @@ int main(int argc, char** argv)
 	// Set PTT off
 	gpio_band = gpio_band - 128;
 	LMS_GPIOWrite(device, &gpio_band, 1);
+
+	// Set  Fan auto
+   	LMS_WriteFPGAReg(device, 0xCC, 0x00);  // Enable auto fan control
+
 
 	LMS_EnableChannel( device, LMS_CH_TX, channel, false);
 	LMS_Close(device);

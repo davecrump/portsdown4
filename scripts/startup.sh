@@ -130,7 +130,28 @@ MODE_STARTUP=$(get_config_var startup $PCONFIGFILE)
 # But only if it is a boot session and display boot selected
 
 if [[ "$SESSION_TYPE" == "boot" && "$MODE_STARTUP" == "Display_boot" ]]; then
-  
+
+  # Test if the device is a LimeNet Micro which might need the dt-blob.bin changing
+  # (0 for LimeNet Micro detected, 1 for not detected)
+  cat /proc/device-tree/model | grep 'Raspberry Pi Compute Module 3' >/dev/null 2>/dev/null
+  LIMENET_RESULT="$?"
+
+  # Test which dt-blob.bin is installed (0 for Limenet, else 1)
+  ls -l /boot/dt-blob.bin | grep '40874' >/dev/null 2>/dev/null
+  LIMENET_DT="$?"
+
+  if [ "$LIMENET_RESULT" == 0 ] && [ "$LIMENET_DT" == 1 ]; then
+    # LimeNET-micro detected, but wrong dt-blob.bin
+    sudo cp /home/pi/rpidatv/scripts/configs/dt-blob.bin.lmn /boot/dt-blob.bin
+    sudo reboot now
+  fi
+
+  if [ "$LIMENET_RESULT" == 1 ] && [ "$LIMENET_DT" == 0 ]; then
+    # LimeNET-micro not present, but wrong dt-blob.bin
+    sudo cp /home/pi/rpidatv/scripts/configs/dt-blob.bin.norm /boot/dt-blob.bin
+    sudo reboot now
+  fi
+
   # Test if Waveshare selected, but Element 14 fitted 
   if [ "$DISPLAY" == "Waveshare" ]; then
 
