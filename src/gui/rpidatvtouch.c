@@ -43,6 +43,10 @@ Rewitten by Dave, G8GKQ
 #include <math.h>
 #include <wiringPi.h>
 
+#include <sys/stat.h> 
+#include <sys/types.h> 
+
+
 #define KWHT  "\x1B[37m"
 #define KYEL  "\x1B[33m"
 
@@ -56,6 +60,7 @@ Rewitten by Dave, G8GKQ
 #define PATH_RXPRESETS "/home/pi/rpidatv/scripts/rx_presets.txt"
 #define PATH_STREAMPRESETS "/home/pi/rpidatv/scripts/stream_presets.txt"
 #define PATH_JCONFIG "/home/pi/rpidatv/scripts/jetson_config.txt"
+#define PATH_LMCONFIG "/home/pi/rpidatv/scripts/longmynd_config.txt"
 
 #define PI 3.14159265358979323846
 #define deg2rad(DEG) ((DEG)*((PI)/(180.0)))
@@ -228,6 +233,15 @@ int FinishedButton2 = 1;    // Used to control FFT
 fftwf_complex *fftout=NULL; // FFT for RX
 #define FFT_SIZE 256        // for RX display
 
+// LongMynd RX Parameters. [0] is current.
+int LMRXfreq[21];           // Integer frequency in kHz 0 current, 1-10 q, 11-20 t
+int LMRXsr[11];             // Symbol rate in K. 0 current, 1-5 q, 6-10 t
+int LMRXqoffset;            // Offset in kHz
+char LMRXinput[1];          // Input a or b
+char LMRXudpip[20];         // UDP IP address
+char LMRXudpport[10];       // UDP IP port
+char LMRXmode[10];          // sat or terr
+
 // Stream Display Parameters. [0] is current
 char StreamAddress[9][127];  // Full rtmp address of stream
 char StreamLabel[9][31];     // Button Label for stream
@@ -252,6 +266,8 @@ bool CheckLocator(char *);
 int Inversed=0;               //Display is inversed (Waveshare=1)
 int PresetStoreTrigger = 0;   //Set to 1 if awaiting preset being stored
 int FinishedButton = 0;       // Used to indicate screentouch during TX or RX
+int touch_response = 0;       // set to 1 on touch and used to reboot display if it locks up
+
 
 pthread_t thfft, thbutton, thview, thwait3;
 
@@ -2896,6 +2912,162 @@ void ReadRXPresets()
     strcpy(RXlabel[n], Value);
   }
 }
+
+/***************************************************************************//**
+ * @brief Reads the Presets from longmynd_config.txt and formats them for
+ *        Display and switching.  Only called on entry to Menu 8
+ *
+ * @param None.  Works on global variables
+ *
+ * @return void
+*******************************************************************************/
+
+void ReadLMRXPresets()
+{
+  int n;
+  char Value[15] = "";
+  char Param[20];
+
+  // Mode: sat or terr
+  GetConfigParam(PATH_LMCONFIG, "mode", LMRXmode);
+
+  // Input: a or b
+  GetConfigParam(PATH_LMCONFIG, "input", LMRXinput);
+
+  // UDP output IP address:
+  GetConfigParam(PATH_LMCONFIG, "udpip", LMRXudpip);
+  
+  // UDP output port:
+  GetConfigParam(PATH_LMCONFIG, "udpport", LMRXudpport);
+  
+  // QO-100 LNB Offset:
+  GetConfigParam(PATH_LMCONFIG, "udpport", Value);
+  LMRXqoffset = atoi(Value);
+
+  // Start up frequency
+  GetConfigParam(PATH_LMCONFIG, "freq0", Value);
+  LMRXfreq[0] = atoi(Value);
+
+  // Start up SR
+  GetConfigParam(PATH_LMCONFIG, "sr0", Value);
+  LMRXsr[0] = atoi(Value);
+
+  // Frequencies
+  for(n = 1; n < 11; n = n + 1)
+  {
+    // QO-100
+    snprintf(Param, 15, "qfreq%d", n);
+    GetConfigParam(PATH_LMCONFIG, Param, Value);
+    LMRXfreq[n] = atoi(Value);
+    //printf("Param %s, Value %s, Int %d \n", Param, Value, LMRXfreq[n]);
+
+    // Terrestrial
+    snprintf(Param, 15, "tfreq%d", n);
+    GetConfigParam(PATH_LMCONFIG, Param, Value);
+    LMRXfreq[n + 10] = atoi(Value);
+  }
+
+  // Symbol Rates
+  for(n = 1; n < 6; n = n + 1)
+  {
+    // QO-100
+    snprintf(Param, 15, "qsr%d", n);
+    GetConfigParam(PATH_LMCONFIG, Param, Value);
+    LMRXsr[n] = atoi(Value);
+
+    // Terrestrial
+    snprintf(Param, 15, "tsr%d", n);
+    GetConfigParam(PATH_LMCONFIG, Param, Value);
+    LMRXsr[n + 5] = atoi(Value);
+  }
+}
+
+void ChangeLMRXIP()
+{
+  char RequestText[64];
+  char InitText[64];
+  bool IsValid = FALSE;
+  char LMRXIP[31];
+  char LMRXIPCopy[31];
+
+  //Retrieve (17 char) Current IP from Config file
+  GetConfigParam(PATH_LMCONFIG, "udpip", LMRXIP);
+
+  while (IsValid == FALSE)
+  {
+    strcpy(RequestText, "Enter the new UDP IP Destination for the RX TS");
+    snprintf(InitText, 17, "%s", LMRXIP);
+    Keyboard(RequestText, InitText, 17);
+  
+    strcpy(LMRXIPCopy, KeyboardReturn);
+    if(is_valid_ip(LMRXIPCopy) == 1)
+    {
+      IsValid = TRUE;
+    }
+  }
+  printf("Receiver UDP IP Destination set to: %s\n", KeyboardReturn);
+
+  // Save IP to Local copy and Config File
+  strcpy(LMRXudpip, KeyboardReturn);
+  SetConfigParam(PATH_LMCONFIG, "udpip", LMRXudpip);
+}
+
+void ChangeLMRXPort()
+{
+  char RequestText[64];
+  char InitText[64];
+  bool IsValid = FALSE;
+  char LMRXPort[15];
+
+  //Retrieve (10 char) Current port from Config file
+  GetConfigParam(PATH_LMCONFIG, "udpport", LMRXPort);
+
+  while (IsValid == FALSE)
+  {
+    strcpy(RequestText, "Enter the new UDP Port Number for the RX TS");
+    snprintf(InitText, 10, "%s", LMRXPort);
+    Keyboard(RequestText, InitText, 10);
+  
+    if(strlen(KeyboardReturn) > 0)
+    {
+      IsValid = TRUE;
+    }
+  }
+  printf("LMRX UDP Port set to: %s\n", KeyboardReturn);
+
+  // Save port to local copy and Config File
+  strcpy(LMRXudpport, KeyboardReturn);
+  SetConfigParam(PATH_LMCONFIG, "udpport", LMRXudpport);
+}
+
+void ChangeLMRXOffset()
+{
+  char RequestText[64];
+  char InitText[64];
+  bool IsValid = FALSE;
+  char LMRXOffset[15];
+
+  //Retrieve (10 char) Current offset from Config file
+  GetConfigParam(PATH_LMCONFIG, "qoffset", LMRXOffset);
+
+  while (IsValid == FALSE)
+  {
+    strcpy(RequestText, "Enter the new QO-100 LNB Offset in kHz");
+    snprintf(InitText, 10, "%s", LMRXOffset);
+    Keyboard(RequestText, InitText, 10);
+  
+    if(strlen(KeyboardReturn) > 0)
+    {
+      IsValid = TRUE;
+    }
+  }
+  printf("LMRXOffset set to: %s kHz\n", KeyboardReturn);
+
+  // Save offset to Config File
+  LMRXqoffset = atoi(KeyboardReturn);
+  SetConfigParam(PATH_LMCONFIG, "qoffset", KeyboardReturn);
+}
+
 
 /***************************************************************************//**
  * @brief Saves Current LeanDVB Config to file as Preset 0
@@ -5998,6 +6170,48 @@ void SelectFec(int NoButton)  // FEC
   }
 }
 
+void SelectLMSR(int NoButton)  // LongMynd Symbol Rate
+{
+  char Value[255];
+  int indexoffset = 0;
+
+  NoButton = NoButton - 14;  // Translate to 1 - 5
+  if (strcmp(LMRXmode, "terr") == 0)
+  {
+    NoButton = NoButton + 5;
+  }
+
+  LMRXsr[0] = LMRXsr[NoButton + indexoffset];
+  snprintf(Value, 15, "%d", LMRXsr[0]);
+  printf("************** Set LongMynd SR = %s\n",Value);
+  SetConfigParam(PATH_LMCONFIG, "sr0", Value);
+}
+
+void SelectLMFREQ(int NoButton)  // LongMynd Frequency
+{
+  char Value[255];
+  int indexoffset = 0;
+
+  NoButton = NoButton - 9; // top row 1 - 5 bottom -4 - 0
+
+  if (NoButton < 1)
+  {
+    NoButton = NoButton + 10;
+  }
+  // Buttons 1 - 10
+
+  if (strcmp(LMRXmode, "terr") == 0)
+  {
+    NoButton = NoButton + 10;
+  }
+
+  LMRXfreq[0] = LMRXfreq[NoButton + indexoffset];
+  snprintf(Value, 25, "%d", LMRXfreq[0]);
+  printf("************** Set LongMynd Freq = %s\n",Value);
+  SetConfigParam(PATH_LMCONFIG, "freq0", Value);
+}
+
+
 void SelectS2Fec(int NoButton)  // DVB-S2 FEC
 {
   SelectInGroupOnMenu(CurrentMenu, 5, 9, NoButton, 1);
@@ -7263,6 +7477,57 @@ void *WaitButtonEvent(void * arg)
   return NULL;
 }
 
+void *WaitButtonLMRX(void * arg)
+{
+  int rawX, rawY, rawPressure;
+  int count_time_ms;
+  FinishedButton = 1; // Start with Parameters on
+
+  while((FinishedButton == 1) || (FinishedButton = 2))
+  {
+    while(getTouchSample(&rawX, &rawY, &rawPressure)==0);  // Wait here for touch
+
+    TransformTouchMap(rawX, rawY);  // Sorts out orientation and approx scaling of the touch map
+    CorrectTouchMap();       // Calibrates each individual screen
+
+    if((scaledX <= 15 * wscreen / 40) && (scaledX >= wscreen / 40) && (scaledY <= hscreen) && (scaledY >= 7 * hscreen / 12))
+    {
+      printf("in zone\n");
+      if (FinishedButton == 2)  // Toggle parameters on/off 
+      {
+        FinishedButton = 1; // graphics on
+      }
+      else
+      {
+        FinishedButton = 2; // graphics off
+      }
+    }
+    else
+    {
+      printf("Out of zone\n");
+      FinishedButton = 0;  // Not in the zone, so exit receive
+      touch_response = 1;
+      count_time_ms = 0;
+
+      // wait here to make sure that touch_response is set back to 0
+      // If not, restart GUI
+      printf("Entering Delay\n");
+      while ((touch_response == 1) && (count_time_ms < 3000))
+      {
+        usleep(1000);
+        count_time_ms = count_time_ms + 1;
+      }
+      printf("Leaving Delay\n");
+      if (touch_response == 1) // count_time has elapsed and still no reponse
+      {
+        exit(129);
+      }
+      return NULL;
+    }
+  }
+  return NULL;
+}
+
 int CheckStream()
 {
   // first check file exists, if not, return 1
@@ -8038,6 +8303,403 @@ void ReceiveStop()
   system("sudo killall -9 hello_video.bin >/dev/null 2>/dev/null");
   system("sudo killall -9 hello_video2.bin >/dev/null 2>/dev/null");
   printf("Receive Stop\n");
+}
+
+
+void LMRX(int NoButton)
+{
+  #define PATH_SCRIPT_LMRXUDP "/home/pi/rpidatv/scripts/lmudp.sh 2>&1"
+  #define PATH_SCRIPT_LMRXOMX "/home/pi/rpidatv/scripts/lmomx.sh 2>&1"
+  #define PATH_SCRIPT_LMRXHV "/home/pi/rpidatv/scripts/lmhv.sh 2>&1"
+  #define PATH_SCRIPT_LMRXHV2 "/home/pi/rpidatv/scripts/lmhv2.sh 2>&1"
+
+  FILE *fp;
+  FinishedButton = 1;
+  int num;
+  int ret;
+  int fd_status_fifo; 
+
+  char status_message[14];
+  char freq_string[63];
+  char sr_string[63] = " ";
+  char lg_string[63] = " ";
+  char stat_string[63];
+  char udp_string[63];
+
+  int pointsize = 25;
+  Fontinfo font = SansTypeface;
+  int current_message = 0; // 1 for LNA Gain, 2 for status
+
+  int Parameters_currently_displayed = 1; // 1 for displayed, 0 for blank
+
+  if (hscreen < 500)  // reduce font size for 7 inch screen
+  {
+    pointsize = 20;
+  }
+
+  VGfloat txtht = TextHeight(font, pointsize);
+  VGfloat txtdp = TextDepth(font, pointsize);
+  VGfloat linepitch = 1.1 * (txtht + txtdp);
+
+  snprintf(freq_string, 62, " Freq: %d", LMRXfreq[0]);
+  snprintf(sr_string, 62, " SR: %d", LMRXsr[0]);
+
+  // Create Wait Button thread
+  pthread_create (&thbutton, NULL, &WaitButtonLMRX, NULL);
+
+  switch (NoButton)
+  {
+  case 0:
+    BackgroundRGB(0, 0, 0, 0);
+    End();
+    fp=popen(PATH_SCRIPT_LMRXHV2, "r");
+    if(fp==NULL) printf("Process error\n");
+
+    printf("STARTING HelloVideo MPEG-2 RX\n");
+
+    /* Open status FIFO for read only  */
+    ret = mkfifo("longmynd_status_fifo", 0666);
+    fd_status_fifo = open("longmynd_status_fifo", O_RDONLY); 
+    if (fd_status_fifo < 0)
+    {
+      printf("Failed to open status fifo\n");
+    }
+    printf("Listening, ret = %d\n", ret);
+
+    WindowClear();
+
+    while ((FinishedButton == 1) || (FinishedButton == 2)) // 1 is captions on, 2 is off
+    {
+      printf("%s", "Start Read\n");
+      num = read(fd_status_fifo, status_message, 1);
+      printf("%s Num= %d \n", "End Read", num);
+      if (num >= 0 )
+      {
+        status_message[num]='\0';
+        if (num>0) printf("                    %s\n",status_message);
+        if (strcmp(status_message, "L") == 0)
+        {
+          strcpy(lg_string, " ");
+          current_message = 1;
+        }
+        if (strcmp(status_message, "s") == 0)
+        {
+          strcpy(stat_string, " ");
+          current_message = 2;
+        }
+
+        if (current_message == 1)
+        {
+          strcat(lg_string, status_message);
+        } 
+        if (current_message == 2)
+        {
+          strcat(stat_string, status_message);
+        } 
+
+        if ((strlen(lg_string) >= 11) || (strlen(stat_string) >= 8))
+        {
+          if (FinishedButton == 1)  // Parameters displayed
+          {
+            BackgroundRGB(0, 0, 0, 0);
+            Fill(0, 0, 0, 255);
+            Rect(wscreen * 1.0 / 40.0, hscreen - 4.2 * linepitch, wscreen * 15.0 / 40.0, 4.0 * linepitch);
+            Fill(255, 255, 255, 255);
+            Text(wscreen * 1.0 / 40.0, hscreen - 1 * linepitch, freq_string, font, pointsize);
+            Text(wscreen * 1.0 / 40.0, hscreen - 2 * linepitch, sr_string, font, pointsize);
+            Text(wscreen * 1.0 / 40.0, hscreen - 3 * linepitch, lg_string, font, pointsize);
+            Text(wscreen * 1.0 / 40.0, hscreen - 4 * linepitch, stat_string, font, pointsize);
+            Parameters_currently_displayed = 1;            }
+          else
+          {
+            if (Parameters_currently_displayed == 1)
+            {
+              BackgroundRGB(0, 0, 0, 0);
+              Fill(0, 0, 0, 0);
+              Rect(wscreen * 1.0 / 40.0, hscreen - 4.2 * linepitch, wscreen * 15.0 / 40.0, 4.0 * linepitch);
+              Parameters_currently_displayed = 0;
+            }
+          }
+          End();
+        }
+      }
+      else
+      {
+        FinishedButton = 0;
+      }
+    } 
+    close(fd_status_fifo);
+
+    finish();
+    usleep(1000);
+    init(&wscreen, &hscreen);  // Restart the graphics
+
+    printf("Stopping receive process\n");
+    pclose(fp);
+
+    system("sudo killall lmhv2.sh");
+    touch_response = 0; 
+    break;
+  case 1:
+    BackgroundRGB(0, 0, 0, 0);
+    End();
+    fp=popen(PATH_SCRIPT_LMRXHV, "r");
+    if(fp==NULL) printf("Process error\n");
+
+    printf("STARTING HelloVideo H264 RX\n");
+
+    /* Open status FIFO for read only  */
+    ret = mkfifo("longmynd_status_fifo", 0666);
+    fd_status_fifo = open("longmynd_status_fifo", O_RDONLY); 
+    if (fd_status_fifo < 0)
+    {
+      printf("Failed to open status fifo\n");
+    }
+    printf("Listening, ret = %d\n", ret);
+
+    WindowClear();
+
+    while ((FinishedButton == 1) || (FinishedButton == 2)) // 1 is captions on, 2 is off
+    {
+      printf("%s", "Start Read\n");
+      num = read(fd_status_fifo, status_message, 1);
+      printf("%s Num= %d \n", "End Read", num);
+      if (num >= 0 )
+      {
+        status_message[num]='\0';
+        if (num>0) printf("                    %s\n",status_message);
+        if (strcmp(status_message, "L") == 0)
+        {
+          strcpy(lg_string, " ");
+          current_message = 1;
+        }
+        if (strcmp(status_message, "s") == 0)
+        {
+          strcpy(stat_string, " ");
+          current_message = 2;
+        }
+
+        if (current_message == 1)
+        {
+          strcat(lg_string, status_message);
+        } 
+        if (current_message == 2)
+        {
+          strcat(stat_string, status_message);
+        } 
+
+        if ((strlen(lg_string) >= 11) || (strlen(stat_string) >= 8))
+        {
+          if (FinishedButton == 1)  // Parameters displayed
+          {
+            BackgroundRGB(0, 0, 0, 0);
+            Fill(0, 0, 0, 255);
+            Rect(wscreen * 1.0 / 40.0, hscreen - 4.2 * linepitch, wscreen * 15.0 / 40.0, 4.0 * linepitch);
+            Fill(255, 255, 255, 255);
+            Text(wscreen * 1.0 / 40.0, hscreen - 1 * linepitch, freq_string, font, pointsize);
+            Text(wscreen * 1.0 / 40.0, hscreen - 2 * linepitch, sr_string, font, pointsize);
+            Text(wscreen * 1.0 / 40.0, hscreen - 3 * linepitch, lg_string, font, pointsize);
+            Text(wscreen * 1.0 / 40.0, hscreen - 4 * linepitch, stat_string, font, pointsize);
+            Parameters_currently_displayed = 1;            }
+          else
+          {
+            if (Parameters_currently_displayed == 1)
+            {
+              BackgroundRGB(0, 0, 0, 0);
+              Fill(0, 0, 0, 0);
+              Rect(wscreen * 1.0 / 40.0, hscreen - 4.2 * linepitch, wscreen * 15.0 / 40.0, 4.0 * linepitch);
+              Parameters_currently_displayed = 0;
+            }
+          }
+          End();
+        }
+      }
+      else
+      {
+        FinishedButton = 0;
+      }
+    } 
+    close(fd_status_fifo);
+
+    finish();
+    usleep(1000);
+    init(&wscreen, &hscreen);  // Restart the graphics
+
+    printf("Stopping receive process\n");
+    pclose(fp);
+
+    system("sudo killall lmhv.sh");
+    touch_response = 0; 
+    break;
+  case 2:
+    BackgroundRGB(0, 0, 0, 0);
+    End();
+    fp=popen(PATH_SCRIPT_LMRXOMX, "r");
+    if(fp==NULL) printf("Process error\n");
+
+    printf("STARTING omxplayer RX\n");
+
+    /* Open status FIFO for read only  */
+    ret=mkfifo("longmynd_status_fifo", 0666);
+    fd_status_fifo = open("longmynd_status_fifo", O_RDONLY); 
+    if (fd_status_fifo < 0)
+    {
+      printf("Failed to open status fifo\n");
+    }
+
+    printf("Listening\n");
+
+    WindowClear();
+
+    while ((FinishedButton == 1) || (FinishedButton == 2)) 
+    {
+      printf("%s", "Start Read\n");
+
+      num = read(fd_status_fifo, status_message, 1);
+      printf("%s Num= %d \n", "End Read", num);
+      if (num >= 0 )
+      {
+        status_message[num]='\0';
+        if (num>0) printf("                    %s\n",status_message);
+        if (strcmp(status_message, "L") == 0)
+        {
+          strcpy(lg_string, " ");
+          current_message = 1;
+        }
+        if (strcmp(status_message, "s") == 0)
+        {
+          strcpy(stat_string, " ");
+          current_message = 2;
+        }
+
+        if (current_message == 1)
+        {
+          strcat(lg_string, status_message);
+        } 
+        if (current_message == 2)
+        {
+          strcat(stat_string, status_message);
+        } 
+
+        if ((strlen(lg_string) >= 11) || (strlen(stat_string) >= 8))
+        {
+          BackgroundRGB(0, 0, 0, 0);
+          Fill(0, 0, 0, 255);
+          Rect(wscreen * 1.0 / 40.0, hscreen - 4.2 * linepitch, wscreen * 15.0 / 40.0, hscreen);
+          Fill(255, 255, 255, 255);
+          Text(wscreen * 1.0 / 40.0, hscreen - 1 * linepitch, freq_string, font, pointsize);
+          Text(wscreen * 1.0 / 40.0, hscreen - 2 * linepitch, sr_string, font, pointsize);
+          Text(wscreen * 1.0 / 40.0, hscreen - 3 * linepitch, lg_string, font, pointsize);
+          Text(wscreen * 1.0 / 40.0, hscreen - 4 * linepitch, stat_string, font, pointsize);
+          End();
+        }
+      }
+      else
+      {
+        FinishedButton = 0;
+      }
+    } 
+    close(fd_status_fifo); 
+    finish();
+    usleep(1000);
+    init(&wscreen, &hscreen);  // Restart the graphics
+
+    printf("Stopping receive process\n");
+    pclose(fp);
+
+    system("sudo killall lmomx.sh");
+    touch_response = 0; 
+    break;
+  case 3:
+    snprintf(udp_string, 40, "UDP Output to %s:%s", LMRXudpip, LMRXudpport);
+    BackgroundRGB(0, 0, 0, 0);
+    End();
+    fp=popen(PATH_SCRIPT_LMRXUDP, "r");
+    if(fp==NULL) printf("Process error\n");
+
+    printf("STARTING UDP Player RX\n");
+
+    // Open status FIFO
+    ret = mkfifo("longmynd_status_fifo", 0666);
+    fd_status_fifo = open("longmynd_status_fifo", O_RDONLY); 
+    if (fd_status_fifo < 0)
+    {
+      printf("Failed to open status fifo\n");
+    }
+
+    printf("Listening, ret = %d\n", ret);
+
+    WindowClear();
+
+    while ((FinishedButton == 1) || (FinishedButton == 2)) // 1 is captions on, 2 is off
+    {
+      printf("%s", "Start Read\n");
+
+      num = read(fd_status_fifo, status_message, 1);
+      printf("%s Num= %d \n", "End Read", num);
+      if (num >= 0 )
+      {
+        status_message[num]='\0';
+        if (num>0) printf("                    %s\n",status_message);
+        if (strcmp(status_message, "L") == 0)
+        {
+          strcpy(lg_string, " ");
+          current_message = 1;
+        }
+        if (strcmp(status_message, "s") == 0)
+        {
+          strcpy(stat_string, " ");
+          current_message = 2;
+        }
+
+        if (current_message == 1)
+        {
+          strcat(lg_string, status_message);
+        } 
+        if (current_message == 2)
+        {
+          strcat(stat_string, status_message);
+        } 
+
+        if ((strlen(lg_string) >= 11) || (strlen(stat_string) >= 8))
+        {
+          BackgroundRGB(0, 0, 0, 0);
+          Fill(0, 0, 0, 255);
+          Rect(wscreen * 1.0 / 40.0, hscreen - 4.2 * linepitch, wscreen * 15.0 / 40.0, hscreen);
+          Fill(255, 255, 255, 255);
+          Text(wscreen * 1.0 / 40.0, hscreen - 1 * linepitch, freq_string, font, pointsize);
+          Text(wscreen * 1.0 / 40.0, hscreen - 2 * linepitch, sr_string, font, pointsize);
+          Text(wscreen * 1.0 / 40.0, hscreen - 3 * linepitch, lg_string, font, pointsize);
+          Text(wscreen * 1.0 / 40.0, hscreen - 4 * linepitch, stat_string, font, pointsize);
+          Text(wscreen * 1.0 / 40.0, hscreen - 9.5 * linepitch, udp_string, font, pointsize);
+          Text(wscreen * 1.0 / 40.0, hscreen - 11.5 * linepitch, "Touch screen to exit", font, pointsize);
+
+          End();
+        }
+      }
+      else
+      {
+        FinishedButton = 0;
+      }
+    } 
+    close(fd_status_fifo); 
+    finish();
+    usleep(1000);
+    init(&wscreen, &hscreen);  // Restart the graphics
+
+    printf("Stopping receive process\n");
+    pclose(fp);
+
+    system("sudo killall lmudp.sh");
+    touch_response = 0; 
+    break;
+  }
+  system("sudo killall longmynd");
+  system("sudo killall nc");
+  system("sudo killall omxplayer.bin");
+  system("sudo killall hello_video.bin");
+  system("sudo killall hello_video2.bin");
+  pthread_join(thbutton, NULL);
 }
 
 void wait_touch()
@@ -10466,7 +11128,7 @@ rawY = 0;
           }
           break;
         case 21:                       // RX
-          if (CheckFTDI() == 1)
+          if (CheckFTDI() == 1)  // No MiniTiouner, so use LeanDVB
           {
             printf("MENU 5 \n");
             CurrentMenu=5;
@@ -10475,9 +11137,10 @@ rawY = 0;
           }
           else
           {
-            printf("MENU 8 \n");
+            printf("MENU 8 \n");  // MiniTiouner detected, so use LonMynd
             CurrentMenu=8;
             BackgroundRGB(0,0,0,255);
+            ReadLMRXPresets();
             Start_Highlights_Menu8();
           }
           UpdateWindow();
@@ -11266,11 +11929,66 @@ rawY = 0;
         CallingMenu = 8;
         switch (i)
         {
-        case 22:                                          // Back to Menu 1
+        case 0:                                           // Receive
+        case 1:
+        case 2:
+        case 3:
+          BackgroundRGB(0,0,0,255);
+          Start(wscreen,hscreen);
+          LMRX(i);
+printf("RETURNED TO MENU 8\n");
+          BackgroundRGB(0, 0, 0, 255);
+          Start_Highlights_Menu8();
+          UpdateWindow();
+          break;
+        case 5:                                          // Change Freq
+        case 6:
+        case 7:
+        case 8:
+        case 9:
+        case 10:
+        case 11:
+        case 12:
+        case 13:
+        case 14:
+          SelectLMFREQ(i);
+          Start_Highlights_Menu8();
+          UpdateWindow();
+          break;
+        case 15:                                          // Change SR
+        case 16:
+        case 17:
+        case 18:
+        case 19:
+          SelectLMSR(i);
+          Start_Highlights_Menu8();
+          UpdateWindow();
+          break;
+        case 20:
+          if (strcmp(LMRXmode, "sat") == 0)
+          {
+            strcpy(LMRXmode, "terr");
+          }
+          else
+          {
+            strcpy(LMRXmode, "sat");
+          }
+          SetConfigParam(PATH_LMCONFIG, "mode", LMRXmode);
+          Start_Highlights_Menu8();
+          UpdateWindow();
+          break;
+        case 21:                                          // Back to Menu 1
           printf("MENU 1 \n");
           CurrentMenu=1;
           BackgroundRGB(255,255,255,255);
           Start_Highlights_Menu1();
+          UpdateWindow();
+          break;
+        case 22:                                          // Config Menu 13
+          printf("MENU 13\n");
+          CurrentMenu=13;
+          BackgroundRGB(0,0,0,255);
+          Start_Highlights_Menu13();
           UpdateWindow();
           break;
         default:
@@ -11380,14 +12098,48 @@ rawY = 0;
         continue;   // Completed Menu 12 action, go and wait for touch
       }
 
-      if (CurrentMenu == 13)  // Menu 13 Not used, was Output Device
+      if (CurrentMenu == 13)  // Menu 13 LongMynd Configuration
       {
         printf("Button Event %d, Entering Menu 13 Case Statement\n",i);
         switch (i)
         {
-        case 4:                               // Cancel
+        case 0:                                         // Output UDP IP
+          ChangeLMRXIP();
+          CurrentMenu=13;
+          BackgroundRGB(0,0,0,255);
+          Start_Highlights_Menu13();
+          UpdateWindow();
+          break;
+        case 1:                                         // Output UDP port 
+          ChangeLMRXPort();
+          CurrentMenu=13;
+          BackgroundRGB(0,0,0,255);
+          Start_Highlights_Menu13();
+          UpdateWindow();
+          break;
+        case 4:                                         // Cancel
           SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 1);
           printf("Menu 13 Cancel\n");
+          break;
+        case 5:                                         // QO-100 Offset
+          ChangeLMRXOffset();
+          CurrentMenu=13;
+          BackgroundRGB(0,0,0,255);
+          Start_Highlights_Menu13();
+          UpdateWindow();
+          break;
+        case 6:                                        // Input Socket
+          if (strcmp(LMRXinput, "a") == 0)
+          {
+            strcpy(LMRXinput, "b");
+          }
+          else
+          {
+            strcpy(LMRXinput, "a");
+          }
+          SetConfigParam(PATH_LMCONFIG, "input", LMRXinput);
+          Start_Highlights_Menu13();
+          UpdateWindow();
           break;
         default:
           printf("Menu 13 Error\n");
@@ -11396,10 +12148,10 @@ rawY = 0;
         UpdateWindow();             // and display for half a second
         usleep(500000);
         SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 0); // Reset cancel (even if not selected)
-        printf("Returning to MENU 1 from Menu 13\n");
-        CurrentMenu=1;
-        BackgroundRGB(255,255,255,255);
-        Start_Highlights_Menu1();
+        printf("Returning to MENU 8 from Menu 13\n");
+        CurrentMenu=8;
+        BackgroundRGB(0,0,0,255);
+        Start_Highlights_Menu8();
         UpdateWindow();
         continue;   // Completed Menu 13 action, go and wait for touch
       }
@@ -14178,7 +14930,7 @@ void Define_Menu8()
   color_t Blue;
   color_t Red;
   color_t Grey;
-  strcpy(MenuTitle[8], "DATV Menu (8)"); 
+  strcpy(MenuTitle[8], "Portsdown Receiver Menu (8)"); 
 
   Green.r=0; Green.g=96; Green.b=0;
   Blue.r=0; Blue.g=0; Blue.b=128;
@@ -14188,20 +14940,20 @@ void Define_Menu8()
   // Bottom Row, Menu 8
 
   button = CreateButton(8, 0);
-  AddButtonStatus(button, " ", &Blue);
-  AddButtonStatus(button, " ", &Green);
+  AddButtonStatus(button, "Simple^MPEG-2", &Blue);
+  AddButtonStatus(button, "Simple^MPEG-2", &Green);
 
   button = CreateButton(8, 1);
-  AddButtonStatus(button, " ", &Blue);
-  AddButtonStatus(button, " ", &Green);
+  AddButtonStatus(button, "Simple^H264", &Blue);
+  AddButtonStatus(button, "Simple^H264", &Green);
 
   button = CreateButton(8, 2);
-  AddButtonStatus(button, " ", &Blue);
-  AddButtonStatus(button, " ", &Green);
+  AddButtonStatus(button, "OMX^Player", &Blue);
+  AddButtonStatus(button, "OMX^Player", &Green);
 
   button = CreateButton(8, 3);
-  AddButtonStatus(button, " ", &Blue);
-  AddButtonStatus(button, " ", &Green);
+  AddButtonStatus(button, "UDP^Output", &Blue);
+  AddButtonStatus(button, "UDP^Output", &Green);
 
   button = CreateButton(8, 4);
   AddButtonStatus(button, " ", &Blue);
@@ -14213,17 +14965,17 @@ void Define_Menu8()
   AddButtonStatus(button, " ", &Blue);
   AddButtonStatus(button, " ", &Green);
 
-  //button = CreateButton(8, 6);
-  //AddButtonStatus(button, " ", &Blue);
-  //AddButtonStatus(button, " ", &Green);
+  button = CreateButton(8, 6);
+  AddButtonStatus(button, " ", &Blue);
+  AddButtonStatus(button, " ", &Green);
 
   button = CreateButton(8, 7);
   AddButtonStatus(button, " ", &Blue);
   AddButtonStatus(button, " ", &Green);
 
-  //button = CreateButton(8, 8);
-  //AddButtonStatus(button, " ", &Blue);
-  //AddButtonStatus(button, " ", &Green);
+  button = CreateButton(8, 8);
+  AddButtonStatus(button, " ", &Blue);
+  AddButtonStatus(button, " ", &Green);
 
   button = CreateButton(8, 9);
   AddButtonStatus(button, " ", &Blue);
@@ -14255,7 +15007,7 @@ void Define_Menu8()
 
   button = CreateButton(8, 15);
   AddButtonStatus(button, " ", &Blue);
-  AddButtonStatus(button, "Modulation^not set", &Green);
+  AddButtonStatus(button, " ", &Green);
 
   button = CreateButton(8, 16);
   AddButtonStatus(button, " ", &Blue);
@@ -14276,17 +15028,172 @@ void Define_Menu8()
 
   // - Top of Menu 8
 
+  button = CreateButton(8, 20);
+  AddButtonStatus(button, "QO-100", &Blue);
+  AddButtonStatus(button, "Terre^strial", &Blue);
+
   button = CreateButton(8, 21);
-  AddButtonStatus(button,"   ",&Blue);
-  AddButtonStatus(button," ",&Red);
+  AddButtonStatus(button, "EXIT", &Blue);
+  AddButtonStatus(button, "EXIT", &Red);
 
   button = CreateButton(8, 22);
-  AddButtonStatus(button,"EXIT",&Blue);
-  AddButtonStatus(button,"EXIT",&Green);
+  AddButtonStatus(button, "Config", &Blue);
+  AddButtonStatus(button, "Config", &Green);
 }
 
 void Start_Highlights_Menu8()
 {
+  color_t Green;
+  color_t Blue;
+  Green.r=0; Green.g=128; Green.b=0;
+  Blue.r=0; Blue.g=0; Blue.b=128;
+  int indexoffset = 0;
+  char LMBtext[21];
+
+  // Freq buttons
+
+  if (strcmp(LMRXmode, "terr") == 0)
+  {
+    indexoffset = 10;
+  }
+
+  snprintf(LMBtext, 15, "FREQ^%d", LMRXfreq[6 + indexoffset]);
+  AmendButtonStatus(ButtonNumber(8, 5), 0, LMBtext, &Blue);
+  AmendButtonStatus(ButtonNumber(8, 5), 1, LMBtext, &Green);
+  
+  snprintf(LMBtext, 15, "FREQ^%d", LMRXfreq[7 + indexoffset]);
+  AmendButtonStatus(ButtonNumber(8, 6), 0, LMBtext, &Blue);
+  AmendButtonStatus(ButtonNumber(8, 6), 1, LMBtext, &Green);
+  
+  snprintf(LMBtext, 15, "FREQ^%d", LMRXfreq[8 + indexoffset]);
+  AmendButtonStatus(ButtonNumber(8, 7), 0, LMBtext, &Blue);
+  AmendButtonStatus(ButtonNumber(8, 7), 1, LMBtext, &Green);
+  
+  snprintf(LMBtext, 15, "FREQ^%d", LMRXfreq[9 + indexoffset]);
+  AmendButtonStatus(ButtonNumber(8, 8), 0, LMBtext, &Blue);
+  AmendButtonStatus(ButtonNumber(8, 8), 1, LMBtext, &Green);
+  
+  snprintf(LMBtext, 15, "FREQ^%d", LMRXfreq[10 + indexoffset]);
+  AmendButtonStatus(ButtonNumber(8, 9), 0, LMBtext, &Blue);
+  AmendButtonStatus(ButtonNumber(8, 9), 1, LMBtext, &Green);
+  
+  snprintf(LMBtext, 15, "FREQ^%d", LMRXfreq[1 + indexoffset]);
+  AmendButtonStatus(ButtonNumber(8, 10), 0, LMBtext, &Blue);
+  AmendButtonStatus(ButtonNumber(8, 10), 1, LMBtext, &Green);
+  
+  snprintf(LMBtext, 15, "FREQ^%d", LMRXfreq[2 + indexoffset]);
+  AmendButtonStatus(ButtonNumber(8, 11), 0, LMBtext, &Blue);
+  AmendButtonStatus(ButtonNumber(8, 11), 1, LMBtext, &Green);
+  
+  snprintf(LMBtext, 15, "FREQ^%d", LMRXfreq[3 + indexoffset]);
+  AmendButtonStatus(ButtonNumber(8, 12), 0, LMBtext, &Blue);
+  AmendButtonStatus(ButtonNumber(8, 12), 1, LMBtext, &Green);
+  
+  snprintf(LMBtext, 15, "FREQ^%d", LMRXfreq[4 + indexoffset]);
+  AmendButtonStatus(ButtonNumber(8, 13), 0, LMBtext, &Blue);
+  AmendButtonStatus(ButtonNumber(8, 13), 1, LMBtext, &Green);
+  
+  snprintf(LMBtext, 15, "FREQ^%d", LMRXfreq[5 + indexoffset]);
+  AmendButtonStatus(ButtonNumber(8, 14), 0, LMBtext, &Blue);
+  AmendButtonStatus(ButtonNumber(8, 14), 1, LMBtext, &Green);
+  
+  if ( LMRXfreq[0] == LMRXfreq[6 + indexoffset] )
+  {
+    SelectInGroupOnMenu(8, 5, 14, 5, 1);
+  }
+  else if ( LMRXfreq[0] == LMRXfreq[7 + indexoffset] )
+  {
+    SelectInGroupOnMenu(8, 5, 14, 6, 1);
+  }
+  else if ( LMRXfreq[0] == LMRXfreq[8 + indexoffset] )
+  {
+    SelectInGroupOnMenu(8, 5, 14, 7, 1);
+  }
+  else if ( LMRXfreq[0] == LMRXfreq[9 + indexoffset] )
+  {
+    SelectInGroupOnMenu(8, 5, 14, 8, 1);
+  }
+  else if ( LMRXfreq[0] == LMRXfreq[10 + indexoffset] )
+  {
+    SelectInGroupOnMenu(8, 5, 14, 9, 1);
+  }
+  else if ( LMRXfreq[0] == LMRXfreq[1 + indexoffset] )
+  {
+    SelectInGroupOnMenu(8, 5, 14, 10, 1);
+  }
+  else if ( LMRXfreq[0] == LMRXfreq[2 + indexoffset] )
+  {
+    SelectInGroupOnMenu(8, 5, 14, 11, 1);
+  }
+  else if ( LMRXfreq[0] == LMRXfreq[3 + indexoffset] )
+  {
+    SelectInGroupOnMenu(8, 5, 14, 12, 1);
+  }
+  else if ( LMRXfreq[0] == LMRXfreq[4 + indexoffset] )
+  {
+    SelectInGroupOnMenu(8, 5, 14, 13, 1);
+  }
+  else if ( LMRXfreq[0] == LMRXfreq[5 + indexoffset] )
+  {
+    SelectInGroupOnMenu(8, 5, 14, 14, 1);
+  }
+
+  // SR buttons
+
+  if (strcmp(LMRXmode, "terr") == 0)
+  {
+    indexoffset = 5;
+  }
+
+  snprintf(LMBtext, 15, "SR %d", LMRXsr[1 + indexoffset]);
+  AmendButtonStatus(ButtonNumber(8, 15), 0, LMBtext, &Blue);
+  AmendButtonStatus(ButtonNumber(8, 15), 1, LMBtext, &Green);
+  
+  snprintf(LMBtext, 15, "SR %d", LMRXsr[2 + indexoffset]);
+  AmendButtonStatus(ButtonNumber(8, 16), 0, LMBtext, &Blue);
+  AmendButtonStatus(ButtonNumber(8, 16), 1, LMBtext, &Green);
+  
+  snprintf(LMBtext, 15, "SR %d", LMRXsr[3 + indexoffset]);
+  AmendButtonStatus(ButtonNumber(8, 17), 0, LMBtext, &Blue);
+  AmendButtonStatus(ButtonNumber(8, 17), 1, LMBtext, &Green);
+  
+  snprintf(LMBtext, 15, "SR %d", LMRXsr[4 + indexoffset]);
+  AmendButtonStatus(ButtonNumber(8, 18), 0, LMBtext, &Blue);
+  AmendButtonStatus(ButtonNumber(8, 18), 1, LMBtext, &Green);
+  
+  snprintf(LMBtext, 15, "SR %d", LMRXsr[5 + indexoffset]);
+  AmendButtonStatus(ButtonNumber(8, 19), 0, LMBtext, &Blue);
+  AmendButtonStatus(ButtonNumber(8, 19), 1, LMBtext, &Green);
+  
+  if ( LMRXsr[0] == LMRXsr[1 + indexoffset] )
+  {
+    SelectInGroupOnMenu(8, 15, 19, 15, 1);
+  }
+  else if ( LMRXsr[0] == LMRXsr[2 + indexoffset] )
+  {
+    SelectInGroupOnMenu(8, 15, 19, 16, 1);
+  }
+  else if ( LMRXsr[0] == LMRXsr[3 + indexoffset] )
+  {
+    SelectInGroupOnMenu(8, 15, 19, 17, 1);
+  }
+  else if ( LMRXsr[0] == LMRXsr[4 + indexoffset] )
+  {
+    SelectInGroupOnMenu(8, 15, 19, 18, 1);
+  }
+  else if ( LMRXsr[0] == LMRXsr[5 + indexoffset] )
+  {
+    SelectInGroupOnMenu(8, 15, 19, 19, 1);
+  }
+
+  if (strcmp(LMRXmode, "sat") == 0)
+  {
+    AmendButtonStatus(ButtonNumber(8, 20), 0, "  QO-100  ^ ", &Blue);
+  }
+  else
+  {
+    AmendButtonStatus(ButtonNumber(8, 20), 0, " ^Terrestrial", &Blue);
+  }
 }
 
 void Define_Menu11()
@@ -14502,21 +15409,50 @@ void Define_Menu13()
   LBlue.r=64; LBlue.g=64; LBlue.b=192;
   DBlue.r=0; DBlue.g=0; DBlue.b=64;
 
-  strcpy(MenuTitle[13], "Not Used Menu (13)"); 
+  strcpy(MenuTitle[13], "Portsdown Receiver Configuration (13)"); 
 
   // Bottom Row, Menu 13
 
+  button = CreateButton(13, 0);
+  AddButtonStatus(button, "UDP^IP", &DBlue);
+  AddButtonStatus(button, "UDP^IP", &LBlue);
+
+  button = CreateButton(13, 1);
+  AddButtonStatus(button, "UDP^Port", &DBlue);
+  AddButtonStatus(button, "UDP^Port", &LBlue);
+
   button = CreateButton(13, 4);
-  AddButtonStatus(button, "Cancel", &DBlue);
-  AddButtonStatus(button, "Cancel", &LBlue);
+  AddButtonStatus(button, "Exit", &DBlue);
+  AddButtonStatus(button, "Exit", &LBlue);
 
 
   // 2nd Row, Menu 13
+
+  button = CreateButton(13, 5);
+  AddButtonStatus(button, "Sat LNB^Offset", &DBlue);
+  AddButtonStatus(button, "Sat LNB^Offset", &LBlue);
+
+
+  button = CreateButton(13, 6);
+  AddButtonStatus(button, "Input^A", &DBlue);
+  AddButtonStatus(button, "Input^A", &LBlue);
 
 }
 
 void Start_Highlights_Menu13()
 {
+  color_t Blue;
+  Blue.r=0; Blue.g=0; Blue.b=128;
+
+  if (strcmp(LMRXinput, "a") == 0)
+  {
+    AmendButtonStatus(ButtonNumber(13, 6), 0, "Input^A", &Blue);
+  }
+  else
+  {
+    AmendButtonStatus(ButtonNumber(13, 6), 0, "Input^B", &Blue);
+  }
+
 }
 
 void Define_Menu14()
@@ -17164,6 +18100,12 @@ terminate(int dummy)
   ReceiveStop();
   RTLstop();
   system("killall -9 omxplayer.bin >/dev/null 2>/dev/null");
+
+        system("sudo killall lmudp.sh");
+        system("sudo killall longmynd");
+        system("sudo killall nc");
+        system("sudo killall fake_read");
+
   finish();
   //DisplayHere("Touchscreen Process Stopped");
   printf("Terminate\n");
