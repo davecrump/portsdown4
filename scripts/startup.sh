@@ -10,7 +10,6 @@
 
 PATHSCRIPT=/home/pi/rpidatv/scripts
 PATHRPI=/home/pi/rpidatv/bin
-CONFIGFILE=$PATHSCRIPT"/rpidatvconfig.txt"
 PATHCONFIGS="/home/pi/rpidatv/scripts/configs"  ## Path to config files
 PCONFIGFILE="/home/pi/rpidatv/scripts/portsdown_config.txt"
 
