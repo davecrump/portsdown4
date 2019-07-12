@@ -1,2 +1,6 @@
 dtparam=spi=on
 dtoverlay=waveshare35b
+#201907070
+hdmi_force_hotplug=1
+hdmi_group=1
+hdmi_mode=17

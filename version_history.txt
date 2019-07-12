@@ -1,6 +1,7 @@
 201907070
 Basic support for LimeNET-Micro
 Preparation for receive using MiniTiouner and LongMynd code
+Fix for Waveshare Touchscreen problem
 
 201906060
 Overide RPi GPIOs when Express GPIOs 16-31 selected
