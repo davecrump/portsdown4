@@ -170,7 +170,8 @@ DisplayUpdateMsg "Step 4a of 10\nStill Updating Software Packages\n\nXXXX------"
 
 # --------- Update Packages ------
 
-sudo apt-get -y dist-upgrade # Upgrade all the installed packages to their latest version
+# Don't do this until Comp Vid bug is corrected 201907270
+#sudo apt-get -y dist-upgrade # Upgrade all the installed packages to their latest version
 
 # --------- Install the Random Number Generator ------
 

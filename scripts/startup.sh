@@ -130,7 +130,7 @@ MODE_STARTUP=$(get_config_var startup $PCONFIGFILE)
 
 if [[ "$SESSION_TYPE" == "boot" && "$MODE_STARTUP" == "Display_boot" ]]; then
 
-  # Test if the device is a LimeNet Micro which might need the dt-blob.bin changing
+  # Test if the device is a LimeNet Micro
   # (0 for LimeNet Micro detected, 1 for not detected)
   cat /proc/device-tree/model | grep 'Raspberry Pi Compute Module 3' >/dev/null 2>/dev/null
   LIMENET_RESULT="$?"
@@ -138,6 +138,10 @@ if [[ "$SESSION_TYPE" == "boot" && "$MODE_STARTUP" == "Display_boot" ]]; then
   # Test which dt-blob.bin is installed (0 for Limenet, else 1)
   ls -l /boot/dt-blob.bin | grep '40874' >/dev/null 2>/dev/null
   LIMENET_DT="$?"
+
+  # Test whether the LimeNet Micro audio fix is installed (0 for installed, 1 for not)
+  grep "dtoverlay=pwm-2chan,pin=40,func=4,pin2=41,func2=4" /boot/config.txt >/dev/null 2>/dev/null
+  LIMENET_AUDIO="$?"
 
   if [ "$LIMENET_RESULT" == 0 ] && [ "$LIMENET_DT" == 1 ]; then
     # LimeNET-micro detected, but wrong dt-blob.bin
@@ -150,6 +154,37 @@ if [[ "$SESSION_TYPE" == "boot" && "$MODE_STARTUP" == "Display_boot" ]]; then
     sudo cp /home/pi/rpidatv/scripts/configs/dt-blob.bin.norm /boot/dt-blob.bin
     sudo reboot now
   fi
+
+  # Load LimeNET Micro audio fix if required
+  if [ "$LIMENET_RESULT" == 0 ] && [ "$LIMENET_AUDIO" == 1 ]; then
+    # This section modifies and replaces the end of /boot/config.txt
+    # to allow (only) the correct LCD drivers to be loaded at next boot
+
+    # Set constants for the amendment of /boot/config.txt
+    lead='^## Begin LCD Driver'               ## Marker for start of inserted text
+    tail='^## End LCD Driver'                 ## Marker for end of inserted text
+    CHANGEFILE="/boot/config.txt"             ## File requiring added text
+    APPENDFILE=$PATHCONFIGS"/lcd_markers.txt" ## File containing both markers
+    TRANSFILE=$PATHCONFIGS"/transfer.txt"     ## File used for transfer
+
+    grep -q "$lead" "$CHANGEFILE"     ## Is the first marker already present?
+    if [ $? -ne 0 ]; then
+      sudo bash -c 'cat '$APPENDFILE' >> '$CHANGEFILE' '  ## If not append the markers
+    fi
+
+    # Select the correct driver text
+    INSERTFILE=$PATHCONFIGS"/element14_7LMN.txt"
+
+    # Replace whatever is between the markers with the driver text
+    sed -e "/$lead/,/$tail/{ /$lead/{p; r $INSERTFILE
+	        }; /$tail/p; d }" $CHANGEFILE >> $TRANSFILE
+
+    sudo cp "$TRANSFILE" "$CHANGEFILE"          ## Copy from the transfer file
+    rm $TRANSFILE                               ## Delete the transfer file
+
+    sudo reboot now
+  fi
+   
 
   # Test if Waveshare selected, but Element 14 fitted 
   if [ "$DISPLAY" == "Waveshare" ]; then
@@ -178,7 +213,11 @@ if [[ "$SESSION_TYPE" == "boot" && "$MODE_STARTUP" == "Display_boot" ]]; then
       fi
 
       # Select the correct driver text
-      INSERTFILE=$PATHCONFIGS"/element14_7.txt"
+      if [ "$LIMENET_RESULT" == 0 ]; then
+        INSERTFILE=$PATHCONFIGS"/element14_7LMN.txt"
+      else
+        INSERTFILE=$PATHCONFIGS"/element14_7.txt"
+      fi
 
       # Replace whatever is between the markers with the driver text
       sed -e "/$lead/,/$tail/{ /$lead/{p; r $INSERTFILE
