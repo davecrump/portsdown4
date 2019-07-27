@@ -32,7 +32,8 @@ sudo apt-get -y remove apt-listchanges
 # -------- Upgrade distribution ------
 
 # Update the distribution
-sudo apt-get -y dist-upgrade
+# Don't do this until Comp Vid bug is corrected 201907270
+#sudo apt-get -y dist-upgrade
 
 # Install the packages that we need
 sudo apt-get -y install git
