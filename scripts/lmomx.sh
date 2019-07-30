@@ -29,11 +29,19 @@ RX_MODE=$(get_config_var mode $RCONFIGFILE)
 Q_OFFSET=$(get_config_var qoffset $RCONFIGFILE)
 UDPIP=$(get_config_var udpip $RCONFIGFILE)
 UDPPORT=$(get_config_var udpport $RCONFIGFILE)
+AUDIO_OUT=$(get_config_var audio $RCONFIGFILE)
 
 # Correct for LNB LO Frequency if required
 if [ "$RX_MODE" == "sat" ]; then
   let FREQ_KHZ=$FREQ_KHZ-$Q_OFFSET
 fi
+
+if [ "$AUDIO_OUT" == "rpi" ]; then
+  AUDIO_MODE="local"
+else
+  AUDIO_MODE="alsa:plughw:1,0"
+fi
+
 
 sudo killall longmynd >/dev/null 2>/dev/null
 sudo killall omxplayer.bin >/dev/null 2>/dev/null
@@ -43,7 +51,7 @@ mkfifo fifo.264
 
 sudo /home/pi/longmynd/longmynd $FREQ_KHZ 0 $SYMBOLRATEK 0  &
 
-omxplayer --adev local --live --display 1  --layer 10 longmynd_ts_fifo &  ## works OK
+omxplayer --adev $AUDIO_MODE --live --display 1 --layer 10 longmynd_ts_fifo &  ## works OK
 
 exit
 

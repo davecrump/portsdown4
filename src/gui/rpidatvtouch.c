@@ -249,6 +249,7 @@ char LMRXinput[1];          // Input a or b
 char LMRXudpip[20];         // UDP IP address
 char LMRXudpport[10];       // UDP IP port
 char LMRXmode[10];          // sat or terr
+char LMRXaudio[15];          // rpi or usb
 
 // Stream Display Parameters. [0] is current
 char StreamAddress[9][127];  // Full rtmp address of stream
@@ -2952,7 +2953,10 @@ void ReadLMRXPresets()
   
   // UDP output port:
   GetConfigParam(PATH_LMCONFIG, "udpport", LMRXudpport);
-  
+
+  // Audio output port: (rpi or usb)
+  GetConfigParam(PATH_LMCONFIG, "audio", LMRXaudio);
+
   // QO-100 LNB Offset:
   GetConfigParam(PATH_LMCONFIG, "qoffset", Value);
   LMRXqoffset = atoi(Value);
@@ -10613,13 +10617,15 @@ void ChangeLMPresetSR(int NoButton)
       SRCheck = atoi(KeyboardReturn);
     }
 
-    // Update stored value
+    // Update stored preset value and in-use value
     LMRXsr[SRIndex] = SRCheck;
+    LMRXsr[0] = SRCheck;
 
-    // write SR to Presets file
+    // write SR to Presets file, for preset and current
     strcat(Param, PresetNo); 
     printf("Store Preset %s %s\n", Param, KeyboardReturn);
     SetConfigParam(PATH_LMCONFIG, Param, KeyboardReturn);
+    SetConfigParam(PATH_LMCONFIG, "sr0", KeyboardReturn);
   }
 }
 
@@ -12372,6 +12378,19 @@ printf("RETURNED TO MENU 8\n");
             strcpy(LMRXinput, "a");
           }
           SetConfigParam(PATH_LMCONFIG, "input", LMRXinput);
+          Start_Highlights_Menu13();
+          UpdateWindow();
+          break;
+        case 9:                                        // Audio Output
+          if (strcmp(LMRXaudio, "rpi") == 0)
+          {
+            strcpy(LMRXaudio, "usb");
+          }
+          else
+          {
+            strcpy(LMRXaudio, "rpi");
+          }
+          SetConfigParam(PATH_LMCONFIG, "audio", LMRXaudio);
           Start_Highlights_Menu13();
           UpdateWindow();
           break;
@@ -15591,11 +15610,13 @@ void Define_Menu13()
   AddButtonStatus(button, "Sat LNB^Offset", &Blue);
   AddButtonStatus(button, "Sat LNB^Offset", &Blue);
 
-
   button = CreateButton(13, 6);
   AddButtonStatus(button, "Input^A", &Blue);
   AddButtonStatus(button, "Input^A", &Blue);
 
+  button = CreateButton(13, 9);
+  AddButtonStatus(button, "Audio out^RPi Jack", &Blue);
+  AddButtonStatus(button, "Audio out^RPi Jack", &Blue);
 }
 
 void Start_Highlights_Menu13()
@@ -15607,6 +15628,14 @@ void Start_Highlights_Menu13()
   else
   {
     AmendButtonStatus(ButtonNumber(13, 6), 0, "Input^B", &Blue);
+  }
+  if (strcmp(LMRXaudio, "rpi") == 0)
+  {
+    AmendButtonStatus(ButtonNumber(13, 9), 0, "Audio out^RPi Jack", &Blue);
+  }
+  else
+  {
+    AmendButtonStatus(ButtonNumber(13, 9), 0, "Audio out^USB dongle", &Blue);
   }
 }
 
