@@ -6264,24 +6264,28 @@ void SelectFec(int NoButton)  // FEC
 void SelectLMSR(int NoButton)  // LongMynd Symbol Rate
 {
   char Value[255];
-  int indexoffset = 0;
 
-  NoButton = NoButton - 14;  // Translate to 1 - 5
+  NoButton = NoButton - 14;  // Translate to 1 - 6
+
   if (strcmp(LMRXmode, "terr") == 0)
   {
-    NoButton = NoButton + 5;
+    NoButton = NoButton + 6;
+    LMRXsr[0] = LMRXsr[NoButton];
+    snprintf(Value, 15, "%d", LMRXsr[0]);
+    SetConfigParam(PATH_LMCONFIG, "sr1", Value);
   }
-
-  LMRXsr[0] = LMRXsr[NoButton + indexoffset];
-  snprintf(Value, 15, "%d", LMRXsr[0]);
+  else // Sat
+  {
+    LMRXsr[0] = LMRXsr[NoButton];
+    snprintf(Value, 15, "%d", LMRXsr[0]);
+    SetConfigParam(PATH_LMCONFIG, "sr0", Value);
+  }
   printf("************** Set LongMynd SR = %s\n",Value);
-  SetConfigParam(PATH_LMCONFIG, "sr0", Value);
 }
 
 void SelectLMFREQ(int NoButton)  // LongMynd Frequency
 {
   char Value[255];
-  int indexoffset = 0;
 
   NoButton = NoButton - 9; // top row 1 - 5 bottom -4 - 0
 
@@ -6294,12 +6298,37 @@ void SelectLMFREQ(int NoButton)  // LongMynd Frequency
   if (strcmp(LMRXmode, "terr") == 0)
   {
     NoButton = NoButton + 10;
+    LMRXfreq[0] = LMRXfreq[NoButton];
+    snprintf(Value, 25, "%d", LMRXfreq[0]);
+    SetConfigParam(PATH_LMCONFIG, "freq1", Value);
   }
-
-  LMRXfreq[0] = LMRXfreq[NoButton + indexoffset];
-  snprintf(Value, 25, "%d", LMRXfreq[0]);
+  else // Sat
+  {
+    LMRXfreq[0] = LMRXfreq[NoButton];
+    snprintf(Value, 25, "%d", LMRXfreq[0]);
+    SetConfigParam(PATH_LMCONFIG, "freq0", Value);
+  }
   printf("************** Set LongMynd Freq = %s\n",Value);
-  SetConfigParam(PATH_LMCONFIG, "freq0", Value);
+}
+
+void ResetLMParams()  // Called after switch between Terrestrial and Sat
+{
+  char Value[255];
+
+  if (strcmp(LMRXmode, "terr") == 0)
+  {
+    GetConfigParam(PATH_LMCONFIG, "freq1", Value);
+    LMRXfreq[0] = atoi(Value);
+    GetConfigParam(PATH_LMCONFIG, "sr1", Value);
+    LMRXsr[0] = atoi(Value);
+  }
+  else // Sat
+  {
+    GetConfigParam(PATH_LMCONFIG, "freq0", Value);
+    LMRXfreq[0] = atoi(Value);
+    GetConfigParam(PATH_LMCONFIG, "sr0", Value);
+    LMRXsr[0] = atoi(Value);
+  }
 }
 
 
@@ -8399,6 +8428,19 @@ void ReceiveStop()
 }
 
 
+void chopN(char *str, size_t n)
+{
+  size_t len = strlen(str);
+  if ((n > len) || (n == 0))
+  {
+    return;
+  }
+  else
+  {
+    memmove(str, str+n, len - n + 1);
+  }
+}
+
 void LMRX(int NoButton)
 {
   #define PATH_SCRIPT_LMRXUDP "/home/pi/rpidatv/scripts/lmudp.sh 2>&1"
@@ -8410,18 +8452,25 @@ void LMRX(int NoButton)
   FinishedButton = 1;
   int num;
   int ret;
-  int fd_status_fifo; 
+  int fd_status_fifo;
+
+  float MER;
+  float FREQ;
+  int STATE;
+  int SR;
+  //int FEC;
 
   char status_message[14];
-  char freq_string[63];
-  char sr_string[63] = " ";
-  char lg_string[63] = " ";
   char stat_string[63];
   char udp_string[63];
+  char MERtext[15];
+  char STATEtext[63];
+  char FREQtext[63];
+  char SRtext[63];
+  //char FECtext[63];
 
   int pointsize = 25;
   Fontinfo font = SansTypeface;
-  int current_message = 0; // 1 for LNA Gain, 2 for status
 
   int Parameters_currently_displayed = 1; // 1 for displayed, 0 for blank
 
@@ -8433,9 +8482,6 @@ void LMRX(int NoButton)
   VGfloat txtht = TextHeight(font, pointsize);
   VGfloat txtdp = TextDepth(font, pointsize);
   VGfloat linepitch = 1.1 * (txtht + txtdp);
-
-  snprintf(freq_string, 62, " Freq: %d", LMRXfreq[0]);
-  snprintf(sr_string, 62, " SR: %d", LMRXsr[0]);
 
   // Create Wait Button thread
   pthread_create (&thbutton, NULL, &WaitButtonLMRX, NULL);
@@ -8463,64 +8509,122 @@ void LMRX(int NoButton)
 
     while ((FinishedButton == 1) || (FinishedButton == 2)) // 1 is captions on, 2 is off
     {
-      printf("%s", "Start Read\n");
+      // printf("%s", "Start Read\n");
+
       num = read(fd_status_fifo, status_message, 1);
-      printf("%s Num= %d \n", "End Read", num);
+      // printf("%s Num= %d \n", "End Read", num);
       if (num >= 0 )
       {
         status_message[num]='\0';
-        if (num>0) printf("                    %s\n",status_message);
-        if (strcmp(status_message, "L") == 0)
+        //if (num>0) printf("%s\n",status_message);
+        
+        if (strcmp(status_message, "$") == 0)
         {
-          strcpy(lg_string, " ");
-          current_message = 1;
-        }
-        if (strcmp(status_message, "s") == 0)
-        {
-          strcpy(stat_string, " ");
-          current_message = 2;
-        }
 
-        if (current_message == 1)
-        {
-          strcat(lg_string, status_message);
-        } 
-        if (current_message == 2)
-        {
-          strcat(stat_string, status_message);
-        } 
-
-        if ((strlen(lg_string) >= 11) || (strlen(stat_string) >= 8))
-        {
-          if (FinishedButton == 1)  // Parameters displayed
+          if ((stat_string[0] == '1') && (stat_string[1] == ','))  // Decoder State
           {
-            BackgroundRGB(0, 0, 0, 0);
-            Fill(0, 0, 0, 255);
-            Rect(wscreen * 1.0 / 40.0, hscreen - 4.2 * linepitch, wscreen * 15.0 / 40.0, 4.0 * linepitch);
-            Fill(255, 255, 255, 255);
-            Text(wscreen * 1.0 / 40.0, hscreen - 1 * linepitch, freq_string, font, pointsize);
-            Text(wscreen * 1.0 / 40.0, hscreen - 2 * linepitch, sr_string, font, pointsize);
-            Text(wscreen * 1.0 / 40.0, hscreen - 3 * linepitch, lg_string, font, pointsize);
-            Text(wscreen * 1.0 / 40.0, hscreen - 4 * linepitch, stat_string, font, pointsize);
-            Parameters_currently_displayed = 1;            }
-          else
-          {
-            if (Parameters_currently_displayed == 1)
+            strcpy(STATEtext, stat_string);
+            chopN(STATEtext, 2);
+            STATE = atoi(STATEtext);
+            switch(STATE)
             {
-              BackgroundRGB(0, 0, 0, 0);
-              Fill(0, 0, 0, 0);
-              Rect(wscreen * 1.0 / 40.0, hscreen - 4.2 * linepitch, wscreen * 15.0 / 40.0, 4.0 * linepitch);
-              Parameters_currently_displayed = 0;
+              case 0:
+              strcpy(STATEtext, "Initialising");
+              break;
+              case 1:
+              strcpy(STATEtext, "Searching");
+              break;
+              case 2:
+              strcpy(STATEtext, "Found Headers");
+              break;
+              case 3:
+              strcpy(STATEtext, "DVB-S Lock");
+              break;
+              case 4:
+              strcpy(STATEtext, "DVB-S2 Lock");
+              break;
+              default:
+              snprintf(STATEtext, 10, "%d", STATE);
             }
           }
-          End();
+
+          if ((stat_string[0] == '6') && (stat_string[1] == ','))  // Frequency
+          {
+            strcpy(FREQtext, stat_string);
+            chopN(FREQtext, 2);
+            FREQ = atof(FREQtext);
+            if (strcmp(LMRXmode, "sat") == 0)
+            {
+              FREQ = FREQ + LMRXqoffset;
+            }
+            FREQ = FREQ / 1000;
+            snprintf(FREQtext, 15, "%.3f MHz", FREQ);
+          }
+
+          if ((stat_string[0] == '9') && (stat_string[1] == ','))  // SR in S
+          {
+            strcpy(SRtext, stat_string);
+            chopN(SRtext, 2);
+            SR = atoi(SRtext) / 1000;
+            snprintf(SRtext, 15, "%d kS", SR);
+          }
+
+          //if ((stat_string[0] == '3') && (stat_string[1] == ','))  // FEC Numerator
+          //{
+          //  strcpy(FECtext, stat_string);
+          //  chopN(FECtext, 2);
+          //  FEC = atoi(FECtext);
+          //  snprintf(FECtext, 15, "FEC %d/%d", FEC, FEC + 1);
+          //}
+
+          if ((stat_string[0] == '1') && (stat_string[1] == '2'))  // MER
+          {
+            if (FinishedButton == 1)  // Parameters displayed
+            {
+              strcpy(MERtext, stat_string);
+              chopN(MERtext, 3);
+              MER = atof(MERtext)/10;
+              if (MER > 51)  // Trap spurious MER readings
+              {
+                MER = 0;
+              }
+              snprintf(MERtext, 10, "MER %.1f", MER);
+
+              BackgroundRGB(0, 0, 0, 0);
+              Fill(0, 0, 0, 255);
+              Rect(wscreen * 1.0 / 40.0, hscreen - 4.2 * linepitch, wscreen * 15.0 / 40.0, hscreen);
+              Fill(255, 255, 255, 255);
+              Text(wscreen * 1.0 / 40.0, hscreen - 1 * linepitch, STATEtext, font, pointsize);
+              Text(wscreen * 1.0 / 40.0, hscreen - 2 * linepitch, FREQtext, font, pointsize);
+              Text(wscreen * 1.0 / 40.0, hscreen - 3 * linepitch, SRtext, font, pointsize);
+              //Text(wscreen * 1.0 / 40.0, hscreen - 4 * linepitch, FECtext, font, pointsize);
+              Text(wscreen * 1.0 / 40.0, hscreen - 4 * linepitch, MERtext, font, pointsize);
+              Text(wscreen * 1.0 / 40.0, hscreen - 11.5 * linepitch, "Touch Right Side to exit", font, pointsize);
+            }
+            else
+            {
+              if (Parameters_currently_displayed == 1)
+              {
+                BackgroundRGB(0, 0, 0, 0);
+                Fill(0, 0, 0, 0);
+                Rect(wscreen * 1.0 / 40.0, hscreen - 4.2 * linepitch, wscreen * 15.0 / 40.0, 4.0 * linepitch);
+                Parameters_currently_displayed = 0;
+              }
+            }
+            End();
+          }
+          stat_string[0] = '\0';
+        }
+        else
+        {
+          strcat(stat_string, status_message);
         }
       }
       else
       {
         FinishedButton = 0;
-      }
-    } 
+      } 
+    }   
     close(fd_status_fifo);
 
     finish();
@@ -8554,64 +8658,122 @@ void LMRX(int NoButton)
 
     while ((FinishedButton == 1) || (FinishedButton == 2)) // 1 is captions on, 2 is off
     {
-      printf("%s", "Start Read\n");
+      // printf("%s", "Start Read\n");
+
       num = read(fd_status_fifo, status_message, 1);
-      printf("%s Num= %d \n", "End Read", num);
+      // printf("%s Num= %d \n", "End Read", num);
       if (num >= 0 )
       {
         status_message[num]='\0';
-        if (num>0) printf("                    %s\n",status_message);
-        if (strcmp(status_message, "L") == 0)
+        //if (num>0) printf("%s\n",status_message);
+        
+        if (strcmp(status_message, "$") == 0)
         {
-          strcpy(lg_string, " ");
-          current_message = 1;
-        }
-        if (strcmp(status_message, "s") == 0)
-        {
-          strcpy(stat_string, " ");
-          current_message = 2;
-        }
 
-        if (current_message == 1)
-        {
-          strcat(lg_string, status_message);
-        } 
-        if (current_message == 2)
-        {
-          strcat(stat_string, status_message);
-        } 
-
-        if ((strlen(lg_string) >= 11) || (strlen(stat_string) >= 8))
-        {
-          if (FinishedButton == 1)  // Parameters displayed
+          if ((stat_string[0] == '1') && (stat_string[1] == ','))  // Decoder State
           {
-            BackgroundRGB(0, 0, 0, 0);
-            Fill(0, 0, 0, 255);
-            Rect(wscreen * 1.0 / 40.0, hscreen - 4.2 * linepitch, wscreen * 15.0 / 40.0, 4.0 * linepitch);
-            Fill(255, 255, 255, 255);
-            Text(wscreen * 1.0 / 40.0, hscreen - 1 * linepitch, freq_string, font, pointsize);
-            Text(wscreen * 1.0 / 40.0, hscreen - 2 * linepitch, sr_string, font, pointsize);
-            Text(wscreen * 1.0 / 40.0, hscreen - 3 * linepitch, lg_string, font, pointsize);
-            Text(wscreen * 1.0 / 40.0, hscreen - 4 * linepitch, stat_string, font, pointsize);
-            Parameters_currently_displayed = 1;            }
-          else
-          {
-            if (Parameters_currently_displayed == 1)
+            strcpy(STATEtext, stat_string);
+            chopN(STATEtext, 2);
+            STATE = atoi(STATEtext);
+            switch(STATE)
             {
-              BackgroundRGB(0, 0, 0, 0);
-              Fill(0, 0, 0, 0);
-              Rect(wscreen * 1.0 / 40.0, hscreen - 4.2 * linepitch, wscreen * 15.0 / 40.0, 4.0 * linepitch);
-              Parameters_currently_displayed = 0;
+              case 0:
+              strcpy(STATEtext, "Initialising");
+              break;
+              case 1:
+              strcpy(STATEtext, "Searching");
+              break;
+              case 2:
+              strcpy(STATEtext, "Found Headers");
+              break;
+              case 3:
+              strcpy(STATEtext, "DVB-S Lock");
+              break;
+              case 4:
+              strcpy(STATEtext, "DVB-S2 Lock");
+              break;
+              default:
+              snprintf(STATEtext, 10, "%d", STATE);
             }
           }
-          End();
+
+          if ((stat_string[0] == '6') && (stat_string[1] == ','))  // Frequency
+          {
+            strcpy(FREQtext, stat_string);
+            chopN(FREQtext, 2);
+            FREQ = atof(FREQtext);
+            if (strcmp(LMRXmode, "sat") == 0)
+            {
+              FREQ = FREQ + LMRXqoffset;
+            }
+            FREQ = FREQ / 1000;
+            snprintf(FREQtext, 15, "%.3f MHz", FREQ);
+          }
+
+          if ((stat_string[0] == '9') && (stat_string[1] == ','))  // SR in S
+          {
+            strcpy(SRtext, stat_string);
+            chopN(SRtext, 2);
+            SR = atoi(SRtext) / 1000;
+            snprintf(SRtext, 15, "%d kS", SR);
+          }
+
+          //if ((stat_string[0] == '3') && (stat_string[1] == ','))  // FEC Numerator
+          //{
+          //  strcpy(FECtext, stat_string);
+          //  chopN(FECtext, 2);
+          //  FEC = atoi(FECtext);
+          //  snprintf(FECtext, 15, "FEC %d/%d", FEC, FEC + 1);
+          //}
+
+          if ((stat_string[0] == '1') && (stat_string[1] == '2'))  // MER
+          {
+            if (FinishedButton == 1)  // Parameters displayed
+            {
+              strcpy(MERtext, stat_string);
+              chopN(MERtext, 3);
+              MER = atof(MERtext)/10;
+              if (MER > 51)  // Trap spurious MER readings
+              {
+                MER = 0;
+              }
+              snprintf(MERtext, 10, "MER %.1f", MER);
+
+              BackgroundRGB(0, 0, 0, 0);
+              Fill(0, 0, 0, 255);
+              Rect(wscreen * 1.0 / 40.0, hscreen - 4.2 * linepitch, wscreen * 15.0 / 40.0, hscreen);
+              Fill(255, 255, 255, 255);
+              Text(wscreen * 1.0 / 40.0, hscreen - 1 * linepitch, STATEtext, font, pointsize);
+              Text(wscreen * 1.0 / 40.0, hscreen - 2 * linepitch, FREQtext, font, pointsize);
+              Text(wscreen * 1.0 / 40.0, hscreen - 3 * linepitch, SRtext, font, pointsize);
+              //Text(wscreen * 1.0 / 40.0, hscreen - 4 * linepitch, FECtext, font, pointsize);
+              Text(wscreen * 1.0 / 40.0, hscreen - 4 * linepitch, MERtext, font, pointsize);
+              Text(wscreen * 1.0 / 40.0, hscreen - 11.5 * linepitch, "Touch Right Side to exit", font, pointsize);
+            }
+            else
+            {
+              if (Parameters_currently_displayed == 1)
+              {
+                BackgroundRGB(0, 0, 0, 0);
+                Fill(0, 0, 0, 0);
+                Rect(wscreen * 1.0 / 40.0, hscreen - 4.2 * linepitch, wscreen * 15.0 / 40.0, 4.0 * linepitch);
+                Parameters_currently_displayed = 0;
+              }
+            }
+            End();
+          }
+          stat_string[0] = '\0';
+        }
+        else
+        {
+          strcat(stat_string, status_message);
         }
       }
       else
       {
         FinishedButton = 0;
-      }
-    } 
+      } 
+    }   
     close(fd_status_fifo);
 
     finish();
@@ -8646,52 +8808,122 @@ void LMRX(int NoButton)
 
     while ((FinishedButton == 1) || (FinishedButton == 2)) 
     {
-      printf("%s", "Start Read\n");
+      // printf("%s", "Start Read\n");
 
       num = read(fd_status_fifo, status_message, 1);
-      printf("%s Num= %d \n", "End Read", num);
+      // printf("%s Num= %d \n", "End Read", num);
       if (num >= 0 )
       {
         status_message[num]='\0';
-        if (num>0) printf("                    %s\n",status_message);
-        if (strcmp(status_message, "L") == 0)
+        //if (num>0) printf("%s\n",status_message);
+        
+        if (strcmp(status_message, "$") == 0)
         {
-          strcpy(lg_string, " ");
-          current_message = 1;
-        }
-        if (strcmp(status_message, "s") == 0)
-        {
-          strcpy(stat_string, " ");
-          current_message = 2;
-        }
 
-        if (current_message == 1)
-        {
-          strcat(lg_string, status_message);
-        } 
-        if (current_message == 2)
+          if ((stat_string[0] == '1') && (stat_string[1] == ','))  // Decoder State
+          {
+            strcpy(STATEtext, stat_string);
+            chopN(STATEtext, 2);
+            STATE = atoi(STATEtext);
+            switch(STATE)
+            {
+              case 0:
+              strcpy(STATEtext, "Initialising");
+              break;
+              case 1:
+              strcpy(STATEtext, "Searching");
+              break;
+              case 2:
+              strcpy(STATEtext, "Found Headers");
+              break;
+              case 3:
+              strcpy(STATEtext, "DVB-S Lock");
+              break;
+              case 4:
+              strcpy(STATEtext, "DVB-S2 Lock");
+              break;
+              default:
+              snprintf(STATEtext, 10, "%d", STATE);
+            }
+          }
+
+          if ((stat_string[0] == '6') && (stat_string[1] == ','))  // Frequency
+          {
+            strcpy(FREQtext, stat_string);
+            chopN(FREQtext, 2);
+            FREQ = atof(FREQtext);
+            if (strcmp(LMRXmode, "sat") == 0)
+            {
+              FREQ = FREQ + LMRXqoffset;
+            }
+            FREQ = FREQ / 1000;
+            snprintf(FREQtext, 15, "%.3f MHz", FREQ);
+          }
+
+          if ((stat_string[0] == '9') && (stat_string[1] == ','))  // SR in S
+          {
+            strcpy(SRtext, stat_string);
+            chopN(SRtext, 2);
+            SR = atoi(SRtext) / 1000;
+            snprintf(SRtext, 15, "%d kS", SR);
+          }
+
+          //if ((stat_string[0] == '3') && (stat_string[1] == ','))  // FEC Numerator
+          //{
+          //  strcpy(FECtext, stat_string);
+          //  chopN(FECtext, 2);
+          //  FEC = atoi(FECtext);
+          //  snprintf(FECtext, 15, "FEC %d/%d", FEC, FEC + 1);
+          //}
+
+          if ((stat_string[0] == '1') && (stat_string[1] == '2'))  // MER
+          {
+            if (FinishedButton == 1)  // Parameters displayed
+            {
+              strcpy(MERtext, stat_string);
+              chopN(MERtext, 3);
+              MER = atof(MERtext)/10;
+              if (MER > 51)  // Trap spurious MER readings
+              {
+                MER = 0;
+              }
+              snprintf(MERtext, 10, "MER %.1f", MER);
+
+              BackgroundRGB(0, 0, 0, 0);
+              Fill(0, 0, 0, 255);
+              Rect(wscreen * 1.0 / 40.0, hscreen - 4.2 * linepitch, wscreen * 15.0 / 40.0, hscreen);
+              Fill(255, 255, 255, 255);
+              Text(wscreen * 1.0 / 40.0, hscreen - 1 * linepitch, STATEtext, font, pointsize);
+              Text(wscreen * 1.0 / 40.0, hscreen - 2 * linepitch, FREQtext, font, pointsize);
+              Text(wscreen * 1.0 / 40.0, hscreen - 3 * linepitch, SRtext, font, pointsize);
+              //Text(wscreen * 1.0 / 40.0, hscreen - 4 * linepitch, FECtext, font, pointsize);
+              Text(wscreen * 1.0 / 40.0, hscreen - 4 * linepitch, MERtext, font, pointsize);
+              Text(wscreen * 1.0 / 40.0, hscreen - 11.5 * linepitch, "Touch Right Side to exit", font, pointsize);
+            }
+            else
+            {
+              if (Parameters_currently_displayed == 1)
+              {
+                BackgroundRGB(0, 0, 0, 0);
+                Fill(0, 0, 0, 0);
+                Rect(wscreen * 1.0 / 40.0, hscreen - 4.2 * linepitch, wscreen * 15.0 / 40.0, 4.0 * linepitch);
+                Parameters_currently_displayed = 0;
+              }
+            }
+            End();
+          }
+          stat_string[0] = '\0';
+        }
+        else
         {
           strcat(stat_string, status_message);
-        } 
-
-        if ((strlen(lg_string) >= 11) || (strlen(stat_string) >= 8))
-        {
-          BackgroundRGB(0, 0, 0, 0);
-          Fill(0, 0, 0, 255);
-          Rect(wscreen * 1.0 / 40.0, hscreen - 4.2 * linepitch, wscreen * 15.0 / 40.0, hscreen);
-          Fill(255, 255, 255, 255);
-          Text(wscreen * 1.0 / 40.0, hscreen - 1 * linepitch, freq_string, font, pointsize);
-          Text(wscreen * 1.0 / 40.0, hscreen - 2 * linepitch, sr_string, font, pointsize);
-          Text(wscreen * 1.0 / 40.0, hscreen - 3 * linepitch, lg_string, font, pointsize);
-          Text(wscreen * 1.0 / 40.0, hscreen - 4 * linepitch, stat_string, font, pointsize);
-          End();
         }
       }
       else
       {
         FinishedButton = 0;
-      }
-    } 
+      } 
+    }   
     close(fd_status_fifo); 
     finish();
     usleep(1000);
@@ -8700,7 +8932,7 @@ void LMRX(int NoButton)
     printf("Stopping receive process\n");
     pclose(fp);
 
-    system("sudo killall lmomx.sh");
+    system("sudo killall omxplayer");
     touch_response = 0; 
     break;
   case 3:
@@ -8719,55 +8951,107 @@ void LMRX(int NoButton)
     {
       printf("Failed to open status fifo\n");
     }
-
-    printf("Listening, ret = %d\n", ret);
-
     WindowClear();
 
     while ((FinishedButton == 1) || (FinishedButton == 2)) // 1 is captions on, 2 is off
     {
-      printf("%s", "Start Read\n");
+      // printf("%s", "Start Read\n");
 
       num = read(fd_status_fifo, status_message, 1);
-      printf("%s Num= %d \n", "End Read", num);
+      // printf("%s Num= %d \n", "End Read", num);
       if (num >= 0 )
       {
         status_message[num]='\0';
-        if (num>0) printf("                    %s\n",status_message);
-        if (strcmp(status_message, "L") == 0)
+        //if (num>0) printf("%s\n",status_message);
+        
+        if (strcmp(status_message, "$") == 0)
         {
-          strcpy(lg_string, " ");
-          current_message = 1;
-        }
-        if (strcmp(status_message, "s") == 0)
-        {
-          strcpy(stat_string, " ");
-          current_message = 2;
-        }
 
-        if (current_message == 1)
-        {
-          strcat(lg_string, status_message);
-        } 
-        if (current_message == 2)
+          if ((stat_string[0] == '1') && (stat_string[1] == ','))  // Decoder State
+          {
+            strcpy(STATEtext, stat_string);
+            chopN(STATEtext, 2);
+            STATE = atoi(STATEtext);
+            switch(STATE)
+            {
+              case 0:
+              strcpy(STATEtext, "Initialising");
+              break;
+              case 1:
+              strcpy(STATEtext, "Searching");
+              break;
+              case 2:
+              strcpy(STATEtext, "Found Headers");
+              break;
+              case 3:
+              strcpy(STATEtext, "DVB-S Lock");
+              break;
+              case 4:
+              strcpy(STATEtext, "DVB-S2 Lock");
+              break;
+              default:
+              snprintf(STATEtext, 10, "%d", STATE);
+            }
+          }
+
+          if ((stat_string[0] == '6') && (stat_string[1] == ','))  // Frequency
+          {
+            strcpy(FREQtext, stat_string);
+            chopN(FREQtext, 2);
+            FREQ = atof(FREQtext);
+            if (strcmp(LMRXmode, "sat") == 0)
+            {
+              FREQ = FREQ + LMRXqoffset;
+            }
+            FREQ = FREQ / 1000;
+            snprintf(FREQtext, 15, "%.3f MHz", FREQ);
+          }
+
+          if ((stat_string[0] == '9') && (stat_string[1] == ','))  // SR in S
+          {
+            strcpy(SRtext, stat_string);
+            chopN(SRtext, 2);
+            SR = atoi(SRtext) / 1000;
+            snprintf(SRtext, 15, "%d kS", SR);
+          }
+
+          //if ((stat_string[0] == '3') && (stat_string[1] == ','))  // FEC Numerator
+          //{
+          //  strcpy(FECtext, stat_string);
+          //  chopN(FECtext, 2);
+          //  FEC = atoi(FECtext);
+          //  snprintf(FECtext, 15, "FEC %d/%d", FEC, FEC + 1);
+          //}
+
+          if ((stat_string[0] == '1') && (stat_string[1] == '2'))  // MER
+          {
+            strcpy(MERtext, stat_string);
+            chopN(MERtext, 3);
+            MER = atof(MERtext)/10;
+            if (MER > 51)  // Trap spurious MER readings
+            {
+              MER = 0;
+            }
+            snprintf(MERtext, 10, "MER %.1f", MER);
+
+            BackgroundRGB(0, 0, 0, 0);
+            Fill(0, 0, 0, 255);
+            Rect(wscreen * 1.0 / 40.0, hscreen - 4.2 * linepitch, wscreen * 15.0 / 40.0, hscreen);
+            Fill(255, 255, 255, 255);
+            Text(wscreen * 1.0 / 40.0, hscreen - 1 * linepitch, STATEtext, font, pointsize);
+            Text(wscreen * 1.0 / 40.0, hscreen - 2 * linepitch, FREQtext, font, pointsize);
+            Text(wscreen * 1.0 / 40.0, hscreen - 3 * linepitch, SRtext, font, pointsize);
+            //Text(wscreen * 1.0 / 40.0, hscreen - 4 * linepitch, FECtext, font, pointsize);
+            Text(wscreen * 1.0 / 40.0, hscreen - 4 * linepitch, MERtext, font, pointsize);
+            Text(wscreen * 1.0 / 40.0, hscreen - 9.5 * linepitch, udp_string, font, pointsize);
+            Text(wscreen * 1.0 / 40.0, hscreen - 11.5 * linepitch, "Touch screen to exit", font, pointsize);
+            End();
+          }
+          stat_string[0] = '\0';
+        }
+        else
         {
           strcat(stat_string, status_message);
-        } 
-
-        if ((strlen(lg_string) >= 11) || (strlen(stat_string) >= 8))
-        {
-          BackgroundRGB(0, 0, 0, 0);
-          Fill(0, 0, 0, 255);
-          Rect(wscreen * 1.0 / 40.0, hscreen - 4.2 * linepitch, wscreen * 15.0 / 40.0, hscreen);
-          Fill(255, 255, 255, 255);
-          Text(wscreen * 1.0 / 40.0, hscreen - 1 * linepitch, freq_string, font, pointsize);
-          Text(wscreen * 1.0 / 40.0, hscreen - 2 * linepitch, sr_string, font, pointsize);
-          Text(wscreen * 1.0 / 40.0, hscreen - 3 * linepitch, lg_string, font, pointsize);
-          Text(wscreen * 1.0 / 40.0, hscreen - 4 * linepitch, stat_string, font, pointsize);
-          Text(wscreen * 1.0 / 40.0, hscreen - 9.5 * linepitch, udp_string, font, pointsize);
-          Text(wscreen * 1.0 / 40.0, hscreen - 11.5 * linepitch, "Touch screen to exit", font, pointsize);
-
-          End();
         }
       }
       else
@@ -12190,6 +12474,7 @@ printf("RETURNED TO MENU 8\n");
             strcpy(LMRXmode, "sat");
           }
           SetConfigParam(PATH_LMCONFIG, "mode", LMRXmode);
+          ResetLMParams();
           Start_Highlights_Menu8();
           UpdateWindow();
           break;
