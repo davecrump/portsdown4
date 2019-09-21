@@ -1,3 +1,6 @@
+201909210
+Initial release of LongMynd Receiver Integration
+
 201907272
 Audio out enabled on LimeNET Micro
 Allow 33KS TX selection

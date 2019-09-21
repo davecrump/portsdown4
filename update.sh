@@ -140,6 +140,9 @@ cp -f -r "$PATHSCRIPT"/user_button5.sh "$PATHUBACKUP"/user_button5.sh
 cp -f -r "$PATHSCRIPT"/TXstartextras.sh "$PATHUBACKUP"/TXstartextras.sh
 cp -f -r "$PATHSCRIPT"/TXstopextras.sh "$PATHUBACKUP"/TXstopextras.sh
 
+# Make a safe copy of the LongMynd config
+cp -f -r "$PATHSCRIPT"/longmynd_config.txt "$PATHUBACKUP"/longmynd_config.txt
+
 # Delete any old backups in the home directory
 if [ -e "/home/pi/portsdown_config.txt" ]; then
   rm /home/pi/portsdown_config.txt
@@ -588,6 +591,21 @@ cd /home/pi
 # Install the components for Lime Grove
 cp -r /home/pi/rpidatv/scripts/configs/dvbsdr/ /home/pi/dvbsdr/
 
+# Remove any old LongMynd installation
+cd /home/pi
+sudo killall longmynd
+sudo rm -rf longmynd
+
+# Download the previously selected version of LongMynd
+wget https://github.com/${GIT_SRC}/longmynd/archive/master.zip
+unzip -o master.zip
+mv longmynd-master longmynd
+rm master.zip
+cd longmynd
+make
+gcc fake_read.c -o fake_read
+cd /home/pi
+
 # Always auto-logon and run .bashrc (and hence startup.sh) (20180729)
 sudo ln -fs /etc/systemd/system/autologin@.service\
  /etc/systemd/system/getty.target.wants/getty@tty1.service
@@ -676,6 +694,10 @@ cp -f -r "$PATHUBACKUP"/user_button5.sh "$PATHSCRIPT"/user_button5.sh
 # Restore the user's original transmit start and transmit stop scripts
 cp -f -r "$PATHUBACKUP"/TXstartextras.sh "$PATHSCRIPT"/TXstartextras.sh
 cp -f -r "$PATHUBACKUP"/TXstopextras.sh "$PATHSCRIPT"/TXstopextras.sh
+
+# Restore the user's original LongMynd config
+# Disabled until second update
+# cp -f -r "$PATHUBACKUP"/longmynd_config.txt "$PATHSCRIPT"/longmynd_config.txt
 
 # If user is upgrading a keyed streamer, add the cron job for 12-hourly reboot
 if grep -q "startup=Keyed_Stream_boot" /home/pi/rpidatv/scripts/portsdown_config.txt; then

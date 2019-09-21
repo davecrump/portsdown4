@@ -24,31 +24,42 @@ cd /home/pi
 
 # Read from receiver config file
 SYMBOLRATEK=$(get_config_var sr0 $RCONFIGFILE)
+SYMBOLRATEK_T=$(get_config_var sr1 $RCONFIGFILE)
+FREQ_KHZ_T=$(get_config_var freq1 $RCONFIGFILE)
 FREQ_KHZ=$(get_config_var freq0 $RCONFIGFILE)
 RX_MODE=$(get_config_var mode $RCONFIGFILE)
 Q_OFFSET=$(get_config_var qoffset $RCONFIGFILE)
-UDPIP=$(get_config_var udpip $RCONFIGFILE)
-UDPPORT=$(get_config_var udpport $RCONFIGFILE)
+INPUT_SEL=$(get_config_var input $RCONFIGFILE)
 
 # Correct for LNB LO Frequency if required
 if [ "$RX_MODE" == "sat" ]; then
   let FREQ_KHZ=$FREQ_KHZ-$Q_OFFSET
+else
+  FREQ_KHZ=$FREQ_KHZ_T
+  SYMBOLRATEK=$SYMBOLRATEK_T
+fi
+
+# Select the correct tuner input
+INPUT_CMD=" "
+if [ "$INPUT_SEL" == "b" ]; then
+  INPUT_CMD="-w"
 fi
 
 sudo killall -9 hello_video2.bin
 sudo killall ts2es
 sudo killall longmynd
+sudo killall nc
 
 sudo rm fifo.264
-
 mkfifo fifo.264
 
-sudo /home/pi/longmynd/longmynd $FREQ_KHZ 0 $SYMBOLRATEK 0 &
+sudo /home/pi/longmynd/longmynd -s longmynd_status_fifo $INPUT_CMD $FREQ_KHZ $SYMBOLRATEK &
 
-$PATHBIN"ts2es" -video longmynd_ts_fifo fifo.264 &
+sleep 1  # Required for good start every time
+
+$PATHBIN"ts2es" -video longmynd_main_ts fifo.264 &
 
 $PATHBIN"hello_video2.bin" fifo.264 &
-
 
 exit
 

@@ -289,6 +289,16 @@ cp dvb2iq ../../bin/dvb2iq2
 cp DvbTsToIQ0.cpp DvbTsToIQ.cpp
 make
 cp dvb2iq ../../bin/dvb2iq
+cd /home/pi
+
+# Download the previously selected version of LongMynd
+wget https://github.com/${GIT_SRC}/longmynd/archive/master.zip
+unzip -o master.zip
+mv longmynd-master longmynd
+rm master.zip
+cd longmynd
+make
+gcc fake_read.c -o fake_read
 
 cd /home/pi/rpidatv/scripts/
 
