@@ -31,6 +31,7 @@ RX_MODE=$(get_config_var mode $RCONFIGFILE)
 Q_OFFSET=$(get_config_var qoffset $RCONFIGFILE)
 AUDIO_OUT=$(get_config_var audio $RCONFIGFILE)
 INPUT_SEL=$(get_config_var input $RCONFIGFILE)
+INPUT_SEL_T=$(get_config_var input1 $RCONFIGFILE)
 
 # Correct for LNB LO Frequency if required
 if [ "$RX_MODE" == "sat" ]; then
@@ -38,6 +39,7 @@ if [ "$RX_MODE" == "sat" ]; then
 else
   FREQ_KHZ=$FREQ_KHZ_T
   SYMBOLRATEK=$SYMBOLRATEK_T
+  INPUT_SEL=$INPUT_SEL_T
 fi
 
 # Send audio to the correct port
@@ -64,7 +66,9 @@ mkfifo longmynd_main_ts
 
 sudo /home/pi/longmynd/longmynd -s longmynd_status_fifo $INPUT_CMD $FREQ_KHZ $SYMBOLRATEK &
 
-omxplayer --adev $AUDIO_MODE --live --display 1 --layer 10 longmynd_main_ts &  ## works OK
+omxplayer --adev $AUDIO_MODE --live --layer 0 longmynd_main_ts & ## works for touchscreens
+
+#omxplayer --adev $AUDIO_MODE --live --display 5 --layer 10 longmynd_main_ts &  ## for HDMI
 
 exit
 

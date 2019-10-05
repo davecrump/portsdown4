@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Updated by davecrump 201906060
+# Updated by davecrump 201910100
 
 DisplayUpdateMsg() {
   # Delete any old update message image  201802040
@@ -173,8 +173,7 @@ DisplayUpdateMsg "Step 4a of 10\nStill Updating Software Packages\n\nXXXX------"
 
 # --------- Update Packages ------
 
-# Don't do this until Comp Vid bug is corrected 201907270
-#sudo apt-get -y dist-upgrade # Upgrade all the installed packages to their latest version
+sudo apt-get -y dist-upgrade # Upgrade all the installed packages to their latest version
 
 # --------- Install the Random Number Generator ------
 
@@ -182,6 +181,9 @@ sudo apt-get -y install rng-tools # This makes sure that there is enough entropy
 
 # --------- Install sshpass ------
 sudo apt-get -y install sshpass  # For controlling the Jetson Nano
+
+# --------- Install libbsd-dev ------
+sudo apt-get -y install libbsd-dev  # For raspi2raspi
 
 # Enable USB Storage automount in Stretch (only) 20180704
 cd /lib/systemd/system/
@@ -461,6 +463,10 @@ sudo sed -i '/fallback static_eth0/d' dhcpcd.conf
 if ! grep -q "menu" /home/pi/.bash_aliases; then
   echo "alias menu='/home/pi/rpidatv/scripts/menu.sh menu'" >> /home/pi/.bash_aliases
 fi
+if ! grep -q "gui" /home/pi/.bash_aliases; then
+  echo "alias gui='/home/pi/rpidatv/scripts/utils/guir.sh'"  >> /home/pi/.bash_aliases
+  echo "alias ugui='/home/pi/rpidatv/scripts/utils/uguir.sh'"  >> /home/pi/.bash_aliases
+fi
 
 DisplayUpdateMsg "Step 8 of 10\nRestoring Config\n\nXXXXXXXX--"
 
@@ -588,6 +594,24 @@ make
 cp -f /home/pi/rpidatv/src/xy/xy /home/pi/rpidatv/bin/xy
 cd /home/pi
 
+
+# If required, 
+# Download and compile the components for Comp Vid output whilst using 7 inch screen
+if [ ! -f "/usr/local/bin/raspi2raspi" ]; then
+  echo "Installing raspi2raspi"
+  wget https://github.com/AndrewFromMelbourne/raspi2raspi/archive/master.zip
+  unzip master.zip
+  mv raspi2raspi-master raspi2raspi
+  rm master.zip
+  cd raspi2raspi/
+  mkdir build
+  cd build
+  cmake ..
+  make
+  sudo make install
+fi
+
+
 # Install the components for Lime Grove
 cp -r /home/pi/rpidatv/scripts/configs/dvbsdr/ /home/pi/dvbsdr/
 
@@ -603,10 +627,12 @@ mv longmynd-master longmynd
 rm master.zip
 cd longmynd
 make
-gcc fake_read.c -o fake_read
 cd /home/pi
 
-# Always auto-logon and run .bashrc (and hence startup.sh) (20180729)
+# Always auto-logon and run .bashrc (and hence startup.sh) (201910100)
+# Delete any invalid link first (required after 201909210)
+sudo rm /etc/systemd/system/getty.target.wants/getty@tty1.service
+# Make the new link
 sudo ln -fs /etc/systemd/system/autologin@.service\
  /etc/systemd/system/getty.target.wants/getty@tty1.service
 
@@ -696,8 +722,7 @@ cp -f -r "$PATHUBACKUP"/TXstartextras.sh "$PATHSCRIPT"/TXstartextras.sh
 cp -f -r "$PATHUBACKUP"/TXstopextras.sh "$PATHSCRIPT"/TXstopextras.sh
 
 # Restore the user's original LongMynd config
-# Disabled until second update
-# cp -f -r "$PATHUBACKUP"/longmynd_config.txt "$PATHSCRIPT"/longmynd_config.txt
+cp -f -r "$PATHUBACKUP"/longmynd_config.txt "$PATHSCRIPT"/longmynd_config.txt
 
 # If user is upgrading a keyed streamer, add the cron job for 12-hourly reboot
 if grep -q "startup=Keyed_Stream_boot" /home/pi/rpidatv/scripts/portsdown_config.txt; then

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Stretch Version by davecrump on 201905090
+# Stretch Version by davecrump on 201910100
 
 # Check which source needs to be loaded # From M0DNY 201905090
 GIT_SRC="BritishAmateurTelevisionClub"
@@ -32,8 +32,7 @@ sudo apt-get -y remove apt-listchanges
 # -------- Upgrade distribution ------
 
 # Update the distribution
-# Don't do this until Comp Vid bug is corrected 201907270
-#sudo apt-get -y dist-upgrade
+sudo apt-get -y dist-upgrade
 
 # Install the packages that we need
 sudo apt-get -y install git
@@ -44,6 +43,7 @@ sudo apt-get -y install libvdpau-dev libva-dev libxcb-shape0  # For latest ffmpe
 sudo apt-get -y install python-pip pandoc python-numpy pandoc python-pygame gdebi-core # 20180101 FreqShow
 sudo apt-get -y install libsqlite3-dev libi2c-dev # 201811300 Lime
 sudo apt-get -y install sshpass  # 201905090 For Jetson Nano
+sudo apt-get -y install libbsd-dev # 201910100 for raspi2raspi
 
 sudo pip install pyrtlsdr  #20180101 FreqShow
 
@@ -385,6 +385,19 @@ make
 cp -f /home/pi/rpidatv/src/xy/xy /home/pi/rpidatv/bin/xy
 cd /home/pi
 
+# Download and compile the components for Comp Vid output whilst using 7 inch screen
+wget https://github.com/AndrewFromMelbourne/raspi2raspi/archive/master.zip
+unzip master.zip
+mv raspi2raspi-master raspi2raspi
+rm master.zip
+cd raspi2raspi/
+mkdir build
+cd build
+cmake ..
+make
+sudo make install
+
+
 # Copy the components to support Lime Grove
 cp -r /home/pi/rpidatv/scripts/configs/dvbsdr/ /home/pi/dvbsdr/
 
@@ -406,8 +419,10 @@ cp /home/pi/rpidatv/scripts/configs/freqshow/waveshare_freqshow.py /home/pi/Freq
 rm /home/pi/FreqShow/model.py
 cp /home/pi/rpidatv/scripts/configs/freqshow/waveshare_146_model.py /home/pi/FreqShow/model.py
 
-# Install the menu alias
+# Install the menu aliases
 echo "alias menu='/home/pi/rpidatv/scripts/menu.sh menu'" >> /home/pi/.bash_aliases
+echo "alias gui='/home/pi/rpidatv/scripts/utils/guir.sh'"  >> /home/pi/.bash_aliases
+echo "alias ugui='/home/pi/rpidatv/scripts/utils/uguir.sh'"  >> /home/pi/.bash_aliases
 
 # Record Version Number
 cd /home/pi/rpidatv/scripts/

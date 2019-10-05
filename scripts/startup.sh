@@ -285,6 +285,15 @@ if [[ "$SESSION_TYPE" == "boot" && "$MODE_STARTUP" == "Display_boot" ]]; then
   fi
 fi
 
+# Test if Waveshare selected, but raspi2raspi set to run
+# If so, unset it and reboot
+if [ "$DISPLAY" == "Waveshare" ]; then
+  if [ -f "/etc/systemd/system/raspi2raspi.service" ]; then
+    source /home/pi/rpidatv/scripts/7_inch_comp_vid_off.sh
+    sudo reboot now
+  fi
+fi
+
 # If pi-sdn is not running, check if it is required to run
 ps -cax | grep 'pi-sdn' >/dev/null 2>/dev/null
 RESULT="$?"
