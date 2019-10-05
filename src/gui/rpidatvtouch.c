@@ -249,7 +249,7 @@ char LMRXinput[1];          // Input a or b
 char LMRXudpip[20];         // UDP IP address
 char LMRXudpport[10];       // UDP IP port
 char LMRXmode[10];          // sat or terr
-char LMRXaudio[15];          // rpi or usb
+char LMRXaudio[15];         // rpi or usb
 
 // Stream Display Parameters. [0] is current
 char StreamAddress[9][127];  // Full rtmp address of stream
@@ -356,28 +356,35 @@ int LimeGWRev();
 
 void GetConfigParam(char *PathConfigFile, char *Param, char *Value)
 {
-	char * line = NULL;
-	size_t len = 0;
-	int read;
-	FILE *fp=fopen(PathConfigFile,"r");
-	if(fp!=0)
-	{
-		while ((read = getline(&line, &len, fp)) != -1)
-		{
-			if(strncmp (line,Param,strlen(Param)) == 0)
-			{
-				strcpy(Value,line+strlen(Param)+1);
-				char *p;
-				if((p=strchr(Value,'\n'))!=0) *p=0; //Remove \n
-				break;
-			}
-			//strncpy(Value,line+strlen(Param)+1,strlen(line)-strlen(Param)-1-1/* pour retour chariot*/);
-	    	}
-	}
-	else
-		printf("Config file not found \n");
-	fclose(fp);
+  char * line = NULL;
+  size_t len = 0;
+  int read;
+  char ParamWithEquals[255];
+  strcpy(ParamWithEquals, Param);
+  strcat(ParamWithEquals, "=");
 
+  printf("Get Config reads %s for %s ", PathConfigFile , Param);
+
+  FILE *fp=fopen(PathConfigFile, "r");
+  if(fp != 0)
+  {
+    while ((read = getline(&line, &len, fp)) != -1)
+    {
+      if(strncmp (line, ParamWithEquals, strlen(Param) + 1) == 0)
+      {
+        strcpy(Value, line+strlen(Param)+1);
+        char *p;
+        if((p=strchr(Value,'\n')) !=0 ) *p=0; //Remove \n
+        break;
+      }
+    }
+    printf("and returns %s\n", Value);
+  }
+  else
+  {
+    printf("Config file not found \n");
+    fclose(fp);
+  }
 }
 
 /***************************************************************************//**
@@ -402,16 +409,24 @@ void SetConfigParam(char *PathConfigFile, char *Param, char *Value)
   strcat(BackupConfigName,".bak");
   FILE *fp=fopen(PathConfigFile,"r");
   FILE *fw=fopen(BackupConfigName,"w+");
+  char ParamWithEquals[255];
+  strcpy(ParamWithEquals, Param);
+  strcat(ParamWithEquals, "=");
+
+  printf("Set Config called %s %s %s\n", PathConfigFile , ParamWithEquals, Value);
+
   if(fp!=0)
   {
     while ((read = getline(&line, &len, fp)) != -1)
     {
-      if(strncmp (line,Param,strlen(Param)) == 0)
+      if(strncmp (line, ParamWithEquals, strlen(Param) + 1) == 0)
       {
-        fprintf(fw,"%s=%s\n",Param,Value);
+        fprintf(fw, "%s=%s\n" ,Param, Value);
       }
       else
-        fprintf(fw,line);
+      {
+        fprintf(fw, line);
+      }
     }
     fclose(fp);
     fclose(fw);
@@ -1440,17 +1455,21 @@ void ReadModeInput(char coding[256], char vsource[256])
   GetConfigParam(PATH_PCONFIG,"modeinput", ModeInput);
   GetConfigParam(PATH_PCONFIG,"modeoutput", ModeOutput);
   GetConfigParam(PATH_PCONFIG,"format", CurrentFormat);
+  GetConfigParam(PATH_PCONFIG,"encoding", CurrentEncoding);
 
   // Correct Jetson modes if Jetson not selected
   printf ("Mode Output in ReadModeInput() is %s\n", ModeOutput);
   if ((strcmp(ModeOutput, "JLIME") != 0) && (strcmp(ModeOutput, "JEXPRESS") != 0))
   {
-    // Set Encoding to H264
-    strcpy(CurrentEncoding, "H264");
-    strcpy(coding, "H264");
-    SetConfigParam(PATH_PCONFIG, "encoding", CurrentEncoding);
+    // If H265 encoding sflected, set Encoding to H264
+    if (strcmp(CurrentEncoding, "H265") == 0)
+    {
+      strcpy(CurrentEncoding, "H264");
+      strcpy(coding, "H264");
+      SetConfigParam(PATH_PCONFIG, "encoding", CurrentEncoding);
+    }
 
-    // Read ModeInput from Config and set
+    // Read ModeInput from Config and correct if required
     if (strcmp(ModeInput, "JHDMI") == 0)
     {
       strcpy(vsource, "Screen");
@@ -1911,6 +1930,7 @@ void ReadAttenState()
 
 /***************************************************************************//**
  * @brief Reads the current band from portsdown_config.txt
+ * and checks and rewrites it if required
  *        
  * @param nil
  *
@@ -1921,6 +1941,7 @@ void ReadBand()
 {
   char Param[15];
   char Value[15]="";
+  char BandFromFile[15];
   float CurrentFreq;
 
   // Look up the current frequency
@@ -1930,9 +1951,10 @@ void ReadBand()
   strcpy(Value,"");
 
   // Look up the current band
-  strcpy(Param,"band");
+  strcpy(Param, "band");
   GetConfigParam(PATH_PCONFIG, Param, Value);
- 
+  strcpy(BandFromFile, Value);
+
   if (strcmp(Value, "t1") == 0)
   {
     CurrentBand = 5;
@@ -1982,9 +2004,12 @@ void ReadBand()
       strcpy(Value, "d5");
     }
 
-    // And set the band correctly
-    strcpy(Param,"band");
-    SetConfigParam(PATH_PCONFIG, Param, Value);
+    // And set the band correctly if required
+    if (strcmp(BandFromFile, Value) != 0)
+    {
+      strcpy(Param,"band");
+      SetConfigParam(PATH_PCONFIG, Param, Value);
+    }
   }
     printf("In ReadBand, CurrentFreq = %f, CurrentBand = %d and band desig = %s\n", CurrentFreq, CurrentBand, Value);
 }
@@ -2945,9 +2970,6 @@ void ReadLMRXPresets()
   // Mode: sat or terr
   GetConfigParam(PATH_LMCONFIG, "mode", LMRXmode);
 
-  // Input: a or b
-  GetConfigParam(PATH_LMCONFIG, "input", LMRXinput);
-
   // UDP output IP address:
   GetConfigParam(PATH_LMCONFIG, "udpip", LMRXudpip);
   
@@ -2961,13 +2983,32 @@ void ReadLMRXPresets()
   GetConfigParam(PATH_LMCONFIG, "qoffset", Value);
   LMRXqoffset = atoi(Value);
 
-  // Start up frequency
-  GetConfigParam(PATH_LMCONFIG, "freq0", Value);
-  LMRXfreq[0] = atoi(Value);
+  if (strcmp(LMRXmode, "sat") == 0)
+  {
+    // Input: a or b
+    GetConfigParam(PATH_LMCONFIG, "input", LMRXinput);
 
-  // Start up SR
-  GetConfigParam(PATH_LMCONFIG, "sr0", Value);
-  LMRXsr[0] = atoi(Value);
+    // Start up frequency
+    GetConfigParam(PATH_LMCONFIG, "freq0", Value);
+    LMRXfreq[0] = atoi(Value);
+
+    // Start up SR
+    GetConfigParam(PATH_LMCONFIG, "sr0", Value);
+    LMRXsr[0] = atoi(Value);
+  }
+  else    // Terrestrial
+  {
+    // Input: a or b
+    GetConfigParam(PATH_LMCONFIG, "input1", LMRXinput);
+
+    // Start up frequency
+    GetConfigParam(PATH_LMCONFIG, "freq1", Value);
+    LMRXfreq[0] = atoi(Value);
+
+    // Start up SR
+    GetConfigParam(PATH_LMCONFIG, "sr1", Value);
+    LMRXsr[0] = atoi(Value);
+  }
 
   // Frequencies
   for(n = 1; n < 11; n = n + 1)
@@ -3073,7 +3114,7 @@ void ChangeLMRXOffset()
     snprintf(InitText, 10, "%s", LMRXOffset);
     Keyboard(RequestText, InitText, 10);
   
-    if(strlen(KeyboardReturn) > 0)
+    if((atoi(KeyboardReturn) > 1000000) && (atoi(KeyboardReturn) < 76000000))
     {
       IsValid = TRUE;
     }
@@ -5824,27 +5865,34 @@ void GreyOut1()
         SetButtonStatus(ButtonNumber(CurrentMenu, 10), 0);
       }
       SetButtonStatus(ButtonNumber(CurrentMenu, 13), 2); // Band
-      SetButtonStatus(ButtonNumber(CurrentMenu, 14), 2); // Attenuator Level
+      SetButtonStatus(ButtonNumber(CurrentMenu, 14), 2); // Device Level
       SetButtonStatus(ButtonNumber(CurrentMenu, 8), 2);  // Attenuator Type
+      SetButtonStatus(ButtonNumber(CurrentMenu, 9), 2);  // Attenuator Level
     }
     else
     {
       SetButtonStatus(ButtonNumber(CurrentMenu, 10), 0); // Frequency
       SetButtonStatus(ButtonNumber(CurrentMenu, 13), 0); // Band
       SetButtonStatus(ButtonNumber(CurrentMenu, 8), 0);  // Attenuator Type
-      // If no attenuator and not DATV Express or Lime then Grey out Atten Level
-      if ((strcmp(CurrentAtten, "NONE") == 0) 
-        && (strcmp(CurrentModeOP, "DATVEXPRESS") != 0) 
+      SetButtonStatus(ButtonNumber(CurrentMenu, 9), 0); // Attenuator Level
+      // If no attenuator then Grey out Atten Level
+      if (strcmp(CurrentAtten, "NONE") == 0)
+      {
+        SetButtonStatus(ButtonNumber(CurrentMenu, 9), 2); // Attenuator Level
+      }
+
+      // If not DATV Express or Lime or JLIME then Grey out Device Level
+      if ((strcmp(CurrentModeOP, "DATVEXPRESS") != 0) 
         && (strcmp(CurrentModeOP, TabModeOP[3]) != 0) 
         && (strcmp(CurrentModeOP, TabModeOP[8]) != 0) 
         && (strcmp(CurrentModeOP, TabModeOP[9]) != 0)
         && (strcmp(CurrentModeOP, TabModeOP[12]) != 0))
       {
-        SetButtonStatus(ButtonNumber(CurrentMenu, 14), 2); // Attenuator Level
+        SetButtonStatus(ButtonNumber(CurrentMenu, 14), 2); // Device Level Grey
       }
       else
       {
-        SetButtonStatus(ButtonNumber(CurrentMenu, 14), 0); // Attenuator Level
+        SetButtonStatus(ButtonNumber(CurrentMenu, 14), 0); // Device Level Blue
       }
     }
   }
@@ -6321,6 +6369,8 @@ void ResetLMParams()  // Called after switch between Terrestrial and Sat
     LMRXfreq[0] = atoi(Value);
     GetConfigParam(PATH_LMCONFIG, "sr1", Value);
     LMRXsr[0] = atoi(Value);
+    GetConfigParam(PATH_LMCONFIG, "input1", Value);
+    strcpy(LMRXinput, Value);
   }
   else // Sat
   {
@@ -6328,6 +6378,8 @@ void ResetLMParams()  // Called after switch between Terrestrial and Sat
     LMRXfreq[0] = atoi(Value);
     GetConfigParam(PATH_LMCONFIG, "sr0", Value);
     LMRXsr[0] = atoi(Value);
+    GetConfigParam(PATH_LMCONFIG, "input", Value);
+    strcpy(LMRXinput, Value);
   }
 }
 
@@ -6768,8 +6820,32 @@ void SetAttenLevel()
   char Prompt[63];
   char Value[31];
   char Param[15];
-  int ExpLevel = -1;
   float AttenLevel = 1;
+
+  if (strcmp(CurrentAtten, "NONE") !=0)
+  {
+    while ((AttenLevel > 0) || (AttenLevel < -31.75))
+    {
+      snprintf(Prompt, 62, "Set the Attenuator Level for the %s Band:", TabBandLabel[CurrentBand]);
+      snprintf(Value, 7, "%.2f", TabBandAttenLevel[CurrentBand]);
+      Keyboard(Prompt, Value, 6);
+      AttenLevel = atof(KeyboardReturn);
+    }
+    TabBandAttenLevel[CurrentBand] = AttenLevel;
+    strcpy(Param, TabBand[CurrentBand]);
+    strcat(Param, "attenlevel");
+    SetConfigParam(PATH_PPRESETS, Param, KeyboardReturn);
+    strcpy(Param, "attenlevel");
+    SetConfigParam(PATH_PCONFIG, Param, KeyboardReturn);
+  }
+}
+
+void SetDeviceLevel()
+{
+  char Prompt[63];
+  char Value[31];
+  char Param[15];
+  int ExpLevel = -1;
   int LimeGain = -1;
 
   if (strcmp(CurrentModeOP, TabModeOP[2]) == 0)  // DATV Express
@@ -6807,21 +6883,10 @@ void SetAttenLevel()
   }
   else
   {
-    while ((AttenLevel > 0) || (AttenLevel < -31.75))
-    {
-      snprintf(Prompt, 62, "Set the Attenuator Level for the %s Band:", TabBandLabel[CurrentBand]);
-      snprintf(Value, 7, "%f", TabBandAttenLevel[CurrentBand]);
-      Keyboard(Prompt, Value, 6);
-      AttenLevel = atof(KeyboardReturn);
-    }
-    TabBandAttenLevel[CurrentBand] = AttenLevel;
-    strcpy(Param, TabBand[CurrentBand]);
-    strcat(Param, "attenlevel");
-    SetConfigParam(PATH_PPRESETS, Param, KeyboardReturn);
-    strcpy(Param, "attenlevel");
-    SetConfigParam(PATH_PCONFIG, Param, KeyboardReturn);
+  // Do nothing
   }
 }
+
 
 void SetReceiveLOFreq(int NoButton)
 {
@@ -7612,7 +7677,7 @@ void *WaitButtonLMRX(void * arg)
     TransformTouchMap(rawX, rawY);  // Sorts out orientation and approx scaling of the touch map
     CorrectTouchMap();       // Calibrates each individual screen
 
-    if((scaledX <= 15 * wscreen / 40) && (scaledX >= wscreen / 40) && (scaledY <= hscreen) && (scaledY >= 7 * hscreen / 12))
+    if((scaledX <= 15 * wscreen / 40) && (scaledX >= wscreen / 40) && (scaledY <= hscreen) && (scaledY >= 1 * hscreen / 12))
     {
       printf("in zone\n");
       if (FinishedButton == 2)  // Toggle parameters on/off 
@@ -11496,7 +11561,11 @@ rawY = 0;
           Start_Highlights_Menu24();
           UpdateWindow();
           break;
-        case 9:                       // Spare
+        case 9:                          // Attenuator
+          printf("Set Attenuator Level \n");
+          SetAttenLevel();
+          BackgroundRGB(255,255,255,255);
+          Start_Highlights_Menu1();
           UpdateWindow();
           break;
         case 10:
@@ -11546,9 +11615,9 @@ rawY = 0;
           Start_Highlights_Menu19();
           UpdateWindow();
           break;
-        case 14:                         // Level
-          printf("Set Attenuator Level \n");
-          SetAttenLevel();
+        case 14:                         // Lime/Express Level
+          printf("Set Device Output Level \n");
+          SetDeviceLevel();
           BackgroundRGB(255,255,255,255);
           Start_Highlights_Menu1();
           UpdateWindow();
@@ -12662,7 +12731,14 @@ printf("RETURNED TO MENU 8\n");
           {
             strcpy(LMRXinput, "a");
           }
-          SetConfigParam(PATH_LMCONFIG, "input", LMRXinput);
+          if (strcmp(LMRXmode, "sat") == 0)
+          {
+            SetConfigParam(PATH_LMCONFIG, "input", LMRXinput);
+          }
+          else
+          {
+            SetConfigParam(PATH_LMCONFIG, "input1", LMRXinput);
+          }
           Start_Highlights_Menu13();
           UpdateWindow();
           break;
@@ -13180,7 +13256,7 @@ printf("RETURNED TO MENU 8\n");
         UpdateWindow();
         continue;   // Completed Menu 23 action, go and wait for touch
       }
-      if (CurrentMenu == 24)  // Menu 24 Audio
+      if (CurrentMenu == 24)  // Menu 24 Attenuator Type
       {
         printf("Button Event %d, Entering Menu 24 Case Statement\n",i);
         switch (i)
@@ -13856,7 +13932,7 @@ printf("RETURNED TO MENU 8\n");
         {
         case 4:                               // Cancel
           SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 1);
-          printf("Encoding Cancel\n");
+          printf("Output Device Selection Cancelled\n");
           break;
         case 5:                               // IQ
           SelectOP(i);
@@ -13970,6 +14046,9 @@ printf("RETURNED TO MENU 8\n");
           }
           UpdateWindow();
           break;
+        case 3:                               // Restart the GUI
+          cleanexit(129);
+          break;
         case 5:                               // Unmount USB drive
           system("pumount /media/usb");
           MsgBox2("USB drive unmounted", "USB drive can safely be removed");
@@ -14010,6 +14089,21 @@ printf("RETURNED TO MENU 8\n");
           CallingMenu = 437;
           CurrentMenu = 38;
           MsgBox4("Are you sure that you want to overwrite", "any stored settings on the boot drive", "with the current settings?", " ");
+          UpdateWindow();
+          break;
+        case 8:
+          if (strcmp(DisplayType, "Element14_7") == 0)  //  7 inch else do nothing
+          {
+            if(file_exist ("/etc/systemd/system/raspi2raspi.service") == 0)  // Comp Vid Enabled
+            {
+              system("/home/pi/rpidatv/scripts/7_inch_comp_vid_off.sh");
+            }
+            else
+            {
+              system("/home/pi/rpidatv/scripts/7_inch_comp_vid_on.sh");
+            }
+          }
+          Start_Highlights_Menu43();
           UpdateWindow();
           break;
         case 9:                               // Toggle enable of hardware shutdown button
@@ -14183,7 +14277,7 @@ void Define_Menu1()
   AddButtonStatus(button, " ", &Blue);
   AddButtonStatus(button, " ", &Green);
 
-  // 2nd Row, Menu 1.  EasyCap, Caption, Audio and Attenuator
+  // 2nd Row, Menu 1.  EasyCap, Caption, Audio and Attenuator type and level
 
   button = CreateButton(1, 5);                        // EasyCap
   AddButtonStatus(button, "EasyCap^not set", &Blue);
@@ -14200,14 +14294,15 @@ void Define_Menu1()
   AddButtonStatus(button, "Audio^not set", &Green);
   AddButtonStatus(button, "Audio^not set", &Grey);
 
-  button = CreateButton(1, 8);                       // Attenuator
+  button = CreateButton(1, 8);                       // Attenuator Type
   AddButtonStatus(button, "Atten^not set", &Blue);
   AddButtonStatus(button, "Atten^not set", &Green);
   AddButtonStatus(button, "Atten^not set", &Grey);
 
-  //button = CreateButton(1, 9);                       // Spare!
-  //AddButtonStatus(button, " ", &Blue);
-  //AddButtonStatus(button, " ", &Green);
+  button = CreateButton(1, 9);                        // Atten Level
+  AddButtonStatus(button,"Att Level^-",&Blue);
+  AddButtonStatus(button,"Att Level^-",&Green);
+  AddButtonStatus(button,"Att Level^-",&Grey);
 
   // Freq, SR, FEC, Transverter and Level - 3rd line up Menu 1
 
@@ -14288,6 +14383,7 @@ void Start_Highlights_Menu1()
 {
   char Param[255];
   char Value[255];
+  char Leveltext[15];
 
   // Read the Config from file
   char vcoding[256];
@@ -14407,7 +14503,7 @@ void Start_Highlights_Menu1()
   AmendButtonStatus(7, 1, Audiotext, &Green);
   AmendButtonStatus(7, 2, Audiotext, &Grey);
 
-  // Attenuator Button 8
+  // Attenuator Type Button 8
 
   char Attentext[255];
   strcpy(Value, "None");
@@ -14421,7 +14517,11 @@ void Start_Highlights_Menu1()
   AmendButtonStatus(8, 1, Attentext, &Green);
   AmendButtonStatus(8, 2, Attentext, &Grey);
 
-  // Spare Button 9
+  // Attenuator Level Button 9
+  snprintf(Leveltext, 20, "Att Level^%.2f", TabBandAttenLevel[CurrentBand]);
+  AmendButtonStatus(9, 0, Leveltext, &Blue);
+  AmendButtonStatus(9, 1, Leveltext, &Green);
+  AmendButtonStatus(9, 2, Leveltext, &Grey);
 
   // Frequency Button 10
 
@@ -14563,8 +14663,7 @@ void Start_Highlights_Menu1()
   AmendButtonStatus(13, 1, Bandtext, &Green);
   AmendButtonStatus(13, 2, Bandtext, &Grey);
 
-  // Level, Button 14
-  char Leveltext[15];
+  // Device Level, Button 14
   if (strcmp(CurrentModeOP, TabModeOP[2]) == 0)  // DATV Express
   {
     snprintf(Leveltext, 20, "Exp Level^%d", TabBandExpLevel[CurrentBand]);
@@ -14577,7 +14676,7 @@ void Start_Highlights_Menu1()
   }
   else
   {
-    snprintf(Leveltext, 20, "Att Level^%.2f", TabBandAttenLevel[CurrentBand]);
+    snprintf(Leveltext, 20, "OP Level^Fixed");
   }
   AmendButtonStatus(14, 0, Leveltext, &Blue);
   AmendButtonStatus(14, 1, Leveltext, &Green);
@@ -15675,11 +15774,17 @@ void Start_Highlights_Menu8()
 
   if (strcmp(LMRXmode, "sat") == 0)
   {
-    AmendButtonStatus(ButtonNumber(8, 21), 0, "  QO-100  ^ ", &Blue);
+    strcpy(LMBtext, "QO-100 (");
+    strcat(LMBtext, LMRXinput);
+    strcat(LMBtext, ")^ ");
+    AmendButtonStatus(ButtonNumber(8, 21), 0, LMBtext, &Blue);
   }
   else
   {
-    AmendButtonStatus(ButtonNumber(8, 21), 0, " ^Terrestrial", &Blue);
+    strcpy(LMBtext, " ^Terrestrial (");
+    strcat(LMBtext, LMRXinput);
+    strcat(LMBtext, ")");
+    AmendButtonStatus(ButtonNumber(8, 21), 0, LMBtext, &Blue);
   }
 }
 
@@ -15906,14 +16011,20 @@ void Define_Menu13()
 
 void Start_Highlights_Menu13()
 {
-  if (strcmp(LMRXinput, "a") == 0)
+  char LMBtext[63];
+
+  if (strcmp(LMRXmode, "sat") == 0)
   {
-    AmendButtonStatus(ButtonNumber(13, 6), 0, "Input^A", &Blue);
+    strcpy(LMBtext, "QO-100^Input ");
+    strcat(LMBtext, LMRXinput);
   }
   else
   {
-    AmendButtonStatus(ButtonNumber(13, 6), 0, "Input^B", &Blue);
+    strcpy(LMBtext, "Terrestrial^Input ");
+    strcat(LMBtext, LMRXinput);
   }
+  AmendButtonStatus(ButtonNumber(13, 6), 0, LMBtext, &Blue);
+
   if (strcmp(LMRXaudio, "rpi") == 0)
   {
     AmendButtonStatus(ButtonNumber(13, 9), 0, "Audio out^RPi Jack", &Blue);
@@ -17923,6 +18034,9 @@ void Define_Menu43()
   AddButtonStatus(button, "Restore^from /boot", &Blue);
   AddButtonStatus(button, "Restore^from /boot", &Green);
 
+  button = CreateButton(43, 3);
+  AddButtonStatus(button, "Restart^Touch", &Blue);
+
   // 2nd Row, Menu 43
 
   button = CreateButton(43, 5);
@@ -17936,6 +18050,11 @@ void Define_Menu43()
   button = CreateButton(43, 7);
   AddButtonStatus(button, "Back-up^to /boot", &Blue);
   AddButtonStatus(button, "Back-up^to /boot", &Green);
+
+  button = CreateButton(43, 8);
+  AddButtonStatus(button, "7 inch vid^Disabled", &Grey);
+  AddButtonStatus(button, "7 inch vid^Enabled", &Blue);
+  AddButtonStatus(button, "7 inch vid^Disabled", &Blue);
 
   button = CreateButton(43, 9);
   AddButtonStatus(button, "SD Button^Enabled", &Blue);
@@ -17967,6 +18086,22 @@ void Define_Menu43()
 
 void Start_Highlights_Menu43()
 {
+  if (strcmp(DisplayType, "Element14_7") != 0)  // Grey-out if not 7 inch
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 8), 0);
+  }
+  else
+  {
+    if (file_exist ("/etc/systemd/system/raspi2raspi.service") == 0)  // Comp Vid Enabled
+    {
+      SetButtonStatus(ButtonNumber(CurrentMenu, 8), 1);
+    }
+    else
+    {
+      SetButtonStatus(ButtonNumber(CurrentMenu, 8), 2);
+    }
+  }
+
   if (file_exist ("/home/pi/.pi-sdn") == 0)  // Hardware Shutdown Enabled
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 9), 0);

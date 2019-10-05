@@ -32,6 +32,7 @@ Q_OFFSET=$(get_config_var qoffset $RCONFIGFILE)
 UDPIP=$(get_config_var udpip $RCONFIGFILE)
 UDPPORT=$(get_config_var udpport $RCONFIGFILE)
 INPUT_SEL=$(get_config_var input $RCONFIGFILE)
+INPUT_SEL_T=$(get_config_var input1 $RCONFIGFILE)
 
 # Correct for LNB LO Frequency if required
 if [ "$RX_MODE" == "sat" ]; then
@@ -39,7 +40,12 @@ if [ "$RX_MODE" == "sat" ]; then
 else
   FREQ_KHZ=$FREQ_KHZ_T
   SYMBOLRATEK=$SYMBOLRATEK_T
+  INPUT_SEL=$INPUT_SEL_T
 fi
+
+echo "input ="
+echo $INPUT_SEL
+echo
 
 # Select the correct tuner input
 INPUT_CMD=" "

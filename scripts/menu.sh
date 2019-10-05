@@ -1612,7 +1612,7 @@ do_autostart_setup()
    "Button_boot" "$AutostartSetupButton_boot" $Radio6 \
    "Keyed_Stream_boot" "Boot up to Keyed Repeater Streamer" $Radio7 \
    "Cont_Stream_boot" "Boot up to Always-on Repeater Streamer" $Radio8 \
-   "Keyed_TX_boot" "Boot up to GPIO Keyed Transmitter" $Radio9 \
+   "Keyed_TX_boot" "Boot up to GPIO Keyed Repeater TX" $Radio9 \
    "SigGen_boot" "Boot up with the Sig Gen Output On" $Radio10 \
    "StreamRX_boot" "Boot up to display a BATC Stream" $Radio11 \
    3>&2 2>&1 1>&3)
@@ -1631,7 +1631,9 @@ do_autostart_setup()
   fi
 
   # If Keyed or Continuous stream selected, set up cron for 12-hourly reboot
-  if [[ "$chstartup" == "Keyed_Stream_boot" || "$chstartup" == "Cont_Stream_boot" ]]; then
+  # Also do it for keyed or continuous TX
+  if [[ "$chstartup" == "Keyed_Stream_boot" || "$chstartup" == "Cont_Stream_boot" \
+     || "$chstartup" == "Keyed_TX_boot" || "$chstartup" == "TX_boot" ]]; then
     sudo crontab /home/pi/rpidatv/scripts/configs/rptrcron
   else
     sudo crontab /home/pi/rpidatv/scripts/configs/blankcron
@@ -2092,6 +2094,42 @@ do_atten_levels()
   if [ $? -eq 0 ]; then
     set_config_var t4attenlevel "-""$ATTENLEVEL8" $PATH_PPRESETS
   fi
+
+  ## Now set the Attenuator Level for the current band
+  BAND=$(get_config_var band $PCONFIGFILE)
+
+  case "$BAND" in
+  d1)
+    set_config_var attenlevel "$ATTENLEVEL0" $PCONFIGFILE
+  ;;
+  d2)
+    set_config_var attenlevel "$ATTENLEVEL1" $PCONFIGFILE
+  ;;
+  d3)
+    set_config_var attenlevel "$ATTENLEVEL2" $PCONFIGFILE
+  ;;
+  d4)
+    set_config_var attenlevel "$ATTENLEVEL3" $PCONFIGFILE
+  ;;
+  d5)
+    set_config_var attenlevel "$ATTENLEVEL4" $PCONFIGFILE
+  ;;
+  t1)
+    set_config_var attenlevel "$ATTENLEVEL5" $PCONFIGFILE
+  ;;
+  t2)
+    set_config_var attenlevel "$ATTENLEVEL6" $PCONFIGFILE
+  ;;
+  t3)
+    set_config_var attenlevel "$ATTENLEVEL7" $PCONFIGFILE
+  ;;
+  t4)
+    set_config_var attenlevel "$ATTENLEVEL8" $PCONFIGFILE
+  ;;
+  *)
+    set_config_var attenlevel "$ATTENLEVEL0" $PCONFIGFILE
+  ;;
+  esac
 }
 
 
