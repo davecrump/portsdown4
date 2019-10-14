@@ -1,10 +1,11 @@
-201910100
+201910102
 Allow dist-upgrade and correct auto-start bug
 Add button to generate comp video with 7 inch screen
 Add separate attenuator and lime/express level buttons
 Set attenuator properly from Console Menu
 Allow independent input selection for satellite and terrestrial RX
 Error check Sat LNB offset
+LeanDVB now selected from menu 2
 12-hourly reboot for keyed TX mode
 
 201909210
