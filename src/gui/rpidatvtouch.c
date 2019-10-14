@@ -3017,7 +3017,6 @@ void ReadLMRXPresets()
     snprintf(Param, 15, "qfreq%d", n);
     GetConfigParam(PATH_LMCONFIG, Param, Value);
     LMRXfreq[n] = atoi(Value);
-    printf("Param %s, Value %s, Int %d \n", Param, Value, LMRXfreq[n]);
 
     // Terrestrial
     snprintf(Param, 15, "tfreq%d", n);
@@ -5648,7 +5647,6 @@ void EnforceValidTXMode()
     if ((strcmp(CurrentTXMode, TabTXMode[0]) != 0) && (strcmp(CurrentTXMode, TabTXMode[1]) != 0))  // Not DVB-S and not Carrier
     {
       strcpy(CurrentTXMode, TabTXMode[0]);
-      printf("************** Set TXMode = %s\n", CurrentTXMode);
       SetConfigParam(PATH_PCONFIG, Param, CurrentTXMode);
     }
   }
@@ -5788,7 +5786,6 @@ void EnforceValidFEC()
   if (FECChanged == 1)
   {
     sprintf(Value, "%d", fec);
-    printf("************** Set FEC = %s\n",Value);
     SetConfigParam(PATH_PCONFIG, Param, Value);
   }
 }
@@ -6194,7 +6191,6 @@ void SelectOP(int NoButton)      // Output device
     index = NoButton + 5;
   }
   strcpy(ModeOP, TabModeOP[index]);
-  printf("************** Set Output Mode = %s\n",ModeOP);
   char Param[15]="modeoutput";
   SetConfigParam(PATH_PCONFIG, Param, ModeOP);
 
@@ -6249,7 +6245,6 @@ void SelectFreq(int NoButton)  //Frequency
   if (CallingMenu == 1)  // Transmit Frequency
   {
     char Param[] = "freqoutput";
-    printf("************** Set Frequency = %s\n",freqtxt);
     SetConfigParam(PATH_PCONFIG, Param, freqtxt);
 
     DoFreqChange();
@@ -6276,14 +6271,12 @@ void SelectSR(int NoButton)  // Symbol Rate
   {
     SR = TabSR[NoButton - 5];
     sprintf(Value, "%d", SR);
-    printf("************** Set Transmit SR = %s\n",Value);
     SetConfigParam(PATH_PCONFIG, "symbolrate", Value);
   }
   else                    // Lean DVB Receive SR
   {
     RXsr[0] = TabSR[NoButton - 5];
     sprintf(Value, "%d", RXsr[0]);
-    printf("************** Set Receive SR = %s\n",Value);
     SetConfigParam(PATH_RXPRESETS, "rx0sr", Value);
   }
 }
@@ -6297,14 +6290,12 @@ void SelectFec(int NoButton)  // FEC
   {
     fec = TabFec[NoButton - 5];
     sprintf(Value, "%d", fec);
-    printf("************** Set Transmit FEC = %s\n",Value);
     SetConfigParam(PATH_PCONFIG, Param, Value);
   }
   else                    // Lean DVB Receive SR
   {
     sprintf(Value, "%d", TabFec[NoButton - 5]);
     strcpy(RXfec[0], Value);
-    printf("************** Set Receive FEC = %s\n",Value);
     SetConfigParam(PATH_RXPRESETS, "rx0fec", Value);
   }
 }
@@ -6328,7 +6319,6 @@ void SelectLMSR(int NoButton)  // LongMynd Symbol Rate
     snprintf(Value, 15, "%d", LMRXsr[0]);
     SetConfigParam(PATH_LMCONFIG, "sr0", Value);
   }
-  printf("************** Set LongMynd SR = %s\n",Value);
 }
 
 void SelectLMFREQ(int NoButton)  // LongMynd Frequency
@@ -6356,7 +6346,6 @@ void SelectLMFREQ(int NoButton)  // LongMynd Frequency
     snprintf(Value, 25, "%d", LMRXfreq[0]);
     SetConfigParam(PATH_LMCONFIG, "freq0", Value);
   }
-  printf("************** Set LongMynd Freq = %s\n",Value);
 }
 
 void ResetLMParams()  // Called after switch between Terrestrial and Sat
@@ -6401,7 +6390,6 @@ void SelectS2Fec(int NoButton)  // DVB-S2 FEC
   char Param[7]="fec";
   char Value[255];
   sprintf(Value, "%d", fec);
-  printf("************** Set FEC = %s\n",Value);
   SetConfigParam(PATH_PCONFIG, Param, Value);
 }
 
@@ -6424,7 +6412,6 @@ void SelectCaption(int NoButton)  // Caption on or off
     SetConfigParam(PATH_PCONFIG,Param,"on");
   }
   SelectInGroupOnMenu(CurrentMenu, 5, 6, NoButton, 1);
-  printf("************** Set Caption %s \n", CurrentCaptionState);
 }
 
 void SelectSTD(int NoButton)  // PAL or NTSC
@@ -6434,9 +6421,8 @@ void SelectSTD(int NoButton)  // PAL or NTSC
   char SetStandard[255];
   SelectInGroupOnMenu(CurrentMenu, 8, 9, NoButton, 1);
   strcpy(ModeSTD, TabModeSTD[NoButton - 8]);
-  printf("************** Set Input Standard = %s\n", ModeSTD);
   strcpy(Param, "analogcamstandard");
-  SetConfigParam(PATH_PCONFIG,Param,ModeSTD);
+  SetConfigParam(PATH_PCONFIG, Param, ModeSTD);
 
   // Now Set the Analog Capture (input) Standard
   GetUSBVidDev(USBVidDevice);
@@ -6749,10 +6735,8 @@ void SelectBand(int NoButton)  // Set the Band
   strcpy(Value, TabBand[CurrentBand]);
 
   // Store the new band
-  printf("************** Set Band = %s\n", Value);
   strcpy(Param,"band");
   SetConfigParam(PATH_PCONFIG, Param, Value);
-
 
   // Make all the changes required after a band change
   DoFreqChange();
@@ -6766,9 +6750,8 @@ void SelectVidIP(int NoButton)  // Comp Vid or S-Video
 
   SelectInGroupOnMenu(CurrentMenu, 5, 6, NoButton, 1);
   strcpy(ModeVidIP, TabModeVidIP[NoButton - 5]);
-  printf("************** Set Input socket= %s\n", ModeVidIP);
   strcpy(Param, "analogcaminput");
-  SetConfigParam(PATH_PCONFIG,Param,ModeVidIP);
+  SetConfigParam(PATH_PCONFIG, Param, ModeVidIP);
 
   // Now Set the Analog Capture (input) Socket
   // command format: v4l2-ctl -d $ANALOGCAMNAME --set-input=$ANALOGCAMINPUT
@@ -6801,16 +6784,14 @@ void SelectAudio(int NoButton)  // Audio Input
   SelectInGroupOnMenu(CurrentMenu, 5, 9, NoButton, 1);
   SelectInGroupOnMenu(CurrentMenu, 0, 0, NoButton, 1);
   strcpy(ModeAudio, TabModeAudio[AudioIndex]);
-  printf("************** Set Audio Input = %s\n",ModeAudio);
   char Param[]="audio";
-  SetConfigParam(PATH_PCONFIG,Param,ModeAudio);
+  SetConfigParam(PATH_PCONFIG, Param, ModeAudio);
 }
 
 void SelectAtten(int NoButton)  // Attenuator Type
 {
   SelectInGroupOnMenu(CurrentMenu, 5, 8, NoButton, 1);
   strcpy(CurrentAtten, TabAtten[NoButton - 5]);
-  printf("************** Set Attenuator = %s\n", CurrentAtten);
   char Param[]="attenuator";
   SetConfigParam(PATH_PCONFIG, Param, CurrentAtten);
 }
@@ -10847,16 +10828,19 @@ void ChangeLMPresetFreq(int NoButton)
   // Write freq to memory
   LMRXfreq[FreqIndex] = CheckValue;
 
-  if (strcmp(LMRXmode, "terr") == 0) // subtract index for terrestrial freqs
+  if (strcmp(LMRXmode, "terr") == 0) // Terrestrial
   {
-    FreqIndex = FreqIndex - 10;
+    SetConfigParam(PATH_LMCONFIG, "freq1", KeyboardReturn); // Set in-use freq
+    FreqIndex = FreqIndex - 10;                             // subtract index for terrestrial freqs
+  }
+  else                               // Sat
+  {
+    SetConfigParam(PATH_LMCONFIG, "freq0", KeyboardReturn); // Set in-use freq
   }
 
   // write freq to Presets file
   snprintf(PresetNo, 3, "%d", FreqIndex);
-
   strcat(Param, PresetNo); 
-  printf("Store Preset %s %s\n", Param, KeyboardReturn);
   SetConfigParam(PATH_LMCONFIG, Param, KeyboardReturn);
 }
 
@@ -10960,7 +10944,7 @@ void ChangeLMPresetSR(int NoButton)
       strcpy(Param, "qsr");
     }
 
-    while ((SRCheck < 30) || (SRCheck > 9999))
+    while ((SRCheck < 30) || (SRCheck > 29999))
     {
       strcpy(RequestText, "Enter new Symbol Rate");
 
@@ -10975,11 +10959,21 @@ void ChangeLMPresetSR(int NoButton)
     LMRXsr[SRIndex] = SRCheck;
     LMRXsr[0] = SRCheck;
 
-    // write SR to Presets file, for preset and current
+    // write SR to Config file for current
+    if (strcmp(LMRXmode, "terr") == 0) // terrestrial
+    {
+      SetConfigParam(PATH_LMCONFIG, "sr1", KeyboardReturn);
+      SRIndex = SRIndex - 6;
+    }
+    else
+    {
+      SetConfigParam(PATH_LMCONFIG, "sr0", KeyboardReturn);
+    }
+
+    // write SR to Presets file for preset
+    snprintf(PresetNo, 3, "%d", SRIndex);
     strcat(Param, PresetNo); 
-    printf("Store Preset %s %s\n", Param, KeyboardReturn);
     SetConfigParam(PATH_LMCONFIG, Param, KeyboardReturn);
-    SetConfigParam(PATH_LMCONFIG, "sr0", KeyboardReturn);
   }
 }
 

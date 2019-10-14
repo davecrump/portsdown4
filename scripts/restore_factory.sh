@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Version 201905090
+# Version 201910103
 
 ############ Set Environment Variables ###############
 
@@ -45,4 +45,8 @@ cp -f $PATHSCRIPT"/configs/stream_presets.txt.factory" $PATHSCRIPT"/stream_prese
 # jetson_config.txt
 cp -f $PATHSCRIPT"/jetson_config.txt" $PATHSCRIPT"/jetson_config.txt.bak"
 cp -f $PATHSCRIPT"/configs/jetson_config.txt.factory" $PATHSCRIPT"/jetson_config.txt"
+
+# longmynd_config.txt
+cp -f $PATHSCRIPT"/longmynd_config.txt" $PATHSCRIPT"/longmynd_config.txt.bak"
+cp -f $PATHSCRIPT"/configs/longmynd_config.txt.factory" $PATHSCRIPT"/longmynd_config.txt"
 
