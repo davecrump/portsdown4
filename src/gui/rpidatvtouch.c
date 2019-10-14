@@ -10847,6 +10847,11 @@ void ChangeLMPresetFreq(int NoButton)
   // Write freq to memory
   LMRXfreq[FreqIndex] = CheckValue;
 
+  if (strcmp(LMRXmode, "terr") == 0) // subtract index for terrestrial freqs
+  {
+    FreqIndex = FreqIndex - 10;
+  }
+
   // write freq to Presets file
   snprintf(PresetNo, 3, "%d", FreqIndex);
 
@@ -11688,22 +11693,17 @@ rawY = 0;
             }
           }
           break;
-        case 21:                       // RX
-          if (CheckFTDI() == 1)  // No MiniTiouner, so use LeanDVB
+        case 21:                       // LongMynd RX
+          if (CheckFTDI() == 1)  // No MiniTiouner
           {
-            printf("MENU 5 \n");
-            CurrentMenu=5;
-            BackgroundRGB(0,0,0,255);
-            Start_Highlights_Menu5();
+            MsgBox2("No MiniTiouner Connected", "Connect MiniTiouner to enable RX");
+            wait_touch();
           }
-          else
-          {
-            printf("MENU 8 \n");  // MiniTiouner detected, so use LongMynd
-            CurrentMenu=8;
-            BackgroundRGB(0,0,0,255);
-            ReadLMRXPresets();
-            Start_Highlights_Menu8();
-          }
+          printf("MENU 8 \n");  //  LongMynd
+          CurrentMenu=8;
+          BackgroundRGB(0 ,0 ,0 ,255);
+          ReadLMRXPresets();
+          Start_Highlights_Menu8();
           UpdateWindow();
           break;
         case 22:                      // Select Menu 2
@@ -11860,7 +11860,21 @@ rawY = 0;
           Start_Highlights_Menu6();
           UpdateWindow();
           break;
-        case 19:                              // Not used
+        case 19:                              // LeanDVB
+          if(CheckRTL()==0)
+          {
+            RTLdetected = 1;
+          }
+          else
+          {
+            RTLdetected = 0;
+            MsgBox2("No RTL-SDR Connected", "Connect RTL-SDR to enable RX");
+            wait_touch();
+          }
+          printf("MENU 5 \n");
+          CurrentMenu=5;
+          BackgroundRGB(0,0,0,255);
+          Start_Highlights_Menu5();
           UpdateWindow();
           break;
         case 20:                              // Not shown
@@ -14833,9 +14847,9 @@ void Define_Menu2()
   AddButtonStatus(button, "RTL-FM^Receiver", &Blue);
   AddButtonStatus(button, "RTL-FM^Receiver", &Green);
 
-  //button = CreateButton(2, 19);
-  //AddButtonStatus(button, " ", &Blue);
-  //AddButtonStatus(button, " ", &Green);
+  button = CreateButton(2, 19);
+  AddButtonStatus(button, "LeanDVB^Receiver", &Blue);
+  AddButtonStatus(button, "LeanDVB^Receiver", &Green);
 
   // Top of Menu 2
 
