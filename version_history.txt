@@ -1,3 +1,7 @@
+201910230
+Display Additional Receive Parameters
+Improve receive display appearance and behaviour
+
 201910102
 Allow dist-upgrade and correct auto-start bug
 Add button to generate comp video with 7 inch screen

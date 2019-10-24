@@ -44,6 +44,7 @@ sudo apt-get -y install python-pip pandoc python-numpy pandoc python-pygame gdeb
 sudo apt-get -y install libsqlite3-dev libi2c-dev # 201811300 Lime
 sudo apt-get -y install sshpass  # 201905090 For Jetson Nano
 sudo apt-get -y install libbsd-dev # 201910100 for raspi2raspi
+sudo apt-get -y install libasound2-dev  # 201910230 for LongMynd tone
 
 sudo pip install pyrtlsdr  #20180101 FreqShow
 
@@ -292,10 +293,18 @@ cp dvb2iq ../../bin/dvb2iq
 cd /home/pi
 
 # Download the previously selected version of LongMynd
-wget https://github.com/${GIT_SRC}/longmynd/archive/master.zip
-unzip -o master.zip
-mv longmynd-master longmynd
-rm master.zip
+#wget https://github.com/${GIT_SRC}/longmynd/archive/master.zip
+#unzip -o master.zip
+#mv longmynd-master longmynd
+#rm master.zip
+
+# For TESTING:
+wget https://github.com/davecrump/longmynd-1/archive/phil-beep-ts-modcod.zip
+unzip -o phil-beep-ts-modcod.zip
+mv longmynd-1-phil-beep-ts-modcod longmynd
+rm phil-beep-ts-modcod.zip
+# End TESTING
+
 cd longmynd
 make
 gcc fake_read.c -o fake_read

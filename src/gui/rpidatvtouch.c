@@ -130,6 +130,7 @@ char CurrentADFRef[15];
 char UpdateStatus[31] = "NotAvailable";
 char ADF5355Ref[15];
 char DisplayType[31];
+char LinuxCommand[511];
 int  scaledX, scaledY;
 VGfloat CalShiftX = 0;
 VGfloat CalShiftY = 0;
@@ -250,6 +251,8 @@ char LMRXudpip[20];         // UDP IP address
 char LMRXudpport[10];       // UDP IP port
 char LMRXmode[10];          // sat or terr
 char LMRXaudio[15];         // rpi or usb
+
+// LongMynd RX Received Parameters for display
 
 // Stream Display Parameters. [0] is current
 char StreamAddress[9][127];  // Full rtmp address of stream
@@ -840,8 +843,6 @@ int is_valid_ip(char *ip_str)
 
 void DisplayUpdateMsg(char* Version, char* Step)
 {
-  char LinuxCommand[511];
-
   // Delete any old image
   strcpy(LinuxCommand, "rm /home/pi/tmp/update.jpg >/dev/null 2>/dev/null");
   system(LinuxCommand);
@@ -889,7 +890,6 @@ void PrepSWUpdate()
   char LatestVersion[256];
   char CurrentVersion9[15];
   char LatestVersion9[15];
-  char LinuxCommand[256];
 
   strcpy(UpdateStatus, "NotAvailable");
 
@@ -974,7 +974,6 @@ void PrepSWUpdate()
 void ExecuteUpdate(int NoButton)
 {
   char Step[255];
-  char LinuxCommand[256];
 
   switch(NoButton)
   {
@@ -8489,36 +8488,53 @@ void chopN(char *str, size_t n)
 
 void LMRX(int NoButton)
 {
+  #define PATH_SCRIPT_LMRXMER "/home/pi/rpidatv/scripts/lmmer.sh 2>&1"
   #define PATH_SCRIPT_LMRXUDP "/home/pi/rpidatv/scripts/lmudp.sh 2>&1"
   #define PATH_SCRIPT_LMRXOMX "/home/pi/rpidatv/scripts/lmomx.sh 2>&1"
   #define PATH_SCRIPT_LMRXHV "/home/pi/rpidatv/scripts/lmhv.sh 2>&1"
   #define PATH_SCRIPT_LMRXHV2 "/home/pi/rpidatv/scripts/lmhv2.sh 2>&1"
 
+  //Local parameters:
+
   FILE *fp;
-  FinishedButton = 1;
   int num;
   int ret;
   int fd_status_fifo;
 
   float MER;
+  float refMER;
+  int MERcount = 0;
   float FREQ;
   int STATE;
   int SR;
-  //int FEC;
 
-  char status_message[14];
+  // Global Paramaters:
+
+  char status_message_char[14];
   char stat_string[63];
   char udp_string[63];
-  char MERtext[15];
+  char MERtext[63];
   char STATEtext[63];
   char FREQtext[63];
   char SRtext[63];
-  //char FECtext[63];
+  char ServiceProvidertext[255] = " ";
+  char Servicetext[255] = " ";
+  char MODCODtext[63];
+  char FECtext[63] = " ";
+  char Modulationtext[63] = " ";
+  char VidEncodingtext[63] = " ";
+  char AudEncodingtext[63] = " ";
+  char Encodingtext[63] = " ";
+  float MERThreshold = 0;
+  int EncodingCode = 0;
+  int MODCOD;
+  int Parameters_currently_displayed = 1;  // 1 for displayed, 0 for blank
+
+  // Set globals
+  FinishedButton = 1;
 
   int pointsize = 25;
   Fontinfo font = SansTypeface;
-
-  int Parameters_currently_displayed = 1; // 1 for displayed, 0 for blank
 
   if (hscreen < 500)  // reduce font size for 7 inch screen
   {
@@ -8531,7 +8547,7 @@ void LMRX(int NoButton)
 
   // Create Wait Button thread
   pthread_create (&thbutton, NULL, &WaitButtonLMRX, NULL);
-
+  
   switch (NoButton)
   {
   case 0:
@@ -8541,6 +8557,8 @@ void LMRX(int NoButton)
     if(fp==NULL) printf("Process error\n");
 
     printf("STARTING HelloVideo MPEG-2 RX\n");
+
+    // Start from here
 
     /* Open status FIFO for read only  */
     ret = mkfifo("longmynd_status_fifo", 0666);
@@ -8555,16 +8573,14 @@ void LMRX(int NoButton)
 
     while ((FinishedButton == 1) || (FinishedButton == 2)) // 1 is captions on, 2 is off
     {
-      // printf("%s", "Start Read\n");
-
-      num = read(fd_status_fifo, status_message, 1);
+      num = read(fd_status_fifo, status_message_char, 1);
       // printf("%s Num= %d \n", "End Read", num);
       if (num >= 0 )
       {
-        status_message[num]='\0';
-        //if (num>0) printf("%s\n",status_message);
+        status_message_char[num]='\0';
+        //if (num>0) printf("%s\n",status_message_char);
         
-        if (strcmp(status_message, "$") == 0)
+        if (strcmp(status_message_char, "$") == 0)
         {
 
           if ((stat_string[0] == '1') && (stat_string[1] == ','))  // Decoder State
@@ -8615,18 +8631,244 @@ void LMRX(int NoButton)
             snprintf(SRtext, 15, "%d kS", SR);
           }
 
-          //if ((stat_string[0] == '3') && (stat_string[1] == ','))  // FEC Numerator
-          //{
-          //  strcpy(FECtext, stat_string);
-          //  chopN(FECtext, 2);
-          //  FEC = atoi(FECtext);
-          //  snprintf(FECtext, 15, "FEC %d/%d", FEC, FEC + 1);
-          //}
+          if ((stat_string[0] == '1') && (stat_string[1] == '3'))  // Service Provider
+          {
+            strcpy(ServiceProvidertext, stat_string);
+            chopN(ServiceProvidertext, 3);
+          }
+
+          if ((stat_string[0] == '1') && (stat_string[1] == '4'))  // Service
+          {
+            strcpy(Servicetext, stat_string);
+            chopN(Servicetext, 3);
+          }
+
+          if ((stat_string[0] == '1') && (stat_string[1] == '8'))  // MODCOD
+          {
+            strcpy(MODCODtext, stat_string);
+            chopN(MODCODtext, 3);
+            MODCOD = atoi(MODCODtext);
+            //STATE = 4;
+            if (STATE == 3)                                        // DVB-S
+            {
+              switch(MODCOD)
+              {
+                case 0:
+                  strcpy(FECtext, "FEC 1/2");
+                  MERThreshold = 0; //
+                break;
+                case 1:
+                  strcpy(FECtext, "FEC 2/3");
+                  MERThreshold = 0; //
+                break;
+                case 2:
+                  strcpy(FECtext, "FEC 3/4");
+                  MERThreshold = 0; //
+                break;
+                case 3:
+                  strcpy(FECtext, "FEC 5/6");
+                  MERThreshold = 0; //
+                break;
+                case 4:
+                  strcpy(FECtext, "FEC 6/7");
+                  MERThreshold = 0; //
+                break;
+                case 5:
+                  strcpy(FECtext, "FEC 7/8");
+                  MERThreshold = 0; //
+                break;
+                default:
+                  strcpy(FECtext, "FEC - ");
+                  MERThreshold = 0; //
+                  strcat(FECtext, MODCODtext);
+                break;
+              }
+              strcpy(Modulationtext, "QPSK");
+            }
+            if (STATE == 4)                                        // DVB-S2
+            {
+              switch(MODCOD)
+              {
+                case 1:
+                  strcpy(FECtext, "FEC 1/4");
+                  MERThreshold = -2.3; //
+                break;
+                case 2:
+                  strcpy(FECtext, "FEC 1/3");
+                  MERThreshold = -1.2; //
+                break;
+                case 3:
+                  strcpy(FECtext, "FEC 2/5");
+                  MERThreshold = -0.3; //
+                break;
+                case 4:
+                  strcpy(FECtext, "FEC 1/2");
+                  MERThreshold = 1.0; //
+                break;
+                case 5:
+                  strcpy(FECtext, "FEC 3/5");
+                  MERThreshold = 2.3; //
+                break;
+                case 6:
+                  strcpy(FECtext, "FEC 2/3");
+                  MERThreshold = 3.1; //
+                break;
+                case 7:
+                  strcpy(FECtext, "FEC 3/4");
+                  MERThreshold = 4.1; //
+                break;
+                case 8:
+                  strcpy(FECtext, "FEC 4/5");
+                  MERThreshold = 4.7; //
+                break;
+                case 9:
+                  strcpy(FECtext, "FEC 5/6");
+                  MERThreshold = 5.2; //
+                break;
+                case 10:
+                  strcpy(FECtext, "FEC 8/9");
+                  MERThreshold = 6.2; //
+                break;
+                case 11:
+                  strcpy(FECtext, "FEC 9/10");
+                  MERThreshold = 6.5; //
+                break;
+                case 12:
+                  strcpy(FECtext, "FEC 3/5");
+                  MERThreshold = 5.5; //
+                break;
+                case 13:
+                  strcpy(FECtext, "FEC 2/3");
+                  MERThreshold = 6.6; //
+                break;
+                case 14:
+                  strcpy(FECtext, "FEC 3/4");
+                  MERThreshold = 7.9; //
+                break;
+                case 15:
+                  strcpy(FECtext, "FEC 5/6");
+                  MERThreshold = 9.4; //
+                break;
+                case 16:
+                  strcpy(FECtext, "FEC 8/9");
+                  MERThreshold = 10.7; //
+                break;
+                case 17:
+                  strcpy(FECtext, "FEC 9/10");
+                  MERThreshold = 11.0; //
+                break;
+                case 18:
+                  strcpy(FECtext, "FEC 2/3");
+                  MERThreshold = 9.0; //
+                break;
+                case 19:
+                  strcpy(FECtext, "FEC 3/4");
+                  MERThreshold = 10.2; //
+                break;
+                case 20:
+                  strcpy(FECtext, "FEC 4/5");
+                  MERThreshold = 11.0; //
+                break;
+                case 21:
+                  strcpy(FECtext, "FEC 5/6");
+                  MERThreshold = 11.6; //
+                break;
+                case 22:
+                  strcpy(FECtext, "FEC 8/9");
+                  MERThreshold = 12.9; //
+                break;
+                case 23:
+                  strcpy(FECtext, "FEC 9/10");
+                  MERThreshold = 13.2; //
+                break;
+                case 24:
+                  strcpy(FECtext, "FEC 3/4");
+                  MERThreshold = 12.8; //
+                break;
+                case 25:
+                  strcpy(FECtext, "FEC 4/5");
+                  MERThreshold = 13.7; //
+                break;
+                case 26:
+                  strcpy(FECtext, "FEC 5/6");
+                  MERThreshold = 14.3; //
+                break;
+                case 27:
+                  strcpy(FECtext, "FEC 8/9");
+                  MERThreshold = 15.7; //
+                break;
+                case 28:
+                  strcpy(FECtext, "FEC 9/10");
+                  MERThreshold = 16.1; //
+                break;
+                default:
+                  strcpy(FECtext, "FEC -");
+                  MERThreshold = 0; //
+                break;
+              }
+              if ((MODCOD >= 1) && (MODCOD <= 11 ))
+              {
+                strcpy(Modulationtext, "QPSK");
+              }
+              if ((MODCOD >= 12) && (MODCOD <= 17 ))
+              {
+                strcpy(Modulationtext, "8PSK");
+              }
+              if ((MODCOD >= 18) && (MODCOD <= 23 ))
+              {
+                strcpy(Modulationtext, "16APSK");
+              }
+              if ((MODCOD >= 24) && (MODCOD <= 28 ))
+              {
+                strcpy(Modulationtext, "32APSK");
+              }
+            }
+          }
+
+          if ((stat_string[0] == '1') && (stat_string[1] == '7'))  // Video and audio encoding
+          {
+            strcpy(Encodingtext, stat_string);
+            chopN(Encodingtext, 3);
+            EncodingCode = atoi(Encodingtext);
+            switch(EncodingCode)
+            {
+              case 2:
+                strcpy(VidEncodingtext, "MPEG-2");
+              break;
+              case 3:
+                strcpy(AudEncodingtext, " MPA");
+              break;
+              case 4:
+                strcpy(AudEncodingtext, " MPA");
+              break;
+              case 15:
+                strcpy(AudEncodingtext, " AAC");
+              break;
+              case 16:
+                strcpy(VidEncodingtext, "H263");
+              break;
+              case 27:
+                strcpy(VidEncodingtext, "H264");
+              break;
+              case 32:
+                strcpy(AudEncodingtext, " MPA");
+              break;
+              case 36:
+                strcpy(VidEncodingtext, "H265");
+              break;
+              default:
+                printf("New Encoding Code = %d\n", EncodingCode);
+              break;
+            }
+            strcpy(Encodingtext, VidEncodingtext);
+            strcat(Encodingtext, AudEncodingtext);
+          }
 
           if ((stat_string[0] == '1') && (stat_string[1] == '2'))  // MER
           {
             if (FinishedButton == 1)  // Parameters displayed
             {
+              Parameters_currently_displayed = 1;
               strcpy(MERtext, stat_string);
               chopN(MERtext, 3);
               MER = atof(MERtext)/10;
@@ -8634,17 +8876,27 @@ void LMRX(int NoButton)
               {
                 MER = 0;
               }
-              snprintf(MERtext, 10, "MER %.1f", MER);
+              snprintf(MERtext, 24, "MER %.1f (%.1f req)", MER, MERThreshold);
 
               BackgroundRGB(0, 0, 0, 0);
-              Fill(0, 0, 0, 255);
-              Rect(wscreen * 1.0 / 40.0, hscreen - 4.2 * linepitch, wscreen * 15.0 / 40.0, hscreen);
+              Fill(0, 0, 0, 127);
+              Rect(wscreen * 1.0 / 40.0, hscreen - 9.2 * linepitch, wscreen * 20.0 / 40.0, hscreen);
+              Rect(wscreen * 1.0 / 40.0, hscreen - 11.7 * linepitch, wscreen * 23.0 / 40.0, hscreen - 11.4 * linepitch);
               Fill(255, 255, 255, 255);
               Text(wscreen * 1.0 / 40.0, hscreen - 1 * linepitch, STATEtext, font, pointsize);
               Text(wscreen * 1.0 / 40.0, hscreen - 2 * linepitch, FREQtext, font, pointsize);
               Text(wscreen * 1.0 / 40.0, hscreen - 3 * linepitch, SRtext, font, pointsize);
-              //Text(wscreen * 1.0 / 40.0, hscreen - 4 * linepitch, FECtext, font, pointsize);
-              Text(wscreen * 1.0 / 40.0, hscreen - 4 * linepitch, MERtext, font, pointsize);
+              Text(wscreen * 1.0 / 40.0, hscreen - 4 * linepitch, Modulationtext, font, pointsize);
+              Text(wscreen * 1.0 / 40.0, hscreen - 5 * linepitch, FECtext, font, pointsize);
+              Text(wscreen * 1.0 / 40.0, hscreen - 6 * linepitch, ServiceProvidertext, font, pointsize);
+              Text(wscreen * 1.0 / 40.0, hscreen - 7 * linepitch, Servicetext, font, pointsize);
+              Text(wscreen * 1.0 / 40.0, hscreen - 8 * linepitch, Encodingtext, font, pointsize);
+              if (MER < MERThreshold)
+              {
+                Fill(255, 127, 127, 255);
+              }
+              Text(wscreen * 1.0 / 40.0, hscreen - 9 * linepitch, MERtext, font, pointsize);
+              Fill(255, 255, 255, 255);
               Text(wscreen * 1.0 / 40.0, hscreen - 11.5 * linepitch, "Touch Right Side to exit", font, pointsize);
             }
             else
@@ -8663,14 +8915,14 @@ void LMRX(int NoButton)
         }
         else
         {
-          strcat(stat_string, status_message);
+          strcat(stat_string, status_message_char);
         }
       }
       else
       {
         FinishedButton = 0;
-      } 
-    }   
+      }
+    } 
     close(fd_status_fifo);
 
     finish();
@@ -8680,7 +8932,7 @@ void LMRX(int NoButton)
     printf("Stopping receive process\n");
     pclose(fp);
 
-    system("sudo killall lmhv2.sh");
+    system("sudo killall lmhv2.sh >/dev/null 2>/dev/null");
     touch_response = 0; 
     break;
   case 1:
@@ -8704,16 +8956,14 @@ void LMRX(int NoButton)
 
     while ((FinishedButton == 1) || (FinishedButton == 2)) // 1 is captions on, 2 is off
     {
-      // printf("%s", "Start Read\n");
-
-      num = read(fd_status_fifo, status_message, 1);
+      num = read(fd_status_fifo, status_message_char, 1);
       // printf("%s Num= %d \n", "End Read", num);
       if (num >= 0 )
       {
-        status_message[num]='\0';
-        //if (num>0) printf("%s\n",status_message);
+        status_message_char[num]='\0';
+        //if (num>0) printf("%s\n",status_message_char);
         
-        if (strcmp(status_message, "$") == 0)
+        if (strcmp(status_message_char, "$") == 0)
         {
 
           if ((stat_string[0] == '1') && (stat_string[1] == ','))  // Decoder State
@@ -8764,18 +9014,244 @@ void LMRX(int NoButton)
             snprintf(SRtext, 15, "%d kS", SR);
           }
 
-          //if ((stat_string[0] == '3') && (stat_string[1] == ','))  // FEC Numerator
-          //{
-          //  strcpy(FECtext, stat_string);
-          //  chopN(FECtext, 2);
-          //  FEC = atoi(FECtext);
-          //  snprintf(FECtext, 15, "FEC %d/%d", FEC, FEC + 1);
-          //}
+          if ((stat_string[0] == '1') && (stat_string[1] == '3'))  // Service Provider
+          {
+            strcpy(ServiceProvidertext, stat_string);
+            chopN(ServiceProvidertext, 3);
+          }
+
+          if ((stat_string[0] == '1') && (stat_string[1] == '4'))  // Service
+          {
+            strcpy(Servicetext, stat_string);
+            chopN(Servicetext, 3);
+          }
+
+          if ((stat_string[0] == '1') && (stat_string[1] == '8'))  // MODCOD
+          {
+            strcpy(MODCODtext, stat_string);
+            chopN(MODCODtext, 3);
+            MODCOD = atoi(MODCODtext);
+            //STATE = 4;
+            if (STATE == 3)                                        // DVB-S
+            {
+              switch(MODCOD)
+              {
+                case 0:
+                  strcpy(FECtext, "FEC 1/2");
+                  MERThreshold = 0; //
+                break;
+                case 1:
+                  strcpy(FECtext, "FEC 2/3");
+                  MERThreshold = 0; //
+                break;
+                case 2:
+                  strcpy(FECtext, "FEC 3/4");
+                  MERThreshold = 0; //
+                break;
+                case 3:
+                  strcpy(FECtext, "FEC 5/6");
+                  MERThreshold = 0; //
+                break;
+                case 4:
+                  strcpy(FECtext, "FEC 6/7");
+                  MERThreshold = 0; //
+                break;
+                case 5:
+                  strcpy(FECtext, "FEC 7/8");
+                  MERThreshold = 0; //
+                break;
+                default:
+                  strcpy(FECtext, "FEC -");
+                  MERThreshold = 0; //
+                  strcat(FECtext, MODCODtext);
+                break;
+              }
+              strcpy(Modulationtext, "QPSK");
+            }
+            if (STATE == 4)                                        // DVB-S2
+            {
+              switch(MODCOD)
+              {
+                case 1:
+                  strcpy(FECtext, "FEC 1/4");
+                  MERThreshold = -2.3; //
+                break;
+                case 2:
+                  strcpy(FECtext, "FEC 1/3");
+                  MERThreshold = -1.2; //
+                break;
+                case 3:
+                  strcpy(FECtext, "FEC 2/5");
+                  MERThreshold = -0.3; //
+                break;
+                case 4:
+                  strcpy(FECtext, "FEC 1/2");
+                  MERThreshold = 1.0; //
+                break;
+                case 5:
+                  strcpy(FECtext, "FEC 3/5");
+                  MERThreshold = 2.3; //
+                break;
+                case 6:
+                  strcpy(FECtext, "FEC 2/3");
+                  MERThreshold = 3.1; //
+                break;
+                case 7:
+                  strcpy(FECtext, "FEC 3/4");
+                  MERThreshold = 4.1; //
+                break;
+                case 8:
+                  strcpy(FECtext, "FEC 4/5");
+                  MERThreshold = 4.7; //
+                break;
+                case 9:
+                  strcpy(FECtext, "FEC 5/6");
+                  MERThreshold = 5.2; //
+                break;
+                case 10:
+                  strcpy(FECtext, "FEC 8/9");
+                  MERThreshold = 6.2; //
+                break;
+                case 11:
+                  strcpy(FECtext, "FEC 9/10");
+                  MERThreshold = 6.5; //
+                break;
+                case 12:
+                  strcpy(FECtext, "FEC 3/5");
+                  MERThreshold = 5.5; //
+                break;
+                case 13:
+                  strcpy(FECtext, "FEC 2/3");
+                  MERThreshold = 6.6; //
+                break;
+                case 14:
+                  strcpy(FECtext, "FEC 3/4");
+                  MERThreshold = 7.9; //
+                break;
+                case 15:
+                  strcpy(FECtext, "FEC 5/6");
+                  MERThreshold = 9.4; //
+                break;
+                case 16:
+                  strcpy(FECtext, "FEC 8/9");
+                  MERThreshold = 10.7; //
+                break;
+                case 17:
+                  strcpy(FECtext, "FEC 9/10");
+                  MERThreshold = 11.0; //
+                break;
+                case 18:
+                  strcpy(FECtext, "FEC 2/3");
+                  MERThreshold = 9.0; //
+                break;
+                case 19:
+                  strcpy(FECtext, "FEC 3/4");
+                  MERThreshold = 10.2; //
+                break;
+                case 20:
+                  strcpy(FECtext, "FEC 4/5");
+                  MERThreshold = 11.0; //
+                break;
+                case 21:
+                  strcpy(FECtext, "FEC 5/6");
+                  MERThreshold = 11.6; //
+                break;
+                case 22:
+                  strcpy(FECtext, "FEC 8/9");
+                  MERThreshold = 12.9; //
+                break;
+                case 23:
+                  strcpy(FECtext, "FEC 9/10");
+                  MERThreshold = 13.2; //
+                break;
+                case 24:
+                  strcpy(FECtext, "FEC 3/4");
+                  MERThreshold = 12.8; //
+                break;
+                case 25:
+                  strcpy(FECtext, "FEC 4/5");
+                  MERThreshold = 13.7; //
+                break;
+                case 26:
+                  strcpy(FECtext, "FEC 5/6");
+                  MERThreshold = 14.3; //
+                break;
+                case 27:
+                  strcpy(FECtext, "FEC 8/9");
+                  MERThreshold = 15.7; //
+                break;
+                case 28:
+                  strcpy(FECtext, "FEC 9/10");
+                  MERThreshold = 16.1; //
+                break;
+                default:
+                  strcpy(FECtext, "FEC -");
+                  MERThreshold = 0; //
+                break;
+              }
+              if ((MODCOD >= 1) && (MODCOD <= 11 ))
+              {
+                strcpy(Modulationtext, "QPSK");
+              }
+              if ((MODCOD >= 12) && (MODCOD <= 17 ))
+              {
+                strcpy(Modulationtext, "8PSK");
+              }
+              if ((MODCOD >= 18) && (MODCOD <= 23 ))
+              {
+                strcpy(Modulationtext, "16APSK");
+              }
+              if ((MODCOD >= 24) && (MODCOD <= 28 ))
+              {
+                strcpy(Modulationtext, "32APSK");
+              }
+            }
+          }
+
+          if ((stat_string[0] == '1') && (stat_string[1] == '7'))  // Video and audio encoding
+          {
+            strcpy(Encodingtext, stat_string);
+            chopN(Encodingtext, 3);
+            EncodingCode = atoi(Encodingtext);
+            switch(EncodingCode)
+            {
+              case 2:
+                strcpy(VidEncodingtext, "MPEG-2");
+              break;
+              case 3:
+                strcpy(AudEncodingtext, " MPA");
+              break;
+              case 4:
+                strcpy(AudEncodingtext, " MPA");
+              break;
+              case 15:
+                strcpy(AudEncodingtext, " AAC");
+              break;
+              case 16:
+                strcpy(VidEncodingtext, "H263");
+              break;
+              case 27:
+                strcpy(VidEncodingtext, "H264");
+              break;
+              case 32:
+                strcpy(AudEncodingtext, " MPA");
+              break;
+              case 36:
+                strcpy(VidEncodingtext, "H265");
+              break;
+              default:
+                printf("New Encoding Code = %d\n", EncodingCode);
+              break;
+            }
+            strcpy(Encodingtext, VidEncodingtext);
+            strcat(Encodingtext, AudEncodingtext);
+          }
 
           if ((stat_string[0] == '1') && (stat_string[1] == '2'))  // MER
           {
             if (FinishedButton == 1)  // Parameters displayed
             {
+              Parameters_currently_displayed = 1;
               strcpy(MERtext, stat_string);
               chopN(MERtext, 3);
               MER = atof(MERtext)/10;
@@ -8783,17 +9259,27 @@ void LMRX(int NoButton)
               {
                 MER = 0;
               }
-              snprintf(MERtext, 10, "MER %.1f", MER);
+              snprintf(MERtext, 24, "MER %.1f (%.1f req)", MER, MERThreshold);
 
               BackgroundRGB(0, 0, 0, 0);
-              Fill(0, 0, 0, 255);
-              Rect(wscreen * 1.0 / 40.0, hscreen - 4.2 * linepitch, wscreen * 15.0 / 40.0, hscreen);
+              Fill(0, 0, 0, 127);
+              Rect(wscreen * 1.0 / 40.0, hscreen - 9.2 * linepitch, wscreen * 20.0 / 40.0, hscreen);
+              Rect(wscreen * 1.0 / 40.0, hscreen - 11.7 * linepitch, wscreen * 23.0 / 40.0, hscreen - 11.4 * linepitch);
               Fill(255, 255, 255, 255);
               Text(wscreen * 1.0 / 40.0, hscreen - 1 * linepitch, STATEtext, font, pointsize);
               Text(wscreen * 1.0 / 40.0, hscreen - 2 * linepitch, FREQtext, font, pointsize);
               Text(wscreen * 1.0 / 40.0, hscreen - 3 * linepitch, SRtext, font, pointsize);
-              //Text(wscreen * 1.0 / 40.0, hscreen - 4 * linepitch, FECtext, font, pointsize);
-              Text(wscreen * 1.0 / 40.0, hscreen - 4 * linepitch, MERtext, font, pointsize);
+              Text(wscreen * 1.0 / 40.0, hscreen - 4 * linepitch, Modulationtext, font, pointsize);
+              Text(wscreen * 1.0 / 40.0, hscreen - 5 * linepitch, FECtext, font, pointsize);
+              Text(wscreen * 1.0 / 40.0, hscreen - 6 * linepitch, ServiceProvidertext, font, pointsize);
+              Text(wscreen * 1.0 / 40.0, hscreen - 7 * linepitch, Servicetext, font, pointsize);
+              Text(wscreen * 1.0 / 40.0, hscreen - 8 * linepitch, Encodingtext, font, pointsize);
+              if (MER < MERThreshold)
+              {
+                Fill(255, 127, 127, 255);
+              }
+              Text(wscreen * 1.0 / 40.0, hscreen - 9 * linepitch, MERtext, font, pointsize);
+              Fill(255, 255, 255, 255);
               Text(wscreen * 1.0 / 40.0, hscreen - 11.5 * linepitch, "Touch Right Side to exit", font, pointsize);
             }
             else
@@ -8812,24 +9298,22 @@ void LMRX(int NoButton)
         }
         else
         {
-          strcat(stat_string, status_message);
+          strcat(stat_string, status_message_char);
         }
       }
       else
       {
         FinishedButton = 0;
-      } 
-    }   
-    close(fd_status_fifo);
-
+      }
+    } 
+    close(fd_status_fifo); 
     finish();
     usleep(1000);
     init(&wscreen, &hscreen);  // Restart the graphics
 
     printf("Stopping receive process\n");
     pclose(fp);
-
-    system("sudo killall lmhv.sh");
+    system("sudo killall lmhv.sh >/dev/null 2>/dev/null");
     touch_response = 0; 
     break;
   case 2:
@@ -8854,16 +9338,14 @@ void LMRX(int NoButton)
 
     while ((FinishedButton == 1) || (FinishedButton == 2)) 
     {
-      // printf("%s", "Start Read\n");
-
-      num = read(fd_status_fifo, status_message, 1);
+      num = read(fd_status_fifo, status_message_char, 1);
       // printf("%s Num= %d \n", "End Read", num);
       if (num >= 0 )
       {
-        status_message[num]='\0';
-        //if (num>0) printf("%s\n",status_message);
+        status_message_char[num]='\0';
+        //if (num>0) printf("%s\n",status_message_char);
         
-        if (strcmp(status_message, "$") == 0)
+        if (strcmp(status_message_char, "$") == 0)
         {
 
           if ((stat_string[0] == '1') && (stat_string[1] == ','))  // Decoder State
@@ -8914,18 +9396,244 @@ void LMRX(int NoButton)
             snprintf(SRtext, 15, "%d kS", SR);
           }
 
-          //if ((stat_string[0] == '3') && (stat_string[1] == ','))  // FEC Numerator
-          //{
-          //  strcpy(FECtext, stat_string);
-          //  chopN(FECtext, 2);
-          //  FEC = atoi(FECtext);
-          //  snprintf(FECtext, 15, "FEC %d/%d", FEC, FEC + 1);
-          //}
+          if ((stat_string[0] == '1') && (stat_string[1] == '3'))  // Service Provider
+          {
+            strcpy(ServiceProvidertext, stat_string);
+            chopN(ServiceProvidertext, 3);
+          }
+
+          if ((stat_string[0] == '1') && (stat_string[1] == '4'))  // Service
+          {
+            strcpy(Servicetext, stat_string);
+            chopN(Servicetext, 3);
+          }
+
+          if ((stat_string[0] == '1') && (stat_string[1] == '8'))  // MODCOD
+          {
+            strcpy(MODCODtext, stat_string);
+            chopN(MODCODtext, 3);
+            MODCOD = atoi(MODCODtext);
+            //STATE = 4;
+            if (STATE == 3)                                        // DVB-S
+            {
+              switch(MODCOD)
+              {
+                case 0:
+                  strcpy(FECtext, "FEC 1/2");
+                  MERThreshold = 0; //
+                break;
+                case 1:
+                  strcpy(FECtext, "FEC 2/3");
+                  MERThreshold = 0; //
+                break;
+                case 2:
+                  strcpy(FECtext, "FEC 3/4");
+                  MERThreshold = 0; //
+                break;
+                case 3:
+                  strcpy(FECtext, "FEC 5/6");
+                  MERThreshold = 0; //
+                break;
+                case 4:
+                  strcpy(FECtext, "FEC 6/7");
+                  MERThreshold = 0; //
+                break;
+                case 5:
+                  strcpy(FECtext, "FEC 7/8");
+                  MERThreshold = 0; //
+                break;
+                default:
+                  strcpy(FECtext, "FEC -");
+                  MERThreshold = 0; //
+                  strcat(FECtext, MODCODtext);
+                break;
+              }
+              strcpy(Modulationtext, "QPSK");
+            }
+            if (STATE == 4)                                        // DVB-S2
+            {
+              switch(MODCOD)
+              {
+                case 1:
+                  strcpy(FECtext, "FEC 1/4");
+                  MERThreshold = -2.3; //
+                break;
+                case 2:
+                  strcpy(FECtext, "FEC 1/3");
+                  MERThreshold = -1.2; //
+                break;
+                case 3:
+                  strcpy(FECtext, "FEC 2/5");
+                  MERThreshold = -0.3; //
+                break;
+                case 4:
+                  strcpy(FECtext, "FEC 1/2");
+                  MERThreshold = 1.0; //
+                break;
+                case 5:
+                  strcpy(FECtext, "FEC 3/5");
+                  MERThreshold = 2.3; //
+                break;
+                case 6:
+                  strcpy(FECtext, "FEC 2/3");
+                  MERThreshold = 3.1; //
+                break;
+                case 7:
+                  strcpy(FECtext, "FEC 3/4");
+                  MERThreshold = 4.1; //
+                break;
+                case 8:
+                  strcpy(FECtext, "FEC 4/5");
+                  MERThreshold = 4.7; //
+                break;
+                case 9:
+                  strcpy(FECtext, "FEC 5/6");
+                  MERThreshold = 5.2; //
+                break;
+                case 10:
+                  strcpy(FECtext, "FEC 8/9");
+                  MERThreshold = 6.2; //
+                break;
+                case 11:
+                  strcpy(FECtext, "FEC 9/10");
+                  MERThreshold = 6.5; //
+                break;
+                case 12:
+                  strcpy(FECtext, "FEC 3/5");
+                  MERThreshold = 5.5; //
+                break;
+                case 13:
+                  strcpy(FECtext, "FEC 2/3");
+                  MERThreshold = 6.6; //
+                break;
+                case 14:
+                  strcpy(FECtext, "FEC 3/4");
+                  MERThreshold = 7.9; //
+                break;
+                case 15:
+                  strcpy(FECtext, "FEC 5/6");
+                  MERThreshold = 9.4; //
+                break;
+                case 16:
+                  strcpy(FECtext, "FEC 8/9");
+                  MERThreshold = 10.7; //
+                break;
+                case 17:
+                  strcpy(FECtext, "FEC 9/10");
+                  MERThreshold = 11.0; //
+                break;
+                case 18:
+                  strcpy(FECtext, "FEC 2/3");
+                  MERThreshold = 9.0; //
+                break;
+                case 19:
+                  strcpy(FECtext, "FEC 3/4");
+                  MERThreshold = 10.2; //
+                break;
+                case 20:
+                  strcpy(FECtext, "FEC 4/5");
+                  MERThreshold = 11.0; //
+                break;
+                case 21:
+                  strcpy(FECtext, "FEC 5/6");
+                  MERThreshold = 11.6; //
+                break;
+                case 22:
+                  strcpy(FECtext, "FEC 8/9");
+                  MERThreshold = 12.9; //
+                break;
+                case 23:
+                  strcpy(FECtext, "FEC 9/10");
+                  MERThreshold = 13.2; //
+                break;
+                case 24:
+                  strcpy(FECtext, "FEC 3/4");
+                  MERThreshold = 12.8; //
+                break;
+                case 25:
+                  strcpy(FECtext, "FEC 4/5");
+                  MERThreshold = 13.7; //
+                break;
+                case 26:
+                  strcpy(FECtext, "FEC 5/6");
+                  MERThreshold = 14.3; //
+                break;
+                case 27:
+                  strcpy(FECtext, "FEC 8/9");
+                  MERThreshold = 15.7; //
+                break;
+                case 28:
+                  strcpy(FECtext, "FEC 9/10");
+                  MERThreshold = 16.1; //
+                break;
+                default:
+                  strcpy(FECtext, "FEC -");
+                  MERThreshold = 0; //
+                break;
+              }
+              if ((MODCOD >= 1) && (MODCOD <= 11 ))
+              {
+                strcpy(Modulationtext, "QPSK");
+              }
+              if ((MODCOD >= 12) && (MODCOD <= 17 ))
+              {
+                strcpy(Modulationtext, "8PSK");
+              }
+              if ((MODCOD >= 18) && (MODCOD <= 23 ))
+              {
+                strcpy(Modulationtext, "16APSK");
+              }
+              if ((MODCOD >= 24) && (MODCOD <= 28 ))
+              {
+                strcpy(Modulationtext, "32APSK");
+              }
+            }
+          }
+
+          if ((stat_string[0] == '1') && (stat_string[1] == '7'))  // Video and audio encoding
+          {
+            strcpy(Encodingtext, stat_string);
+            chopN(Encodingtext, 3);
+            EncodingCode = atoi(Encodingtext);
+            switch(EncodingCode)
+            {
+              case 2:
+                strcpy(VidEncodingtext, "MPEG-2");
+              break;
+              case 3:
+                strcpy(AudEncodingtext, " MPA");
+              break;
+              case 4:
+                strcpy(AudEncodingtext, " MPA");
+              break;
+              case 15:
+                strcpy(AudEncodingtext, " AAC");
+              break;
+              case 16:
+                strcpy(VidEncodingtext, "H263");
+              break;
+              case 27:
+                strcpy(VidEncodingtext, "H264");
+              break;
+              case 32:
+                strcpy(AudEncodingtext, " MPA");
+              break;
+              case 36:
+                strcpy(VidEncodingtext, "H265");
+              break;
+              default:
+                printf("New Encoding Code = %d\n", EncodingCode);
+              break;
+            }
+            strcpy(Encodingtext, VidEncodingtext);
+            strcat(Encodingtext, AudEncodingtext);
+          }
 
           if ((stat_string[0] == '1') && (stat_string[1] == '2'))  // MER
           {
             if (FinishedButton == 1)  // Parameters displayed
             {
+              Parameters_currently_displayed = 1;
               strcpy(MERtext, stat_string);
               chopN(MERtext, 3);
               MER = atof(MERtext)/10;
@@ -8933,17 +9641,27 @@ void LMRX(int NoButton)
               {
                 MER = 0;
               }
-              snprintf(MERtext, 10, "MER %.1f", MER);
+              snprintf(MERtext, 24, "MER %.1f (%.1f req)", MER, MERThreshold);
 
               BackgroundRGB(0, 0, 0, 0);
-              Fill(0, 0, 0, 255);
-              Rect(wscreen * 1.0 / 40.0, hscreen - 4.2 * linepitch, wscreen * 15.0 / 40.0, hscreen);
+              Fill(0, 0, 0, 127);
+              Rect(wscreen * 1.0 / 40.0, hscreen - 9.2 * linepitch, wscreen * 20.0 / 40.0, hscreen);
+              Rect(wscreen * 1.0 / 40.0, hscreen - 11.7 * linepitch, wscreen * 23.0 / 40.0, hscreen - 11.4 * linepitch);
               Fill(255, 255, 255, 255);
               Text(wscreen * 1.0 / 40.0, hscreen - 1 * linepitch, STATEtext, font, pointsize);
               Text(wscreen * 1.0 / 40.0, hscreen - 2 * linepitch, FREQtext, font, pointsize);
               Text(wscreen * 1.0 / 40.0, hscreen - 3 * linepitch, SRtext, font, pointsize);
-              //Text(wscreen * 1.0 / 40.0, hscreen - 4 * linepitch, FECtext, font, pointsize);
-              Text(wscreen * 1.0 / 40.0, hscreen - 4 * linepitch, MERtext, font, pointsize);
+              Text(wscreen * 1.0 / 40.0, hscreen - 4 * linepitch, Modulationtext, font, pointsize);
+              Text(wscreen * 1.0 / 40.0, hscreen - 5 * linepitch, FECtext, font, pointsize);
+              Text(wscreen * 1.0 / 40.0, hscreen - 6 * linepitch, ServiceProvidertext, font, pointsize);
+              Text(wscreen * 1.0 / 40.0, hscreen - 7 * linepitch, Servicetext, font, pointsize);
+              Text(wscreen * 1.0 / 40.0, hscreen - 8 * linepitch, Encodingtext, font, pointsize);
+              if (MER < MERThreshold)
+              {
+                Fill(255, 127, 127, 255);
+              }
+              Text(wscreen * 1.0 / 40.0, hscreen - 9 * linepitch, MERtext, font, pointsize);
+              Fill(255, 255, 255, 255);
               Text(wscreen * 1.0 / 40.0, hscreen - 11.5 * linepitch, "Touch Right Side to exit", font, pointsize);
             }
             else
@@ -8962,14 +9680,14 @@ void LMRX(int NoButton)
         }
         else
         {
-          strcat(stat_string, status_message);
+          strcat(stat_string, status_message_char);
         }
       }
       else
       {
         FinishedButton = 0;
-      } 
-    }   
+      }
+    } 
     close(fd_status_fifo); 
     finish();
     usleep(1000);
@@ -8977,8 +9695,7 @@ void LMRX(int NoButton)
 
     printf("Stopping receive process\n");
     pclose(fp);
-
-    system("sudo killall omxplayer");
+    system("sudo killall lmomx.sh >/dev/null 2>/dev/null");
     touch_response = 0; 
     break;
   case 3:
@@ -9003,14 +9720,14 @@ void LMRX(int NoButton)
     {
       // printf("%s", "Start Read\n");
 
-      num = read(fd_status_fifo, status_message, 1);
+      num = read(fd_status_fifo, status_message_char, 1);
       // printf("%s Num= %d \n", "End Read", num);
       if (num >= 0 )
       {
-        status_message[num]='\0';
-        //if (num>0) printf("%s\n",status_message);
+        status_message_char[num]='\0';
+        //if (num>0) printf("%s\n",status_message_char);
         
-        if (strcmp(status_message, "$") == 0)
+        if (strcmp(status_message_char, "$") == 0)
         {
 
           if ((stat_string[0] == '1') && (stat_string[1] == ','))  // Decoder State
@@ -9061,13 +9778,238 @@ void LMRX(int NoButton)
             snprintf(SRtext, 15, "%d kS", SR);
           }
 
-          //if ((stat_string[0] == '3') && (stat_string[1] == ','))  // FEC Numerator
-          //{
-          //  strcpy(FECtext, stat_string);
-          //  chopN(FECtext, 2);
-          //  FEC = atoi(FECtext);
-          //  snprintf(FECtext, 15, "FEC %d/%d", FEC, FEC + 1);
-          //}
+          if ((stat_string[0] == '1') && (stat_string[1] == '3'))  // Service Provider
+          {
+            strcpy(ServiceProvidertext, stat_string);
+            chopN(ServiceProvidertext, 3);
+          }
+
+          if ((stat_string[0] == '1') && (stat_string[1] == '4'))  // Service
+          {
+            strcpy(Servicetext, stat_string);
+            chopN(Servicetext, 3);
+          }
+
+          if ((stat_string[0] == '1') && (stat_string[1] == '8'))  // MODCOD
+          {
+            strcpy(MODCODtext, stat_string);
+            chopN(MODCODtext, 3);
+            MODCOD = atoi(MODCODtext);
+            //STATE = 4;
+            if (STATE == 3)                                        // DVB-S
+            {
+              switch(MODCOD)
+              {
+                case 0:
+                  strcpy(FECtext, "FEC 1/2");
+                  MERThreshold = 0; //
+                break;
+                case 1:
+                  strcpy(FECtext, "FEC 2/3");
+                  MERThreshold = 0; //
+                break;
+                case 2:
+                  strcpy(FECtext, "FEC 3/4");
+                  MERThreshold = 0; //
+                break;
+                case 3:
+                  strcpy(FECtext, "FEC 5/6");
+                  MERThreshold = 0; //
+                break;
+                case 4:
+                  strcpy(FECtext, "FEC 6/7");
+                  MERThreshold = 0; //
+                break;
+                case 5:
+                  strcpy(FECtext, "FEC 7/8");
+                  MERThreshold = 0; //
+                break;
+                default:
+                  strcpy(FECtext, "FEC - ");
+                  MERThreshold = 0; //
+                  strcat(FECtext, MODCODtext);
+                break;
+              }
+              strcpy(Modulationtext, "QPSK");
+            }
+            if (STATE == 4)                                        // DVB-S2
+            {
+              switch(MODCOD)
+              {
+                case 1:
+                  strcpy(FECtext, "FEC 1/4");
+                  MERThreshold = -2.3; //
+                break;
+                case 2:
+                  strcpy(FECtext, "FEC 1/3");
+                  MERThreshold = -1.2; //
+                break;
+                case 3:
+                  strcpy(FECtext, "FEC 2/5");
+                  MERThreshold = -0.3; //
+                break;
+                case 4:
+                  strcpy(FECtext, "FEC 1/2");
+                  MERThreshold = 1.0; //
+                break;
+                case 5:
+                  strcpy(FECtext, "FEC 3/5");
+                  MERThreshold = 2.3; //
+                break;
+                case 6:
+                  strcpy(FECtext, "FEC 2/3");
+                  MERThreshold = 3.1; //
+                break;
+                case 7:
+                  strcpy(FECtext, "FEC 3/4");
+                  MERThreshold = 4.1; //
+                break;
+                case 8:
+                  strcpy(FECtext, "FEC 4/5");
+                  MERThreshold = 4.7; //
+                break;
+                case 9:
+                  strcpy(FECtext, "FEC 5/6");
+                  MERThreshold = 5.2; //
+                break;
+                case 10:
+                  strcpy(FECtext, "FEC 8/9");
+                  MERThreshold = 6.2; //
+                break;
+                case 11:
+                  strcpy(FECtext, "FEC 9/10");
+                  MERThreshold = 6.5; //
+                break;
+                case 12:
+                  strcpy(FECtext, "FEC 3/5");
+                  MERThreshold = 5.5; //
+                break;
+                case 13:
+                  strcpy(FECtext, "FEC 2/3");
+                  MERThreshold = 6.6; //
+                break;
+                case 14:
+                  strcpy(FECtext, "FEC 3/4");
+                  MERThreshold = 7.9; //
+                break;
+                case 15:
+                  strcpy(FECtext, "FEC 5/6");
+                  MERThreshold = 9.4; //
+                break;
+                case 16:
+                  strcpy(FECtext, "FEC 8/9");
+                  MERThreshold = 10.7; //
+                break;
+                case 17:
+                  strcpy(FECtext, "FEC 9/10");
+                  MERThreshold = 11.0; //
+                break;
+                case 18:
+                  strcpy(FECtext, "FEC 2/3");
+                  MERThreshold = 9.0; //
+                break;
+                case 19:
+                  strcpy(FECtext, "FEC 3/4");
+                  MERThreshold = 10.2; //
+                break;
+                case 20:
+                  strcpy(FECtext, "FEC 4/5");
+                  MERThreshold = 11.0; //
+                break;
+                case 21:
+                  strcpy(FECtext, "FEC 5/6");
+                  MERThreshold = 11.6; //
+                break;
+                case 22:
+                  strcpy(FECtext, "FEC 8/9");
+                  MERThreshold = 12.9; //
+                break;
+                case 23:
+                  strcpy(FECtext, "FEC 9/10");
+                  MERThreshold = 13.2; //
+                break;
+                case 24:
+                  strcpy(FECtext, "FEC 3/4");
+                  MERThreshold = 12.8; //
+                break;
+                case 25:
+                  strcpy(FECtext, "FEC 4/5");
+                  MERThreshold = 13.7; //
+                break;
+                case 26:
+                  strcpy(FECtext, "FEC 5/6");
+                  MERThreshold = 14.3; //
+                break;
+                case 27:
+                  strcpy(FECtext, "FEC 8/9");
+                  MERThreshold = 15.7; //
+                break;
+                case 28:
+                  strcpy(FECtext, "FEC 9/10");
+                  MERThreshold = 16.1; //
+                break;
+                default:
+                  strcpy(FECtext, "FEC -");
+                  MERThreshold = 0; //
+                break;
+              }
+              if ((MODCOD >= 1) && (MODCOD <= 11 ))
+              {
+                strcpy(Modulationtext, "QPSK");
+              }
+              if ((MODCOD >= 12) && (MODCOD <= 17 ))
+              {
+                strcpy(Modulationtext, "8PSK");
+              }
+              if ((MODCOD >= 18) && (MODCOD <= 23 ))
+              {
+                strcpy(Modulationtext, "16APSK");
+              }
+              if ((MODCOD >= 24) && (MODCOD <= 28 ))
+              {
+                strcpy(Modulationtext, "32APSK");
+              }
+            }
+          }
+
+          if ((stat_string[0] == '1') && (stat_string[1] == '7'))  // Video and audio encoding
+          {
+            strcpy(Encodingtext, stat_string);
+            chopN(Encodingtext, 3);
+            EncodingCode = atoi(Encodingtext);
+            switch(EncodingCode)
+            {
+              case 2:
+                strcpy(VidEncodingtext, "MPEG-2");
+              break;
+              case 3:
+                strcpy(AudEncodingtext, " MPA");
+              break;
+              case 4:
+                strcpy(AudEncodingtext, " MPA");
+              break;
+              case 15:
+                strcpy(AudEncodingtext, " AAC");
+              break;
+              case 16:
+                strcpy(VidEncodingtext, "H263");
+              break;
+              case 27:
+                strcpy(VidEncodingtext, "H264");
+              break;
+              case 32:
+                strcpy(AudEncodingtext, " MPA");
+              break;
+              case 36:
+                strcpy(VidEncodingtext, "H265");
+              break;
+              default:
+                printf("New Encoding Code = %d\n", EncodingCode);
+              break;
+            }
+            strcpy(Encodingtext, VidEncodingtext);
+            strcat(Encodingtext, AudEncodingtext);
+          }
 
           if ((stat_string[0] == '1') && (stat_string[1] == '2'))  // MER
           {
@@ -9078,18 +10020,27 @@ void LMRX(int NoButton)
             {
               MER = 0;
             }
-            snprintf(MERtext, 10, "MER %.1f", MER);
+            snprintf(MERtext, 24, "MER %.1f (%.1f req)", MER, MERThreshold);
 
             BackgroundRGB(0, 0, 0, 0);
-            Fill(0, 0, 0, 255);
-            Rect(wscreen * 1.0 / 40.0, hscreen - 4.2 * linepitch, wscreen * 15.0 / 40.0, hscreen);
+            Fill(0, 0, 0, 127);
+            Rect(wscreen * 1.0 / 40.0, hscreen - 9.2 * linepitch, wscreen * 20.0 / 40.0, hscreen);
             Fill(255, 255, 255, 255);
             Text(wscreen * 1.0 / 40.0, hscreen - 1 * linepitch, STATEtext, font, pointsize);
             Text(wscreen * 1.0 / 40.0, hscreen - 2 * linepitch, FREQtext, font, pointsize);
             Text(wscreen * 1.0 / 40.0, hscreen - 3 * linepitch, SRtext, font, pointsize);
-            //Text(wscreen * 1.0 / 40.0, hscreen - 4 * linepitch, FECtext, font, pointsize);
-            Text(wscreen * 1.0 / 40.0, hscreen - 4 * linepitch, MERtext, font, pointsize);
-            Text(wscreen * 1.0 / 40.0, hscreen - 9.5 * linepitch, udp_string, font, pointsize);
+            Text(wscreen * 1.0 / 40.0, hscreen - 4 * linepitch, Modulationtext, font, pointsize);
+            Text(wscreen * 1.0 / 40.0, hscreen - 5 * linepitch, FECtext, font, pointsize);
+            Text(wscreen * 1.0 / 40.0, hscreen - 6 * linepitch, ServiceProvidertext, font, pointsize);
+            Text(wscreen * 1.0 / 40.0, hscreen - 7 * linepitch, Servicetext, font, pointsize);
+            Text(wscreen * 1.0 / 40.0, hscreen - 8 * linepitch, Encodingtext, font, pointsize);
+            if (MER < MERThreshold)
+            {
+              Fill(255, 127, 127, 255);
+            }
+            Text(wscreen * 1.0 / 40.0, hscreen - 9 * linepitch, MERtext, font, pointsize);
+            Fill(255, 255, 255, 255);
+            Text(wscreen * 1.0 / 40.0, hscreen - 10.5 * linepitch, udp_string, font, pointsize);
             Text(wscreen * 1.0 / 40.0, hscreen - 11.5 * linepitch, "Touch screen to exit", font, pointsize);
             End();
           }
@@ -9097,7 +10048,7 @@ void LMRX(int NoButton)
         }
         else
         {
-          strcat(stat_string, status_message);
+          strcat(stat_string, status_message_char);
         }
       }
       else
@@ -9113,15 +10064,141 @@ void LMRX(int NoButton)
     printf("Stopping receive process\n");
     pclose(fp);
 
-    system("sudo killall lmudp.sh");
+    system("sudo killall lmudp.sh >/dev/null 2>/dev/null");
+    touch_response = 0; 
+    break;
+  case 4:
+    snprintf(udp_string, 40, "UDP Output to %s:%s", LMRXudpip, LMRXudpport);
+    BackgroundRGB(0, 0, 0, 0);
+    End();
+    fp=popen(PATH_SCRIPT_LMRXMER, "r");
+    if(fp==NULL) printf("Process error\n");
+
+    printf("STARTING MER Display\n");
+
+    // Open status FIFO
+    ret = mkfifo("longmynd_status_fifo", 0666);
+    fd_status_fifo = open("longmynd_status_fifo", O_RDONLY); 
+    if (fd_status_fifo < 0)
+    {
+      printf("Failed to open status fifo\n");
+    }
+    WindowClear();
+
+    while ((FinishedButton == 1) || (FinishedButton == 2)) // 1 is captions on, 2 is off
+    {
+      num = read(fd_status_fifo, status_message_char, 1);
+      if (num >= 0 )
+      {
+        status_message_char[num]='\0';
+        if (strcmp(status_message_char, "$") == 0)
+        {
+
+          if ((stat_string[0] == '1') && (stat_string[1] == ','))  // Decoder State
+          {
+            strcpy(STATEtext, stat_string);
+            chopN(STATEtext, 2);
+            STATE = atoi(STATEtext);
+            switch(STATE)
+            {
+              case 0:
+              strcpy(STATEtext, "Initialising.");
+              break;
+              case 1:
+              strcpy(STATEtext, "Searching.");
+              break;
+              case 2:
+              strcpy(STATEtext, "Found Headers.");
+              break;
+              case 3:
+              strcpy(STATEtext, "DVB-S Lock.");
+              break;
+              case 4:
+              strcpy(STATEtext, "DVB-S2 Lock.");
+              break;
+              default:
+              snprintf(STATEtext, 10, "%d", STATE);
+            }
+            strcat(STATEtext, " MER:");
+          }
+
+          if ((stat_string[0] == '1') && (stat_string[1] == '2'))  // MER
+          {
+            strcpy(MERtext, stat_string);
+            chopN(MERtext, 3);
+            MER = atof(MERtext)/10;
+            if (MER > 51)  // Trap spurious MER readings
+            {
+              MER = 0;
+            }
+            snprintf(MERtext, 10, "%.1f", MER);
+
+            // Set up for the tuning bar
+
+            if ((MER > 0.2) && (MERcount < 9))  // Wait for a valid MER
+            {
+              MERcount = MERcount + 1;
+            }
+            if (MERcount == 9)                 // Third valid MER
+            {
+              refMER = MER;
+              MERcount = 10;
+            }
+
+            BackgroundRGB(0, 0, 0, 0);
+            Fill(0, 0, 0, 255);
+            Rect(wscreen * 1.0 / 40.0, 0.0, wscreen * 39.0 / 40.0, hscreen);
+            Fill(255, 255, 255, 255);
+            Text(wscreen * 1.0 / 40.0, hscreen - 1 * linepitch, STATEtext, font, pointsize);
+            pointsize = 250;
+            Text(wscreen * 1.0 / 40.0, hscreen * 0.35, MERtext, font, pointsize);
+            pointsize = 25;
+
+            if (MERcount == 10)
+            {
+              if (MER > refMER)
+              {
+                Fill(0, 255, 0, 255); // Green
+                Rect(wscreen * 38.0 / 40.0, hscreen * 0.30, wscreen, (hscreen * (MER - refMER) * 0.3));
+              }
+              else
+              {
+                Fill(255, 0, 0, 255); // Red
+                Rect(wscreen * 38.0 / 40.0, hscreen * 0.30 + (hscreen * (MER - refMER) * 0.3), wscreen, (hscreen * (refMER - MER) * 0.3));
+              }
+            }
+            Fill(255, 255, 255, 255);
+            Text(wscreen * 1.0 / 40.0, hscreen - 11.5 * linepitch, "Touch screen to exit", font, pointsize);
+            End();
+          }
+          stat_string[0] = '\0';
+        }
+        else
+        {
+          strcat(stat_string, status_message_char);
+        }
+      }
+      else
+      {
+        FinishedButton = 0;
+      }
+    } 
+    close(fd_status_fifo); 
+    finish();
+    usleep(1000);
+    init(&wscreen, &hscreen);  // Restart the graphics
+
+    printf("Stopping receive process\n");
+    pclose(fp);
+
+    system("sudo killall lmmer.sh >/dev/null 2>/dev/null");
     touch_response = 0; 
     break;
   }
-  system("sudo killall longmynd");
-  system("sudo killall nc");
-  system("sudo killall omxplayer.bin");
-  system("sudo killall hello_video.bin");
-  system("sudo killall hello_video2.bin");
+  system("sudo killall longmynd >/dev/null 2>/dev/null");
+  system("sudo killall omxplayer.bin >/dev/null 2>/dev/null");
+  system("sudo killall hello_video.bin >/dev/null 2>/dev/null");
+  system("sudo killall hello_video2.bin >/dev/null 2>/dev/null");
   pthread_join(thbutton, NULL);
 }
 
@@ -11694,6 +12771,12 @@ rawY = 0;
             wait_touch();
           }
           printf("MENU 8 \n");  //  LongMynd
+          // Display the Receiver background image on the desktop
+          strcpy(LinuxCommand, "sudo fbi -T 1 -noverbose -a /home/pi/rpidatv/scripts/images/RX_Black.png ");
+          strcat(LinuxCommand, ">/dev/null 2>/dev/null");
+          system(LinuxCommand);
+          strcpy(LinuxCommand, "(sleep 1; sudo killall -9 fbi >/dev/null 2>/dev/null) &");
+          system(LinuxCommand);
           CurrentMenu=8;
           BackgroundRGB(0 ,0 ,0 ,255);
           ReadLMRXPresets();
@@ -12499,17 +13582,27 @@ rawY = 0;
         CallingMenu = 8;
         switch (i)
         {
-        case 0:                                           // Receive
-        case 1:
-        case 2:
-        case 3:
+        case 0:                                           // Simple MPEG-2
+        case 1:                                           // Simple H264
+        case 2:                                           // OMXPlayer
+        case 3:                                           // UDP Output
           BackgroundRGB(0,0,0,255);
           Start(wscreen,hscreen);
           LMRX(i);
-printf("RETURNED TO MENU 8\n");
           BackgroundRGB(0, 0, 0, 255);
           Start_Highlights_Menu8();
           UpdateWindow();
+          break;
+        case 4:                                           // Beacon MER
+          if (strcmp(LMRXmode, "sat") == 0)
+          {
+            BackgroundRGB(0,0,0,255);
+            Start(wscreen,hscreen);
+            LMRX(i);
+            BackgroundRGB(0, 0, 0, 255);
+            Start_Highlights_Menu8();
+            UpdateWindow();
+          }
           break;
         case 5:                                          // Change Freq
         case 6:
@@ -12557,6 +13650,12 @@ printf("RETURNED TO MENU 8\n");
           break;
         case 22:                                          // Back to Menu 1
           printf("MENU 1 \n");
+          // Revert to the Normal Desktop Image
+          strcpy(LinuxCommand, "sudo fbi -T 1 -noverbose -a /home/pi/rpidatv/scripts/images/BATC_Black.png ");
+          strcat(LinuxCommand, ">/dev/null 2>/dev/null");
+          system(LinuxCommand);
+          strcpy(LinuxCommand, "(sleep 1; sudo killall -9 fbi >/dev/null 2>/dev/null) &");
+          system(LinuxCommand);
           CurrentMenu=1;
           BackgroundRGB(255,255,255,255);
           Start_Highlights_Menu1();
@@ -15541,9 +16640,9 @@ void Define_Menu8()
   AddButtonStatus(button, "UDP^Output", &Blue);
   AddButtonStatus(button, "UDP^Output", &Green);
 
-  //button = CreateButton(8, 4);
-  //AddButtonStatus(button, " ", &Blue);
-  //AddButtonStatus(button, " ", &Red);
+  button = CreateButton(8, 4);
+  AddButtonStatus(button, "Beacon^MER", &Blue);
+  AddButtonStatus(button, "Beacon^MER", &Grey);
 
   // 2nd Row, Menu 8.  
 
@@ -15641,6 +16740,11 @@ void Start_Highlights_Menu8()
   if (strcmp(LMRXmode, "terr") == 0)
   {
     indexoffset = 10;
+    SetButtonStatus(ButtonNumber(CurrentMenu, 4), 1);
+  }
+  else
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 4), 0);
   }
 
   snprintf(LMBtext, 15, "FREQ^%d", LMRXfreq[6 + indexoffset]);
@@ -18470,14 +19574,9 @@ terminate(int dummy)
   ReceiveStop();
   RTLstop();
   system("killall -9 omxplayer.bin >/dev/null 2>/dev/null");
-
-        system("sudo killall lmudp.sh");
-        system("sudo killall longmynd");
-        system("sudo killall nc");
-        system("sudo killall fake_read");
-
+  system("sudo killall lmudp.sh");
+  system("sudo killall longmynd");
   finish();
-  //DisplayHere("Touchscreen Process Stopped");
   printf("Terminate\n");
   sprintf(Commnd,"sudo killall express_server >/dev/null 2>/dev/null");
   system(Commnd);
