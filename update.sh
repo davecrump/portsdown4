@@ -185,6 +185,9 @@ sudo apt-get -y install sshpass  # For controlling the Jetson Nano
 # --------- Install libbsd-dev ------
 sudo apt-get -y install libbsd-dev  # For raspi2raspi
 
+# --------- Install libasound2-dev ------
+sudo apt-get -y install libasound2-dev  # For LongMynd tone
+
 # Enable USB Storage automount in Stretch (only) 20180704
 cd /lib/systemd/system/
 if ! grep -q MountFlags=shared systemd-udevd.service; then
@@ -621,10 +624,18 @@ sudo killall longmynd
 sudo rm -rf longmynd
 
 # Download the previously selected version of LongMynd
-wget https://github.com/${GIT_SRC}/longmynd/archive/master.zip
-unzip -o master.zip
-mv longmynd-master longmynd
-rm master.zip
+#wget https://github.com/${GIT_SRC}/longmynd/archive/master.zip
+#unzip -o master.zip
+#mv longmynd-master longmynd
+#rm master.zip
+
+# For TESTING:
+wget https://github.com/davecrump/longmynd-1/archive/phil-beep-ts-modcod.zip
+unzip -o phil-beep-ts-modcod.zip
+mv longmynd-1-phil-beep-ts-modcod longmynd
+rm phil-beep-ts-modcod.zip
+# End TESTING
+
 cd longmynd
 make
 cd /home/pi
