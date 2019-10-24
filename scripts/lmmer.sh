@@ -57,7 +57,8 @@ sudo rm fifo.264
 
 sudo rm longmynd_main_ts
 
-sudo /home/pi/longmynd/longmynd -b -i $UDPIP $UDPPORT -s longmynd_status_fifo $INPUT_CMD $FREQ_KHZ $SYMBOLRATEK &
+#sudo /home/pi/longmynd/longmynd -b -i $UDPIP $UDPPORT -s longmynd_status_fifo $INPUT_CMD $FREQ_KHZ $SYMBOLRATEK &
+sudo /home/pi/longmynd/longmynd -i $UDPIP $UDPPORT -s longmynd_status_fifo $INPUT_CMD $FREQ_KHZ $SYMBOLRATEK &
 
 exit
 
