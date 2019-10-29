@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Updated by davecrump 201910100
+# Updated by davecrump 201910230
 
 DisplayUpdateMsg() {
   # Delete any old update message image  201802040
@@ -624,17 +624,10 @@ sudo killall longmynd
 sudo rm -rf longmynd
 
 # Download the previously selected version of LongMynd
-#wget https://github.com/${GIT_SRC}/longmynd/archive/master.zip
-#unzip -o master.zip
-#mv longmynd-master longmynd
-#rm master.zip
-
-# For TESTING:
-wget https://github.com/davecrump/longmynd-1/archive/phil-beep-ts-modcod.zip
-unzip -o phil-beep-ts-modcod.zip
-mv longmynd-1-phil-beep-ts-modcod longmynd
-rm phil-beep-ts-modcod.zip
-# End TESTING
+wget https://github.com/${GIT_SRC}/longmynd/archive/master.zip
+unzip -o master.zip
+mv longmynd-master longmynd
+rm master.zip
 
 cd longmynd
 make

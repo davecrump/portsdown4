@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Stretch Version by davecrump on 201910100
+# Stretch Version by davecrump on 201910230
 
 # Check which source needs to be loaded # From M0DNY 201905090
 GIT_SRC="BritishAmateurTelevisionClub"
@@ -293,17 +293,10 @@ cp dvb2iq ../../bin/dvb2iq
 cd /home/pi
 
 # Download the previously selected version of LongMynd
-#wget https://github.com/${GIT_SRC}/longmynd/archive/master.zip
-#unzip -o master.zip
-#mv longmynd-master longmynd
-#rm master.zip
-
-# For TESTING:
-wget https://github.com/davecrump/longmynd-1/archive/phil-beep-ts-modcod.zip
-unzip -o phil-beep-ts-modcod.zip
-mv longmynd-1-phil-beep-ts-modcod longmynd
-rm phil-beep-ts-modcod.zip
-# End TESTING
+wget https://github.com/${GIT_SRC}/longmynd/archive/master.zip
+unzip -o master.zip
+mv longmynd-master longmynd
+rm master.zip
 
 cd longmynd
 make
