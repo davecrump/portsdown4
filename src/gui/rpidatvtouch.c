@@ -8881,7 +8881,7 @@ void LMRX(int NoButton)
               BackgroundRGB(0, 0, 0, 0);
               Fill(0, 0, 0, 127);
               Rect(wscreen * 1.0 / 40.0, hscreen - 9.2 * linepitch, wscreen * 20.0 / 40.0, hscreen);
-              Rect(wscreen * 1.0 / 40.0, hscreen - 11.7 * linepitch, wscreen * 23.0 / 40.0, hscreen - 11.4 * linepitch);
+              Rect(wscreen * 1.0 / 40.0, hscreen - 11.7 * linepitch, wscreen * 35.0 / 40.0, hscreen - 11.4 * linepitch);
               Fill(255, 255, 255, 255);
               Text(wscreen * 1.0 / 40.0, hscreen - 1 * linepitch, STATEtext, font, pointsize);
               Text(wscreen * 1.0 / 40.0, hscreen - 2 * linepitch, FREQtext, font, pointsize);
@@ -8897,7 +8897,7 @@ void LMRX(int NoButton)
               }
               Text(wscreen * 1.0 / 40.0, hscreen - 9 * linepitch, MERtext, font, pointsize);
               Fill(255, 255, 255, 255);
-              Text(wscreen * 1.0 / 40.0, hscreen - 11.5 * linepitch, "Touch Right Side to exit", font, pointsize);
+              Text(wscreen * 1.0 / 40.0, hscreen - 11.5 * linepitch, "Touch Left to hide data, Right to exit", font, pointsize);
             }
             else
             {
@@ -9264,7 +9264,7 @@ void LMRX(int NoButton)
               BackgroundRGB(0, 0, 0, 0);
               Fill(0, 0, 0, 127);
               Rect(wscreen * 1.0 / 40.0, hscreen - 9.2 * linepitch, wscreen * 20.0 / 40.0, hscreen);
-              Rect(wscreen * 1.0 / 40.0, hscreen - 11.7 * linepitch, wscreen * 23.0 / 40.0, hscreen - 11.4 * linepitch);
+              Rect(wscreen * 1.0 / 40.0, hscreen - 11.7 * linepitch, wscreen * 35.0 / 40.0, hscreen - 11.4 * linepitch);
               Fill(255, 255, 255, 255);
               Text(wscreen * 1.0 / 40.0, hscreen - 1 * linepitch, STATEtext, font, pointsize);
               Text(wscreen * 1.0 / 40.0, hscreen - 2 * linepitch, FREQtext, font, pointsize);
@@ -9280,7 +9280,7 @@ void LMRX(int NoButton)
               }
               Text(wscreen * 1.0 / 40.0, hscreen - 9 * linepitch, MERtext, font, pointsize);
               Fill(255, 255, 255, 255);
-              Text(wscreen * 1.0 / 40.0, hscreen - 11.5 * linepitch, "Touch Right Side to exit", font, pointsize);
+              Text(wscreen * 1.0 / 40.0, hscreen - 11.5 * linepitch, "Touch Left to hide data, Right to exit", font, pointsize);
             }
             else
             {
@@ -9646,7 +9646,7 @@ void LMRX(int NoButton)
               BackgroundRGB(0, 0, 0, 0);
               Fill(0, 0, 0, 127);
               Rect(wscreen * 1.0 / 40.0, hscreen - 9.2 * linepitch, wscreen * 20.0 / 40.0, hscreen);
-              Rect(wscreen * 1.0 / 40.0, hscreen - 11.7 * linepitch, wscreen * 23.0 / 40.0, hscreen - 11.4 * linepitch);
+              Rect(wscreen * 1.0 / 40.0, hscreen - 11.7 * linepitch, wscreen * 35.0 / 40.0, hscreen - 11.4 * linepitch);
               Fill(255, 255, 255, 255);
               Text(wscreen * 1.0 / 40.0, hscreen - 1 * linepitch, STATEtext, font, pointsize);
               Text(wscreen * 1.0 / 40.0, hscreen - 2 * linepitch, FREQtext, font, pointsize);
@@ -9662,7 +9662,7 @@ void LMRX(int NoButton)
               }
               Text(wscreen * 1.0 / 40.0, hscreen - 9 * linepitch, MERtext, font, pointsize);
               Fill(255, 255, 255, 255);
-              Text(wscreen * 1.0 / 40.0, hscreen - 11.5 * linepitch, "Touch Right Side to exit", font, pointsize);
+              Text(wscreen * 1.0 / 40.0, hscreen - 11.5 * linepitch, "Touch Left to hide data, Right to exit", font, pointsize);
             }
             else
             {
