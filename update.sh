@@ -612,6 +612,7 @@ if [ ! -f "/usr/local/bin/raspi2raspi" ]; then
   cmake ..
   make
   sudo make install
+  cd /home/pi
 fi
 
 

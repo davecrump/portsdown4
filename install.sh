@@ -398,7 +398,7 @@ cd build
 cmake ..
 make
 sudo make install
-
+cd /home/pi
 
 # Copy the components to support Lime Grove
 cp -r /home/pi/rpidatv/scripts/configs/dvbsdr/ /home/pi/dvbsdr/
