@@ -1,19 +1,19 @@
-![portsdown banner](/doc/img/Portsdown3.jpg)
-# portsdown
+![portsdown banner](/doc/img/portsdown-buster.jpg)
+# Portsdown Buster Build - Not yet working!!
 
 **The Portsdown** is a DVB-S and DVB-S2 digital television transmitter for the Raspberry Pi 3B and 3B+.  The core of the transmitter was written by Evariste Courjaud F5OEO and is maintained by him.  This BATC Version, known as the Portsdown Transmitter, has been developed by a team of BATC members for use with a LimeSDR Mini, a DTAV Express PCB or an external synthesized oscillator and modulator/filter board to produce a signal suitable for driving a high power amateur television transmitter on the amateur bands.  The intention is that the design should be reproducible by someone who has never used Linux before.  Detailed instructions on loading the software are listed below, and further details of the complete transmitter design and build are on the BATC Wiki at https://wiki.batc.org.uk/The_Portsdown_Transmitter.  There is a Forum for discussion of the project here: https://forum.batc.org.uk/viewforum.php?f=103
 
 The Portsdown software can also be used with a LimeSDR (Mini or USB) or a DATV Express or the bespoke filter-modulator board.
 
-This version is based on Raspbian Stretch and is compatible with the Raspberry Pi 3B and 3B+.  It is the version on which development effort will be focused.  The older Jessie version will still be supported, but may not be updated with as many new features.
+This version is based on Raspbian Buster and is compatible with the Raspberry Pi 3B and 3B+.  It is the version on which development effort will be focused.  The older Jessie and Stretch versions will still be supported, but may not be updated with as many new features.
 
 Our thanks to Evariste and all the other contributors to this community project.  All code within the project is GPL.
 
-# Installation for BATC Portsdown Transmitter Stretch Version
+# Installation for BATC Portsdown Transmitter Buster Version
 
 The preferred installation method only needs a Windows PC connected to the same (internet-connected) network as your Raspberry Pi.  Do not connect a keyboard or HDMI display directly to your Raspberry Pi.
 
-- First download the 2019-04-08 release of Raspbian Stretch Lite on to your Windows PC from here http://downloads.raspberrypi.org/raspbian_lite/images/raspbian_lite-2019-04-09/2019-04-08-raspbian-stretch-lite.zip
+- First download the 2019-09-30 release of Raspbian Buster Lite on to your Windows PC from here http://downloads.raspberrypi.org/raspbian_lite/images/raspbian_lite-2019-09-30/2019-09-26-raspbian-buster-lite.zip 
 
 - Unzip the image and then transfer it to a Micro-SD Card using Win32diskimager https://sourceforge.net/projects/win32diskimager/
 
@@ -28,7 +28,7 @@ The preferred installation method only needs a Windows PC connected to the same 
 - Log in (user: pi, password: raspberry) then cut and paste the following code in, one line at a time:
 
 ```sh
-wget https://raw.githubusercontent.com/BritishAmateurTelevisionClub/portsdown/master/install.sh
+wget https://raw.githubusercontent.com/BritishAmateurTelevisionClub/portsdown-buster/master/install.sh
 chmod +x install.sh
 ./install.sh
 ```
@@ -59,14 +59,14 @@ After initial installation, on selecting transmit, the RPi is configured to gene
 To load the development version, cut and paste in the following lines:
 
 ```sh
-wget https://raw.githubusercontent.com/davecrump/portsdown/master/install.sh
+wget https://raw.githubusercontent.com/davecrump/portsdown-buster/master/install.sh
 chmod +x install.sh
 ./install.sh -d
 ```
 
-To load a version from your own GitHub repo (github.com/your_account/portsdown), cut, paste and amend the following lines:
+To load a version from your own GitHub repo (github.com/your_account/portsdown-buster), cut, paste and amend the following lines:
 ```sh
-wget https://raw.githubusercontent.com/your_account/portsdown/master/install.sh
+wget https://raw.githubusercontent.com/your_account/portsdown-buster/master/install.sh
 chmod +x install.sh
 ./install.sh -u your_account
 ```
