@@ -1,4 +1,4 @@
-Updated 19 Apr 2019 DGC
+Updated 19 Nov 2019 DGC
 
 During install or update, some binaries are downloaded from github, and some
 are compiled from source.  Details:
@@ -40,6 +40,3 @@ testrig is a special compiled version of rpidatvgui used for testing
 filter-modulator boards and is downloaded compiled.
 
 ts2es is compiled
-
-xy is compiled
-

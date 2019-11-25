@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Stretch Version by davecrump on 201910230
+# Buster Version by davecrump on 201911230
 
 # Check which source needs to be loaded # From M0DNY 201905090
 GIT_SRC="BritishAmateurTelevisionClub"
@@ -18,10 +18,11 @@ elif [ "$1" == "-u" -a ! -z "$2" ]; then
   fi
   echo "ok!";
 else
-  echo "Installing BATC Production portsdown.";
+  echo "Installing BATC Production Portsdown for Buster.";
 fi
 
 # Update the package manager
+echo "---------- Updating Package Manager"
 sudo dpkg --configure -a
 sudo apt-get update
 
@@ -32,36 +33,47 @@ sudo apt-get -y remove apt-listchanges
 # -------- Upgrade distribution ------
 
 # Update the distribution
+echo "----------------------------------"
+echo "---------- Performing dist-upgrade"
+echo "----------------------------------"
 sudo apt-get -y dist-upgrade
 
 # Install the packages that we need
+echo "----------------------------------"
+echo "---------- Installing Packages"
+echo "----------------------------------"
 sudo apt-get -y install git
 sudo apt-get -y install cmake libusb-1.0-0-dev libx11-dev buffer libjpeg-dev indent 
-sudo apt-get -y install ttf-dejavu-core bc usbmount fftw3-dev wiringpi libvncserver-dev
-sudo apt-get -y install fbi netcat imagemagick rng-tools
+sudo apt-get -y install ttf-dejavu-core bc usbmount libfftw3-dev wiringpi libvncserver-dev
+sudo apt-get -y install fbi netcat imagemagick
 sudo apt-get -y install libvdpau-dev libva-dev libxcb-shape0  # For latest ffmpeg build
 sudo apt-get -y install python-pip pandoc python-numpy pandoc python-pygame gdebi-core # 20180101 FreqShow
 sudo apt-get -y install libsqlite3-dev libi2c-dev # 201811300 Lime
 sudo apt-get -y install sshpass  # 201905090 For Jetson Nano
 sudo apt-get -y install libbsd-dev # 201910100 for raspi2raspi
-sudo apt-get -y install libasound2-dev  # 201910230 for LongMynd tone
+sudo apt-get -y install libasound2-dev sox # 201910230 for LongMynd tone and avc2ts audio
 
 sudo pip install pyrtlsdr  #20180101 FreqShow
 
-# Enable USB Storage automount in Stretch (only) 20180704
+# Enable USB Storage automount in Buster
+echo "----------------------------------"
+echo "---------- Enabling USB Automount"
+echo "----------------------------------"
 cd /lib/systemd/system/
-if ! grep -q MountFlags=shared systemd-udevd.service; then
-  sudo sed -i -e 's/MountFlags=slave/MountFlags=shared/' systemd-udevd.service
+if ! grep -q PrivateMounts=no systemd-udevd.service; then
+  sudo sed -i -e 's/PrivateMounts=yes/PrivateMounts=no/' systemd-udevd.service
 fi
-
-# Install LimeSuite 19.01 as at 12 Feb 19
-# Commit 42f752af905a5b4464cdb95964e408a4682b4ffa
 cd /home/pi
-wget https://github.com/myriadrf/LimeSuite/archive/42f752af905a5b4464cdb95964e408a4682b4ffa.zip -O master.zip
-unzip -o master.zip
-cp -f -r LimeSuite-42f752af905a5b4464cdb95964e408a4682b4ffa LimeSuite
-rm -rf LimeSuite-42f752af905a5b4464cdb95964e408a4682b4ffa
 
+# Install LimeSuite 19.04 as at 25 Oct 19
+# Commit 627c82c76938765e93e85784cb359ea4aa71554e
+echo "----------------------------------"
+echo "---------- Installing LimeSuite 19.04"
+echo "----------------------------------"
+wget https://github.com/myriadrf/LimeSuite/archive/627c82c76938765e93e85784cb359ea4aa71554e.zip -O master.zip
+unzip -o master.zip
+cp -f -r LimeSuite-627c82c76938765e93e85784cb359ea4aa71554e LimeSuite
+rm -rf LimeSuite-627c82c76938765e93e85784cb359ea4aa71554e
 rm master.zip
 
 # Compile LimeSuite
@@ -72,65 +84,81 @@ cmake ../
 make
 sudo make install
 sudo ldconfig
+cd /home/pi
 
 # Install udev rules for LimeSuite
-cd /home/pi
 cd LimeSuite/udev-rules
 chmod +x install.sh
 sudo /home/pi/LimeSuite/udev-rules/install.sh
-
-# Record the LimeSuite Version
-echo "42f752a" >/home/pi/LimeSuite/commit_tag.txt
 cd /home/pi
 
-# Download the previously selected version of rpidatv
-wget https://github.com/${GIT_SRC}/portsdown/archive/master.zip
+# Record the LimeSuite Version
+echo "627c82c" >/home/pi/LimeSuite/commit_tag.txt
 
-# Check which rpidatv source to download.  Default is production
-# option d is development from davecrump
-#if [ "$1" == "-d" ]; then
-#  echo "Installing development load"
-#  wget https://github.com/davecrump/portsdown/archive/master.zip
-#else
-#  echo "Installing BATC Production load"
-#  wget https://github.com/BritishAmateurTelevisionClub/portsdown/archive/master.zip
-#fi
+
+# Download the LimeSDR Mini firmware/gateware versions
+echo "----------------------------------"
+echo "---------- Downloading LimeSDR MiniFormware versions"
+echo "----------------------------------"
+
+# Previous version
+mkdir -p /home/pi/.local/share/LimeSuite/images/19.01/
+wget https://downloads.myriadrf.org/project/limesuite/19.01/LimeSDR-Mini_HW_1.2_r1.29.rpd -O \
+               /home/pi/.local/share/LimeSuite/images/19.01/LimeSDR-Mini_HW_1.2_r1.29.rpd
+# Current Version
+mkdir -p /home/pi/.local/share/LimeSuite/images/19.04/
+wget https://downloads.myriadrf.org/project/limesuite/19.04/LimeSDR-Mini_HW_1.2_r1.30.rpd -O \
+               /home/pi/.local/share/LimeSuite/images/19.04/LimeSDR-Mini_HW_1.2_r1.30.rpd
+# DVB-S/S2 Version
+mkdir -p /home/pi/.local/share/LimeSuite/images/v0.3
+wget https://github.com/natsfr/LimeSDR_DVBSGateware/releases/download/v0.3/LimeSDR-Mini_lms7_trx_HW_1.2_auto.rpd -O \
+ /home/pi/.local/share/LimeSuite/images/v0.3/LimeSDR-Mini_lms7_trx_HW_1.2_auto.rpd
+
+# Download the previously selected version of rpidatv
+echo "----------------------------------"
+echo "---------- Downloading Portsdown Software"
+echo "----------------------------------"
+wget https://github.com/${GIT_SRC}/portsdown-buster/archive/master.zip
 
 # Unzip the rpidatv software and copy to the Pi
 unzip -o master.zip
-mv portsdown-master rpidatv
+mv portsdown-buster-master rpidatv
 rm master.zip
 cd /home/pi
 
-# Download the previously selected version of avc2ts
-wget https://github.com/${GIT_SRC}/avc2ts/archive/master.zip
+echo "----------------------------------"
+echo "---------- Downloading F5OEO avc2ts Software"
+echo "----------------------------------"
 
-# Check which avc2ts to download.  Default is production
-# option d is development from davecrump
-#if [ "$1" == "-d" ]; then
-#  echo "Installing development avc2ts"
-#  wget https://github.com/davecrump/avc2ts/archive/master.zip
-#else
-#  echo "Installing BATC Production avc2ts"
-#  wget https://github.com/BritishAmateurTelevisionClub/avc2ts/archive/master.zip
-#fi
+# Download the latest version of avc2ts
+wget https://github.com/F5OEO/avc2ts/archive/eb0c63d9046bae4ed50910949787e53cbf97236e.zip -O master.zip
 
 # Unzip the avc2ts software and copy to the Pi
 unzip -o master.zip
-mv avc2ts-master avc2ts
+mv avc2ts-eb0c63d9046bae4ed50910949787e53cbf97236e avc2ts
 rm master.zip
 
 # Compile rpidatv core
+echo "----------------------------------"
+echo "---------- Compiling rpidatv"
+echo "----------------------------------"
 cd /home/pi/rpidatv/src
 make
 sudo make install
 
 # Compile rpidatv gui
-cd gui
+echo "----------------------------------"
+echo "---------- Compiling rpidatvtouch"
+echo "----------------------------------"
+cd /home/pi/rpidatv/src/gui
 make
 sudo make install
 
-# Build new avc2ts and dependencies
+# Build avc2ts and dependencies
+echo "----------------------------------"
+echo "---------- Building avc2ts and dependencies"
+echo "----------------------------------"
+
 # For libmpegts
 cd /home/pi/avc2ts
 git clone git://github.com/F5OEO/libmpegts
@@ -158,7 +186,7 @@ make V=1 -f linux.mk
 cd ../
 
 # Required for ffmpegsrc.cpp
-sudo apt-get -y install libvncserver-dev libavcodec-dev libavformat-dev libswscale-dev libavdevice-dev
+sudo apt-get -y install libavcodec-dev libavformat-dev libswscale-dev libavdevice-dev
 
 # Make avc2ts
 cd /home/pi/avc2ts
@@ -167,12 +195,17 @@ cp avc2ts ../rpidatv/bin/
 cd ..
 
 # Compile adf4351
+echo "----------------------------------"
+echo "---------- Compiling the ADF4351 driver"
+echo "----------------------------------"
 cd /home/pi/rpidatv/src/adf4351
-touch adf4351.c
 make
 cp adf4351 ../../bin/
 
 # Get rtl_sdr
+echo "----------------------------------"
+echo "---------- Installing RTL-SDR Drivers and Apps"
+echo "----------------------------------"
 cd /home/pi
 wget https://github.com/keenerd/rtl-sdr/archive/master.zip
 unzip master.zip
@@ -184,7 +217,7 @@ cd rtl-sdr/ && mkdir build && cd build
 cmake ../ -DINSTALL_UDEV_RULES=ON
 make && sudo make install && sudo ldconfig
 sudo bash -c 'echo -e "\n# for RTL-SDR:\nblacklist dvb_usb_rtl28xxu\n" >> /etc/modprobe.d/blacklist.conf'
-cd ../../
+cd /home/pi
 
 # Get leandvb
 cd /home/pi/rpidatv/src
@@ -197,8 +230,12 @@ rm master.zip
 cd leansdr/src/apps
 make
 cp leandvb ../../../../bin/
+cd /home/pi
 
 # Get tstools
+echo "----------------------------------"
+echo "---------- Compiling tstools"
+echo "----------------------------------"
 cd /home/pi/rpidatv/src
 wget https://github.com/F5OEO/tstools/archive/master.zip
 unzip master.zip
@@ -209,9 +246,14 @@ rm master.zip
 cd tstools
 make
 cp bin/ts2es ../../bin/
+cd /home/pi/
 
 #install H264 Decoder : hello_video
-#compile ilcomponet first
+echo "----------------------------------"
+echo "---------- Compiling hello_video"
+echo "----------------------------------"
+
+#compile ilcomponent first
 cd /opt/vc/src/hello_pi/
 sudo ./rebuild.sh
 
@@ -224,10 +266,12 @@ cp hello_video.bin ../../bin/
 cd /home/pi/rpidatv/src/hello_video2
 make
 cp hello_video2.bin ../../bin/
-
-# TouchScreen GUI
-# FBCP : Duplicate Framebuffer 0 -> 1
 cd /home/pi/
+
+# FBCP : Duplicate Framebuffer 0 -> 1 for 3.5 inch touchscreen
+echo "----------------------------------"
+echo "---------- Downloading and Compiling fbcp"
+echo "----------------------------------"
 wget https://github.com/tasanakorn/rpi-fbcp/archive/master.zip
 unzip master.zip
 mv rpi-fbcp-master rpi-fbcp
@@ -240,11 +284,17 @@ cd build/
 cmake ..
 make
 sudo install fbcp /usr/local/bin/fbcp
-cd ../../
+cd /home/pi/
 
 # Install omxplayer
+echo "----------------------------------"
+echo "---------- Installing omxplayer"
+echo "----------------------------------"
 sudo apt-get -y install omxplayer
 
+echo "----------------------------------"
+echo "---------- Setting up 3.5 inch touchscreen overlays"
+echo "----------------------------------"
 # Install Waveshare 3.5A DTOVERLAY
 cd /home/pi/rpidatv/scripts/
 sudo cp ./waveshare35a.dtbo /boot/overlays/
@@ -256,7 +306,9 @@ sudo cp ./waveshare35b.dtbo /boot/overlays/
 sudo bash -c 'cat /home/pi/rpidatv/scripts/configs/waveshare_mkr.txt >> /boot/config.txt'
 
 # Download, compile and install DATV Express-server
-
+echo "----------------------------------"
+echo "---------- Installing DATV Express Server"
+echo "----------------------------------"
 cd /home/pi
 wget https://github.com/G4GUO/express_server/archive/master.zip
 unzip master.zip
@@ -266,33 +318,40 @@ cd /home/pi/express_server
 make
 sudo make install
 
+cd /home/pi
 # Install limesdr_toolbox
-cd /home/pi/rpidatv/src/limesdr_toolbox
-cmake .
-make
-cp limesdr_dump  ../../bin/
-cp limesdr_send ../../bin/
-cp limesdr_stopchannel ../../bin/
-cp limesdr_forward ../../bin/
+echo "----------------------------------"
+echo "---------- Installing LimeSDR Toolbox"
+echo "----------------------------------"
+wget https://github.com/F5OEO/limesdr_toolbox/archive/master.zip
+unzip master.zip
+mv limesdr_toolbox-master limesdr_toolbox
+rm master.zip
+cd limesdr_toolbox
 
-# Install libdvbmod and DvbTsToIQ
-cd /home/pi/rpidatv/src/libdvbmod
-make dirmake
+# Install sub project dvb modulation
+git clone https://github.com/F5OEO/libdvbmod
+cd libdvbmod/libdvbmod
 make
-cd ../DvbTsToIQ
+cd ../DvbTsToIQ/
+make
+cp dvb2iq /home/pi/rpidatv/bin/
+cd /home/pi/limesdr_toolbox/
 
-# First compile the dvb2iq to be used for mpeg-2
-cp DvbTsToIQ2.cpp DvbTsToIQ.cpp
-make
-cp dvb2iq ../../bin/dvb2iq2
-
-# Now compile the dvb2iq to be used for H264
-cp DvbTsToIQ0.cpp DvbTsToIQ.cpp
-make
-cp dvb2iq ../../bin/dvb2iq
+#Make 
+make 
+cp limesdr_send /home/pi/rpidatv/bin/
+cp limesdr_dump /home/pi/rpidatv/bin/
+cp limesdr_stopchannel /home/pi/rpidatv/bin/
+cp limesdr_forward /home/pi/rpidatv/bin/
+make dvb
+cp limesdr_dvb /home/pi/rpidatv/bin/
 cd /home/pi
 
 # Download the previously selected version of LongMynd
+echo "----------------------------------"
+echo "---------- Installing the LongMynd Receiver"
+echo "----------------------------------"
 wget https://github.com/${GIT_SRC}/longmynd/archive/master.zip
 unzip -o master.zip
 mv longmynd-master longmynd
@@ -300,21 +359,24 @@ rm master.zip
 
 cd longmynd
 make
-gcc fake_read.c -o fake_read
-
-cd /home/pi/rpidatv/scripts/
+cd /home/pi
 
 # Enable camera
+echo "----------------------------------"
+echo "---------- Enabling the Pi Cam in /boot/config.txt"
+echo "----------------------------------"
+cd /home/pi/rpidatv/scripts/
 sudo bash -c 'echo -e "\n##Enable Pi Camera" >> /boot/config.txt'
 sudo bash -c 'echo -e "\ngpu_mem=128\nstart_x=1\n" >> /boot/config.txt'
-
-# Disable sync option for usbmount
-# Not now required 201902070 so commented out
-#sudo sed -i 's/sync,//g' /etc/usbmount/usbmount.conf
+cd /home/pi/
 
 # Download, compile and install the executable for hardware shutdown button
-# Updated version that is less trigger-happy (201705200)
+echo "----------------------------------"
+echo "---------- installing the hardware shutdown Button software"
+echo "----------------------------------"
+
 git clone https://github.com/philcrump/pi-sdn /home/pi/pi-sdn-build
+
 # Install new version that sets swapoff
 cp -f /home/pi/rpidatv/src/pi-sdn/main.c /home/pi/pi-sdn-build/main.c
 cd /home/pi/pi-sdn-build
@@ -322,15 +384,8 @@ make
 mv pi-sdn /home/pi/
 cd /home/pi
 
-# Create directory for Autologin link
-sudo mkdir -p /etc/systemd/system/getty.target.wants
-
-# Load new .bashrc to source the startup script at boot and log-on (201704160)
-cp /home/pi/rpidatv/scripts/configs/startup.bashrc /home/pi/.bashrc
-
-# Always auto-logon and run .bashrc (and hence startup.sh) (201704160)
-sudo ln -fs /etc/systemd/system/autologin@.service\
- /etc/systemd/system/getty.target.wants/getty@tty1.service
+# Edit the crontab to always run boot_startup.sh on boot
+sudo crontab /home/pi/rpidatv/scripts/configs/blankcron
 
 # Reduce the dhcp client timeout to speed off-network startup (201704160)
 sudo bash -c 'echo -e "\n# Shorten dhcpcd timeout from 30 to 5 secs" >> /etc/dhcpcd.conf'
@@ -381,12 +436,6 @@ make
 cp /home/pi/rpidatv/src/atten/set_attenuator /home/pi/rpidatv/bin/set_attenuator
 cd /home/pi
 
-# Compile the x-y display (201811100)
-cd /home/pi/rpidatv/src/xy
-make
-cp -f /home/pi/rpidatv/src/xy/xy /home/pi/rpidatv/bin/xy
-cd /home/pi
-
 # Download and compile the components for Comp Vid output whilst using 7 inch screen
 wget https://github.com/AndrewFromMelbourne/raspi2raspi/archive/master.zip
 unzip master.zip
@@ -399,27 +448,6 @@ cmake ..
 make
 sudo make install
 cd /home/pi
-
-# Copy the components to support Lime Grove
-cp -r /home/pi/rpidatv/scripts/configs/dvbsdr/ /home/pi/dvbsdr/
-
-# Install FreqShow (see https://learn.adafruit.com/freq-show-raspberry-pi-rtl-sdr-scanner/overview)
-
-# Remove the existing version of libsdl1.2debian
-sudo apt-get -y remove libsdl1.2debian
-# Then load the old (1.2.15-5) version of sdl.  Later versions do not work
-sudo gdebi --non-interactive /home/pi/rpidatv/scripts/configs/freqshow/libsdl1.2debian_1.2.15-5_armhf.deb
-# Now reload python-pygame
-sudo apt-get -y install python-pygame
-# Load touchscreen configuration
-sudo cp /home/pi/rpidatv/scripts/configs/freqshow/waveshare_pointercal /etc/pointercal
-# Download FreqShow
-git clone https://github.com/adafruit/FreqShow.git
-# Change the settings for our environment
-rm /home/pi/FreqShow/freqshow.py
-cp /home/pi/rpidatv/scripts/configs/freqshow/waveshare_freqshow.py /home/pi/FreqShow/freqshow.py
-rm /home/pi/FreqShow/model.py
-cp /home/pi/rpidatv/scripts/configs/freqshow/waveshare_146_model.py /home/pi/FreqShow/model.py
 
 # Install the menu aliases
 echo "alias menu='/home/pi/rpidatv/scripts/menu.sh menu'" >> /home/pi/.bash_aliases
@@ -453,3 +481,5 @@ printf "Rebooting\n\n"
 printf "If fitted, the touchscreen will be active on reboot\n"
 sudo reboot now
 exit
+
+

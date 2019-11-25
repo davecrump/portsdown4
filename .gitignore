@@ -16,12 +16,6 @@ src/siggen/libshapes.so
 src/siggen/siggen
 scripts/images/BATC_IP_Splash.png
 scripts/installed_version.txt
-src/avc2ts/avc2ts
-src/avc2ts/avc2ts.o
-src/avc2ts/grabdisplay.o
-src/avc2ts/libmpegts/
-src/avc2ts/vncclient.o
-src/avc2ts/webcam.o
 src/DvbTsToIQ/dvb2iq
 src/DvbTsToIQ/DvbTsToIQ.o
 src/libdvbmod/lib/libdvbmod.a
@@ -53,9 +47,5 @@ src/siggen/DejaVuSerif.inc
 src/siggen/font2openvg
 src/siggen/libshapes.o
 src/siggen/oglinit.o
-src/tstools/
-src/xy/xy
-src/xy/libshapes.o
-src/xy/libshapes.so
 
 

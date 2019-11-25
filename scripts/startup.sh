@@ -1,3 +1,4 @@
+#!/bin/bash
 
 # set -x
 
@@ -55,18 +56,22 @@ mv "$3.bak" "$3"
 
 ######################### Start here #####################
 
-# Determine if this is a user ssh session, or an autoboot
-case $(ps -o comm= -p $PPID) in
-  sshd|*/sshd)
-    SESSION_TYPE="ssh"
-  ;;
-  login)
-    SESSION_TYPE="boot"
-  ;;
-  *)
-    SESSION_TYPE="ssh"
-  ;;
-esac
+if [ "$SESSION_TYPE" == "cron" ]; then
+  SESSION_TYPE="boot"
+else
+  # Determine if this is a user ssh session, or an autoboot
+  case $(ps -o comm= -p $PPID) in
+    sshd|*/sshd)
+      SESSION_TYPE="ssh"
+    ;;
+    login|sudo)
+      SESSION_TYPE="boot"
+    ;;
+    *)
+      SESSION_TYPE="ssh"
+    ;;
+  esac
+fi
 
 # If gui is already running and this is an ssh session
 # stop the gui, start the menu and return

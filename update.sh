@@ -1,9 +1,9 @@
 #!/bin/bash
 
-# Updated by davecrump 201910230
+# Updated by davecrump 201911230 for Buster
 
 DisplayUpdateMsg() {
-  # Delete any old update message image  201802040
+  # Delete any old update message image
   rm /home/pi/tmp/update.jpg >/dev/null 2>/dev/null
 
   # Create the update image in the tempfs folder
@@ -84,7 +84,8 @@ else
 fi
 
 printf "Pausing Streamer or TX if running.\n\n"
-killall keyedstream >/dev/null 2>/dev/null
+sudo killall keyedstream >/dev/null 2>/dev/null
+sudo killall keyedtx >/dev/null 2>/dev/null
 sudo killall ffmpeg >/dev/null 2>/dev/null
 
 DisplayUpdateMsg "Step 3 of 10\nSaving Current Config\n\nXXX-------"
@@ -129,6 +130,9 @@ cp -f -r "$PATHSCRIPT"/stream_presets.txt "$PATHUBACKUP"/stream_presets.txt
 # Make a safe copy of the Jetson config
 cp -f -r "$PATHSCRIPT"/jetson_config.txt "$PATHUBACKUP"/jetson_config.txt
 
+# Make a safe copy of the LongMynd config
+cp -f -r "$PATHSCRIPT"/longmynd_config.txt "$PATHUBACKUP"/longmynd_config.txt
+
 # Make a safe copy of the User Button scripts
 cp -f -r "$PATHSCRIPT"/user_button1.sh "$PATHUBACKUP"/user_button1.sh
 cp -f -r "$PATHSCRIPT"/user_button2.sh "$PATHUBACKUP"/user_button2.sh
@@ -140,30 +144,7 @@ cp -f -r "$PATHSCRIPT"/user_button5.sh "$PATHUBACKUP"/user_button5.sh
 cp -f -r "$PATHSCRIPT"/TXstartextras.sh "$PATHUBACKUP"/TXstartextras.sh
 cp -f -r "$PATHSCRIPT"/TXstopextras.sh "$PATHUBACKUP"/TXstopextras.sh
 
-# Make a safe copy of the LongMynd config
-cp -f -r "$PATHSCRIPT"/longmynd_config.txt "$PATHUBACKUP"/longmynd_config.txt
-
-# Delete any old backups in the home directory
-if [ -e "/home/pi/portsdown_config.txt" ]; then
-  rm /home/pi/portsdown_config.txt
-  rm /home/pi/portsdown_presets.txt
-  rm /home/pi/siggencal.txt
-  rm /home/pi/touchcal.txt
-  rm /home/pi/rtl-fm_presets.txt
-  rm /home/pi/portsdown_locators.txt
-  rm /home/pi/rx_presets.txt
-  rm /home/pi/stream_presets.txt
-  rm /home/pi/jetson_config.txt
-fi
-
-# Delete any old update message image  201802040
-rm /home/pi/tmp/update.jpg >/dev/null 2>/dev/null
-
 DisplayUpdateMsg "Step 4 of 10\nUpdating Software Packages\n\nXXXX------"
-
-# Uninstall the apt-listchanges package to allow silent install of ca certificates
-# http://unix.stackexchange.com/questions/124468/how-do-i-resolve-an-apparent-hanging-update-process
-sudo apt-get -y remove apt-listchanges
 
 sudo dpkg --configure -a     # Make sure that all the packages are properly configured
 sudo apt-get clean           # Clean up the old archived packages
@@ -175,77 +156,6 @@ DisplayUpdateMsg "Step 4a of 10\nStill Updating Software Packages\n\nXXXX------"
 
 sudo apt-get -y dist-upgrade # Upgrade all the installed packages to their latest version
 
-# --------- Install the Random Number Generator ------
-
-sudo apt-get -y install rng-tools # This makes sure that there is enough entropy for wget
-
-# --------- Install sshpass ------
-sudo apt-get -y install sshpass  # For controlling the Jetson Nano
-
-# --------- Install libbsd-dev ------
-sudo apt-get -y install libbsd-dev  # For raspi2raspi
-
-# --------- Install libasound2-dev ------
-sudo apt-get -y install libasound2-dev  # For LongMynd tone
-
-# Enable USB Storage automount in Stretch (only) 20180704
-cd /lib/systemd/system/
-if ! grep -q MountFlags=shared systemd-udevd.service; then
-  sudo sed -i -e 's/MountFlags=slave/MountFlags=shared/' systemd-udevd.service
-fi
-
-# Check if Lime needs to be updated
-# Look for Commit 42f752a
-grep -Fxqs "42f752a" /home/pi/LimeSuite/commit_tag.txt
-Lime_Update_Not_Required=$?
-
-if [ $Lime_Update_Not_Required != 0 ]; then
-
-  # Install packages here to catch first-time Lime Install
-  sudo apt-get -y install libsqlite3-dev libi2c-dev 
-
-  # Delete the old installation files
-  sudo rm -rf /usr/local/lib/cmake/LimeSuite/* >/dev/null 2>/dev/null
-  sudo rm -rf /usr/local/include/lime/* >/dev/null 2>/dev/null
-  sudo rm -rf /usr/local/lib/libLimeSuite.* >/dev/null 2>/dev/null
-  sudo rm -rf /usr/local/lib/pkgconfig/LimeSuite.pc >/dev/null 2>/dev/null
-  sudo rm -rf /usr/local/bin/LimeUtil >/dev/null 2>/dev/null
-  sudo rm -rf /usr/local/bin/LimeQuickTest >/dev/null 2>/dev/null
-  sudo rm -rf /home/pi/LimeSuite >/dev/null 2>/dev/null
-
-  # Install LimeSuite 19.01 as at 12 Feb 19
-  # Commit 42f752af905a5b4464cdb95964e408a4682b4ffa
-  cd /home/pi
-  wget https://github.com/myriadrf/LimeSuite/archive/42f752af905a5b4464cdb95964e408a4682b4ffa.zip -O master.zip
-  unzip -o master.zip
-  cp -f -r LimeSuite-42f752af905a5b4464cdb95964e408a4682b4ffa LimeSuite
-  rm -rf LimeSuite-42f752af905a5b4464cdb95964e408a4682b4ffa
-
-  rm master.zip
-
-  # Compile LimeSuite
-  cd LimeSuite/
-  mkdir dirbuild
-  cd dirbuild/
-  cmake ../
-  make
-  sudo make install
-  sudo ldconfig
-
-  # Install udev rules for LimeSuite
-  cd /home/pi
-  cd LimeSuite/udev-rules
-  chmod +x install.sh
-  sudo /home/pi/LimeSuite/udev-rules/install.sh
-
-  # Record the LimeSuite Version
-  echo "42f752a" >/home/pi/LimeSuite/commit_tag.txt
-fi
-
-# Delete old limetool and binary
-rm -r -f /home/pi/limetool
-rm -r -f /home/pi/rpidatv/bin/limetx
-
 # ---------- Update rpidatv -----------
 
 DisplayUpdateMsg "Step 5 of 10\nDownloading Portsdown SW\n\nXXXXX-----"
@@ -253,7 +163,7 @@ DisplayUpdateMsg "Step 5 of 10\nDownloading Portsdown SW\n\nXXXXX-----"
 cd /home/pi
 
 # Download selected source of rpidatv
-wget https://github.com/${GIT_SRC}/portsdown/archive/master.zip -O master.zip
+wget https://github.com/${GIT_SRC}/portsdown-buster/archive/master.zip -O master.zip
 
 # Check which source to download.  Default is production
 # option -p or null is the production load
@@ -269,45 +179,15 @@ wget https://github.com/${GIT_SRC}/portsdown/archive/master.zip -O master.zip
 
 # Unzip and overwrite where we need to
 unzip -o master.zip
-cp -f -r portsdown-master/bin rpidatv
-cp -f -r portsdown-master/scripts rpidatv
-cp -f -r portsdown-master/src rpidatv
+cp -f -r portsdown-buster-master/bin rpidatv
+cp -f -r portsdown-buster-master/scripts rpidatv
+cp -f -r portsdown-buster-master/src rpidatv
 rm -f rpidatv/video/*.jpg
-cp -f -r portsdown-master/video rpidatv
-cp -f -r portsdown-master/version_history.txt rpidatv/version_history.txt
+cp -f -r portsdown-buster-master/video rpidatv
+cp -f -r portsdown-buster-master/version_history.txt rpidatv/version_history.txt
 rm master.zip
-rm -rf portsdown-master
+rm -rf portsdown-buster-master
 cd /home/pi
-
-# Check if avc2ts dependencies need to be installed 20190420
-avc2ts_Deps_Not_Required=1
-if [ -f /home/pi/avc2ts/libmpegts/README ]; then
-  avc2ts_Deps_Not_Required=0
-  echo "avc2ts dependencies not required"
-else
-  echo "avc2ts dependencies required and will be installed after avc2ts"
-fi
-
-# Download selected source of rpidatv
-wget https://github.com/${GIT_SRC}/avc2ts/archive/master.zip
-
-# Check which avc2ts to download.  Default is production
-# option d is development from davecrump
-#if [ "$1" == "-d" ]; then
-#  echo "Installing development avc2ts"
-#  wget https://github.com/davecrump/avc2ts/archive/master.zip
-#else
-#  echo "Installing BATC Production avc2ts"
-#  wget https://github.com/BritishAmateurTelevisionClub/avc2ts/archive/master.zip
-#fi
-
-# Unzip the avc2ts software
-unzip -o master.zip
-
-# Overwrite files in ~/avc2ts without deleting dependencies
-cp -f -r -T avc2ts-master/ /home/pi/avc2ts/
-rm master.zip
-rm -rf avc2ts-master
 
 DisplayUpdateMsg "Step 6 of 10\nCompiling Portsdown SW\n\nXXXXXX----"
 
@@ -320,18 +200,6 @@ make clean
 make
 sudo make install
 
-# Test if the device is a LimeNet Micro which needs the dt-blob.bin changing
-# (0 for LimeNet Micro detected, 1 for not detected)
-cat /proc/device-tree/model | grep 'Raspberry Pi Compute Module 3' >/dev/null 2>/dev/null
-LIMENET_RESULT="$?"
-
-if [ "$LIMENET_RESULT" == 0 ]; then
-  # LimeNET-micro detected, so change dt-blob.bin
-  sudo cp /home/pi/rpidatv/scripts/configs/dt-blob.bin.lmn /boot/dt-blob.bin
-fi
-
-
-
 # Compile rpidatv gui
 sudo killall -9 rpidatvgui
 echo "Installing rpidatvgui"
@@ -339,56 +207,7 @@ cd gui
 make clean
 make
 sudo make install
-cd ../
-
-
-if [ $avc2ts_Deps_Not_Required != 0 ]; then
-  DisplayUpdateMsg "Step 6a of 10\nTakes 20 Minutes\n\nXXXXXX----"
-
-  # For libmpegts
-  echo "Installing libmpegts"
-  cd /home/pi/avc2ts
-  git clone git://github.com/F5OEO/libmpegts
-  cd libmpegts
-  ./configure
-  make
-  cd ../
-
-  # For libfdkaac
-  echo "Installing libfdkaac"
-  sudo apt-get -y install autoconf libtool
-  git clone https://github.com/mstorsjo/fdk-aac
-  cd fdk-aac
-  ./autogen.sh
-  ./configure
-  make && sudo make install
-  sudo ldconfig
-  cd ../
-
-  #libyuv should be used for fast picture transformation : not yet implemented
-  echo "Installing libyuv"
-  git clone https://chromium.googlesource.com/libyuv/libyuv
-  cd libyuv
-  #should patch linux.mk with -DHAVE_JPEG on CXX and CFLAGS
-  #seems to be link with libjpeg9-dev
-  make V=1 -f linux.mk
-  cd ../
-
-  # Required for ffmpegsrc.cpp
-  sudo apt-get -y install libvncserver-dev libavcodec-dev libavformat-dev libswscale-dev libavdevice-dev
-
-fi
-
-# Delete the old version of avc2ts (owned by root)
-sudo rm /home/pi/rpidatv/bin/avc2ts
-
-# Make the new avc2ts
-echo "Installing avc2ts"
-cd /home/pi/avc2ts
-touch avc2ts.cpp
-make
-cp avc2ts ../rpidatv/bin/
-cd ..
+cd /home/pi
 
 #install adf4351
 echo "Installing adf4351"
@@ -416,143 +235,6 @@ cd /home/pi/rpidatv/src/hello_video2
 touch video.c
 make
 cp hello_video2.bin ../../bin/
-
-# Check if omxplayer needs to be installed 201807150
-if [ ! -f "/usr/bin/omxplayer" ]; then
-  echo "Installing omxplayer"
-  sudo apt-get -y install omxplayer
-fi
-
-# Install limesdr_toolbox
-echo "Installing limesdr_toolbox"
-cd /home/pi/rpidatv/src/limesdr_toolbox
-cmake .
-make
-cp limesdr_dump  ../../bin/
-cp limesdr_send ../../bin/
-cp limesdr_stopchannel ../../bin/
-cp limesdr_forward ../../bin/
-
-# Update libdvbmod and DvbTsToIQ
-echo "Installing libdvbmod and DvbTsToIQ"
-cd /home/pi/rpidatv/src/libdvbmod
-make dirmake
-make
-cd ../DvbTsToIQ
-
-# First compile the dvb2iq to be used for mpeg-2
-cp DvbTsToIQ2.cpp DvbTsToIQ.cpp
-make
-cp dvb2iq ../../bin/dvb2iq2
-
-# Now compile the dvb2iq to be used for H264
-cp DvbTsToIQ0.cpp DvbTsToIQ.cpp
-make
-cp dvb2iq ../../bin/dvb2iq
-
-# There is no step 7!
-
-# Disable fallback IP (201701230)
-
-cd /etc
-sudo sed -i '/profile static_eth0/d' dhcpcd.conf
-sudo sed -i '/static ip_address=192.168.1.60/d' dhcpcd.conf
-sudo sed -i '/static routers=192.168.1.1/d' dhcpcd.conf
-sudo sed -i '/static domain_name_servers=192.168.1.1/d' dhcpcd.conf
-sudo sed -i '/interface eth0/d' dhcpcd.conf
-sudo sed -i '/fallback static_eth0/d' dhcpcd.conf
-
-# Install the menu alias if required
-if ! grep -q "menu" /home/pi/.bash_aliases; then
-  echo "alias menu='/home/pi/rpidatv/scripts/menu.sh menu'" >> /home/pi/.bash_aliases
-fi
-if ! grep -q "gui" /home/pi/.bash_aliases; then
-  echo "alias gui='/home/pi/rpidatv/scripts/utils/guir.sh'"  >> /home/pi/.bash_aliases
-  echo "alias ugui='/home/pi/rpidatv/scripts/utils/uguir.sh'"  >> /home/pi/.bash_aliases
-fi
-
-DisplayUpdateMsg "Step 8 of 10\nRestoring Config\n\nXXXXXXXX--"
-
-# Restore portsdown_config.txt and portsdown_presets.txt
-cp -f -r "$PATHUBACKUP"/portsdown_config.txt "$PATHSCRIPT"/portsdown_config.txt
-cp -f -r "$PATHUBACKUP"/portsdown_presets.txt "$PATHSCRIPT"/portsdown_presets.txt
-
-# Update config file with modulation and limegain
-if ! grep -q modulation /home/pi/rpidatv/scripts/portsdown_config.txt; then
-  # File needs updating
-  printf "Adding modulation and limegain to user's portsdown_config.txt\n"
-  # Delete any blank lines
-  sed -i -e '/^$/d' /home/pi/rpidatv/scripts/portsdown_config.txt
-  # Add the 2 new entries and a new line 
-  echo "modulation=DVB-S" >> /home/pi/rpidatv/scripts/portsdown_config.txt
-  echo "limegain=90" >> /home/pi/rpidatv/scripts/portsdown_config.txt
-  echo "" >> /home/pi/rpidatv/scripts/portsdown_config.txt
-fi
-
-# Update config file with pilots and frames          201905090
-if ! grep -q frames /home/pi/rpidatv/scripts/portsdown_config.txt; then
-  # File needs updating
-  printf "Adding pilots and frames to user's portsdown_config.txt\n"
-  # Delete any blank lines
-  sed -i -e '/^$/d' /home/pi/rpidatv/scripts/portsdown_config.txt
-  # Add the 2 new entries and a new line 
-  echo "pilots=off" >> /home/pi/rpidatv/scripts/portsdown_config.txt
-  echo "frames=long" >> /home/pi/rpidatv/scripts/portsdown_config.txt
-  echo "" >> /home/pi/rpidatv/scripts/portsdown_config.txt
-fi
-
-# Update config file with format and encoding          201905090
-if ! grep -q encoding /home/pi/rpidatv/scripts/portsdown_config.txt; then
-  # File needs updating
-  printf "Adding format and encoding to user's portsdown_config.txt\n"
-  # Delete any blank lines
-  sed -i -e '/^$/d' /home/pi/rpidatv/scripts/portsdown_config.txt
-  # Add the 2 new entries and a new line 
-  echo "format=4:3" >> /home/pi/rpidatv/scripts/portsdown_config.txt
-  echo "encoding=H264" >> /home/pi/rpidatv/scripts/portsdown_config.txt
-  echo "" >> /home/pi/rpidatv/scripts/portsdown_config.txt
-fi
-
-# Update presets file with limegains for each band
-if ! grep -q d1limegain /home/pi/rpidatv/scripts/portsdown_presets.txt; then
-  # File needs updating
-  printf "Adding band limegains to user's portsdown_presets.txt\n"
-  # Delete any blank lines
-  sed -i -e '/^$/d' /home/pi/rpidatv/scripts/portsdown_presets.txt
-  # Add the 9 new entries and a new line 
-  echo "d1limegain=90" >> /home/pi/rpidatv/scripts/portsdown_presets.txt
-  echo "d2limegain=90" >> /home/pi/rpidatv/scripts/portsdown_presets.txt
-  echo "d3limegain=90" >> /home/pi/rpidatv/scripts/portsdown_presets.txt
-  echo "d4limegain=90" >> /home/pi/rpidatv/scripts/portsdown_presets.txt
-  echo "d5limegain=90" >> /home/pi/rpidatv/scripts/portsdown_presets.txt
-  echo "t1limegain=90" >> /home/pi/rpidatv/scripts/portsdown_presets.txt
-  echo "t2limegain=90" >> /home/pi/rpidatv/scripts/portsdown_presets.txt
-  echo "t3limegain=90" >> /home/pi/rpidatv/scripts/portsdown_presets.txt
-  echo "t4limegain=90" >> /home/pi/rpidatv/scripts/portsdown_presets.txt
-  echo "" >> /home/pi/rpidatv/scripts/portsdown_presets.txt
-fi
-
-# Load new .bashrc to source the startup script at boot and log-on (201704160)
-cp -f /home/pi/rpidatv/scripts/configs/startup.bashrc /home/pi/.bashrc
-
-# Always auto-logon and run .bashrc (and hence startup.sh) (201704160)
-sudo ln -fs /etc/systemd/system/autologin@.service\
- /etc/systemd/system/getty.target.wants/getty@tty1.service
-
-# Reduce the dhcp client timeout to speed off-network startup (201704160)
-# If required
-if ! grep -q timeout /etc/dhcpcd.conf; then
-  sudo bash -c 'echo -e "\n# Shorten dhcpcd timeout from 30 to 5 secs" >> /etc/dhcpcd.conf'
-  sudo bash -c 'echo -e "timeout 5\n" >> /etc/dhcpcd.conf'
-fi
-
-# Compile updated pi-sdn that sets swapoff
-echo "Installing pi-sdn"
-cp -f /home/pi/rpidatv/src/pi-sdn/main.c /home/pi/pi-sdn-build/main.c
-cd /home/pi/pi-sdn-build
-make
-mv pi-sdn /home/pi/
-cd /home/pi
 
 # Compile and install the executable for switched repeater streaming (201708150)
 echo "Installing switched repeater streaming"
@@ -590,56 +272,17 @@ make
 cp /home/pi/rpidatv/src/atten/set_attenuator /home/pi/rpidatv/bin/set_attenuator
 cd /home/pi
 
-# Compile the x-y display (201811100)
-echo "Installing xy display"
-cd /home/pi/rpidatv/src/xy
-make
-cp -f /home/pi/rpidatv/src/xy/xy /home/pi/rpidatv/bin/xy
-cd /home/pi
+# May need to re-copy the other files in /bin here
+# Check after publishing!
 
+# There is no step 7!
 
-# If required, 
-# Download and compile the components for Comp Vid output whilst using 7 inch screen
-if [ ! -f "/usr/local/bin/raspi2raspi" ]; then
-  echo "Installing raspi2raspi"
-  wget https://github.com/AndrewFromMelbourne/raspi2raspi/archive/master.zip
-  unzip master.zip
-  mv raspi2raspi-master raspi2raspi
-  rm master.zip
-  cd raspi2raspi/
-  mkdir build
-  cd build
-  cmake ..
-  make
-  sudo make install
-  cd /home/pi
-fi
+DisplayUpdateMsg "Step 8 of 10\nRestoring Config\n\nXXXXXXXX--"
 
+# Restore portsdown_config.txt and portsdown_presets.txt
+cp -f -r "$PATHUBACKUP"/portsdown_config.txt "$PATHSCRIPT"/portsdown_config.txt
+cp -f -r "$PATHUBACKUP"/portsdown_presets.txt "$PATHSCRIPT"/portsdown_presets.txt
 
-# Install the components for Lime Grove
-cp -r /home/pi/rpidatv/scripts/configs/dvbsdr/ /home/pi/dvbsdr/
-
-# Remove any old LongMynd installation
-cd /home/pi
-sudo killall longmynd
-sudo rm -rf longmynd
-
-# Download the previously selected version of LongMynd
-wget https://github.com/${GIT_SRC}/longmynd/archive/master.zip
-unzip -o master.zip
-mv longmynd-master longmynd
-rm master.zip
-
-cd longmynd
-make
-cd /home/pi
-
-# Always auto-logon and run .bashrc (and hence startup.sh) (201910100)
-# Delete any invalid link first (required after 201909210)
-sudo rm /etc/systemd/system/getty.target.wants/getty@tty1.service
-# Make the new link
-sudo ln -fs /etc/systemd/system/autologin@.service\
- /etc/systemd/system/getty.target.wants/getty@tty1.service
 
 # Restore the user's original siggencal.txt
 cp -f -r "$PATHUBACKUP"/siggencal.txt /home/pi/rpidatv/src/siggen/siggencal.txt
@@ -653,25 +296,6 @@ cp -f -r "$PATHUBACKUP"/touchcal.txt /home/pi/rpidatv/scripts/touchcal.txt
 # Restore the user's rtl-fm_presets.txt
 cp -f -r "$PATHUBACKUP"/rtl-fm_presets.txt "$PATHSCRIPT"/rtl-fm_presets.txt
 
-if ! grep -q r0gain /home/pi/rpidatv/scripts/rtl-fm_presets.txt; then
-  # File needs updating
-  printf "Adding preset gains to user's rtl-fm_presets.txt\n"
-  # Delete any blank lines
-  sed -i -e '/^$/d' /home/pi/rpidatv/scripts/rtl-fm_presets.txt
-  # Add the 9 new entries and a new line 
-  echo "r0gain=30" >> /home/pi/rpidatv/scripts/rtl-fm_presets.txt
-  echo "r1gain=30" >> /home/pi/rpidatv/scripts/rtl-fm_presets.txt
-  echo "r2gain=30" >> /home/pi/rpidatv/scripts/rtl-fm_presets.txt
-  echo "r3gain=30" >> /home/pi/rpidatv/scripts/rtl-fm_presets.txt
-  echo "r4gain=30" >> /home/pi/rpidatv/scripts/rtl-fm_presets.txt
-  echo "r5gain=30" >> /home/pi/rpidatv/scripts/rtl-fm_presets.txt
-  echo "r6gain=30" >> /home/pi/rpidatv/scripts/rtl-fm_presets.txt
-  echo "r7gain=30" >> /home/pi/rpidatv/scripts/rtl-fm_presets.txt
-  echo "r8gain=30" >> /home/pi/rpidatv/scripts/rtl-fm_presets.txt
-  echo "r9gain=30" >> /home/pi/rpidatv/scripts/rtl-fm_presets.txt
-  echo "" >> /home/pi/rpidatv/scripts/rtl-fm_presets.txt
-fi
-
 # Restore the user's original portsdown_locators.txt
 cp -f -r "$PATHUBACKUP"/portsdown_locators.txt "$PATHSCRIPT"/portsdown_locators.txt
 
@@ -681,39 +305,11 @@ cp -f -r "$PATHUBACKUP"/rx_presets.txt "$PATHSCRIPT"/rx_presets.txt
 # Restore the user's original stream presets
 cp -f -r "$PATHUBACKUP"/stream_presets.txt "$PATHSCRIPT"/stream_presets.txt 
 
-# Update Stream presets if required
-if ! grep -q streamurl1 /home/pi/rpidatv/scripts/stream_presets.txt; then
-  # File needs updating
-  printf "Adding treamurls and streamkeys to user's stream_presets.txt\n"
-  # Delete any blank lines
-  sed -i -e '/^$/d' /home/pi/rpidatv/scripts/stream_presets.txt
-  # Add the 9 new entries and a new line 
-  echo "streamurl1=rtmp://rtmp.batc.org.uk/live" >> /home/pi/rpidatv/scripts/stream_presets.txt
-  echo "streamkey1=callsign-keykey" >> /home/pi/rpidatv/scripts/stream_presets.txt
-  echo "streamurl2=rtmp://rtmp.batc.org.uk/live" >> /home/pi/rpidatv/scripts/stream_presets.txt
-  echo "streamkey2=callsign-keykey" >> /home/pi/rpidatv/scripts/stream_presets.txt
-  echo "streamurl3=rtmp://rtmp.batc.org.uk/live" >> /home/pi/rpidatv/scripts/stream_presets.txt
-  echo "streamkey3=callsign-keykey" >> /home/pi/rpidatv/scripts/stream_presets.txt
-  echo "streamurl4=rtmp://rtmp.batc.org.uk/live" >> /home/pi/rpidatv/scripts/stream_presets.txt
-  echo "streamkey4=callsign-keykey" >> /home/pi/rpidatv/scripts/stream_presets.txt
-  echo "streamurl5=rtmp://rtmp.batc.org.uk/live" >> /home/pi/rpidatv/scripts/stream_presets.txt
-  echo "streamkey5=callsign-keykey" >> /home/pi/rpidatv/scripts/stream_presets.txt
-  echo "streamurl6=rtmp://rtmp.batc.org.uk/live" >> /home/pi/rpidatv/scripts/stream_presets.txt
-  echo "streamkey6=callsign-keykey" >> /home/pi/rpidatv/scripts/stream_presets.txt
-  echo "streamurl7=rtmp://rtmp.batc.org.uk/live" >> /home/pi/rpidatv/scripts/stream_presets.txt
-  echo "streamkey7=callsign-keykey" >> /home/pi/rpidatv/scripts/stream_presets.txt
-  echo "streamurl8=rtmp://rtmp.batc.org.uk/live" >> /home/pi/rpidatv/scripts/stream_presets.txt
-  echo "streamkey8=callsign-keykey" >> /home/pi/rpidatv/scripts/stream_presets.txt
-  echo "" >> /home/pi/rpidatv/scripts/stream_presets.txt
-fi
-
-# If user is upgrading a repeater streamer, add the cron job for 12-hourly reboot
-if grep -q "startup=Cont_Stream_boot" /home/pi/rpidatv/scripts/portsdown_config.txt; then
-  sudo crontab /home/pi/rpidatv/scripts/configs/rptrcron
-fi
-
 # Restore the user's original Jetson configuration
 cp -f -r "$PATHUBACKUP"/jetson_config.txt "$PATHSCRIPT"/jetson_config.txt
+
+# Restore the user's original LongMynd config
+cp -f -r "$PATHUBACKUP"/longmynd_config.txt "$PATHSCRIPT"/longmynd_config.txt
 
 # Restore the user's original User Button scripts
 cp -f -r "$PATHUBACKUP"/user_button1.sh "$PATHSCRIPT"/user_button1.sh
@@ -726,65 +322,9 @@ cp -f -r "$PATHUBACKUP"/user_button5.sh "$PATHSCRIPT"/user_button5.sh
 cp -f -r "$PATHUBACKUP"/TXstartextras.sh "$PATHSCRIPT"/TXstartextras.sh
 cp -f -r "$PATHUBACKUP"/TXstopextras.sh "$PATHSCRIPT"/TXstopextras.sh
 
-# Restore the user's original LongMynd config
-cp -f -r "$PATHUBACKUP"/longmynd_config.txt "$PATHSCRIPT"/longmynd_config.txt
-
-# If user is upgrading a keyed streamer, add the cron job for 12-hourly reboot
-if grep -q "startup=Keyed_Stream_boot" /home/pi/rpidatv/scripts/portsdown_config.txt; then
-  sudo crontab /home/pi/rpidatv/scripts/configs/rptrcron
-fi
-
-# Install updated Waveshare driver if required
-# First Check user-requested display type
-DISPLAY=$(get_config_var display $PCONFIGFILE)
-if [ "$DISPLAY" == "Waveshare" ]; then
-  # Check updated driver tag (201907070 in config.txt)
-  if ! grep -q "201907070" /boot/config.txt; then
-    # This section modifies and replaces the end of /boot/config.txt
-    # to allow (only) the correct LCD drivers to be loaded at next boot
-
-    # Set constants for the amendment of /boot/config.txt
-    PATHCONFIGS="/home/pi/rpidatv/scripts/configs"  ## Path to config files
-    lead='^## Begin LCD Driver'                     ## Marker for start of inserted text
-    tail='^## End LCD Driver'                       ## Marker for end of inserted text
-    CHANGEFILE="/boot/config.txt"                   ## File requiring added text
-    APPENDFILE=$PATHCONFIGS"/lcd_markers.txt"       ## File containing both markers
-    TRANSFILE=$PATHCONFIGS"/transfer.txt"           ## File used for transfer
-
-    grep -q "$lead" "$CHANGEFILE"     ## Is the first marker already present?
-    if [ $? -ne 0 ]; then
-      sudo bash -c 'cat '$APPENDFILE' >> '$CHANGEFILE' '  ## If not append the markers
-    fi
-
-    # Select the correct driver text
-    INSERTFILE=$PATHCONFIGS"/waveshare.txt"
-
-    # Replace whatever is between the markers with the driver text
-    sed -e "/$lead/,/$tail/{ /$lead/{p; r $INSERTFILE
-      }; /$tail/p; d }" $CHANGEFILE >> $TRANSFILE
-
-    sudo cp "$TRANSFILE" "$CHANGEFILE"          ## Copy from the transfer file
-    rm $TRANSFILE                               ## Delete the transfer file
-  fi
-fi
 
 
-DisplayUpdateMsg "Step 9 of 10\nInstalling FreqShow SW\n\nXXXXXXXXX-"
-
-# Downgrade the sdl version so FreqShow works
-sudo dpkg -i /home/pi/rpidatv/scripts/configs/freqshow/libsdl1.2debian_1.2.15-5_armhf.deb
-
-# Delete the old FreqShow version
-  rm -fr /home/pi/FreqShow/
-
-# Download FreqShow
-git clone https://github.com/adafruit/FreqShow.git
-  
-# Change the settings for our environment
-rm /home/pi/FreqShow/freqshow.py
-cp /home/pi/rpidatv/scripts/configs/freqshow/waveshare_freqshow.py /home/pi/FreqShow/freqshow.py
-rm /home/pi/FreqShow/model.py
-cp /home/pi/rpidatv/scripts/configs/freqshow/waveshare_146_model.py /home/pi/FreqShow/model.py
+DisplayUpdateMsg "Step 9 of 10\nFinishing Off\n\nXXXXXXXXX-"
 
 # Update the version number
 rm -rf /home/pi/rpidatv/scripts/installed_version.txt
