@@ -57,6 +57,8 @@ MODE_OUTPUT=$(get_config_var modeoutput $PCONFIGFILE)
   sudo killall dvb2iq >/dev/null 2>/dev/null
   sudo killall dvb2iq2 >/dev/null 2>/dev/null
   sudo killall limesdr_send >/dev/null 2>/dev/null
+  sudo killall limesdr_dvb >/dev/null 2>/dev/null
+  sudo killall sox >/dev/null 2>/dev/null
 
   # Kill the key RX processes as nicely as possible
   sudo killall leandvb >/dev/null 2>/dev/null
@@ -74,6 +76,8 @@ MODE_OUTPUT=$(get_config_var modeoutput $PCONFIGFILE)
 
   # And make sure limesdr_send has been stopped
   sudo killall -9 limesdr_send >/dev/null 2>/dev/null
+  sudo killall -9 limesdr_dvb >/dev/null 2>/dev/null
+  sudo killall -9 sox >/dev/null 2>/dev/null
 
   # Reset the LimeSDR
   /home/pi/rpidatv/bin/limesdr_stopchannel >/dev/null 2>/dev/null

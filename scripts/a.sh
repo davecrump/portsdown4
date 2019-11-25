@@ -2,7 +2,7 @@
 
 # set -x # Uncomment for testing
 
-# Version 201906060
+# Version 201911230 Buster build
 
 ############# SET GLOBAL VARIABLES ####################
 
@@ -10,396 +10,25 @@ PATHRPI="/home/pi/rpidatv/bin"
 PATHSCRIPT="/home/pi/rpidatv/scripts"
 PCONFIGFILE="/home/pi/rpidatv/scripts/portsdown_config.txt"
 JCONFIGFILE="/home/pi/rpidatv/scripts/jetson_config.txt"
+PATH_LIME_CAL="/home/pi/rpidatv/scripts/limecalfreq.txt"
 
 ############# MAKE SURE THAT WE KNOW WHERE WE ARE ##################
 
 cd /home/pi
 
-############ FUNCTION TO READ CONFIG FILE #############################
+############# DEFINE THE FUNCTIONS USED BELOW ##################
 
-get_config_var() {
-lua - "$1" "$2" <<EOF
-local key=assert(arg[1])
-local fn=assert(arg[2])
-local file=assert(io.open(fn))
-for line in file:lines() do
-local val = line:match("^#?%s*"..key.."=(.*)$")
-if (val ~= nil) then
-print(val)
-break
-end
-end
-EOF
-}
+source /home/pi/rpidatv/scripts/a_functions.sh
 
 # ########################## KILL ALL PROCESSES BEFORE STARTING  ################
 
 sudo killall -9 ffmpeg >/dev/null 2>/dev/null
 sudo killall rpidatv >/dev/null 2>/dev/null
-sudo killall hello_encode.bin >/dev/null 2>/dev/null
-sudo killall h264yuv >/dev/null 2>/dev/null
 sudo killall -9 avc2ts >/dev/null 2>/dev/null
-sudo killall -9 avc2ts.old >/dev/null 2>/dev/null
-#sudo killall express_server >/dev/null 2>/dev/null
-# Leave Express Server running
 sudo killall tcanim1v16 >/dev/null 2>/dev/null
-# Kill netcat that night have been started for Express Srver
+# Kill netcat that night have been started for Express Server
 sudo killall netcat >/dev/null 2>/dev/null
 sudo killall -9 netcat >/dev/null 2>/dev/null
-
-############ FUNCTION TO IDENTIFY AUDIO DEVICES #############################
-
-detect_audio()
-{
-  # Returns AUDIO_CARD=1 if any audio dongle, or video dongle with
-  # audio, detected.  Else AUDIO_CARD=0
-
-  # Then, depending on the values of  $AUDIO_PREF and $MODE_INPUT it sets
-  # AUDIO_CARD_NUMBER (typically 0, 1 2 or 3)
-  # AUDIO_CHANNELS (0 for no audio required, 1 for mic, 2 for video stereo capture)
-  # AUDIO_SAMPLE (44100 for mic, 48000 for video stereo capture, and ?? for Webcam)
-
-  # Set initial conditions for later testing
-  MIC=9
-  USBTV=9
-  WCAM=9
-
-  printf "Audio selection = $AUDIO_PREF \n"
-
-  # Check on picture input type
-  case "$MODE_INPUT" in
-  "ANALOGCAM" | "ANALOGMPEG-2" | "ANALOG16MPEG-2" )
-     PIC_INPUT="ANALOG"
-  printf "Video Input is $PIC_INPUT \n"
-  ;;
-  "WEBCAMH264" | "WEBCAMMPEG-2" | "WEBCAM16MPEG-2" | "WEBCAMHDMPEG-2" \
-  | "C920H264" | "C920HDH264" | "C920FHDH264")
-    PIC_INPUT="WEBCAM"
-  ;;
-  *)
-    PIC_INPUT="DIGITAL"
-    printf "Mode Input is $MODE_INPUT \n"
-  ;;
-  esac
-  printf "Video Input is $PIC_INPUT \n"
-
-  # First check if any audio card is present
-  arecord -l | grep -q 'card'
-  if [ $? != 0 ]; then   ## not present
-    printf "Audio card not present\n"
-    # No known card detected so take the safe option and go for beeps
-    # unless noaudio selected:
-    if [ "$AUDIO_PREF" == "no_audio" ]; then  # no audio
-      AUDIO_CARD=0
-      AUDIO_CHANNELS=0
-      AUDIO_SAMPLE=44100
-    else                                      # bleeps
-      AUDIO_CARD=0
-      AUDIO_CHANNELS=1
-      AUDIO_SAMPLE=44100
-    fi
-  else                   ## card detected
-    printf "Audio card present\n"
-    # Check for the presence of a dedicated audio device
-    arecord -l | grep -E -q "USB Audio Device|USB AUDIO|Head|Sound Device"
-    if [ $? == 0 ]; then   ## Present
-      # Look for the dedicated USB Audio Device, select the line and take
-      # the 6th character.  Max card number = 8 !!
-      MIC="$(arecord -l | grep -E "USB Audio Device|USB AUDIO|Head|Sound Device" \
-        | head -c 6 | tail -c 1)"
-    fi
-
-    # Check for the presence of a Video dongle with audio
-    arecord -l | grep -E -q \
-      "usbtv|U0x534d0x21|DVC90|Cx231xxAudio|STK1160|U0xeb1a0x2861|AV TO USB|Grabby"
-    if [ $? == 0 ]; then   ## Present
-      # Look for the video dongle, select the line and take
-      # the 6th character.  Max card number = 8 !!
-      USBTV="$(arecord -l | grep -E \
-        "usbtv|U0x534d0x21|DVC90|Cx231xxAudio|STK1160|U0xeb1a0x2861|AV TO USB|Grabby" \
-        | head -c 6 | tail -c 1)"
-    fi
-
-    C920Present=0
-    # Check for the presence of a C920 Webcam with stereo audio
-    arecord -l | grep -E -q \
-      "Webcam C920"
-    if [ $? == 0 ]; then   ## Present
-      C920Present=1
-      # Look for the video dongle, select the line and take
-      # the 6th character.  Max card number = 8 !!
-      WCAM="$(arecord -l | grep -E \
-        "Webcam C920" \
-        | head -c 6 | tail -c 1)"
-      WC_AUDIO_CHANNELS=2
-      WC_AUDIO_SAMPLE=48000
-      WC_VIDEO_FPS=30
-    fi
-
-    # Check for the presence of a C910 Webcam with stereo audio
-    arecord -l | grep -E -q \
-      "U0x46d0x821"
-    if [ $? == 0 ]; then   ## Present
-      # Look for the video dongle, select the line and take
-      # the 6th character.  Max card number = 8 !!
-      WCAM="$(arecord -l | grep -E \
-        "U0x46d0x821" \
-        | head -c 6 | tail -c 1)"
-      WC_AUDIO_CHANNELS=2
-      WC_AUDIO_SAMPLE=48000
-      WC_VIDEO_FPS=30
-    fi
-
-    # Check for the presence of a C525 or C170 with mono audio
-    arecord -l | grep -E -q \
-      "Webcam C525|Webcam C170"
-    if [ $? == 0 ]; then   ## Present
-      # Look for the video dongle, select the line and take
-      # the 6th character.  Max card number = 8 !!
-      WCAM="$(arecord -l | grep -E \
-        "Webcam C525|Webcam C170" \
-        | head -c 6 | tail -c 1)"
-      WC_AUDIO_CHANNELS=1
-      WC_AUDIO_SAMPLE=48000
-      WC_VIDEO_FPS=24
-    fi
-
-    # Check for the presence of a C270 with mono audio
-    C270Present=0
-    arecord -l | grep -E -q \
-      "U0x46d0x825"
-    if [ $? == 0 ]; then   ## Present
-      C270Present=1
-      # Look for the video dongle, select the line and take
-      # the 6th character.  Max card number = 8 !!
-      WCAM="$(arecord -l | grep -E \
-        "U0x46d0x825" \
-        | head -c 6 | tail -c 1)"
-      WC_AUDIO_CHANNELS=1
-      WC_AUDIO_SAMPLE=48000
-      WC_VIDEO_FPS=25
-    fi
-
-    # Check for the presence of a C310 with mono audio
-    C310Present=0
-    arecord -l | grep -E -q \
-      "U0x46d0x81b"
-    if [ $? == 0 ]; then   ## Present
-      C310Present=1
-      # Look for the video dongle, select the line and take
-      # the 6th character.  Max card number = 8 !!
-      WCAM="$(arecord -l | grep -E \
-        "U0x46d0x81b" \
-        | head -c 6 | tail -c 1)"
-      WC_AUDIO_CHANNELS=1
-      WC_AUDIO_SAMPLE=48000
-      WC_VIDEO_FPS=25
-    fi
-
-    printf "MIC = $MIC\n"
-    printf "USBTV = $USBTV\n"
-    printf "WCAM = $WCAM\n"
-
-    # At least one card detected, so sort out what card parameters are used
-    case "$AUDIO_PREF" in
-      auto)                                                 # Auto selected
-        case "$PIC_INPUT" in
-          "DIGITAL")                                        # Using Pi Cam video
-            if [ "$MIC" != "9" ]; then                      # Mic available
-              AUDIO_CARD=1                                  # so use mic audio
-              AUDIO_CARD_NUMBER=$MIC
-              AUDIO_CHANNELS=1
-              AUDIO_SAMPLE=44100
-            elif [ "$USBTV" != "9" ] && [ "$MIC" == "9" ]; then # Mic not available, but EasyCap is
-              AUDIO_CARD=1                                  # so use EasyCap audio
-              AUDIO_CARD_NUMBER=$USBTV
-              AUDIO_CHANNELS=2
-              AUDIO_SAMPLE=48000
-            else                                            # Neither available
-              AUDIO_CARD=0                                  # So no audio
-              AUDIO_CHANNELS=0
-              AUDIO_SAMPLE=44100
-            fi
-          ;;
-          "ANALOG")                                         # Using Easycap video
-            if [ "$USBTV" != "9" ]; then                    # Easycap Audio available
-              AUDIO_CARD=1                                  # so use EasyCap audio
-              AUDIO_CARD_NUMBER=$USBTV
-              AUDIO_CHANNELS=2
-              AUDIO_SAMPLE=48000
-            elif [ "$MIC" != "9" ] && [ "$USBTV" == "9" ]; then # EasyCap not available, but Mic is
-              AUDIO_CARD=1                                  # so use Mic audio
-              AUDIO_CARD_NUMBER=$MIC
-              AUDIO_CHANNELS=1
-              AUDIO_SAMPLE=44100
-            else                                            # Neither available
-              AUDIO_CARD=0                                  # So no audio
-              AUDIO_CHANNELS=0
-              AUDIO_SAMPLE=44100
-            fi
-          ;;
-          "WEBCAM")                                         # Using Webcam video
-            if [ "$WCAM" != "9" ]; then                     # Webcam Audio available
-              AUDIO_CARD=1                                  # So use Webcam audio
-              AUDIO_CARD_NUMBER=$WCAM
-              AUDIO_CHANNELS=$WC_AUDIO_CHANNELS
-              AUDIO_SAMPLE=$WC_AUDIO_SAMPLE
-            elif [ "$MIC" != "9" ] && [ "$WCAM" == "9" ]; then # Webcam not available, but Mic is
-              AUDIO_CARD=1                                  # so use Mic audio
-              AUDIO_CARD_NUMBER=$MIC
-              AUDIO_CHANNELS=1
-              AUDIO_SAMPLE=44100
-            else                                            # Neither available
-              AUDIO_CARD=0                                  # So no audio
-              AUDIO_CHANNELS=0
-              AUDIO_SAMPLE=44100
-            fi
-          ;;
-        esac
-      ;;
-      mic)                                                  # Mic selected
-        if [ "$MIC" != "9" ]; then                          # Mic card detected
-          AUDIO_CARD=1                                      # so use mic
-          AUDIO_CARD_NUMBER=$MIC
-          AUDIO_CHANNELS=1
-          AUDIO_SAMPLE=44100
-        else                                                # No mic card
-          AUDIO_CARD=0                                      # So no audio
-          AUDIO_CHANNELS=0
-          AUDIO_SAMPLE=44100
-        fi
-      ;;
-      video)                                                # EasyCap selected
-        if [ "$USBTV" != "9" ]; then                        # EasyCap detected
-          AUDIO_CARD=1                                      # So use EasyCap
-          AUDIO_CARD_NUMBER=$USBTV
-          AUDIO_CHANNELS=2
-          AUDIO_SAMPLE=48000
-        else                                                # No EasyCap
-          AUDIO_CARD=0                                      # So no audio
-          AUDIO_CHANNELS=0
-          AUDIO_SAMPLE=44100
-        fi
-      ;;
-      webcam)                                               # Webcam selected
-        if [ "$WCAM" != "9" ]; then                         # Webcam detected
-          AUDIO_CARD=1                                      # So use Webcam
-          AUDIO_CARD_NUMBER=$WCAM
-          AUDIO_CHANNELS=$WC_AUDIO_CHANNELS
-          AUDIO_SAMPLE=$WC_AUDIO_SAMPLE
-        else                                                # No Webcam Audio
-          AUDIO_CARD=1                                      # so use mic
-          AUDIO_CARD_NUMBER=$MIC
-          AUDIO_CHANNELS=1
-          AUDIO_SAMPLE=44100
-        fi
-      ;;
-      bleeps)
-        AUDIO_CARD=0
-        AUDIO_CHANNELS=1
-        AUDIO_SAMPLE=44100
-      ;;
-      no_audio)
-        AUDIO_CARD=0
-        AUDIO_CARD_NUMBER=9
-        AUDIO_CHANNELS=0
-        AUDIO_SAMPLE=44100
-      ;;
-      *)                                                    # Unidentified option
-        AUDIO_CARD=0                                        # No Audio
-        AUDIO_CARD_NUMBER=9
-        AUDIO_CHANNELS=0
-        AUDIO_SAMPLE=44100
-      ;;
-    esac
-  fi
-
-  printf "AUDIO_CARD = $AUDIO_CARD\n"
-  printf "AUDIO_CARD_NUMBER = $AUDIO_CARD_NUMBER \n"
-  printf "AUDIO_CHANNELS = $AUDIO_CHANNELS \n"
-  printf "AUDIO_SAMPLE = $AUDIO_SAMPLE \n"
-}
-
-############ FUNCTION TO IDENTIFY VIDEO DEVICES #############################
-
-detect_video()
-{
-  # List the video devices, select the 2 lines for any Webcam device, then
-  # select the line with the device details and delete the leading tab
-  # This selects any device with "Webcam" in its description
-  VID_WEBCAM="$(v4l2-ctl --list-devices 2> /dev/null | \
-    sed -n '/Webcam/,/dev/p' | grep 'dev' | tr -d '\t')"
-
-  if [ "${#VID_WEBCAM}" -lt "10" ]; then # $VID_WEBCAM currently empty
-
-    # List the video devices, select the 2 lines for a C270 device, then
-    # select the line with the device details and delete the leading tab
-    VID_WEBCAM="$(v4l2-ctl --list-devices 2> /dev/null | \
-      sed -n '/046d:0825/,/dev/p' | grep 'dev' | tr -d '\t')"
-  fi
-
-  if [ "${#VID_WEBCAM}" -lt "10" ]; then # $VID_WEBCAM currently empty
-
-    # List the video devices, select the 2 lines for a C910 device, then
-    # select the line with the device details and delete the leading tab
-    VID_WEBCAM="$(v4l2-ctl --list-devices 2> /dev/null | \
-      sed -n '/046d:0821/,/dev/p' | grep 'dev' | tr -d '\t')"
-  fi
-
-  if [ "${#VID_WEBCAM}" -lt "10" ]; then # $VID_WEBCAM currently empty
-
-    # List the video devices, select the 2 lines for a C310 device, then
-    # select the line with the device details and delete the leading tab
-    VID_WEBCAM="$(v4l2-ctl --list-devices 2> /dev/null | \
-      sed -n '/046d:081b/,/dev/p' | grep 'dev' | tr -d '\t')"
-  fi
-
-  printf "The first Webcam device string is $VID_WEBCAM\n"
-
-  # List the video devices, select the 2 lines for any usb device, then
-  # select the line with the device details and delete the leading tab
-  VID_USB1="$(v4l2-ctl --list-devices 2> /dev/null | \
-    sed -n '/usb/,/dev/p' | grep 'dev' | tr -d '\t' | head -n1)"
-  
-  printf "The first USB device string is $VID_USB1\n"
- 
-  VID_USB2="$(v4l2-ctl --list-devices 2> /dev/null | \
-    sed -n '/usb/,/dev/p' | grep 'dev' | tr -d '\t' | tail -n1)"
-  printf "The second USB device string is $VID_USB2\n"
-
-  if [ "$VID_USB1" != "$VID_WEBCAM" ]; then
-    VID_USB=$VID_USB1
-  printf "The first test passed"
-  fi
-
-  if [ "$VID_USB2" != "$VID_WEBCAM" ]; then
-    VID_USB=$VID_USB2
-  printf "The second test passed"
-  fi  
-  printf "The final USB device string is $VID_USB\n"
-
-  # List the video devices, select the 2 lines for any mmal device, then
-  # select the line with the device details and delete the leading tab
-  VID_PICAM="$(v4l2-ctl --list-devices 2> /dev/null | \
-    sed -n '/mmal/,/dev/p' | grep 'dev' | tr -d '\t')"
-
-  if [ "$VID_USB" == '' ]; then
-    printf "VID_USB was not found, setting to /dev/video0\n"
-    VID_USB="/dev/video0"
-  fi
-  if [ "$VID_PICAM" == '' ]; then
-    printf "VID_PICAM was not found, setting to /dev/video0\n"
-    VID_PICAM="/dev/video0"
-  fi
-  if [ "$VID_WEBCAM" == '' ]; then
-    printf "VID_WEBCAM was not found, setting to /dev/video2\n"
-    VID_WEBCAM="/dev/video2"
-  fi
-
-  printf "The PI-CAM device string is $VID_PICAM\n"
-  printf "The USB device string is $VID_USB\n"
-  printf "The Webcam device string is $VID_WEBCAM\n"
-}
 
 ############ READ FROM rpidatvconfig.txt and Set PARAMETERS #######################
 
@@ -560,7 +189,6 @@ case "$MODE_OUTPUT" in
     MODE=IQ
     $PATHSCRIPT"/ctlfilter.sh"
     $PATHSCRIPT"/ctlvco.sh"
-    #GAIN=0
   ;;
 
   QPSKRF)
@@ -597,7 +225,6 @@ case "$MODE_OUTPUT" in
     MODE=DIGITHIN
     $PATHSCRIPT"/ctlfilter.sh"
     $PATHSCRIPT"/ctlvco.sh"
-    #GAIN=0
   ;;
 
   DTX1)
@@ -605,7 +232,6 @@ case "$MODE_OUTPUT" in
     FREQUENCY_OUT=2
     OUTPUT=videots
     DIGITHIN_MODE=0
-    #GAIN=0
   ;;
 
   DATVEXPRESS)
@@ -664,7 +290,7 @@ case "$MODE_OUTPUT" in
     arecord -D plughw:"$MICCARD",0 -f cd - | aplay -D plughw:"$RPICARD",0 - &
   ;;
 
-  "LIMEMINI" | "LIMEUSB")
+  "LIMEMINI" | "LIMEUSB" | "LIMEDVB")
     OUTPUT=videots
 
     BAND_GPIO=$(get_config_var expports $PCONFIGFILE)
@@ -723,7 +349,7 @@ elif [ "$MODE_INPUT" == "CAM16MPEG-2" ] && [ "$BITRATE_VIDEO" -gt 500000 ]; then
   VIDEO_FPS=15
 else
   # Reduce video resolution at low bit rates
-  if [ "$BITRATE_VIDEO" -lt 150000 ]; then
+  if [ "$BITRATE_VIDEO" -lt 170000 ]; then
     VIDEO_WIDTH=160
     VIDEO_HEIGHT=140
   else
@@ -735,7 +361,7 @@ else
       VIDEO_HEIGHT=$IMAGE_HEIGHT
     fi
   fi
-  if [ "$BITRATE_VIDEO" -lt 40000 ]; then
+  if [ "$BITRATE_VIDEO" -lt 100000 ]; then
     VIDEO_WIDTH=96
     VIDEO_HEIGHT=80
   fi
@@ -754,7 +380,7 @@ else
 fi
 
 # Set H264 Audio Settings
-ARECORD_BUF=5000     # arecord buffer in us
+ARECORD_BUF=55000     # arecord buffer in us
 
 # Input sampling rate to arecord is adjusted depending on source
 BITRATE_AUDIO=32000  # aac encoder output
@@ -762,20 +388,15 @@ BITRATE_AUDIO=32000  # aac encoder output
 # Set h264 aac audio bitrate for avc2ts
 AUDIO_MARGIN=60000   # headroom allowed in TS
 
-# Reduce audio bitrate at lower video bitrates
-if [ "$BITRATE_VIDEO" -lt 300000 ]; then
-  BITRATE_AUDIO=16000  # aac encoder output
-  # Set h264 aac audio bitrate for avc2ts
-  AUDIO_MARGIN=30000   # headroom allowed in TS
-fi
-
 # Set IDRPeriod for avc2ts
 # Default is 100, ie one every 4 sec at 25 fps
 IDRPERIOD=100
 
 # Set the SDR Up-sampling rate and correct gain for Lime
 case "$MODE_OUTPUT" in
-  "LIMEMINI" | "LIMEUSB" | "JLIME" | "JEXPRESS")
+  "LIMEMINI" | "LIMEUSB" | "LIMEDVB" | "JLIME" | "JEXPRESS")
+    let DIGITAL_GAIN=($LIME_GAIN*31)/100 # For LIMEDVB
+
     if [ "$SYMBOLRATE_K" -lt 990 ] ; then
       UPSAMPLE=2
       LIME_GAINF=`echo - | awk '{print '$LIME_GAIN' / 100}'`
@@ -798,6 +419,14 @@ case "$MODE_OUTPUT" in
       LIME_GAINF=`echo - | awk '{print ( '$LIME_GAIN' - 6 ) / 100}'`
     fi
 
+    # Deal with LIMEDVB Mode
+    if [ "$MODE_OUTPUT" == "LIMEDVB" ]; then
+      UPSAMPLE=4
+      CUSTOM_FPGA="-F"
+    else
+      CUSTOM_FPGA=" "
+    fi
+
     # Turn pilots on if required
     PILOT=$(get_config_var pilots $PCONFIGFILE)
     if [ "$PILOT" == "on" ]; then
@@ -812,6 +441,42 @@ case "$MODE_OUTPUT" in
       FRAMES="-v"
     else
       FRAMES=""
+    fi
+
+    # Determine if Lime needs to be calibrated
+
+    # Data in
+    # LimeCalFreq < -1.5)  Never Calibrate
+    # LimeCalFreq < -0.5)  Always calibrate
+    # LimeCalFreq > -0.5)  Calibrate on freq change of greater than 5%
+
+    # Command out:
+    # CAL=1 # Calibrate every time
+    # CAL=0 # Use saved cal
+
+
+    if [ -f "$PATH_LIME_CAL" ]; then                                   # Lime Cal file exists, so read it
+      LIMECALFREQ=$(get_config_var limecalfreq $PATH_LIME_CAL)
+    else                                                               # No file, so set to calibrate 
+      LIMECALFREQ="-1.0"
+    fi
+
+    if (( $(echo "$LIMECALFREQ < -0.5" |bc -l) )); then                # Never calibrate or always calibrate
+      if (( $(echo "$LIMECALFREQ < -1.5" |bc -l) )); then              # Never calibrate
+        CAL=0
+      else                                                             # Always calibrate
+        CAL=1
+      fi
+    else                                                               # calibrate on freq change > 5%
+      CAL=0                                                            # default to no Cal
+      if (( $(echo "$FREQ_OUTPUT > $LIMECALFREQ*1.05" |bc -l) )); then # calibrate
+        CAL=1
+        set_config_var limecalfreq "$FREQ_OUTPUT" $PATH_LIME_CAL       # and reset cal freq
+      fi
+      if (( $(echo "$FREQ_OUTPUT < $LIMECALFREQ*0.95" |bc -l) )); then # calibrate
+        CAL=1
+        set_config_var limecalfreq "$FREQ_OUTPUT" $PATH_LIME_CAL       # and reset cal freq
+      fi
     fi
 
     # Calculate the exact TS Bitrate for Lime
@@ -886,15 +551,10 @@ case "$MODE_INPUT" in
         echo "set ptt tx" >> /tmp/expctrl
         sudo nice -n -30 netcat -u -4 127.0.0.1 1314 < videots & 
       ;;
-      "LIMEMINI" | "LIMEUSB")
+      "LIMEMINI" | "LIMEUSB" | "LIMEDVB")
 
-        sudo $PATHRPI"/dvb2iq" -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
-          -r $UPSAMPLE -m $MODTYPE -c $CONSTLN $PILOTS $FRAMES \
-           | sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s $SYMBOLRATE \
-           -g $LIME_GAINF -p 0.05 -r $UPSAMPLE -l $LIMESENDBUF -e $BAND_GPIO &
-
-        # Set audio sample rate to avoid Helium sound
-        AUDIO_SAMPLE=48000
+        $PATHRPI"/limesdr_dvb" -i videots -s "$SYMBOLRATE_K"000 -f $FECNUM/$FECDEN -r $UPSAMPLE -m $MODTYPE -c $CONSTLN $PILOTS $FRAMES \
+        -t "$FREQ_OUTPUT"e6 -g $LIME_GAINF -q $CAL $CUSTOM_FPGA -D $DIGITAL_GAIN &
       ;;
       "COMPVID")
         OUTPUT_FILE="/dev/null" #Send avc2ts output to /dev/null
@@ -906,17 +566,27 @@ case "$MODE_INPUT" in
     esac
 
     # Now generate the stream
+
     if [ "$AUDIO_CARD" == 0 ]; then
       # ******************************* H264 VIDEO, NO AUDIO ************************************
-      $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
-        -f $VIDEO_FPS -i $IDRPERIOD $OUTPUT_FILE -t 0 -e $ANALOGCAMNAME -p $PIDPMT -s $CHANNEL $OUTPUT_IP > /dev/null &
+
+      let BITRATE_VIDEO=($BITRATE_TS-12000)*725/1000
+
+      sudo $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -d 300 -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
+        -f $VIDEO_FPS -i $IDRPERIOD $OUTPUT_FILE -t 0 -e $ANALOGCAMNAME -p $PIDPMT -s $CHANNEL $OUTPUT_IP \
+         > /dev/null &
     else
       # ******************************* H264 VIDEO WITH AUDIO ************************************
-      arecord -f S16_LE -r $AUDIO_SAMPLE -c 2 -B $ARECORD_BUF -D plughw:$AUDIO_CARD_NUMBER,0 > audioin.wav &
 
-      let BITRATE_VIDEO=$BITRATE_VIDEO-$AUDIO_MARGIN  # Make room for audio
+      AAC_AUDIO_SAMPLE=23925
+        BITRATE_AUDIO=18000
+        let TS_AUDIO_BITRATE=$BITRATE_AUDIO*12/10
+        let BITRATE_VIDEO=($BITRATE_TS-48000-$TS_AUDIO_BITRATE)*725/1000
 
-      $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
+      arecord -f S16_LE -r $AUDIO_SAMPLE -c 2 -B $ARECORD_BUF -D plughw:$AUDIO_CARD_NUMBER,0 \
+        | sox --buffer 1024 -t wav - audioin.wav rate $AAC_AUDIO_SAMPLE &
+   
+      sudo $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -d 300 -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
         -f $VIDEO_FPS -i $IDRPERIOD $OUTPUT_FILE -t 0 -e $ANALOGCAMNAME -p $PIDPMT -s $CHANNEL $OUTPUT_IP \
         -a audioin.wav -z $BITRATE_AUDIO > /dev/null &
     fi
@@ -953,11 +623,11 @@ fi
 
     # Size the viewfinder
     if [ "$DISPLAY" == "Element14_7" ]; then
-      v4l2-ctl --set-fmt-overlay=left=0,top=0,width=736,height=416 # For 800x480 framebuffer
+      v4l2-ctl -d $VID_PICAM --set-fmt-overlay=left=0,top=0,width=736,height=416 # For 800x480 framebuffer
     else
-      v4l2-ctl --set-fmt-overlay=left=0,top=0,width=656,height=512 # For 720x576 framebuffer
+      v4l2-ctl -d $VID_PICAM --set-fmt-overlay=left=0,top=0,width=656,height=512 # For 720x576 framebuffer
     fi
-    v4l2-ctl -p $VIDEO_FPS
+    v4l2-ctl -d $VID_PICAM -p $VIDEO_FPS
 
     # If sound arrives first, decrease the numeric number to delay it
     # "-00:00:0.?" works well at SR1000 on IQ mode
@@ -979,11 +649,10 @@ fi
       "COMPVID")
         : # Do nothing
       ;;
-      "LIMEMINI" | "LIMEUSB")
-        $PATHRPI"/dvb2iq2" -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
-          -r $UPSAMPLE -m $MODTYPE -c $CONSTLN $PILOTS $FRAMES \
-           | sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s $SYMBOLRATE \
-           -g $LIME_GAINF -p 0.05 -r $UPSAMPLE -l $LIMESENDBUF -e $BAND_GPIO &
+      "LIMEMINI" | "LIMEUSB" | "LIMEDVB")
+
+        $PATHRPI"/limesdr_dvb" -i videots -s "$SYMBOLRATE_K"000 -f $FECNUM/$FECDEN -r $UPSAMPLE -m $MODTYPE -c $CONSTLN $PILOTS $FRAMES \
+        -t "$FREQ_OUTPUT"e6 -g $LIME_GAINF -q $CAL $CUSTOM_FPGA -D $DIGITAL_GAIN &
       ;;
       *)
         # For IQ, QPSKRF, DIGITHIN and DTX1 rpidatv generates the IQ (and RF for QPSKRF)
@@ -999,7 +668,7 @@ fi
         if [ "$AUDIO_CARD" == 0 ]; then
           $PATHRPI"/ffmpeg" -loglevel $MODE_DEBUG -thread_queue_size 2048 \
             -f v4l2 -input_format h264 -video_size "$VIDEO_WIDTH"x"$VIDEO_HEIGHT" \
-            -i /dev/video0 \
+            -i $VID_PICAM \
             $VF $CAPTION -framerate 25 \
             -video_size "$VIDEO_WIDTH"x"$VIDEO_HEIGHT" -c:v h264_omx -b:v 576k \
             -g 25 \
@@ -1007,7 +676,7 @@ fi
         else
           $PATHRPI"/ffmpeg" -loglevel $MODE_DEBUG -itsoffset "$ITS_OFFSET" \
             -f v4l2 -input_format h264 -video_size "$VIDEO_WIDTH"x"$VIDEO_HEIGHT" \
-            -i /dev/video0 -thread_queue_size 2048 \
+            -i $VID_PICAM -thread_queue_size 2048 \
             -f alsa -ac $AUDIO_CHANNELS -ar $AUDIO_SAMPLE \
             -i hw:$AUDIO_CARD_NUMBER,0 \
             $VF $CAPTION -framerate 25 \
@@ -1025,7 +694,7 @@ fi
           sudo nice -n -30 $PATHRPI"/ffmpeg" -loglevel $MODE_DEBUG \
             -analyzeduration 0 -probesize 2048  -fpsprobesize 0 -thread_queue_size 512\
             -f v4l2 -framerate $VIDEO_FPS -video_size "$VIDEO_WIDTH"x"$VIDEO_HEIGHT"\
-            -i /dev/video0 -fflags nobuffer \
+            -i $VID_PICAM -fflags nobuffer \
             \
             $VF $CAPTION -b:v $BITRATE_VIDEO -minrate:v $BITRATE_VIDEO -maxrate:v  $BITRATE_VIDEO\
             -f mpegts  -blocksize 1880 \
@@ -1042,7 +711,7 @@ fi
           sudo nice -n -30 $PATHRPI"/ffmpeg" -loglevel $MODE_DEBUG \
             -analyzeduration 0 -probesize 2048  -fpsprobesize 0 -thread_queue_size 512\
             -f v4l2 -framerate $VIDEO_FPS -video_size "$VIDEO_WIDTH"x"$VIDEO_HEIGHT"\
-            -i /dev/video0 -fflags nobuffer \
+            -i $VID_PICAM -fflags nobuffer \
             \
             -f lavfi -ac 1 \
             -i "sine=frequency=500:beep_factor=4:sample_rate=44100:duration=0" \
@@ -1065,7 +734,7 @@ fi
           sudo $PATHRPI"/ffmpeg" -loglevel $MODE_DEBUG -itsoffset "$ITS_OFFSET"\
             -analyzeduration 0 -probesize 2048  -fpsprobesize 0 -thread_queue_size 512\
             -f v4l2 -framerate $VIDEO_FPS -video_size "$VIDEO_WIDTH"x"$VIDEO_HEIGHT"\
-            -i /dev/video0 -fflags nobuffer \
+            -i $VID_PICAM -fflags nobuffer \
             \
             -f alsa -ac $AUDIO_CHANNELS -ar $AUDIO_SAMPLE \
             -i hw:$AUDIO_CARD_NUMBER,0 \
@@ -1105,14 +774,9 @@ fi
       "COMPVID")
         OUTPUT_FILE="/dev/null" #Send avc2ts output to /dev/null
       ;;
-      "LIMEMINI" | "LIMEUSB")
-        $PATHRPI"/dvb2iq" -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
-          -r $UPSAMPLE -m $MODTYPE -c $CONSTLN $PILOTS $FRAMES \
-           | sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s $SYMBOLRATE \
-           -g $LIME_GAINF -p 0.05 -r $UPSAMPLE -l $LIMESENDBUF -e $BAND_GPIO &
-
-       # Set audio sample rate to avoid Helium sound
-        AUDIO_SAMPLE=48000
+      "LIMEMINI" | "LIMEUSB" | "LIMEDVB")
+        $PATHRPI"/limesdr_dvb" -i videots -s "$SYMBOLRATE_K"000 -f $FECNUM/$FECDEN -r $UPSAMPLE -m $MODTYPE -c $CONSTLN $PILOTS $FRAMES \
+        -t "$FREQ_OUTPUT"e6 -g $LIME_GAINF -q $CAL $CUSTOM_FPGA -D $DIGITAL_GAIN &
       ;;
       *)
         sudo  $PATHRPI"/rpidatv" -i videots -s $SYMBOLRATE_K -c $FECNUM"/"$FECDEN -f $FREQUENCY_OUT -p $GAIN -m $MODE -x $PIN_I -y $PIN_Q &
@@ -1136,18 +800,27 @@ fi
     if [ "$AUDIO_CARD" == 0 ]; then
       # ******************************* H264 TCANIM, NO AUDIO ************************************
 
-      $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
-        -f $VIDEO_FPS -i $IDRPERIOD $OUTPUT_FILE -t 3 -p $PIDPMT -s $CHANNEL $OUTPUT_IP > /dev/null &
+      let BITRATE_VIDEO=($BITRATE_TS-12000)*725/1000
+
+      sudo $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -d 300 -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
+        -f $VIDEO_FPS -i $IDRPERIOD $OUTPUT_FILE -t 3 -e $ANALOGCAMNAME -p $PIDPMT -s $CHANNEL $OUTPUT_IP \
+         > /dev/null &
+
     else
       # ******************************* H264 TCANIM WITH AUDIO ************************************
 
-      arecord -f S16_LE -r $AUDIO_SAMPLE -c 2 -B $ARECORD_BUF -D plughw:$AUDIO_CARD_NUMBER,0 > audioin.wav &
+        AAC_AUDIO_SAMPLE=23925
+        BITRATE_AUDIO=18000
+        let TS_AUDIO_BITRATE=$BITRATE_AUDIO*12/10
+        let BITRATE_VIDEO=($BITRATE_TS-48000-$TS_AUDIO_BITRATE)*725/1000
 
-      let BITRATE_VIDEO=$BITRATE_VIDEO-$AUDIO_MARGIN  # Make room for audio
-
-      $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
-        -f $VIDEO_FPS -i $IDRPERIOD $OUTPUT_FILE -t 3 -p $PIDPMT -s $CHANNEL $OUTPUT_IP \
+      arecord -f S16_LE -r $AUDIO_SAMPLE -c 2 -B $ARECORD_BUF -D plughw:$AUDIO_CARD_NUMBER,0 \
+        | sox --buffer 1024 -t wav - audioin.wav rate $AAC_AUDIO_SAMPLE &
+   
+      sudo $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -d 300 -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
+        -f $VIDEO_FPS -i $IDRPERIOD $OUTPUT_FILE -t 3 -e $ANALOGCAMNAME -p $PIDPMT -s $CHANNEL $OUTPUT_IP \
         -a audioin.wav -z $BITRATE_AUDIO > /dev/null &
+
     fi
   ;;
 
@@ -1170,14 +843,9 @@ fi
         echo "set ptt tx" >> /tmp/expctrl
         sudo nice -n -30 netcat -u -4 127.0.0.1 1314 < videots &
       ;;
-      "LIMEMINI" | "LIMEUSB")
-        $PATHRPI"/dvb2iq" -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
-          -r $UPSAMPLE -m $MODTYPE -c $CONSTLN $PILOTS $FRAMES \
-           | sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s $SYMBOLRATE \
-           -g $LIME_GAINF -p 0.05 -r $UPSAMPLE -l $LIMESENDBUF -e $BAND_GPIO &
-
-       # Set audio sample rate to avoid Helium sound
-        AUDIO_SAMPLE=48000
+      "LIMEMINI" | "LIMEUSB" | "LIMEDVB")
+        $PATHRPI"/limesdr_dvb" -i videots -s "$SYMBOLRATE_K"000 -f $FECNUM/$FECDEN -r $UPSAMPLE -m $MODTYPE -c $CONSTLN $PILOTS $FRAMES \
+        -t "$FREQ_OUTPUT"e6 -g $LIME_GAINF -q $CAL $CUSTOM_FPGA -D $DIGITAL_GAIN &
       ;;
       "COMPVID")
         OUTPUT_FILE="/dev/null" #Send avc2ts output to /dev/null
@@ -1190,18 +858,28 @@ fi
 
     if [ "$AUDIO_CARD" == 0 ]; then
       # ******************************* H264 VIDEO, NO AUDIO ************************************
-      $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
+
+      let BITRATE_VIDEO=($BITRATE_TS-12000)*725/1000
+
+      sudo $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -d 300 -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
         -f $VIDEO_FPS -i $IDRPERIOD $OUTPUT_FILE -t 4 -e $VNCADDR -p $PIDPMT -s $CHANNEL $OUTPUT_IP \
-        > /dev/null &
+         > /dev/null &
+
     else
       # ******************************* H264 VIDEO WITH AUDIO ************************************
-      arecord -f S16_LE -r $AUDIO_SAMPLE -c 2 -B $ARECORD_BUF -D plughw:$AUDIO_CARD_NUMBER,0 > audioin.wav &
 
-      let BITRATE_VIDEO=$BITRATE_VIDEO-$AUDIO_MARGIN  # Make room for audio
+        AAC_AUDIO_SAMPLE=23925
+        BITRATE_AUDIO=18000
+        let TS_AUDIO_BITRATE=$BITRATE_AUDIO*12/10
+        let BITRATE_VIDEO=($BITRATE_TS-48000-$TS_AUDIO_BITRATE)*725/1000
 
-      $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
+      arecord -f S16_LE -r $AUDIO_SAMPLE -c 2 -B $ARECORD_BUF -D plughw:$AUDIO_CARD_NUMBER,0 \
+        | sox --buffer 1024 -t wav - audioin.wav rate $AAC_AUDIO_SAMPLE &
+   
+      sudo $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -d 300 -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
         -f $VIDEO_FPS -i $IDRPERIOD $OUTPUT_FILE -t 4 -e $VNCADDR -p $PIDPMT -s $CHANNEL $OUTPUT_IP \
         -a audioin.wav -z $BITRATE_AUDIO > /dev/null &
+
     fi
   ;;
 
@@ -1254,14 +932,9 @@ fi
         echo "set ptt tx" >> /tmp/expctrl
         sudo nice -n -30 netcat -u -4 127.0.0.1 1314 < videots &
       ;;
-      "LIMEMINI" | "LIMEUSB")
-        $PATHRPI"/dvb2iq" -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
-          -r $UPSAMPLE -m $MODTYPE -c $CONSTLN $PILOTS $FRAMES \
-           | sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s $SYMBOLRATE \
-           -g $LIME_GAINF -p 0.05 -r $UPSAMPLE -l $LIMESENDBUF -e $BAND_GPIO &
-
-        # Set audio sample rate to avoid Helium sound
-        AUDIO_SAMPLE=48000
+      "LIMEMINI" | "LIMEUSB" | "LIMEDVB")
+      $PATHRPI"/limesdr_dvb" -i videots -s "$SYMBOLRATE_K"000 -f $FECNUM/$FECDEN -r $UPSAMPLE -m $MODTYPE -c $CONSTLN $PILOTS $FRAMES \
+        -t "$FREQ_OUTPUT"e6 -g $LIME_GAINF -q $CAL $CUSTOM_FPGA -D $DIGITAL_GAIN &
       ;;
       *)
         sudo $PATHRPI"/rpidatv" -i videots -s $SYMBOLRATE_K -c $FECNUM"/"$FECDEN -f $FREQUENCY_OUT -p $GAIN -m $MODE -x $PIN_I -y $PIN_Q &
@@ -1273,19 +946,26 @@ fi
     if [ "$AUDIO_CARD" == 0 ]; then
       # ******************************* H264 VIDEO, NO AUDIO ************************************
 
-      $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
+      let BITRATE_VIDEO=($BITRATE_TS-12000)*725/1000
+
+      sudo $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -d 300 -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
         -f $VIDEO_FPS -i $IDRPERIOD $OUTPUT_FILE -t 2 -e $ANALOGCAMNAME -p $PIDPMT -s $CHANNEL $OUTPUT_IP \
-      > /dev/null &
+         > /dev/null &
+
     else
       # ******************************* H264 VIDEO WITH AUDIO ************************************
+ 
+        AAC_AUDIO_SAMPLE=23925
+        BITRATE_AUDIO=18000
+        let TS_AUDIO_BITRATE=$BITRATE_AUDIO*12/10
+        let BITRATE_VIDEO=($BITRATE_TS-48000-$TS_AUDIO_BITRATE)*725/1000
 
-      arecord -f S16_LE -r $AUDIO_SAMPLE -c 2 -B $ARECORD_BUF -D plughw:$AUDIO_CARD_NUMBER,0 > audioin.wav &
-
-      let BITRATE_VIDEO=$BITRATE_VIDEO-$AUDIO_MARGIN  # Make room for audio
-
-      $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
+      arecord -f S16_LE -r $AUDIO_SAMPLE -c 2 -B $ARECORD_BUF -D plughw:$AUDIO_CARD_NUMBER,0 \
+        | sox -t wav - audioin.wav rate $AAC_AUDIO_SAMPLE &
+   
+      sudo $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -d 300 -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
         -f $VIDEO_FPS -i $IDRPERIOD $OUTPUT_FILE -t 2 -e $ANALOGCAMNAME -p $PIDPMT -s $CHANNEL $OUTPUT_IP \
-      -a audioin.wav -z $BITRATE_AUDIO > /dev/null &
+        -a audioin.wav -z $BITRATE_AUDIO > /dev/null &
     fi
   ;;
 
@@ -1352,14 +1032,9 @@ fi
       "COMPVID")
         OUTPUT_FILE="/dev/null" #Send avc2ts output to /dev/null
       ;;
-      "LIMEMINI" | "LIMEUSB")
-        $PATHRPI"/dvb2iq2" -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
-          -r $UPSAMPLE -m $MODTYPE -c $CONSTLN $PILOTS $FRAMES \
-           |buffer| sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s $SYMBOLRATE \
-           -g $LIME_GAINF -p 0.05 -r $UPSAMPLE -l $LIMESENDBUF -e $BAND_GPIO &
-
-        # Set audio sample rate to avoid Helium sound
-        AUDIO_SAMPLE=48000
+      "LIMEMINI" | "LIMEUSB" | "LIMEDVB")
+      $PATHRPI"/limesdr_dvb" -i videots -s "$SYMBOLRATE_K"000 -f $FECNUM/$FECDEN -r $UPSAMPLE -m $MODTYPE -c $CONSTLN $PILOTS $FRAMES \
+        -t "$FREQ_OUTPUT"e6 -g $LIME_GAINF -q $CAL $CUSTOM_FPGA -D $DIGITAL_GAIN &
       ;;
       *)
         sudo nice -n -30 $PATHRPI"/rpidatv" -i videots -s $SYMBOLRATE_K -c $FECNUM"/"$FECDEN -f $FREQUENCY_OUT -p $GAIN -m $MODE -x $PIN_I -y $PIN_Q &
@@ -1377,18 +1052,28 @@ fi
 
     if [ "$AUDIO_CARD" == 0 ]; then
       # ******************************* H264 VIDEO, NO AUDIO ************************************
-      $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
+
+      let BITRATE_VIDEO=($BITRATE_TS-12000)*725/1000
+
+      sudo $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -d 300 -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
         -f $VIDEO_FPS -i $IDRPERIOD $OUTPUT_FILE -t 3 -p $PIDPMT -s $CHANNEL $OUTPUT_IP \
-        > /dev/null  &
+         > /dev/null &
+
     else
       # ******************************* H264 VIDEO WITH AUDIO ************************************
-      arecord -f S16_LE -r $AUDIO_SAMPLE -c 2 -B $ARECORD_BUF -D plughw:$AUDIO_CARD_NUMBER,0 > audioin.wav &
 
-      let BITRATE_VIDEO=$BITRATE_VIDEO-$AUDIO_MARGIN  # Make room for audio
+        AAC_AUDIO_SAMPLE=23925
+        BITRATE_AUDIO=18000
+        let TS_AUDIO_BITRATE=$BITRATE_AUDIO*12/10
+        let BITRATE_VIDEO=($BITRATE_TS-48000-$TS_AUDIO_BITRATE)*725/1000
 
-      $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
-        -f $VIDEO_FPS -i $IDRPERIOD $OUTPUT_FILE -t 3 -p $PIDPMT -s $CHANNEL $OUTPUT_IP \
-      -a audioin.wav -z $BITRATE_AUDIO > /dev/null &
+      arecord -f S16_LE -r $AUDIO_SAMPLE -c 2 -B $ARECORD_BUF -D plughw:$AUDIO_CARD_NUMBER,0 \
+        | sox -t wav - audioin.wav rate $AAC_AUDIO_SAMPLE &
+   
+      sudo $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -d 300 -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
+        -f $VIDEO_FPS -i $IDRPERIOD $OUTPUT_FILE -t 3 3 -p $PIDPMT -s $CHANNEL $OUTPUT_IP \
+        -a audioin.wav -z $BITRATE_AUDIO > /dev/null &
+
     fi
   ;;
 
@@ -1405,11 +1090,9 @@ fi
       "COMPVID")
         : # Do nothing.  Mode does not work yet
       ;;
-      "LIMEMINI" | "LIMEUSB") # did use dvb2iq, but dvb2iq2 might be better
-        $PATHRPI"/dvb2iq2" -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
-          -r $UPSAMPLE -m $MODTYPE -c $CONSTLN $PILOTS $FRAMES \
-           | sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s $SYMBOLRATE \
-           -g $LIME_GAINF -p 0.05 -r $UPSAMPLE -l $LIMESENDBUF -e $BAND_GPIO &
+      "LIMEMINI" | "LIMEUSB" | "LIMEDVB")
+      $PATHRPI"/limesdr_dvb" -i videots -s "$SYMBOLRATE_K"000 -f $FECNUM/$FECDEN -r $UPSAMPLE -m $MODTYPE -c $CONSTLN $PILOTS $FRAMES \
+        -t "$FREQ_OUTPUT"e6 -g $LIME_GAINF -q $CAL $CUSTOM_FPGA -D $DIGITAL_GAIN &
       ;;
       *)
         sudo $PATHRPI"/rpidatv" -i videots -s $SYMBOLRATE_K -c $FECNUM"/"$FECDEN -f $FREQUENCY_OUT -p $GAIN -m $MODE -x $PIN_I -y $PIN_Q &
@@ -1432,11 +1115,9 @@ fi
         sudo nice -n -30 netcat -u -4 127.0.0.1 1314 < $TSVIDEOFILE &
         #sudo nice -n -30 cat $TSVIDEOFILE | sudo nice -n -30 netcat -u -4 127.0.0.1 1314 & 
       ;;
-      "LIMEMINI" | "LIMEUSB")
-        $PATHRPI"/dvb2iq" -i $TSVIDEOFILE -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
-          -r $UPSAMPLE -m $MODTYPE -c $CONSTLN $PILOTS $FRAMES \
-           | sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s $SYMBOLRATE \
-           -g $LIME_GAINF -p 0.05 -r $UPSAMPLE -l $LIMESENDBUF -e $BAND_GPIO &
+      "LIMEMINI" | "LIMEUSB" | "LIMEDVB")
+      $PATHRPI"/limesdr_dvb" -i $TSVIDEOFILE -s "$SYMBOLRATE_K"000 -f $FECNUM/$FECDEN -r $UPSAMPLE -m $MODTYPE -c $CONSTLN $PILOTS $FRAMES \
+        -t "$FREQ_OUTPUT"e6 -g $LIME_GAINF -q $CAL $CUSTOM_FPGA -D $DIGITAL_GAIN &
       ;;
       *)
         sudo $PATHRPI"/rpidatv" -i $TSVIDEOFILE -s $SYMBOLRATE_K -c $FECNUM"/"$FECDEN -f $FREQUENCY_OUT -p $GAIN -m $MODE -l -x $PIN_I -y $PIN_Q &;;
@@ -1451,10 +1132,14 @@ fi
         echo "set car on" >> /tmp/expctrl
         echo "set ptt tx" >> /tmp/expctrl
       ;;
-      "LIMEMINI" | "LIMEUSB")
-        $PATHRPI"/dvb2iq" -f carrier -r 1 -s 50 \
-           | sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s 50000 \
-           -g $LIME_GAINF -p 0.05 -r 1 -l $LIMESENDBUF -e $BAND_GPIO &
+      "LIMEMINI" | "LIMEUSB" | "LIMEDVB")
+      $PATHRPI"/limesdr_dvb" -s 1000000 -f carrier -r 1 \
+        -t "$FREQ_OUTPUT"e6 -g $LIME_GAINF -q $CAL $CUSTOM_FPGA -D $DIGITAL_GAIN &
+
+      #"LIMEMINI" | "LIMEUSB")
+      #  $PATHRPI"/dvb2iq" -f carrier -r 1 -s 50 \
+      #     | sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s 50000 \
+      #     -g $LIME_GAINF -p 0.05 -r 1 -l $LIMESENDBUF -e $BAND_GPIO &
       ;;
       *)
         # sudo $PATHRPI"/rpidatv" -i videots -s $SYMBOLRATE_K -c "carrier" -f $FREQUENCY_OUT -p $GAIN -m $MODE -x $PIN_I -y $PIN_Q &
@@ -1580,11 +1265,9 @@ fi
         echo "set ptt tx" >> /tmp/expctrl
         # ffmpeg sends the stream directly to DATVEXPRESS
       ;;
-      "LIMEMINI" | "LIMEUSB")
-        $PATHRPI"/dvb2iq2" -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
-          -r $UPSAMPLE -m $MODTYPE -c $CONSTLN $PILOTS $FRAMES \
-           | sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s $SYMBOLRATE \
-           -g $LIME_GAINF -p 0.05 -r $UPSAMPLE -l $LIMESENDBUF -e $BAND_GPIO &
+      "LIMEMINI" | "LIMEUSB" | "LIMEDVB")
+        $PATHRPI"/limesdr_dvb" -i videots -s "$SYMBOLRATE_K"000 -f $FECNUM/$FECDEN -r $UPSAMPLE -m $MODTYPE -c $CONSTLN $PILOTS $FRAMES \
+        -t "$FREQ_OUTPUT"e6 -g $LIME_GAINF -q $CAL $CUSTOM_FPGA -D $DIGITAL_GAIN &
       ;;
       *)
         # For IQ, QPSKRF, DIGITHIN and DTX1 rpidatv generates the IQ (and RF for QPSKRF)
@@ -1778,11 +1461,9 @@ fi
       "COMPVID")
         : # Do nothing
       ;;
-      "LIMEMINI" | "LIMEUSB")
-        $PATHRPI"/dvb2iq2" -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
-          -r $UPSAMPLE -m $MODTYPE -c $CONSTLN $PILOTS $FRAMES \
-           | sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s $SYMBOLRATE \
-           -g $LIME_GAINF -p 0.05 -r $UPSAMPLE -l $LIMESENDBUF -e $BAND_GPIO &
+      "LIMEMINI" | "LIMEUSB" | "LIMEDVB")
+        $PATHRPI"/limesdr_dvb" -i videots -s "$SYMBOLRATE_K"000 -f $FECNUM/$FECDEN -r $UPSAMPLE -m $MODTYPE -c $CONSTLN $PILOTS $FRAMES \
+        -t "$FREQ_OUTPUT"e6 -g $LIME_GAINF -q $CAL $CUSTOM_FPGA -D $DIGITAL_GAIN &
       ;;
       *)
         # For IQ, QPSKRF, DIGITHIN and DTX1 rpidatv generates the IQ (and RF for QPSKRF)
@@ -1898,11 +1579,9 @@ fi
         echo "set ptt tx" >> /tmp/expctrl
         # ffmpeg sends the stream directly to DATVEXPRESS
       ;;
-      "LIMEMINI" | "LIMEUSB")
-        $PATHRPI"/dvb2iq" -i videots -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
-          -r $UPSAMPLE -m $MODTYPE -c $CONSTLN $PILOTS $FRAMES \
-           | sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s $SYMBOLRATE \
-           -g $LIME_GAINF -p 0.05 -r $UPSAMPLE -l $LIMESENDBUF -e $BAND_GPIO &
+      "LIMEMINI" | "LIMEUSB" | "LIMEDVB")
+        $PATHRPI"/limesdr_dvb" -i videots -s "$SYMBOLRATE_K"000 -f $FECNUM/$FECDEN -r $UPSAMPLE -m $MODTYPE -c $CONSTLN $PILOTS $FRAMES \
+        -t "$FREQ_OUTPUT"e6 -g $LIME_GAINF -q $CAL $CUSTOM_FPGA -D $DIGITAL_GAIN &
       ;;
       *)
         # For IQ, QPSKRF, DIGITHIN and DTX1 rpidatv generates the IQ (and RF for QPSKRF)

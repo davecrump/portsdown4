@@ -61,6 +61,7 @@ Rewitten by Dave, G8GKQ
 #define PATH_STREAMPRESETS "/home/pi/rpidatv/scripts/stream_presets.txt"
 #define PATH_JCONFIG "/home/pi/rpidatv/scripts/jetson_config.txt"
 #define PATH_LMCONFIG "/home/pi/rpidatv/scripts/longmynd_config.txt"
+#define PATH_LIME_CAL "/home/pi/rpidatv/scripts/limecalfreq.txt"
 
 #define PI 3.14159265358979323846
 #define deg2rad(DEG) ((DEG)*((PI)/(180.0)))
@@ -146,6 +147,7 @@ int GPIO_Band_LSB = 31;
 int GPIO_Band_MSB = 24;
 int GPIO_Tverter = 7;
 int GPIO_SD_LED = 2;
+int debug_level = 0; // 0 minimum, 1 medium, 2 max
 
 char ScreenState[255] = "NormalMenu";  // NormalMenu SpecialMenu TXwithMenu TXwithImage RXwithImage VideoOut SnapView VideoView Snap SigGen
 char MenuTitle[50][127];
@@ -172,9 +174,9 @@ char TabModeAudio[6][15]={"auto", "mic", "video", "bleeps", "no_audio", "webcam"
 char TabModeSTD[2][7]={"6","0"};
 char TabModeVidIP[2][7]={"0","1"};
 char TabModeOP[14][31]={"IQ", "QPSKRF", "DATVEXPRESS", "LIMEUSB", "STREAMER", "COMPVID", \
-  "DTX1", "IP", "LIMEMINI", "JLIME", "JEXPRESS", "EXPRESS2", "LIMEFPGA", "PLUTO"};
+  "DTX1", "IP", "LIMEMINI", "JLIME", "JEXPRESS", "EXPRESS2", "LIMEDVB", "PLUTO"};
 char TabModeOPtext[14][31]={"Portsdown", " Ugly ", "Express", "Lime USB", "BATC^Stream", "Comp Vid", \
-  " DTX1 ", "IPTS out", "Lime Mini", "Jetson^Lime", "Jetson^Express", "Express S2", "Lime FPGA", "Pluto"};
+  " DTX1 ", "IPTS out", "Lime Mini", "Jetson^Lime", "Jetson^Express", "Express S2", "Lime DVB", "Pluto"};
 char TabAtten[4][15] = {"NONE", "PE4312", "PE43713", "HMC1119"};
 char CurrentModeOP[31] = "QPSKRF";
 char CurrentModeOPtext[31] = " UGLY ";
@@ -214,7 +216,7 @@ int ImageRange = 5;         // Number of Test Cards
 // RTL FM Parameters. [0] is current
 char RTLfreq[10][15];       // String with frequency in MHz
 char RTLlabel[10][15];      // String for label
-char RTLmode[10][15];       // String for mode: fm, wbfm, am, usb, lsb
+char RTLmode[10][5];       // String for mode: fm, wbfm, am, usb, lsb
 int RTLsquelch[10];         // between 0 and 1000.  0 is off
 int RTLgain[10];            // between 0 (min) and 50 (max).
 int RTLsquelchoveride = 1;  // if 0, squelch has been over-riden
@@ -246,7 +248,7 @@ fftwf_complex *fftout=NULL; // FFT for RX
 int LMRXfreq[22];           // Integer frequency in kHz 0 current, 1-10 q, 11-20 t, 21 second tuner current
 int LMRXsr[14];             // Symbol rate in K. 0 current, 1-6 q, 6-12 t, 13 second tuner current
 int LMRXqoffset;            // Offset in kHz
-char LMRXinput[1];          // Input a or b
+char LMRXinput[2];          // Input a or b
 char LMRXudpip[20];         // UDP IP address
 char LMRXudpport[10];       // UDP IP port
 char LMRXmode[10];          // sat or terr
@@ -274,14 +276,23 @@ int CalcBearing(char *, char *);
 int CalcRange(char *, char *);
 bool CheckLocator(char *);
 
+// Lime Control
+float LimeCalFreq = 0;  // -2 cal never, -1 = cal every time, 0 = cal next time, freq = no cal if no change
+int LimeRFEState = 0;   // 0 = disbaled, 1 = enabled
+
 // Touch display variables
 int Inversed=0;               //Display is inversed (Waveshare=1)
 int PresetStoreTrigger = 0;   //Set to 1 if awaiting preset being stored
 int FinishedButton = 0;       // Used to indicate screentouch during TX or RX
 int touch_response = 0;       // set to 1 on touch and used to reboot display if it locks up
 
+// Threads for Touchscreen monitoring
+//pthread_t thfft, thbutton, thview, thwait3;
+pthread_t thfft;        //
+pthread_t thbutton;     //
+pthread_t thview;       //
+pthread_t thwait3;      //  Used to count 3 seconds for WebCam reset after transmit
 
-pthread_t thfft, thbutton, thview, thwait3;
 
 // Function Prototypes
 
@@ -345,6 +356,7 @@ int CheckLimeUSBConnect();
 void YesNo(int);
 static void cleanexit(int);
 int LimeGWRev();
+void LMRX(int);
 
 /***************************************************************************//**
  * @brief Looks up the value of a Param in PathConfigFile and sets value
@@ -366,7 +378,7 @@ void GetConfigParam(char *PathConfigFile, char *Param, char *Value)
   strcpy(ParamWithEquals, Param);
   strcat(ParamWithEquals, "=");
 
-  printf("Get Config reads %s for %s ", PathConfigFile , Param);
+  //printf("Get Config reads %s for %s ", PathConfigFile , Param);
 
   FILE *fp=fopen(PathConfigFile, "r");
   if(fp != 0)
@@ -381,13 +393,16 @@ void GetConfigParam(char *PathConfigFile, char *Param, char *Value)
         break;
       }
     }
-    printf("and returns %s\n", Value);
+    if (debug_level == 2)
+    {
+      printf("Get Config reads %s for %s and returns %s\n", PathConfigFile, Param, Value);
+    }
   }
   else
   {
     printf("Config file not found \n");
-    fclose(fp);
   }
+  fclose(fp);
 }
 
 /***************************************************************************//**
@@ -406,8 +421,8 @@ void SetConfigParam(char *PathConfigFile, char *Param, char *Value)
   char * line = NULL;
   size_t len = 0;
   int read;
-  char Command[255];
-  char BackupConfigName[255];
+  char Command[511];
+  char BackupConfigName[240];
   strcpy(BackupConfigName,PathConfigFile);
   strcat(BackupConfigName,".bak");
   FILE *fp=fopen(PathConfigFile,"r");
@@ -416,7 +431,10 @@ void SetConfigParam(char *PathConfigFile, char *Param, char *Value)
   strcpy(ParamWithEquals, Param);
   strcat(ParamWithEquals, "=");
 
-  printf("Set Config called %s %s %s\n", PathConfigFile , ParamWithEquals, Value);
+  if (debug_level == 2)
+  {
+    printf("Set Config called %s %s %s\n", PathConfigFile , ParamWithEquals, Value);
+  }
 
   if(fp!=0)
   {
@@ -424,7 +442,7 @@ void SetConfigParam(char *PathConfigFile, char *Param, char *Value)
     {
       if(strncmp (line, ParamWithEquals, strlen(Param) + 1) == 0)
       {
-        fprintf(fw, "%s=%s\n" ,Param, Value);
+        fprintf(fw, "%s=%s\n", Param, Value);
       }
       else
       {
@@ -433,7 +451,7 @@ void SetConfigParam(char *PathConfigFile, char *Param, char *Value)
     }
     fclose(fp);
     fclose(fw);
-    sprintf(Command,"cp %s %s",BackupConfigName,PathConfigFile);
+    snprintf(Command, 511, "cp %s %s", BackupConfigName, PathConfigFile);
     system(Command);
   }
   else
@@ -442,6 +460,40 @@ void SetConfigParam(char *PathConfigFile, char *Param, char *Value)
     fclose(fp);
     fclose(fw);
   }
+}
+
+/***************************************************************************//**
+ * @brief safely copies n characters of instring to outstring without overflow
+ *
+ * @param *outstring
+ * @param *instring
+ * @param n int number of characters to copy.  Max value is the outstring array size -1
+ *
+ * @return void
+*******************************************************************************/
+void strcpyn(char *outstring, char *instring, int n)
+{
+  //printf("\ninstring= -%s-, instring length = %d, desired length = %d\n", instring, strlen(instring), strnlen(instring, n));
+  
+  n = strnlen(instring, n);
+  int i;
+  for (i = 0; i < n; i = i + 1)
+  {
+    //printf("i = %d input character = %c\n", i, instring[i]);
+    outstring[i] = instring[i];
+  }
+  outstring[n] = '\0'; // Terminate the outstring
+  //printf("i = %d input character = %c\n", n, instring[n]);
+  //printf("i = %d input character = %c\n\n", (n + 1), instring[n + 1]);
+
+  //for (i = 0; i < n; i = i + 1)
+  //{
+  //  printf("i = %d output character = %c\n", i, outstring[i]);
+  //}  
+  //printf("i = %d output character = %c\n", n, outstring[n]);
+  //printf("i = %d output character = %c\n", (n + 1), outstring[n + 1]);
+
+  //printf("outstring= -%s-, length = %d\n\n", outstring, strlen(outstring));
 }
 
 void DisplayHere(char *DisplayCaption)
@@ -529,7 +581,7 @@ void GetMicAudioCard(char mic[15])
  *
  * @param nil
  *
- * @return 8 for Jessie, 9 for Stretch
+ * @return 8 for Jessie, 9 for Stretch, 10 for Buster
 *******************************************************************************/
 
 int GetLinuxVer()
@@ -539,7 +591,7 @@ int GetLinuxVer()
   int ver = 0;
 
   /* Open the command for reading. */
-  fp = popen("cat /etc/issue | grep -E -o \"8|9\"", "r");
+  fp = popen("cat /etc/issue | grep -E -o \"8|9|10\"", "r");
   if (fp == NULL) {
     printf("Failed to run command\n" );
     exit(1);
@@ -553,7 +605,8 @@ int GetLinuxVer()
 
   /* close */
   pclose(fp);
-  if ((atoi(version) == 8) || (atoi(version) == 9))
+
+  if ((atoi(version) == 8) || (atoi(version) == 9) || (atoi(version) == 10))
   {
     ver = atoi(version);
   }
@@ -815,7 +868,6 @@ int is_valid_ip(char *ip_str)
       ptr = strtok(NULL, DELIM); 
       if (ptr != NULL)
       {
-      printf("dots++ \n");
         ++dots; 
       }
     }
@@ -886,10 +938,10 @@ void DisplayUpdateMsg(char* Version, char* Step)
 
 void PrepSWUpdate()
 {
-  char CurrentVersion[256];
-  char LatestVersion[256];
-  char CurrentVersion9[15];
-  char LatestVersion9[15];
+  char CurrentVersion[255];
+  char LatestVersion[255];
+  char CurrentVersion9[10];
+  char LatestVersion9[10];
 
   strcpy(UpdateStatus, "NotAvailable");
 
@@ -898,28 +950,34 @@ void PrepSWUpdate()
 
   // Download new latest version file
   strcpy(LinuxCommand, "wget -4 --timeout=2 https://raw.githubusercontent.com/BritishAmateurTelevisionClub/");
-  if (GetLinuxVer() == 8)  // Jessie, so rpidatv repo
+  if (GetLinuxVer() == 8)                        // Jessie, so rpidatv repo
   {
     strcat(LinuxCommand, "rpidatv/master/scripts/latest_version.txt ");
   }
-  else                     // Stretch, so portsdown repo
+  else if (GetLinuxVer() == 9)                   // Stretch, so portsdown repo
   {
     strcat(LinuxCommand, "portsdown/master/scripts/latest_version.txt ");
+  }
+  else                                           // Buster, so portsdown-buster repo
+  {
+    strcat(LinuxCommand, "portsdown-buster/master/scripts/latest_version.txt ");
   }
   strcat(LinuxCommand, "-O /home/pi/rpidatv/scripts/latest_version.txt  >/dev/null 2>/dev/null");
   system(LinuxCommand);
 
   // Fetch the current and latest versions and make sure we have 9 characters
   GetSWVers(CurrentVersion);
-  snprintf(CurrentVersion9, 10, "%s", CurrentVersion);
+  strcpyn(CurrentVersion9, CurrentVersion, 9);
+  //snprintf(CurrentVersion9, 10, "%s", CurrentVersion);
   GetLatestVers(LatestVersion);
-  snprintf(LatestVersion9, 10, "%s", LatestVersion);
-  snprintf(MenuText[0], 40, "Current Software Version: %s", CurrentVersion);
+  strcpyn(LatestVersion9, LatestVersion, 9);
+  //snprintf(LatestVersion9, 10, "%s", LatestVersion);
+  snprintf(MenuText[0], 40, "Current Software Version: %s", CurrentVersion9);
   strcpy(MenuText[1], " ");
   strcpy(MenuText[2], " ");
 
   // Check latest version starts with 20*
-  if ( !((LatestVersion[0] == 50) && (LatestVersion[1] == 48)) )
+  if ( !((LatestVersion9[0] == 50) && (LatestVersion9[1] == 48)) )
   {
     // Invalid response from GitHub.  Check Google ping
     if (CheckGoogle() == 0)
@@ -937,7 +995,7 @@ void PrepSWUpdate()
   }
   else
   {
-    snprintf(MenuText[1], 40, "Latest Software Version:   %s", LatestVersion);
+    snprintf(MenuText[1], 40, "Latest Software Version:   %s", LatestVersion9);
 
     // Compare versions
     if (atoi(LatestVersion9) > atoi(CurrentVersion9))
@@ -1069,40 +1127,104 @@ void ExecuteUpdate(int NoButton)
 }
 
 /***************************************************************************//**
- * @brief Applies a normal Lime firmware update and checks GW revision
+ * @brief Performs Lime firmware update and checks GW revision
  *
  * @param nil
  *
  * @return void
 *******************************************************************************/
 
-void LimeFWUpdate()
+void LimeFWUpdate(int button)
 {
-  MsgBox4("Please wait", " ", " ", " ");
-  if ((CheckLimeMiniConnect() == 0) || (CheckLimeUSBConnect() == 0))
+  if (GetLinuxVer() == 9)  // Stretch and 1.29
   {
-    if (CheckGoogle() == 0)
+    MsgBox4("Please wait", " ", " ", " ");
+    if ((CheckLimeMiniConnect() == 0) || (CheckLimeUSBConnect() == 0))
     {
-      MsgBox4("Upgrading Lime Firmware", " ", " ", " ");
-      system("LimeUtil --update");
-      usleep(250000);
-      if (LimeGWRev() == 29)
+      if (CheckGoogle() == 0)
       {
-        MsgBox4("Firmware Upgrade Successful", "Now at Gateware 1.29", "Touch Screen to Continue" ," ");
+        MsgBox4("Upgrading Lime Firmware", " ", " ", " ");
+        system("LimeUtil --update");
+        usleep(250000);
+        if (LimeGWRev() == 29)
+        {
+          MsgBox4("Firmware Upgrade Successful", "Now at Gateware 1.29", "Touch Screen to Continue" ," ");
+        }
+        else
+        {
+          MsgBox4("Firmware Upgrade Unsuccessful", "Further Investigation required", "Touch Screen to Continue" ," ");
+        }
       }
       else
       {
-        MsgBox4("Firmware Upgrade Unsuccessful", "Further Investigation required", "Touch Screen to Continue" ," ");
+        MsgBox4("No Internet Connection", "Please connect before upgrading", "Touch Screen to Continue" ," ");
       }
     }
     else
     {
-      MsgBox4("No Internet Connection", "Please connect before upgrading", "Touch Screen to Continue" ," ");
+      MsgBox4("No Lime Connected", " ", "Touch Screen to Continue" ," ");
     }
   }
-  else
+  else  // Buster and selectable FW.  0 = 1.29. 1 = 1.30, 2 = Custom
   {
-    MsgBox4("No Lime Connected", " ", "Touch Screen to Continue" ," ");
+    if (CheckLimeUSBConnect() == 0)
+    {
+      MsgBox4("Upgrading Lime USB", "To latest standard", "Using LimeUtil 19.04", "Please Wait");
+      system("LimeUtil --update");
+      usleep(250000);
+      MsgBox4("Upgrade Complete", " ", "Touch Screen to Continue" ," ");
+    }
+    else if (CheckLimeMiniConnect() == 0)
+    {
+      switch (button)
+      {
+      case 0:
+        MsgBox4("Upgrading Lime Firmware", "to 1.29", " ", " ");
+        system("sudo LimeUtil --fpga=/home/pi/.local/share/LimeSuite/images/19.01/LimeSDR-Mini_HW_1.2_r1.29.rpd");
+        if (LimeGWRev() == 29)
+        {
+          MsgBox4("Firmware Upgrade Successful", "Now at Gateware 1.29", "Touch Screen to Continue" ," ");
+        }
+        else
+        {
+          MsgBox4("Firmware Upgrade Unsuccessful", "Further Investigation required", "Touch Screen to Continue" ," ");
+        }
+        break;
+      case 1:
+        MsgBox4("Upgrading Lime Firmware", "to 1.30", " ", " ");
+        system("sudo LimeUtil --fpga=/home/pi/.local/share/LimeSuite/images/19.04/LimeSDR-Mini_HW_1.2_r1.30.rpd");
+
+        if (LimeGWRev() == 30)
+        {
+          MsgBox4("Firmware Upgrade Successful", "Now at Gateware 1.30", "Touch Screen to Continue" ," ");
+        }
+        else
+        {
+          MsgBox4("Firmware Upgrade Unsuccessful", "Further Investigation required", "Touch Screen to Continue" ," ");
+        }
+        break;
+      case 2:
+        MsgBox4("Upgrading Lime Firmware", "to Custom DVB", " ", " ");
+        system("sudo LimeUtil --force --fpga=/home/pi/.local/share/LimeSuite/images/v0.3/LimeSDR-Mini_lms7_trx_HW_1.2_auto.rpd");
+
+        //if (LimeGWRev() == 30)
+        //{
+          MsgBox4("Firmware Upgrade Complete", "DVB", "Touch Screen to Continue" ," ");
+        //}
+        //else
+        //{
+        //  MsgBox4("Firmware Upgrade Unsuccessful", "Further Investigation required", "Touch Screen to Continue" ," ");
+        //}
+        break;
+      default:
+        printf("Lime Update button selection error\n");
+        break;
+      }
+    }
+    else
+    {
+      MsgBox4("No LimeSDR Detected", " ", "Touch Screen to Continue", " ");
+    }
   }
   wait_touch();
 }
@@ -1777,7 +1899,10 @@ void ReadModeInput(char coding[256], char vsource[256])
 
 void ReadModeOutput(char Moutput[256])
 {
-  char ModeOutput[256];
+  char ModeOutput[255];
+  char LimeCalFreqText[63];
+  char LimeRFEStateText[63];
+
   GetConfigParam(PATH_PCONFIG,"modeoutput", ModeOutput);
   strcpy(CurrentModeOP, ModeOutput);
   strcpy(Moutput, "notset");
@@ -1841,14 +1966,27 @@ void ReadModeOutput(char Moutput[256])
     strcpy(Moutput, "Jetson with DATV Express");
     strcpy(CurrentModeOPtext, TabModeOPtext[10]);
   } 
-  else if (strcmp(ModeOutput, "LIMEFPGA") == 0) 
+  else if (strcmp(ModeOutput, "LIMEDVB") == 0) 
   {
-    strcpy(Moutput, "LimeSDR Mini with custom FPGA");
+    strcpy(Moutput, "LimeSDR Mini with custom DVB FW");
     strcpy(CurrentModeOPtext, TabModeOPtext[12]);
   } 
   else
   {
     strcpy(Moutput, "notset");
+  }
+  // And read LimeCal freq
+  GetConfigParam(PATH_LIME_CAL, "limecalfreq", LimeCalFreqText);
+  LimeCalFreq = atof(LimeCalFreqText);
+  // And read LimeRFE state
+  GetConfigParam(PATH_PCONFIG, "limerfe", LimeRFEStateText);
+  if (strcmp(LimeRFEStateText, "enabled") == 0)
+  {
+    LimeRFEState = 1;
+  }
+  else
+  {
+    LimeRFEState = 0;
   }
 }
 
@@ -2350,7 +2488,7 @@ int DetectLogitechWebcam()
 {
   char shell_command[255];
   // Pattern for C270, C310, C525 and C910
-  char DMESG_PATTERN[255] = "046d:0825|046d:081b|Webcam C525|046d:0821";
+  char DMESG_PATTERN[63] = "046d:0825|046d:081b|Webcam C525|046d:0821";
   FILE * shell;
   sprintf(shell_command, "dmesg | grep -E -q \"%s\"", DMESG_PATTERN);
   shell = popen(shell_command, "r");
@@ -2440,7 +2578,7 @@ void InitialiseGPIO()
 }
 
 /***************************************************************************//**
- * @brief Reads the Presets from portsdown_config.txt and formats them for
+ * @brief Reads the Presets from portsdown_presets.txt and formats them for
  *        Display and switching
  *
  * @param None.  Works on global variables
@@ -2848,7 +2986,7 @@ void ReadRTLPresets()
     // Mode
     snprintf(Param, 10, "r%dmode", n);
     GetConfigParam(PATH_RTLPRESETS, Param, Value);
-    strcpy(RTLmode[n], Value);
+    strcpyn(RTLmode[n], Value, 4);
 
     // Squelch
     snprintf(Param, 10, "r%dsquelch", n);
@@ -3052,7 +3190,8 @@ void ChangeLMRXIP()
   while (IsValid == FALSE)
   {
     strcpy(RequestText, "Enter the new UDP IP Destination for the RX TS");
-    snprintf(InitText, 17, "%s", LMRXIP);
+    //snprintf(InitText, 17, "%s", LMRXIP);
+    strcpyn(InitText, LMRXIP, 17);
     Keyboard(RequestText, InitText, 17);
   
     strcpy(LMRXIPCopy, KeyboardReturn);
@@ -3070,8 +3209,8 @@ void ChangeLMRXIP()
 
 void ChangeLMRXPort()
 {
-  char RequestText[64];
-  char InitText[64];
+  char RequestText[63];
+  char InitText[63];
   bool IsValid = FALSE;
   char LMRXPort[15];
 
@@ -3081,7 +3220,8 @@ void ChangeLMRXPort()
   while (IsValid == FALSE)
   {
     strcpy(RequestText, "Enter the new UDP Port Number for the RX TS");
-    snprintf(InitText, 10, "%s", LMRXPort);
+    //snprintf(InitText, 10, "%s", LMRXPort);
+    strcpyn(InitText, LMRXPort, 10);
     Keyboard(RequestText, InitText, 10);
   
     if(strlen(KeyboardReturn) > 0)
@@ -3109,7 +3249,8 @@ void ChangeLMRXOffset()
   while (IsValid == FALSE)
   {
     strcpy(RequestText, "Enter the new QO-100 LNB Offset in kHz");
-    snprintf(InitText, 10, "%s", LMRXOffset);
+    //snprintf(InitText, 10, "%s", LMRXOffset);
+    strcpyn(InitText, LMRXOffset, 10);
     Keyboard(RequestText, InitText, 10);
   
     if((atoi(KeyboardReturn) > 1000000) && (atoi(KeyboardReturn) < 76000000))
@@ -3122,6 +3263,11 @@ void ChangeLMRXOffset()
   // Save offset to Config File
   LMRXqoffset = atoi(KeyboardReturn);
   SetConfigParam(PATH_LMCONFIG, "qoffset", KeyboardReturn);
+}
+
+void AutosetLMRXOffset()
+{
+  LMRX(5);
 }
 
 
@@ -3394,11 +3540,12 @@ void SelectRTLmode(int NoButton)
 
 void RTLstart()
 {
-  char fragment[15];
+  char fragment[31];
+  char fragment11[12];
   
   if(RTLdetected == 1)
   {
-    char rtlcall[256];
+    char rtlcall[255];
     char card[15];
     char mic[15];
 
@@ -3415,7 +3562,8 @@ void RTLstart()
     strcpy(rtlcall, "(rtl_fm");
     snprintf(fragment, 12, " -M %s", RTLmode[0]);  // -M mode
     strcat(rtlcall, fragment);
-    snprintf(fragment, 16, " -f %sM", RTLfreq[0]); // -f frequencyM
+    strcpyn(fragment11, RTLfreq[0], 11);
+    snprintf(fragment, 18, " -f %sM", fragment11); // -f frequencyM
     strcat(rtlcall, fragment);
     if (strcmp(RTLmode[0], "am") == 0)
     {
@@ -4162,19 +4310,8 @@ void LimeMiniTest()
     }
     pclose(fp);
 
-    Text(wscreen/48, hscreen - (2.5 * th), "Req: Hardware V1.x, Firmware V6, Gateware V1.29", SansTypeface, 18);
-
-    if ((LFWVer == 6) && (LGWVer == 1) && (LGWRev == 29))  // All correct
-    {
-      Fill(127, 255, 127, 1);    // Green text
-    }
-    else
-    {
-      Fill(255, 63, 63, 1);    // Red text
-    }
-    snprintf(version_info, 50, "Det: Hardware V1.%d, Firmware V%d, Gateware V%d.%d", LHWVer, LFWVer, LGWVer, LGWRev);
+    snprintf(version_info, 50, "Hardware V1.%d, Firmware V%d, Gateware V%d.%d", LHWVer, LFWVer, LGWVer, LGWRev);
     Text(wscreen/48, hscreen - (3.8 * th), version_info, SansTypeface, 18);
-    Fill(255, 255, 255, 1);    // White text
 
     fp = popen("LimeQuickTest", "r");
     if (fp == NULL)
@@ -5637,6 +5774,7 @@ void EnforceValidTXMode()
 
   if ((strcmp(CurrentModeOP, "LIMEUSB") != 0)
        && (strcmp(CurrentModeOP, "LIMEMINI") != 0)
+       && (strcmp(CurrentModeOP, "LIMEDVB") != 0)
        && (strcmp(CurrentModeOP, "STREAMER") != 0)
        && (strcmp(CurrentModeOP, "COMPVID") != 0)
        && (strcmp(CurrentModeOP, "IP") != 0)
@@ -5906,7 +6044,7 @@ void GreyOut11()
 {
   if ((strcmp(CurrentModeOP, "LIMEUSB") != 0)
    && (strcmp(CurrentModeOP, "LIMEMINI") != 0)
-   && (strcmp(CurrentModeOP, "LIMEFPGA") != 0)
+   && (strcmp(CurrentModeOP, "LIMEDVB") != 0)
    && (strcmp(CurrentModeOP, "STREAMER") != 0)
    && (strcmp(CurrentModeOP, "COMPVID") != 0)
    && (strcmp(CurrentModeOP, "IP") != 0)
@@ -6033,7 +6171,7 @@ void GreyOutReset42()
   SetButtonStatus(ButtonNumber(CurrentMenu, 7), 0); // DATV Express
   SetButtonStatus(ButtonNumber(CurrentMenu, 8), 0); // Lime USB
   SetButtonStatus(ButtonNumber(CurrentMenu, 10), 0); // Jetson
-  SetButtonStatus(ButtonNumber(CurrentMenu, 13), 0); // LimeMini FPGA
+  SetButtonStatus(ButtonNumber(CurrentMenu, 13), 0); // LimeMini DVB
 }
 
 void GreyOut42()
@@ -6045,7 +6183,7 @@ void GreyOut42()
   if (CheckLimeMiniConnect() == 1)  // Lime Mini not connected so GreyOut
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 3), 2); // Lime Mini
-    SetButtonStatus(ButtonNumber(CurrentMenu, 13), 2); // Lime Mini FPGA
+    SetButtonStatus(ButtonNumber(CurrentMenu, 13), 2); // Lime Mini DVB
   }
   if (CheckLimeUSBConnect() == 1)  // Lime USB not connected so GreyOut
   {
@@ -6681,6 +6819,23 @@ void DoFreqChange()
   strcpy(Param, "numbers");
   SetConfigParam(PATH_PCONFIG ,Param, Value);
 
+  // LimeRFE enable/diable
+  strcpy(Param, TabBand[CurrentBand]);
+  strcat(Param, "limerfe");
+  GetConfigParam(PATH_PPRESETS, Param, Value);
+
+  if (strcmp(Value, "enabled") == 0)
+  {
+    LimeRFEState = 1;
+  }
+  else
+  {
+    LimeRFEState = 0;
+  }
+
+  strcpy(Param, "limerfe");
+  SetConfigParam(PATH_PCONFIG ,Param, Value);
+
   // Set the Band (and filter) Switching
   system ("sudo /home/pi/rpidatv/scripts/ctlfilter.sh");
   // And wait for it to finish using portsdown_config.txt
@@ -6845,7 +7000,8 @@ void SetDeviceLevel()
     SetConfigParam(PATH_PCONFIG, Param, KeyboardReturn);
   }
   else if ((strcmp(CurrentModeOP, TabModeOP[3]) == 0) || (strcmp(CurrentModeOP, TabModeOP[8]) == 0)
-        || (strcmp(CurrentModeOP, TabModeOP[9]) == 0))  // Lime Mini or USB or JLIME
+        || (strcmp(CurrentModeOP, TabModeOP[9]) == 0) || (strcmp(CurrentModeOP, TabModeOP[12]) == 0))  
+        // Lime Mini or USB or JLIME or LIMEDVB
   {
     while ((LimeGain < 0) || (LimeGain > 100))
     {
@@ -6872,6 +7028,7 @@ void SetReceiveLOFreq(int NoButton)
 {
   char Param[31];
   char Value[31];
+  char Value14[15];
   char Prompt[63];
   int band;
 
@@ -6886,7 +7043,8 @@ void SetReceiveLOFreq(int NoButton)
   strcpy(Param, TabBand[band]);
   strcat(Param, "label");
   GetConfigParam(PATH_PPRESETS, Param, Value);
-  snprintf(Prompt, 63, "Enter LO Freq (MHz) for %s Band (0 for off)", Value);
+  strcpyn(Value14, Value, 14);
+  snprintf(Prompt, 63, "Enter LO Freq (MHz) for %s Band (0 for off)", Value14);
   
   // Look up the current value
   strcpy(Param, TabBand[band]);
@@ -7519,14 +7677,13 @@ void TransmitStop()
 
   // Stop Lime transmitting
   if((strcmp(ModeOutput, "LIMEMINI") == 0) || (strcmp(ModeOutput, "LIMEUSB") == 0)
-    || (strcmp(ModeOutput, "LIMEFPGA") == 0))
+    || (strcmp(ModeOutput, "LIMEDVB") == 0))
   {
     system("sudo killall dvb2iq >/dev/null 2>/dev/null");
     system("sudo killall dvb2iq2 >/dev/null 2>/dev/null");
     system("sudo killall limesdr_send >/dev/null 2>/dev/null");
     system("sudo killall limesdr_dvb >/dev/null 2>/dev/null");
-    usleep(500000);
-    system("/home/pi/rpidatv/bin/limesdr_stopchannel");
+    system("(sleep 1; /home/pi/rpidatv/bin/limesdr_stopchannel) &");
   }
 
   // Kill the key processes as nicely as possible
@@ -7534,7 +7691,8 @@ void TransmitStop()
   system("sudo killall ffmpeg >/dev/null 2>/dev/null");
   system("sudo killall tcanim1v16 >/dev/null 2>/dev/null");
   system("sudo killall avc2ts >/dev/null 2>/dev/null");
-  system("sudo killall netcat >/dev/null 2>/dev/null");
+  system("sudo killall sox >/dev/null 2>/dev/null");
+  system("sudo killall arecord >/dev/null 2>/dev/null");
 
   if((strcmp(ModeOutput, "IQ") == 0) || (strcmp(ModeOutput, "QPSKRF") == 0))
   {
@@ -7553,6 +7711,8 @@ void TransmitStop()
   usleep(1000);
   system("sudo killall -9 avc2ts >/dev/null 2>/dev/null");
   system("sudo killall -9 limesdr_send >/dev/null 2>/dev/null");
+  system("sudo killall -9 limesdr_dvb >/dev/null 2>/dev/null");
+  system("sudo killall -9 sox >/dev/null 2>/dev/null");
 
   // And make sure rpidatv has been stopped (required for brief transmit selections)
   system("sudo killall -9 rpidatv >/dev/null 2>/dev/null");
@@ -8500,6 +8660,7 @@ void LMRX(int NoButton)
   int num;
   int ret;
   int fd_status_fifo;
+  int TUNEFREQ;
 
   float MER;
   float refMER;
@@ -8507,6 +8668,7 @@ void LMRX(int NoButton)
   float FREQ;
   int STATE;
   int SR;
+  char Value[63];
 
   // Global Paramaters:
 
@@ -8876,7 +9038,7 @@ void LMRX(int NoButton)
               {
                 MER = 0;
               }
-              snprintf(MERtext, 24, "MER %.1f (%.1f req)", MER, MERThreshold);
+              snprintf(MERtext, 24, "MER %.1f (%.1f needed)", MER, MERThreshold);
 
               BackgroundRGB(0, 0, 0, 0);
               Fill(0, 0, 0, 127);
@@ -9259,7 +9421,7 @@ void LMRX(int NoButton)
               {
                 MER = 0;
               }
-              snprintf(MERtext, 24, "MER %.1f (%.1f req)", MER, MERThreshold);
+              snprintf(MERtext, 24, "MER %.1f (%.1f needed)", MER, MERThreshold);
 
               BackgroundRGB(0, 0, 0, 0);
               Fill(0, 0, 0, 127);
@@ -9641,7 +9803,7 @@ void LMRX(int NoButton)
               {
                 MER = 0;
               }
-              snprintf(MERtext, 24, "MER %.1f (%.1f req)", MER, MERThreshold);
+              snprintf(MERtext, 24, "MER %.1f (%.1f needed)", MER, MERThreshold);
 
               BackgroundRGB(0, 0, 0, 0);
               Fill(0, 0, 0, 127);
@@ -9699,7 +9861,7 @@ void LMRX(int NoButton)
     touch_response = 0; 
     break;
   case 3:
-    snprintf(udp_string, 40, "UDP Output to %s:%s", LMRXudpip, LMRXudpport);
+    snprintf(udp_string, 63, "UDP Output to %s:%s", LMRXudpip, LMRXudpport);
     BackgroundRGB(0, 0, 0, 0);
     End();
     fp=popen(PATH_SCRIPT_LMRXUDP, "r");
@@ -10020,7 +10182,7 @@ void LMRX(int NoButton)
             {
               MER = 0;
             }
-            snprintf(MERtext, 24, "MER %.1f (%.1f req)", MER, MERThreshold);
+            snprintf(MERtext, 24, "MER %.1f (%.1f needed)", MER, MERThreshold);
 
             BackgroundRGB(0, 0, 0, 0);
             Fill(0, 0, 0, 127);
@@ -10068,7 +10230,7 @@ void LMRX(int NoButton)
     touch_response = 0; 
     break;
   case 4:
-    snprintf(udp_string, 40, "UDP Output to %s:%s", LMRXudpip, LMRXudpport);
+    snprintf(udp_string, 63, "UDP Output to %s:%s", LMRXudpip, LMRXudpport);
     BackgroundRGB(0, 0, 0, 0);
     End();
     fp=popen(PATH_SCRIPT_LMRXMER, "r");
@@ -10194,11 +10356,161 @@ void LMRX(int NoButton)
     system("sudo killall lmmer.sh >/dev/null 2>/dev/null");
     touch_response = 0; 
     break;
+  case 5:
+    snprintf(udp_string, 63, "UDP Output to %s:%s", LMRXudpip, LMRXudpport);
+    BackgroundRGB(0, 0, 0, 0);
+    End();
+    fp=popen(PATH_SCRIPT_LMRXMER, "r");
+    if(fp==NULL) printf("Process error\n");
+
+    printf("STARTING Autoset LNB LO Freq\n");
+    LMRXqoffset = 0;
+
+    // Open status FIFO
+    ret = mkfifo("longmynd_status_fifo", 0666);
+    fd_status_fifo = open("longmynd_status_fifo", O_RDONLY); 
+    if (fd_status_fifo < 0)
+    {
+      printf("Failed to open status fifo\n");
+    }
+    WindowClear();
+    while ((FinishedButton == 1) || (FinishedButton == 2)) // 1 is captions on, 2 is off
+    {
+      num = read(fd_status_fifo, status_message_char, 1);
+      if (num >= 0 )
+      {
+        status_message_char[num]='\0';
+        if (strcmp(status_message_char, "$") == 0)
+        {
+
+          if ((stat_string[0] == '1') && (stat_string[1] == ','))  // Decoder State
+          {
+            strcpy(STATEtext, stat_string);
+            chopN(STATEtext, 2);
+            STATE = atoi(STATEtext);
+            switch(STATE)
+            {
+              case 0:
+              strcpy(STATEtext, "Initialising.");
+              break;
+              case 1:
+              strcpy(STATEtext, "Searching.");
+              break;
+              case 2:
+              strcpy(STATEtext, "Found Headers.");
+              break;
+              case 3:
+              strcpy(STATEtext, "DVB-S Lock.");
+              break;
+              case 4:
+              strcpy(STATEtext, "DVB-S2 Lock.");
+              break;
+              default:
+              snprintf(STATEtext, 10, "%d", STATE);
+            }
+          }
+
+          if ((stat_string[0] == '6') && (stat_string[1] == ','))  // Frequency
+          {
+            strcpy(FREQtext, stat_string);
+            chopN(FREQtext, 2);
+            FREQ = atof(FREQtext);
+            TUNEFREQ = atoi(FREQtext);
+            if (strcmp(LMRXmode, "sat") == 0)
+            {
+              FREQ = FREQ + LMRXqoffset;
+            }
+            FREQ = FREQ / 1000;
+            snprintf(FREQtext, 15, "%.3f MHz", FREQ);
+          }
+
+          if ((stat_string[0] == '1') && (stat_string[1] == '2'))  // MER
+          {
+            strcpy(MERtext, stat_string);
+            chopN(MERtext, 3);
+            MER = atof(MERtext)/10;
+            if (MER > 51)  // Trap spurious MER readings
+            {
+              MER = 0;
+            }
+            snprintf(MERtext, 24, "MER %.1f", MER);
+
+            // Set up for Frequency capture
+
+            if ((MER > 0.2) && (MERcount < 9))  // Wait for a valid MER
+            {
+              MERcount = MERcount + 1;
+            }
+            if (MERcount == 9)                 // Third valid MER
+            {
+              refMER = MER;
+              MERcount = 10;
+            }
+
+            BackgroundRGB(0, 0, 0, 0);
+            Fill(0, 0, 0, 255);
+            Rect(wscreen * 1.0 / 40.0, 0.0, wscreen * 39.0 / 40.0, hscreen);
+            Fill(255, 255, 255, 255);
+            Text(wscreen * 1.0 / 40.0, hscreen - 1 * linepitch, STATEtext, font, pointsize);
+            pointsize = 25;
+            Text(wscreen * 1.0 / 40.0, hscreen - 3 * linepitch, MERtext, font, pointsize);
+            pointsize = 25;
+       
+            // Make sure that the Tuner frequency is sensible
+            if ((TUNEFREQ < 143000) || (TUNEFREQ > 2650000))
+            {
+              TUNEFREQ = 0;
+            }
+
+            if ((MERcount == 10) && (LMRXqoffset == 0) && (TUNEFREQ != 0))
+            {
+              Text(wscreen * 1.0 / 40.0, hscreen - 5.5 * linepitch, "Calculated LNB Offset", font, pointsize);
+              LMRXqoffset = 10492500 - TUNEFREQ;
+              snprintf(FREQtext, 15, "%d KHz", LMRXqoffset);
+              Text(wscreen * 1.0 / 40.0, hscreen - 7.5 * linepitch, FREQtext, font, pointsize);
+              Text(wscreen * 1.0 / 40.0, hscreen - 9.5 * linepitch, "Saved to memory card", font, pointsize);
+              snprintf(Value, 15, "%d", LMRXqoffset);
+              SetConfigParam(PATH_LMCONFIG, "qoffset", Value);
+            }
+            if ((MERcount == 10) && (LMRXqoffset != 0)) // Done, so just display results
+            {
+              Text(wscreen * 1.0 / 40.0, hscreen - 5.5 * linepitch, "Calculated LNB Offset", font, pointsize);
+              snprintf(FREQtext, 15, "%d KHz", LMRXqoffset);
+              Text(wscreen * 1.0 / 40.0, hscreen - 7.5 * linepitch, FREQtext, font, pointsize);
+              Text(wscreen * 1.0 / 40.0, hscreen - 9.5 * linepitch, "Saved to memory card", font, pointsize);
+            }
+            Text(wscreen * 1.0 / 40.0, hscreen - 11.5 * linepitch, "Touch right side of screen to exit", font, pointsize);
+            End();
+          }
+          stat_string[0] = '\0';
+        }
+        else
+        {
+          strcat(stat_string, status_message_char);
+        }
+      }
+      else
+      {
+        FinishedButton = 0;
+      }
+    } 
+    close(fd_status_fifo); 
+    finish();
+    usleep(1000);
+    init(&wscreen, &hscreen);  // Restart the graphics
+
+    printf("Stopping receive process\n");
+    pclose(fp);
+
+    system("sudo killall lmmer.sh >/dev/null 2>/dev/null");
+    touch_response = 0; 
+    break;
   }
   system("sudo killall longmynd >/dev/null 2>/dev/null");
   system("sudo killall omxplayer.bin >/dev/null 2>/dev/null");
   system("sudo killall hello_video.bin >/dev/null 2>/dev/null");
   system("sudo killall hello_video2.bin >/dev/null 2>/dev/null");
+  system("sudo killall -9 hello_video2.bin >/dev/null 2>/dev/null");
   pthread_join(thbutton, NULL);
 }
 
@@ -10489,6 +10801,10 @@ void InfoScreen()
   {
     strcat(swversion, "Stretch ");
   }
+  else if (GetLinuxVer() == 10)
+  {
+    strcat(swversion, "Buster ");
+  }
   GetSWVers(result);
   strcat(swversion, result);
 
@@ -10636,6 +10952,7 @@ void RangeBearing()
   char DispName[10][20];
   char Locator[10][11];
   char MyLocator[11]="IO90LU";
+  char FromCall[25];
   int Bearing[10];
   int Range[10];
   int i, j;
@@ -10717,7 +11034,9 @@ void RangeBearing()
   }
 
   // Display Title Text
-  sprintf(Value, "From %s", CallSign);
+  strcpyn(FromCall, CallSign, 24);
+  sprintf(Value, "From %s", FromCall);
+
   Text(wscreen * 1.0 / 40.0, hscreen - linepitch, Value, font, pointsize);
   Text(wscreen * 15.0 / 40.0, hscreen - linepitch, MyLocator, font, pointsize);
   Text(wscreen * 27.0 / 40.0, hscreen - linepitch, "Bearing", font, pointsize);
@@ -10774,6 +11093,7 @@ void BeaconBearing()
   char DispName[10][20];
   char Locator[10][11];
   char MyLocator[11]="IO90LU";
+  char FromCall[24];
   int Bearing[10];
   int Range[10];
   int i;
@@ -10808,7 +11128,9 @@ void BeaconBearing()
   }
 
   // Display Title Text
-  sprintf(Value, "From %s", CallSign);
+  strcpyn(FromCall, CallSign, 24);
+  sprintf(Value, "From %s", FromCall);
+
   Text(wscreen * 1.0 / 40.0, hscreen - linepitch, Value, font, pointsize);
   Text(wscreen * 15.0 / 40.0, hscreen - linepitch, MyLocator, font, pointsize);
   Text(wscreen * 27.0 / 40.0, hscreen - linepitch, "Bearing", font, pointsize);
@@ -11784,7 +12106,8 @@ void ChangePresetFreq(int NoButton)
   // Calculate initial value
   if (((TabBandLO[CurrentBand] < 0.1) && (TabBandLO[CurrentBand] > -0.1)) || (CallingMenu == 5))
   {
-    snprintf(InitText, 10, "%s", TabFreq[FreqIndex]);
+    //snprintf(InitText, 10, "%s", TabFreq[FreqIndex]);
+    strcpyn(InitText, TabFreq[FreqIndex], 10);
   }
   else
   {
@@ -12065,7 +12388,8 @@ void ChangeCall()
   while (Spaces >= 1)
   {
     strcpy(RequestText, "Enter new Callsign (NO SPACES ALLOWED)");
-    snprintf(InitText, 24, "%s", CallSign);
+    //snprintf(InitText, 24, "%s", CallSign);
+    strcpyn(InitText, CallSign, 24);
     Keyboard(RequestText, InitText, 23);
   
     // Check that there are no spaces
@@ -12094,7 +12418,8 @@ void ChangeLocator()
   char RequestText[64];
   char InitText[64];
   bool IsValid = FALSE;
-  char Locator10[15];
+  char Locator10[10];
+  char Locator6[7];
 
   //Retrieve (10 char) Current Locator from locator file
   GetConfigParam(PATH_LOCATORS, "mylocator", Locator10);
@@ -12115,9 +12440,9 @@ void ChangeLocator()
   SetConfigParam(PATH_LOCATORS, "mylocator", KeyboardReturn);
 
   //Truncate to 6 Characters for Contest display
-  KeyboardReturn[6] = '\0';
-  SetConfigParam(PATH_PCONFIG, "locator", KeyboardReturn);
-  snprintf(Locator, 11, "%s", KeyboardReturn);
+  strcpyn(Locator6, KeyboardReturn, 6);
+  SetConfigParam(PATH_PCONFIG, "locator", Locator6);
+  strcpy(Locator, Locator6);
 }
 
 void ChangeADFRef(int NoButton)
@@ -12146,7 +12471,8 @@ void ChangeADFRef(int NoButton)
   case 1:
   case 2:
     snprintf(RequestText, 45, "Enter new ADF4351 Reference Frequncy %d in Hz", NoButton + 1);
-    snprintf(InitText, 10, "%s", ADFRef[NoButton]);
+    //snprintf(InitText, 10, "%s", ADFRef[NoButton]);
+    strcpyn(InitText, ADFRef[NoButton], 10);
     while (Spaces >= 1)
     {
       Keyboard(RequestText, InitText, 9);
@@ -12169,7 +12495,8 @@ void ChangeADFRef(int NoButton)
     break;
   case 3:
     snprintf(RequestText, 45, "Enter new ADF5355 Reference Frequncy in Hz");
-    snprintf(InitText, 10, "%s", ADF5355Ref);
+    //snprintf(InitText, 10, "%s", ADF5355Ref);
+    strcpyn(InitText, ADF5355Ref, 10);
     while (Spaces >= 1)
     {
       Keyboard(RequestText, InitText, 9);
@@ -12207,15 +12534,18 @@ void ChangePID(int NoButton)
     {
     case 0:
       strcpy(RequestText, "Enter new Video PID (Range 16 - 8190, Rec: 256)");
-      snprintf(InitText, 5, "%s", PIDvideo);
+      //snprintf(InitText, 5, "%s", PIDvideo);
+      strcpyn(InitText, PIDvideo, 5);
       break;
     case 1:
       strcpy(RequestText, "Enter new Audio PID (Range 16 - 8190 Rec: 257)");
-      snprintf(InitText, 5, "%s", PIDaudio);
+      //snprintf(InitText, 5, "%s", PIDaudio);
+      strcpyn(InitText, PIDaudio, 5);
       break;
     case 2:
       strcpy(RequestText, "Enter new PMT PID (Range 16 - 8190 Rec: 4095)");
-      snprintf(InitText, 5, "%s", PIDpmt);
+      //snprintf(InitText, 5, "%s", PIDpmt);
+      strcpyn(InitText, PIDpmt, 5);
       break;
     default:
       return;
@@ -12260,6 +12590,53 @@ void ChangePID(int NoButton)
   printf("PID set to: %s\n", KeyboardReturn);
 }
 
+void ControlLimeCal()
+{
+  char LimeCalFreqText[63];
+
+  // Check Current setting
+  
+  GetConfigParam(PATH_LIME_CAL, "limecalfreq", LimeCalFreqText);
+  LimeCalFreq = atof(LimeCalFreqText);
+
+  if (LimeCalFreq < -1.5)  // Currently at Never Calibrate, so put to Cal if needed
+  {
+    LimeCalFreq = 0;  // Cal if needed
+    SetConfigParam(PATH_LIME_CAL, "limecalfreq", "0.0");   
+  }
+  else if (LimeCalFreq < -0.5) // Currently at Always calibrate so put to Never
+  {
+    LimeCalFreq = -2;  // Never Cal 
+    SetConfigParam(PATH_LIME_CAL, "limecalfreq", "-2.0");      
+  }
+  else  // Calibrate on freq change, so put to always
+  {
+    LimeCalFreq = -1;  // Always Cal
+    SetConfigParam(PATH_LIME_CAL, "limecalfreq", "-1.0");   
+  }
+}
+
+void ToggleLimeRFE()
+{
+ // Set the correct band in portsdown_config.txt
+  char bandtext [15];   
+  GetConfigParam(PATH_PCONFIG, "band", bandtext);
+  strcat(bandtext, "limerfe");
+
+  if (LimeRFEState == 1)  // Enabled
+  {
+    LimeRFEState = 0;
+    SetConfigParam(PATH_PCONFIG, "limerfe", "disabled");
+    SetConfigParam(PATH_PPRESETS, bandtext, "disabled");
+  }
+  else                    // Disabled
+  {
+    LimeRFEState = 1;
+    SetConfigParam(PATH_PCONFIG, "limerfe", "enabled");
+    SetConfigParam(PATH_PPRESETS, bandtext, "enabled");
+  }
+}
+
 void ChangeJetsonIP()
 {
   char RequestText[64];
@@ -12274,7 +12651,8 @@ void ChangeJetsonIP()
   while (IsValid == FALSE)
   {
     strcpy(RequestText, "Enter new IP address for Jetson Nano");
-    snprintf(InitText, 17, "%s", JetsonIP);
+    //snprintf(InitText, 17, "%s", JetsonIP);
+    strcpyn(InitText, JetsonIP, 17);
     Keyboard(RequestText, InitText, 17);
   
     strcpy(JetsonIPCopy, KeyboardReturn);
@@ -12303,7 +12681,8 @@ void ChangeLKVIP()
   while (IsValid == FALSE)
   {
     strcpy(RequestText, "Enter new UDP IP address for LKV373A");
-    snprintf(InitText, 17, "%s", LKVIP);
+    //snprintf(InitText, 17, "%s", LKVIP);
+    strcpyn(InitText, LKVIP, 17);
     Keyboard(RequestText, InitText, 17);
   
     strcpy(LKVIPCopy, KeyboardReturn);
@@ -12331,7 +12710,8 @@ void ChangeLKVPort()
   while (IsValid == FALSE)
   {
     strcpy(RequestText, "Enter the new UDP port for the LKV373A");
-    snprintf(InitText, 10, "%s", LKVPort);
+    //snprintf(InitText, 10, "%s", LKVPort);
+    strcpyn(InitText, LKVPort, 15);
     Keyboard(RequestText, InitText, 10);
   
     if(strlen(KeyboardReturn) > 0)
@@ -12748,7 +13128,7 @@ rawY = 0;
           {
             if (!((IQAvailable == 0) && (Getforce_pwm_open() == 1) && ((strcmp(CurrentModeOP, "QPSKRF") == 0) || (strcmp(CurrentModeOP, "IQ") == 0))))
             {
-              if ((strcmp(CurrentModeOP, "LIMEMINI") == 0) || (strcmp(CurrentModeOP, "LIMEUSB") == 0))
+              if ((strcmp(CurrentModeOP, "LIMEMINI") == 0) || (strcmp(CurrentModeOP, "LIMEUSB") == 0) || (strcmp(CurrentModeOP, "LIMEDVB") == 0))
               {  
                 system("/home/pi/rpidatv/scripts/lime_ptt.sh &");
               }
@@ -13014,10 +13394,20 @@ rawY = 0;
         case 4:                               // 
           break;
         case 5:                              // Lime Config
-          printf("MENU 34 \n"); 
-          CurrentMenu=34;
-          BackgroundRGB(0,0,0,255);
-          Start_Highlights_Menu34();
+          if (GetLinuxVer() == 10)
+          {
+            printf("MENU 37 \n"); 
+            CurrentMenu=37;
+            BackgroundRGB(0, 0, 0, 255);
+            Start_Highlights_Menu37();
+          }
+          else
+          {
+            printf("MENU 34 \n"); 
+            CurrentMenu=34;
+            BackgroundRGB(0, 0, 0, 255);
+            Start_Highlights_Menu34();
+          }
           UpdateWindow();
           break;
         case 6:                              // Jetson Config 
@@ -13559,9 +13949,6 @@ rawY = 0;
           UpdateWindow();
           usleep(500000);
           break;
-        case 15:                               // Start XY display and Exit
-          cleanexit(134);
-          break;
         case 22:                              // Menu 1
           printf("MENU 1 \n");
           CurrentMenu=1;
@@ -13825,11 +14212,21 @@ rawY = 0;
         case 5:                                         // QO-100 Offset
           ChangeLMRXOffset();
           CurrentMenu=13;
-          BackgroundRGB(0,0,0,255);
+          BackgroundRGB(0, 0, 0, 255);
           Start_Highlights_Menu13();
           UpdateWindow();
           break;
-        case 6:                                        // Input Socket
+        case 6:                                         // Autoset QO-100 Offset
+          if (strcmp(LMRXmode, "sat") == 0)
+          {
+            AutosetLMRXOffset();
+          }
+          CurrentMenu=13;
+          BackgroundRGB(0, 0, 0, 255);
+          Start_Highlights_Menu13();
+          UpdateWindow();
+          break;
+        case 7:                                        // Input Socket
           if (strcmp(LMRXinput, "a") == 0)
           {
             strcpy(LMRXinput, "b");
@@ -14858,7 +15255,7 @@ rawY = 0;
           break;
         case 8:                               // Lime firmware update
           printf("Lime Firmware Update\n");
-          LimeFWUpdate();
+          LimeFWUpdate(0);
           CurrentMenu=34;
           BackgroundRGB(0,0,0,255);
           UpdateWindow();
@@ -14968,24 +15365,59 @@ rawY = 0;
         continue;   // Completed Menu 36 action, go and wait for touch
       }
 
-      if (CurrentMenu == 37)  // Menu 37 Not used
+      if (CurrentMenu == 37)  // Menu 37 Lime Menu for Buster
       {
         printf("Button Event %d, Entering Menu 37 Case Statement\n",i);
         switch (i)
         {
+        case 0:                               // Lime FW Update 1.29
+        case 1:                               // Lime FW Update 1.30
+        case 2:                               // Lime FW Update DVB
+          printf("Lime Firmware Update %d\n", i);
+          LimeFWUpdate(i);
+          CurrentMenu=37;
+          BackgroundRGB(0, 0, 0, 255);
+          UpdateWindow();
+          break;
+        case 3:                               // Toggle LimeRFE
+          ToggleLimeRFE();
+          Start_Highlights_Menu37();
+          UpdateWindow();
+          break;
         case 4:                               // Cancel
           SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 1);
-          printf("Cancelling WiFi Config Menu\n");
+          printf("Cancelling Buster Lime Menu\n");
           UpdateWindow();
           usleep(500000);
           SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 0); // Reset cancel (even if not selected)
           printf("Returning to MENU 1 from Menu 37\n");
-          CurrentMenu=1;
-          BackgroundRGB(255,255,255,255);
+          CurrentMenu = 1;
+          BackgroundRGB(255, 255, 255, 255);
           Start_Highlights_Menu1();
           UpdateWindow();
           break;
-        case 5:                               // 
+        case 5:                               // Display LimeSuite Info Page
+          LimeUtilInfo();
+          wait_touch();
+          BackgroundRGB(0,0,0,255);
+          UpdateWindow();
+          break;
+        case 6:                               // Display Lime FW Info Page
+          LimeInfo();
+          wait_touch();
+          BackgroundRGB(0,0,0,255);
+          UpdateWindow();
+          break;
+        case 7:                               // Display Lime Report Page
+          LimeMiniTest();
+          wait_touch();
+          BackgroundRGB(0 ,0, 0, 255);
+          UpdateWindow();
+          break;
+        case 9:                               // Cycle through Lime Cal options
+          ControlLimeCal();
+          Start_Highlights_Menu37();
+          UpdateWindow();
           break;
         default:
           printf("Menu 37 Error\n");
@@ -15777,7 +16209,8 @@ void Start_Highlights_Menu1()
   }
   else if ((strcmp(CurrentModeOP, TabModeOP[3]) == 0)
         || (strcmp(CurrentModeOP, TabModeOP[8]) == 0)
-        || (strcmp(CurrentModeOP, TabModeOP[9]) == 0))  // Lime
+        || (strcmp(CurrentModeOP, TabModeOP[9]) == 0)
+        || (strcmp(CurrentModeOP, TabModeOP[12]) == 0))  // Lime
   {
     snprintf(Leveltext, 20, "Lime Gain^%d", TabBandLimeGain[CurrentBand]);
   }
@@ -16235,7 +16668,7 @@ void Start_Highlights_Menu5()
   for(index = 1; index < 5 ; index = index + 1)
   {
     // Define the button text
-    snprintf(RXBtext, 20, "%s^%s", RXlabel[index], RXfreq[index]);
+    snprintf(RXBtext, 31, "%s^%s", RXlabel[index], RXfreq[index]);
     NoButton = index - 1;
     AmendButtonStatus(ButtonNumber(5, NoButton), 0, RXBtext, &Blue);
     AmendButtonStatus(ButtonNumber(5, NoButton), 1, RXBtext, &Green);
@@ -16473,7 +16906,7 @@ void Define_Menu6()
 void Start_Highlights_Menu6()
 {
   int index;
-  char RTLBtext[21];
+  char RTLBtext[63];
   int NoButton;
   int Match = 0;
 
@@ -16484,7 +16917,7 @@ void Start_Highlights_Menu6()
   AmendButtonStatus(ButtonNumber(6, 15), 1, RTLBtext, &Green);
 
   // Display the Squelch level
-  snprintf(RTLBtext, 20, "Squelch^Level %d", RTLsquelch[0]);
+  snprintf(RTLBtext, 50, "Squelch^Level %d", RTLsquelch[0]);
   AmendButtonStatus(ButtonNumber(6, 16), 0, RTLBtext, &Blue);
   AmendButtonStatus(ButtonNumber(6, 16), 1, RTLBtext, &Green);
 
@@ -16529,7 +16962,7 @@ void Start_Highlights_Menu6()
   for(index = 1; index < 10 ; index = index + 1)
   {
     // Define the button text
-    snprintf(RTLBtext, 20, "%s^%s", RTLlabel[index], RTLfreq[index]);
+    snprintf(RTLBtext, 35, "%s^%s", RTLlabel[index], RTLfreq[index]);
 
     NoButton = index + 4;   // Valid for top row
     if (index > 5)          // Overwrite for bottom row
@@ -16599,11 +17032,7 @@ void Define_Menu7()
 
   // 3rd line up Menu 7: 
 
-  // 4th line up Menu 7: XY Display
-
-  button = CreateButton(7, 15);
-  AddButtonStatus(button, "XY^Display", &Blue);
-  AddButtonStatus(button, "XY^Display", &Green);
+  // 4th line up Menu 7: 
 
   // Top of Menu 7
 
@@ -17113,6 +17542,10 @@ void Define_Menu13()
   AddButtonStatus(button, "Sat LNB^Offset", &Blue);
 
   button = CreateButton(13, 6);
+  AddButtonStatus(button, "Autoset^LNB Offset", &Blue);
+  AddButtonStatus(button, " ", &Grey);
+
+  button = CreateButton(13, 7);
   AddButtonStatus(button, "Input^A", &Blue);
   AddButtonStatus(button, "Input^A", &Blue);
 
@@ -17129,13 +17562,15 @@ void Start_Highlights_Menu13()
   {
     strcpy(LMBtext, "QO-100^Input ");
     strcat(LMBtext, LMRXinput);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 6), 0);
   }
   else
   {
     strcpy(LMBtext, "Terrestrial^Input ");
     strcat(LMBtext, LMRXinput);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 6), 1);
   }
-  AmendButtonStatus(ButtonNumber(13, 6), 0, LMBtext, &Blue);
+  AmendButtonStatus(ButtonNumber(13, 7), 0, LMBtext, &Blue);
 
   if (strcmp(LMRXaudio, "rpi") == 0)
   {
@@ -18499,25 +18934,28 @@ void Define_Menu29()
 void Start_Highlights_Menu29()
 {
   // Call, locator and PID
-
   char Buttext[31];
+  char CallSign20[21];
+  char Locator20[21];
 
-  snprintf(Buttext, 13, "Call^%s", CallSign);
+  strcpyn(CallSign20, CallSign, 20);
+  snprintf(Buttext, 31, "Call^%s", CallSign20);
   AmendButtonStatus(ButtonNumber(29, 5), 0, Buttext, &Blue);
 
-  snprintf(Buttext, 16, "Locator^%s", Locator);
+  strcpyn(Locator20, Locator, 20);
+  snprintf(Buttext, 31, "Locator^%s", Locator20);
   AmendButtonStatus(ButtonNumber(29, 6), 0, Buttext, &Blue);
 
-  snprintf(Buttext, 17, "Video PID^%s", PIDvideo);
+  snprintf(Buttext, 25, "Video PID^%s", PIDvideo);
   AmendButtonStatus(ButtonNumber(29, 0), 0, Buttext, &Blue);
 
-  snprintf(Buttext, 17, "Audio PID^%s", PIDaudio);
+  snprintf(Buttext, 25, "Audio PID^%s", PIDaudio);
   AmendButtonStatus(ButtonNumber(29, 1), 0, Buttext, &Blue);
 
-  snprintf(Buttext, 17, "PMT PID^%s", PIDpmt);
+  snprintf(Buttext, 25, "PMT PID^%s", PIDpmt);
   AmendButtonStatus(ButtonNumber(29, 2), 0, Buttext, &Blue);
 
-  snprintf(Buttext, 17, "PCR PID^%s", PIDstart);
+  snprintf(Buttext, 25, "PCR PID^%s", PIDstart);
   AmendButtonStatus(ButtonNumber(29, 3), 0, Buttext, &Grey);
 }
 
@@ -18668,15 +19106,15 @@ void Start_Highlights_Menu32()
 
   char Buttext[31];
 
-  snprintf(Buttext, 20, "Use Ref 1^%s", ADFRef[0]);
+  snprintf(Buttext, 26, "Use Ref 1^%s", ADFRef[0]);
   AmendButtonStatus(ButtonNumber(32, 5), 0, Buttext, &Blue);
   AmendButtonStatus(ButtonNumber(32, 5), 1, Buttext, &Green);
 
-  snprintf(Buttext, 20, "Use Ref 2^%s", ADFRef[1]);
+  snprintf(Buttext, 26, "Use Ref 2^%s", ADFRef[1]);
   AmendButtonStatus(ButtonNumber(32, 6), 0, Buttext, &Blue);
   AmendButtonStatus(ButtonNumber(32, 6), 1, Buttext, &Green);
 
-  snprintf(Buttext, 20, "Use Ref 3^%s", ADFRef[2]);
+  snprintf(Buttext, 26, "Use Ref 3^%s", ADFRef[2]);
   AmendButtonStatus(ButtonNumber(32, 7), 0, Buttext, &Blue);
   AmendButtonStatus(ButtonNumber(32, 7), 1, Buttext, &Green);
 
@@ -18697,19 +19135,19 @@ void Start_Highlights_Menu32()
     SelectInGroupOnMenu(CurrentMenu, 5, 7, 7, 0);
   }
   
-  snprintf(Buttext, 20, "Set Ref 1^%s", ADFRef[0]);
+  snprintf(Buttext, 26, "Set Ref 1^%s", ADFRef[0]);
   AmendButtonStatus(ButtonNumber(32, 0), 0, Buttext, &Blue);
 
-  snprintf(Buttext, 20, "Set Ref 2^%s", ADFRef[1]);
+  snprintf(Buttext, 26, "Set Ref 2^%s", ADFRef[1]);
   AmendButtonStatus(ButtonNumber(32, 1), 0, Buttext, &Blue);
 
-  snprintf(Buttext, 20, "Set Ref 3^%s", ADFRef[2]);
+  snprintf(Buttext, 26, "Set Ref 3^%s", ADFRef[2]);
   AmendButtonStatus(ButtonNumber(32, 2), 0, Buttext, &Blue);
 
-  snprintf(Buttext, 20, "Set 5355^%s", ADF5355Ref);
+  snprintf(Buttext, 26, "Set 5355^%s", ADF5355Ref);
   AmendButtonStatus(ButtonNumber(32, 3), 0, Buttext, &Blue);
 
-  snprintf(Buttext, 20, "RTL ppm^%d", RTLppm);
+  snprintf(Buttext, 26, "RTL ppm^%d", RTLppm);
   AmendButtonStatus(ButtonNumber(32, 9), 0, Buttext, &Blue);
 }
 
@@ -18926,12 +19364,80 @@ void Start_Highlights_Menu36()
 
 void Define_Menu37()
 {
-  // Nothing here yet
+  int button;
+
+  strcpy(MenuTitle[37], "Buster Lime Configuration Menu (37)"); 
+
+  // Bottom Row, Menu 37
+
+  button = CreateButton(37, 0);
+  AddButtonStatus(button, "Update to^FW 1.29", &Blue);
+  AddButtonStatus(button, "Update to^FW 1.29", &Green);
+
+  button = CreateButton(37, 1);
+  AddButtonStatus(button, "Update to^FW 1.30", &Blue);
+  AddButtonStatus(button, "Update to^FW 1.30", &Green);
+
+  button = CreateButton(37, 2);
+  AddButtonStatus(button, "Update to^DVB FW", &Blue);
+  AddButtonStatus(button, "Update to^DVB FW", &Green);
+
+  button = CreateButton(37, 3);
+  AddButtonStatus(button, "LimeRFE^Disabled", &Blue);
+
+  button = CreateButton(37, 4);
+  AddButtonStatus(button, "Exit", &DBlue);
+  AddButtonStatus(button, "Exit", &LBlue);
+
+  // 2nd Row, Menu 37
+
+  button = CreateButton(37, 5);
+  AddButtonStatus(button, "LimeUtil^Info", &Blue);
+  AddButtonStatus(button, "LimeUtil^Info", &Green);
+
+  button = CreateButton(37, 6);
+  AddButtonStatus(button, "Lime^FW Info", &Blue);
+  AddButtonStatus(button, "Lime^FW Info", &Green);
+
+  button = CreateButton(37, 7);
+  AddButtonStatus(button, "Lime^Report", &Blue);
+  AddButtonStatus(button, "Lime^Report", &Green);
+
+  //button = CreateButton(37, 8);
+  //AddButtonStatus(button, "Update^Lime FW", &Blue);
+  //AddButtonStatus(button, "Update^Lime FW", &Green);
+
+  button = CreateButton(37, 9);
+  AddButtonStatus(button, "Calibrate^Every TX", &Blue);
 }
 
 void Start_Highlights_Menu37()
 {
-  // Nothing here yet
+  // Lime Config Menu
+
+  // Button 3 LimeRFE Enable/Disable
+  if (LimeRFEState == 1)  // Enabled
+  {
+    AmendButtonStatus(ButtonNumber(37, 3), 0, "LimeRFE^Enabled", &Blue);
+  }
+  else                    // Disabled
+  {
+    AmendButtonStatus(ButtonNumber(37, 3), 0, "LimeRFE^Disabled", &Blue);
+  }
+
+  // Button 9, Lime Calibration
+  if (LimeCalFreq < -1.5)  // Never Calibrate
+  {
+    AmendButtonStatus(ButtonNumber(37, 9), 0, "Never^Calibrate", &Blue);
+  }
+  else if (LimeCalFreq < -0.5) // Always calibrate
+  {
+    AmendButtonStatus(ButtonNumber(37, 9), 0, "Calibrate^Every TX", &Blue);
+  }
+  else  // Calibrate on freq change
+  {
+    AmendButtonStatus(ButtonNumber(37, 9), 0, "Calibrate^if needed", &Blue);
+  }
 }
 
 void Define_Menu38()
@@ -19114,7 +19620,7 @@ void Start_Highlights_Menu42()
     SelectInGroupOnMenu(42, 5, 14, 10, 1);
     SelectInGroupOnMenu(42, 0, 3, 10, 1);
   }
-  if(strcmp(CurrentModeOP, TabModeOP[12]) == 0)  //LIME FPGA
+  if(strcmp(CurrentModeOP, TabModeOP[12]) == 0)  //LIME DVB
   {
     SelectInGroupOnMenu(42, 5, 14, 13, 1);
     SelectInGroupOnMenu(42, 0, 3, 13, 1);
@@ -19574,8 +20080,8 @@ terminate(int dummy)
   ReceiveStop();
   RTLstop();
   system("killall -9 omxplayer.bin >/dev/null 2>/dev/null");
-  system("sudo killall lmudp.sh");
-  system("sudo killall longmynd");
+  system("sudo killall lmudp.sh >/dev/null 2>/dev/null");
+  system("sudo killall longmynd >/dev/null 2>/dev/null");
   finish();
   printf("Terminate\n");
   sprintf(Commnd,"sudo killall express_server >/dev/null 2>/dev/null");

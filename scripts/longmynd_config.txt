@@ -41,4 +41,15 @@ tsr3=500
 tsr4=333
 tsr5=250
 tsr6=125
+2ndrx=off
+2ndmode=sat
+2ndinput=a
+2ndinput1=a
+2ndudpip=192.168.2.184
+2ndudpport=5678
+2ndqoffset=9750000
+2ndfreq0=10492500
+2ndsr0=2000
+2ndfreq1=437000
+2ndsr1=333
 

@@ -44,4 +44,5 @@ pilots=off
 frames=long
 format=4:3
 encoding=H264
+limerfe=disabled
 
