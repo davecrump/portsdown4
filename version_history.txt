@@ -1,3 +1,19 @@
+202001310
+Initial Buster Release
+LimeDVB with some modes released
+Repeater TX mode implemented
+New Touchscreen Menu for Lime Config
+Lime Config Menu added to Console
+Calibration switching implemented
+Cured retransmit on configuration touch after transmit deselection
+Corrected display of DVB-S2 FECs on Info Screen
+
+201912100
+Add Autoset of LNB Offset for LongMynd
+Grey-out unavailable video source buttons
+Cure file handle leak
+Prep for Migration to Buster
+
 201910230
 Display Additional Receive Parameters
 Improve receive display appearance and behaviour

@@ -11,6 +11,7 @@ PATHCONFIGS="/home/pi/rpidatv/scripts/configs"  ## Path to config files
 PCONFIGFILE="/home/pi/rpidatv/scripts/portsdown_config.txt"
 PATH_PPRESETS="/home/pi/rpidatv/scripts/portsdown_presets.txt"
 PATH_STREAMPRESETS="/home/pi/rpidatv/scripts/stream_presets.txt"
+PATH_LIME_CAL="/home/pi/rpidatv/scripts/limecalfreq.txt"
 
 
 GPIO_PTT=29  ## WiringPi value, not BCM
@@ -567,6 +568,7 @@ do_output_setup_mode()
   Radio9=OFF
   Radio10=OFF
   Radio11=OFF
+  Radio12=OFF
   case "$MODE_OUTPUT" in
   IQ)
     Radio1=ON
@@ -598,13 +600,16 @@ do_output_setup_mode()
   LIMEUSB)
     Radio10=ON
   ;;
-  *)
+  LIMEDVB)
     Radio11=ON
+  ;;
+  *)
+    Radio12=ON
   ;;
   esac
 
   choutput=$(whiptail --title "$StrOutputSetupTitle" --radiolist \
-    "$StrOutputSetupContext" 20 78 10 \
+    "$StrOutputSetupContext" 20 78 11 \
     "IQ" "$StrOutputSetupIQ" $Radio1 \
     "QPSKRF" "$StrOutputSetupRF" $Radio2 \
     "STREAMER" "Stream to BATC or other Streaming Facility" $Radio3 \
@@ -615,6 +620,7 @@ do_output_setup_mode()
     "COMPVID" "Output PAL Comp Video from Raspberry Pi AV Socket" $Radio8 \
     "LIMEMINI" "Transmit using a LimeSDR Mini" $Radio9 \
     "LIMEUSB" "Transmit using a LimeSDR USB" $Radio10 \
+    "LIMEDVB" "Use a LimeSDR Mini with Custom DVB Firmware" $Radio11 \
     3>&2 2>&1 1>&3)
 
   if [ $? -eq 0 ]; then
@@ -699,6 +705,9 @@ do_output_setup_mode()
       :
     ;;
     LIMEUSB)
+      :
+    ;;
+    LIMEDVB)
       :
     ;;
     esac
@@ -2908,6 +2917,200 @@ do_system_setup_2()
   esac
 }
 
+do_lmsver()
+{
+  reset
+  LimeUtil --info
+  printf "\nPress any key to return to the main menu\n"
+  read -n 1
+}
+
+do_lfwver()
+{
+  reset
+  LimeUtil --make
+  printf "\nPress any key to return to the main menu\n"
+  read -n 1
+}
+
+do_lqt()
+{
+  reset
+  LimeQuickTest
+  printf "\nPress any key to return to the main menu\n"
+  read -n 1
+}
+
+do_ud129()
+{
+  UD129=""
+  UD129=$(whiptail --inputbox "Enter y or n" 8 78 $UD129 --title "Load LimeSDR Mini Firmware 1.29?" 3>&1 1>&2 2>&3)
+  if [ $? -eq 0 ]; then
+    if [[ "$UD129" == "y" || "$UD129" == "Y" ]]; then
+      reset
+      sudo LimeUtil --fpga=/home/pi/.local/share/LimeSuite/images/19.01/LimeSDR-Mini_HW_1.2_r1.29.rpd
+      printf "\nPress any key to return to the main menu\n"
+      read -n 1
+    else
+      whiptail --title "Message" --msgbox "Current LimeSDR Configuration Retained.  Please press enter to continue" 8 78
+    fi
+  fi
+}
+
+do_ud130()
+{
+  UD130=""
+  UD130=$(whiptail --inputbox "Enter y or n" 8 78 $UD130 --title "Load LimeSDR Mini Firmware 1.30?" 3>&1 1>&2 2>&3)
+  if [ $? -eq 0 ]; then
+    if [[ "$UD130" == "y" || "$UD130" == "Y" ]]; then
+      reset
+      sudo LimeUtil --fpga=/home/pi/.local/share/LimeSuite/images/19.04/LimeSDR-Mini_HW_1.2_r1.30.rpd
+      printf "\nPress any key to return to the main menu\n"
+      read -n 1
+    else
+      whiptail --title "Message" --msgbox "Current LimeSDR Configuration Retained.  Please press enter to continue" 8 78
+    fi
+  fi
+}
+
+do_uddvb()
+{
+  UDDVB=""
+  UDDVB=$(whiptail --inputbox "Enter y or n" 8 78 $UDDVB --title "Load LimeSDR Mini Custom DVB Firmware?" 3>&1 1>&2 2>&3)
+  if [ $? -eq 0 ]; then
+    if [[ "$UDDVB" == "y" || "$UDDVB" == "Y" ]]; then
+      reset
+      sudo LimeUtil --force --fpga=/home/pi/.local/share/LimeSuite/images/v0.3/LimeSDR-Mini_lms7_trx_HW_1.2_auto.rpd
+      printf "\nPress any key to return to the main menu\n"
+      read -n 1
+    else
+      whiptail --title "Message" --msgbox "Current LimeSDR Configuration Retained.  Please press enter to continue" 8 78
+    fi
+  fi
+}
+
+do_limecal()
+{
+  LIMECALFREQ=$(get-config_var limecalfreq $PATH_LIME_CAL)
+
+  if [[ "$LIMECALFREQ" == "2.0" ]]; then
+    CAL_MSG="LIME Set to Never Calibrate.  Select new option"
+  elif [[ "$LIMECALFREQ" == "1.0" ]]; then
+    CAL_MSG="LIME Set to Calibrate every transmission.  Select new option"
+  else
+    CAL_MSG="LIME Set to Calibrate on Frequency Change only.  Select new option"
+  fi
+  
+  menuchoice=$(whiptail --title "LimeSDR Calibration Menu" --menu "$CAL_MSG" 20 78 4 \
+    "1 Never Calibrate" "No Calibration"  \
+    "2 Always Calibrate" "Calibrate at the Start of Every Transmission"  \
+    "3 Cal as Required" "Calibrate only on frequency change" \
+    3>&2 2>&1 1>&3)
+  case "$menuchoice" in
+    1\ *) set_config_var limecalfreq "-2.0" $PATH_LIME_CAL ;;
+    2\ *) set_config_var limecalfreq "-1.0" $PATH_LIME_CAL ;;
+    3\ *) set_config_var limecalfreq "0.0" $PATH_LIME_CAL ;;
+  esac
+}
+
+
+do_lg()
+{
+  BAND=$(get_config_var band $PCONFIGFILE)
+  LIMEGAIN=$(get-config_var limegain $PCONFIGFILE)
+  case "$BAND" in
+  d1)
+    BAND_NAME=$(get_config_var d1label $PATH_PPRESETS)
+  ;;
+  d2)
+    BAND_NAME=$(get_config_var d2label $PATH_PPRESETS)
+  ;;
+  d3)
+    BAND_NAME=$(get_config_var d3label $PATH_PPRESETS)
+  ;;
+  d4)
+    BAND_NAME=$(get_config_var d4label $PATH_PPRESETS)
+  ;;
+  d5)
+    BAND_NAME=$(get_config_var d5label $PATH_PPRESETS)
+  ;;
+  t1)
+    BAND_NAME=$(get_config_var t1label $PATH_PPRESETS)
+  ;;
+  t2)
+    BAND_NAME=$(get_config_var t2label $PATH_PPRESETS)
+  ;;
+  t3)
+    BAND_NAME=$(get_config_var t3label $PATH_PPRESETS)
+  ;;
+  t4)
+    BAND_NAME=$(get_config_var t4label $PATH_PPRESETS)
+  ;;
+  esac
+
+# "$BAND_NAME"
+
+  LIMEGAIN=$(whiptail --inputbox "Current gain = "$LIMEGAIN".  Enter 0 to 100" 8 78 $LIMEGAIN0 --title "SET LIME GAIN FOR THE "$BAND_NAME" BAND" 3>&1 1>&2 2>&3)
+  if [ $? -eq 0 ]; then
+ 
+  set_config_var limegain "$LIMEGAIN" $PCONFIGFILE
+  case "$BAND" in
+  d1)
+    set_config_var d1limegain "$LIMEGAIN" $PATH_PPRESETS
+  ;;
+  d2)
+    set_config_var d2limegain "$LIMEGAIN" $PATH_PPRESETS
+  ;;
+  d3)
+    set_config_var d3limegain "$LIMEGAIN" $PATH_PPRESETS
+  ;;
+  d4)
+    set_config_var d4limegain "$LIMEGAIN" $PATH_PPRESETS
+  ;;
+  d5)
+    set_config_var d5limegain "$LIMEGAIN" $PATH_PPRESETS
+  ;;
+  t1)
+    set_config_var t1limegain "$LIMEGAIN" $PATH_PPRESETS
+  ;;
+  t2)
+    set_config_var t2limegain "$LIMEGAIN" $PATH_PPRESETS
+  ;;
+  t3)
+    set_config_var t3limegain "$LIMEGAIN" $PATH_PPRESETS
+  ;;
+  t4)
+    set_config_var t4limegain "$LIMEGAIN" $PATH_PPRESETS
+  ;;
+  esac
+  fi
+}
+
+
+do_lime_setup()
+{
+  menuchoice=$(whiptail --title "LimeSDR Configuration Menu" --menu "$StrSystemContext" 20 78 9 \
+    "1 Show LimeSuite Version" "LimeSDR Driver Software"  \
+    "2 Show Lime FW Version" "Firmware and Gateware Version"  \
+    "3 Lime Quick Test" "Basic Test of LimeSDR" \
+    "4 Update to FW 1.29" "Update LimeSDRMini to Firmware 1.29" \
+    "5 Update to FW 1.30" "Update LimeSDRMini to Firmware 1.30" \
+    "6 Update to DVB FW" "Update LimeSDRMini to custom DVB Firmware" \
+    "7 Calibration Rules" "Set LimeSDR Calibration Behaviour" \
+    "8 Set Lime Gain" "Set the Lime Gain for the current Band" \
+    3>&2 2>&1 1>&3)
+  case "$menuchoice" in
+    1\ *) do_lmsver ;;
+    2\ *) do_lfwver ;;
+    3\ *) do_lqt ;;
+    4\ *) do_ud129 ;;
+    5\ *) do_ud130 ;;
+    6\ *) do_uddvb ;;
+    7\ *) do_limecal ;;
+    8\ *) do_lg ;;
+  esac
+}
+
 do_language_setup()
 {
   menuchoice=$(whiptail --title "$StrLanguageTitle" --menu "$StrOutputContext" 16 78 6 \
@@ -3148,7 +3351,7 @@ while [ "$status" -eq 0 ]
 
     # Display main menu
 
-    menuchoice=$(whiptail --title "$StrMainMenuTitle" --menu "$INFO" 16 82 9 \
+    menuchoice=$(whiptail --title "$StrMainMenuTitle" --menu "$INFO" 16 82 10 \
 	"0 Transmit" $FREQ_OUTPUT" MHz, "$SYMBOLRATEK" KS, "$MODULATION", FEC "$FECNUM"/"$FECDEN"" \
         "1 Source" "$StrMainMenuSource"" ("$MODE_INPUT" selected)" \
 	"2 Output" "$StrMainMenuOutput"" ("$MODE_OUTPUT" selected)" \
@@ -3156,8 +3359,9 @@ while [ "$status" -eq 0 ]
 	"4 Receive" "$StrMainMenuReceive" \
 	"5 System" "$StrMainMenuSystem" \
         "6 System 2" "$StrMainMenuSystem2" \
-	"7 Language" "$StrMainMenuLanguage" \
-        "8 Shutdown" "$StrMainMenuShutdown" \
+        "7 Lime Config  " "LimeSDR Mini Info and Configuration" \
+	"8 Language" "$StrMainMenuLanguage" \
+        "9 Shutdown" "$StrMainMenuShutdown" \
  	3>&2 2>&1 1>&3)
 
         case "$menuchoice" in
@@ -3168,8 +3372,9 @@ while [ "$status" -eq 0 ]
 	    4\ *) do_receive_menu ;;
 	    5\ *) do_system_setup ;;
 	    6\ *) do_system_setup_2 ;;
-            7\ *) do_language_setup ;;
-            8\ *) do_shutdown_menu ;;
+	    7\ *) do_lime_setup ;;
+            8\ *) do_language_setup ;;
+            9\ *) do_shutdown_menu ;;
                *)
 
         # Display exit message if user jumps out of menu

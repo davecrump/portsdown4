@@ -71,7 +71,7 @@ StrOutputContext="Choice:"
 
 StrOutputSR="Symbol Rate Setup"
 StrOutputFEC="FEC Setup"
-StrOutputMode="Output Mode"
+StrOutputMode="Select Output Device"
 
 StrPIDSetup="PID setup"
 StrPIDSetupTitle="PID setup"
