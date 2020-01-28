@@ -60,6 +60,10 @@ MODE_OUTPUT=$(get_config_var modeoutput $PCONFIGFILE)
   sudo killall limesdr_dvb >/dev/null 2>/dev/null
   sudo killall sox >/dev/null 2>/dev/null
 
+  # Turn the mpeg-2 camera overlay off
+  v4l2-ctl -d /dev/video0 --overlay 0 >/dev/null 2>/dev/null
+  v4l2-ctl -d /dev/video1 --overlay 0 >/dev/null 2>/dev/null
+
   # Kill the key RX processes as nicely as possible
   sudo killall leandvb >/dev/null 2>/dev/null
   sudo killall hello_video.bin >/dev/null 2>/dev/null

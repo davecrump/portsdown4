@@ -331,29 +331,31 @@ sudo fbi -T 1 -noverbose -a /home/pi/rpidatv/scripts/images/BATC_Black.png >/dev
 # Check if PiCam connected; if it is, sort out the
 # camera inputs so that PiCam is /dev/video0 and EasyCap is /dev/video1
 
-vcgencmd get_camera | grep 'detected=1' >/dev/null 2>/dev/null
-RESULT="$?"
-if [ "$RESULT" -eq 0 ]; then
-  sudo modprobe -r bcm2835_v4l2 # Unload the Pi Cam driver
-  sudo modprobe -r usbtv        # Unload the EasyCap driver
-  sudo modprobe -r em28xx        # Unload the EasyCap driver
-  sudo modprobe -r stk1160        # Unload the EasyCap driver
-  sudo modprobe -r uvcvideo        # Unload the EasyCap driver
-  # replace usbtv with your EasyCap driver name
-  sudo modprobe bcm2835_v4l2    # Load the Pi Cam driver
-  sudo modprobe usbtv           # Load the EasyCap driver
-  sudo modprobe em28xx        # Load the EasyCap driver
-  sudo modprobe stk1160        # Load the EasyCap driver
+# Not used in Buster
+
+#vcgencmd get_camera | grep 'detected=1' >/dev/null 2>/dev/null
+#RESULT="$?"
+#if [ "$RESULT" -eq 0 ]; then
+#  sudo modprobe -r bcm2835_v4l2 # Unload the Pi Cam driver
+#  sudo modprobe -r usbtv        # Unload the EasyCap driver
+#  sudo modprobe -r em28xx        # Unload the EasyCap driver
+#  sudo modprobe -r stk1160        # Unload the EasyCap driver
+#  sudo modprobe -r uvcvideo        # Unload the EasyCap driver
+#  # replace usbtv with your EasyCap driver name
+#  sudo modprobe bcm2835_v4l2    # Load the Pi Cam driver
+#  sudo modprobe usbtv           # Load the EasyCap driver
+#  sudo modprobe em28xx        # Load the EasyCap driver
+#  sudo modprobe stk1160        # Load the EasyCap driver
   # Comment out reload of uvcvideo as it causes shutdown to hang if device not present
   #  sudo modprobe uvcvideo        # Load the EasyCap driver
 
   # Reload uvcvideo if Webcam C170 or C920 present
-  lsusb | grep -E 'Webcam C170|Webcam C920' >/dev/null 2>/dev/null
-  RESULT="$?"
-  if [ "$RESULT" -eq 0 ]; then
-    sudo modprobe uvcvideo
-  fi
-fi
+#  lsusb | grep -E 'Webcam C170|Webcam C920' >/dev/null 2>/dev/null
+#  RESULT="$?"
+#  if [ "$RESULT" -eq 0 ]; then
+#    sudo modprobe uvcvideo
+#  fi
+#fi
 
 # Map the touchscreen event to /dev/input/touchscreen
 

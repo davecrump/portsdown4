@@ -202,7 +202,7 @@ detect_audio()
               AUDIO_CARD=1                                  # so use mic audio
               AUDIO_CARD_NUMBER=$MIC
               AUDIO_CHANNELS=1
-              AUDIO_SAMPLE=44100
+              AUDIO_SAMPLE=48000
             elif [ "$USBTV" != "9" ] && [ "$MIC" == "9" ]; then # Mic not available, but EasyCap is
               AUDIO_CARD=1                                  # so use EasyCap audio
               AUDIO_CARD_NUMBER=$USBTV
@@ -224,7 +224,7 @@ detect_audio()
               AUDIO_CARD=1                                  # so use Mic audio
               AUDIO_CARD_NUMBER=$MIC
               AUDIO_CHANNELS=1
-              AUDIO_SAMPLE=44100
+              AUDIO_SAMPLE=48000
             else                                            # Neither available
               AUDIO_CARD=0                                  # So no audio
               AUDIO_CHANNELS=0
@@ -241,7 +241,7 @@ detect_audio()
               AUDIO_CARD=1                                  # so use Mic audio
               AUDIO_CARD_NUMBER=$MIC
               AUDIO_CHANNELS=1
-              AUDIO_SAMPLE=44100
+              AUDIO_SAMPLE=48000
             else                                            # Neither available
               AUDIO_CARD=0                                  # So no audio
               AUDIO_CHANNELS=0
@@ -255,7 +255,7 @@ detect_audio()
           AUDIO_CARD=1                                      # so use mic
           AUDIO_CARD_NUMBER=$MIC
           AUDIO_CHANNELS=1
-          AUDIO_SAMPLE=44100
+          AUDIO_SAMPLE=48000
         else                                                # No mic card
           AUDIO_CARD=0                                      # So no audio
           AUDIO_CHANNELS=0
@@ -284,7 +284,7 @@ detect_audio()
           AUDIO_CARD=1                                      # so use mic
           AUDIO_CARD_NUMBER=$MIC
           AUDIO_CHANNELS=1
-          AUDIO_SAMPLE=44100
+          AUDIO_SAMPLE=48000
         fi
       ;;
       bleeps)

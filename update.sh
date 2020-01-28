@@ -209,6 +209,30 @@ make
 sudo make install
 cd /home/pi
 
+# Update limesdr_toolbox
+echo "Updating limesdr_toolbox"
+
+cd /home/pi/rpidatv/src/limesdr_toolbox
+
+# Install sub project dvb modulation
+git clone https://github.com/F5OEO/libdvbmod
+cd libdvbmod/libdvbmod
+make
+cd ../DvbTsToIQ/
+make
+cp dvb2iq /home/pi/rpidatv/bin/
+cd /home/pi/rpidatv/src/limesdr_toolbox/
+
+#Make 
+make 
+cp limesdr_send /home/pi/rpidatv/bin/
+cp limesdr_dump /home/pi/rpidatv/bin/
+cp limesdr_stopchannel /home/pi/rpidatv/bin/
+cp limesdr_forward /home/pi/rpidatv/bin/
+make dvb
+cp limesdr_dvb /home/pi/rpidatv/bin/
+cd /home/pi
+
 #install adf4351
 echo "Installing adf4351"
 cd /home/pi/rpidatv/src/adf4351

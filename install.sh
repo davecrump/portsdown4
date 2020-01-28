@@ -2,15 +2,27 @@
 
 # Buster Version by davecrump on 201911230
 
+# Check current user
+
+whoami | grep -q pi
+if [ $? != 0 ]; then
+  echo "Install must be performed as user pi"
+  exit
+fi
+
 # Check which source needs to be loaded # From M0DNY 201905090
 GIT_SRC="BritishAmateurTelevisionClub"
 GIT_SRC_FILE=".portsdown_gitsrc"
 
 if [ "$1" == "-d" ]; then
   GIT_SRC="davecrump";
-  echo "Installing development version";
+  echo
+  echo "-----------------------------------------------------"
+  echo "----- Installing development version for Buster -----"
+  echo "-----------------------------------------------------"
 elif [ "$1" == "-u" -a ! -z "$2" ]; then
   GIT_SRC="$2"
+  echo
   echo "WARNING: Installing ${GIT_SRC} development version, press enter to continue or 'q' to quit."
   read -n1 -r -s key;
   if [[ $key == q ]]; then
@@ -18,11 +30,17 @@ elif [ "$1" == "-u" -a ! -z "$2" ]; then
   fi
   echo "ok!";
 else
-  echo "Installing BATC Production Portsdown for Buster.";
+  echo
+  echo "-----------------------------------------------------------"
+  echo "----- Installing BATC Production Portsdown for Buster -----"
+  echo "-----------------------------------------------------------"
 fi
 
 # Update the package manager
-echo "---------- Updating Package Manager"
+echo
+echo "------------------------------------"
+echo "----- Updating Package Manager -----"
+echo "------------------------------------"
 sudo dpkg --configure -a
 sudo apt-get update
 
@@ -30,18 +48,18 @@ sudo apt-get update
 # http://unix.stackexchange.com/questions/124468/how-do-i-resolve-an-apparent-hanging-update-process
 sudo apt-get -y remove apt-listchanges
 
-# -------- Upgrade distribution ------
-
-# Update the distribution
-echo "----------------------------------"
-echo "---------- Performing dist-upgrade"
-echo "----------------------------------"
+# Upgrade the distribution
+echo
+echo "-----------------------------------"
+echo "----- Performing dist-upgrade -----"
+echo "-----------------------------------"
 sudo apt-get -y dist-upgrade
 
 # Install the packages that we need
-echo "----------------------------------"
-echo "---------- Installing Packages"
-echo "----------------------------------"
+echo
+echo "-------------------------------"
+echo "----- Installing Packages -----"
+echo "-------------------------------"
 sudo apt-get -y install git
 sudo apt-get -y install cmake libusb-1.0-0-dev libx11-dev buffer libjpeg-dev indent 
 sudo apt-get -y install ttf-dejavu-core bc usbmount libfftw3-dev wiringpi libvncserver-dev
@@ -52,12 +70,14 @@ sudo apt-get -y install libsqlite3-dev libi2c-dev # 201811300 Lime
 sudo apt-get -y install sshpass  # 201905090 For Jetson Nano
 sudo apt-get -y install libbsd-dev # 201910100 for raspi2raspi
 sudo apt-get -y install libasound2-dev sox # 201910230 for LongMynd tone and avc2ts audio
+sudo apt-get -y install libavcodec-dev libavformat-dev libswscale-dev libavdevice-dev # Required for ffmpegsrc.cpp
 
 sudo pip install pyrtlsdr  #20180101 FreqShow
 
 # Enable USB Storage automount in Buster
+echo
 echo "----------------------------------"
-echo "---------- Enabling USB Automount"
+echo "----- Enabling USB Automount -----"
 echo "----------------------------------"
 cd /lib/systemd/system/
 if ! grep -q PrivateMounts=no systemd-udevd.service; then
@@ -67,9 +87,10 @@ cd /home/pi
 
 # Install LimeSuite 19.04 as at 25 Oct 19
 # Commit 627c82c76938765e93e85784cb359ea4aa71554e
-echo "----------------------------------"
-echo "---------- Installing LimeSuite 19.04"
-echo "----------------------------------"
+echo
+echo "--------------------------------------"
+echo "----- Installing LimeSuite 19.04 -----"
+echo "--------------------------------------"
 wget https://github.com/myriadrf/LimeSuite/archive/627c82c76938765e93e85784cb359ea4aa71554e.zip -O master.zip
 unzip -o master.zip
 cp -f -r LimeSuite-627c82c76938765e93e85784cb359ea4aa71554e LimeSuite
@@ -95,11 +116,11 @@ cd /home/pi
 # Record the LimeSuite Version
 echo "627c82c" >/home/pi/LimeSuite/commit_tag.txt
 
-
 # Download the LimeSDR Mini firmware/gateware versions
-echo "----------------------------------"
-echo "---------- Downloading LimeSDR MiniFormware versions"
-echo "----------------------------------"
+echo
+echo "------------------------------------------------------"
+echo "----- Downloading LimeSDR Mini Firmware versions -----"
+echo "------------------------------------------------------"
 
 # Previous version
 mkdir -p /home/pi/.local/share/LimeSuite/images/19.01/
@@ -115,9 +136,10 @@ wget https://github.com/natsfr/LimeSDR_DVBSGateware/releases/download/v0.3/LimeS
  /home/pi/.local/share/LimeSuite/images/v0.3/LimeSDR-Mini_lms7_trx_HW_1.2_auto.rpd
 
 # Download the previously selected version of rpidatv
-echo "----------------------------------"
-echo "---------- Downloading Portsdown Software"
-echo "----------------------------------"
+echo
+echo "------------------------------------------"
+echo "----- Downloading Portsdown Software -----"
+echo "------------------------------------------"
 wget https://github.com/${GIT_SRC}/portsdown-buster/archive/master.zip
 
 # Unzip the rpidatv software and copy to the Pi
@@ -126,38 +148,42 @@ mv portsdown-buster-master rpidatv
 rm master.zip
 cd /home/pi
 
-echo "----------------------------------"
-echo "---------- Downloading F5OEO avc2ts Software"
-echo "----------------------------------"
+echo
+echo "------------------------------------------------------------"
+echo "----- Downloading Portsdown version of avc2ts Software -----"
+echo "------------------------------------------------------------"
 
-# Download the latest version of avc2ts
-wget https://github.com/F5OEO/avc2ts/archive/eb0c63d9046bae4ed50910949787e53cbf97236e.zip -O master.zip
+# Download the previously selected version of avc2ts
+wget https://github.com/${GIT_SRC}/avc2ts/archive/master.zip
 
 # Unzip the avc2ts software and copy to the Pi
 unzip -o master.zip
-mv avc2ts-eb0c63d9046bae4ed50910949787e53cbf97236e avc2ts
+mv avc2ts-master avc2ts
 rm master.zip
 
 # Compile rpidatv core
-echo "----------------------------------"
-echo "---------- Compiling rpidatv"
-echo "----------------------------------"
+echo
+echo "-----------------------------"
+echo "----- Compiling rpidatv -----"
+echo "-----------------------------"
 cd /home/pi/rpidatv/src
 make
 sudo make install
 
 # Compile rpidatv gui
+echo
 echo "----------------------------------"
-echo "---------- Compiling rpidatvtouch"
+echo "----- Compiling rpidatvtouch -----"
 echo "----------------------------------"
 cd /home/pi/rpidatv/src/gui
 make
 sudo make install
 
 # Build avc2ts and dependencies
-echo "----------------------------------"
-echo "---------- Building avc2ts and dependencies"
-echo "----------------------------------"
+echo
+echo "--------------------------------------------"
+echo "----- Building avc2ts and dependencies -----"
+echo "--------------------------------------------"
 
 # For libmpegts
 cd /home/pi/avc2ts
@@ -185,9 +211,6 @@ cd libyuv
 make V=1 -f linux.mk
 cd ../
 
-# Required for ffmpegsrc.cpp
-sudo apt-get -y install libavcodec-dev libavformat-dev libswscale-dev libavdevice-dev
-
 # Make avc2ts
 cd /home/pi/avc2ts
 make
@@ -195,17 +218,19 @@ cp avc2ts ../rpidatv/bin/
 cd ..
 
 # Compile adf4351
-echo "----------------------------------"
-echo "---------- Compiling the ADF4351 driver"
-echo "----------------------------------"
+echo
+echo "----------------------------------------"
+echo "----- Compiling the ADF4351 driver -----"
+echo "----------------------------------------"
 cd /home/pi/rpidatv/src/adf4351
 make
 cp adf4351 ../../bin/
 
 # Get rtl_sdr
-echo "----------------------------------"
-echo "---------- Installing RTL-SDR Drivers and Apps"
-echo "----------------------------------"
+echo
+echo "-----------------------------------------------"
+echo "----- Installing RTL-SDR Drivers and Apps -----"
+echo "-----------------------------------------------"
 cd /home/pi
 wget https://github.com/keenerd/rtl-sdr/archive/master.zip
 unzip master.zip
@@ -233,9 +258,10 @@ cp leandvb ../../../../bin/
 cd /home/pi
 
 # Get tstools
-echo "----------------------------------"
-echo "---------- Compiling tstools"
-echo "----------------------------------"
+echo
+echo "-----------------------------"
+echo "----- Compiling tstools -----"
+echo "-----------------------------"
 cd /home/pi/rpidatv/src
 wget https://github.com/F5OEO/tstools/archive/master.zip
 unzip master.zip
@@ -249,9 +275,10 @@ cp bin/ts2es ../../bin/
 cd /home/pi/
 
 #install H264 Decoder : hello_video
-echo "----------------------------------"
-echo "---------- Compiling hello_video"
-echo "----------------------------------"
+echo
+echo "---------------------------------"
+echo "----- Compiling hello_video -----"
+echo "---------------------------------"
 
 #compile ilcomponent first
 cd /opt/vc/src/hello_pi/
@@ -269,9 +296,10 @@ cp hello_video2.bin ../../bin/
 cd /home/pi/
 
 # FBCP : Duplicate Framebuffer 0 -> 1 for 3.5 inch touchscreen
-echo "----------------------------------"
-echo "---------- Downloading and Compiling fbcp"
-echo "----------------------------------"
+echo
+echo "------------------------------------------"
+echo "----- Downloading and Compiling fbcp -----"
+echo "------------------------------------------"
 wget https://github.com/tasanakorn/rpi-fbcp/archive/master.zip
 unzip master.zip
 mv rpi-fbcp-master rpi-fbcp
@@ -287,14 +315,16 @@ sudo install fbcp /usr/local/bin/fbcp
 cd /home/pi/
 
 # Install omxplayer
-echo "----------------------------------"
-echo "---------- Installing omxplayer"
-echo "----------------------------------"
+echo
+echo "--------------------------------"
+echo "----- Installing omxplayer -----"
+echo "--------------------------------"
 sudo apt-get -y install omxplayer
 
-echo "----------------------------------"
-echo "---------- Setting up 3.5 inch touchscreen overlays"
-echo "----------------------------------"
+echo
+echo "----------------------------------------------------"
+echo "----- Setting up 3.5 inch touchscreen overlays -----"
+echo "----------------------------------------------------"
 # Install Waveshare 3.5A DTOVERLAY
 cd /home/pi/rpidatv/scripts/
 sudo cp ./waveshare35a.dtbo /boot/overlays/
@@ -306,9 +336,10 @@ sudo cp ./waveshare35b.dtbo /boot/overlays/
 sudo bash -c 'cat /home/pi/rpidatv/scripts/configs/waveshare_mkr.txt >> /boot/config.txt'
 
 # Download, compile and install DATV Express-server
-echo "----------------------------------"
-echo "---------- Installing DATV Express Server"
-echo "----------------------------------"
+echo
+echo "------------------------------------------"
+echo "----- Installing DATV Express Server -----"
+echo "------------------------------------------"
 cd /home/pi
 wget https://github.com/G4GUO/express_server/archive/master.zip
 unzip master.zip
@@ -320,14 +351,12 @@ sudo make install
 
 cd /home/pi
 # Install limesdr_toolbox
-echo "----------------------------------"
-echo "---------- Installing LimeSDR Toolbox"
-echo "----------------------------------"
-wget https://github.com/F5OEO/limesdr_toolbox/archive/master.zip
-unzip master.zip
-mv limesdr_toolbox-master limesdr_toolbox
-rm master.zip
-cd limesdr_toolbox
+echo
+echo "--------------------------------------"
+echo "----- Installing LimeSDR Toolbox -----"
+echo "--------------------------------------"
+
+cd /home/pi/rpidatv/src/limesdr_toolbox
 
 # Install sub project dvb modulation
 git clone https://github.com/F5OEO/libdvbmod
@@ -336,7 +365,7 @@ make
 cd ../DvbTsToIQ/
 make
 cp dvb2iq /home/pi/rpidatv/bin/
-cd /home/pi/limesdr_toolbox/
+cd /home/pi/rpidatv/src/limesdr_toolbox/
 
 #Make 
 make 
@@ -349,9 +378,10 @@ cp limesdr_dvb /home/pi/rpidatv/bin/
 cd /home/pi
 
 # Download the previously selected version of LongMynd
-echo "----------------------------------"
-echo "---------- Installing the LongMynd Receiver"
-echo "----------------------------------"
+echo
+echo "--------------------------------------------"
+echo "----- Installing the LongMynd Receiver -----"
+echo "--------------------------------------------"
 wget https://github.com/${GIT_SRC}/longmynd/archive/master.zip
 unzip -o master.zip
 mv longmynd-master longmynd
@@ -362,18 +392,20 @@ make
 cd /home/pi
 
 # Enable camera
-echo "----------------------------------"
-echo "---------- Enabling the Pi Cam in /boot/config.txt"
-echo "----------------------------------"
+echo
+echo "--------------------------------------------------"
+echo "---- Enabling the Pi Cam in /boot/config.txt -----"
+echo "--------------------------------------------------"
 cd /home/pi/rpidatv/scripts/
 sudo bash -c 'echo -e "\n##Enable Pi Camera" >> /boot/config.txt'
 sudo bash -c 'echo -e "\ngpu_mem=128\nstart_x=1\n" >> /boot/config.txt'
 cd /home/pi/
 
 # Download, compile and install the executable for hardware shutdown button
-echo "----------------------------------"
-echo "---------- installing the hardware shutdown Button software"
-echo "----------------------------------"
+echo
+echo "------------------------------------------------------------"
+echo "----- Installing the hardware shutdown Button software -----"
+echo "------------------------------------------------------------"
 
 git clone https://github.com/philcrump/pi-sdn /home/pi/pi-sdn-build
 
@@ -385,16 +417,22 @@ mv pi-sdn /home/pi/
 cd /home/pi
 
 # Edit the crontab to always run boot_startup.sh on boot
+echo
+echo "-------------------------------------------------"
+echo "----- Setting up Start behaviour in crontab -----"
+echo "-------------------------------------------------"
+
 sudo crontab /home/pi/rpidatv/scripts/configs/blankcron
 
 # Reduce the dhcp client timeout to speed off-network startup (201704160)
 sudo bash -c 'echo -e "\n# Shorten dhcpcd timeout from 30 to 5 secs" >> /etc/dhcpcd.conf'
 sudo bash -c 'echo -e "\ntimeout 5\n" >> /etc/dhcpcd.conf'
 
-# Enable the Video output in PAL mode (201707120)
-cd /boot
-sudo sed -i 's/^#sdtv_mode=2/sdtv_mode=2/' config.txt
-cd /home/pi
+echo
+echo "-----------------------------------------"
+echo "----- Compiling Ancilliary programs -----"
+echo "-----------------------------------------"
+
 
 # Compile and install the executable for switched repeater streaming (201708150)
 cd /home/pi/rpidatv/src/rptr
@@ -414,15 +452,6 @@ make
 mv streamrx /home/pi/rpidatv/bin/
 cd /home/pi
 
-# Amend /etc/fstab to create a tmpfs drive at ~/tmp for multiple images (201708150)
-sudo sed -i '4itmpfs           /home/pi/tmp    tmpfs   defaults,noatime,nosuid,size=10m  0  0' /etc/fstab
-
-# Create a ~/snaps folder for captured images (201708150)
-mkdir /home/pi/snaps
-
-# Set the image index number to 0 (201708150)
-echo "0" > /home/pi/snaps/snap_index.txt
-
 # Compile the Signal Generator (201710280)
 cd /home/pi/rpidatv/src/siggen
 make clean
@@ -434,6 +463,31 @@ cd /home/pi
 cd /home/pi/rpidatv/src/atten
 make
 cp /home/pi/rpidatv/src/atten/set_attenuator /home/pi/rpidatv/bin/set_attenuator
+cd /home/pi
+
+echo
+echo "------------------------------------------"
+echo "----- Setting up for captured images -----"
+echo "------------------------------------------"
+
+# Amend /etc/fstab to create a tmpfs drive at ~/tmp for multiple images (201708150)
+sudo sed -i '4itmpfs           /home/pi/tmp    tmpfs   defaults,noatime,nosuid,size=10m  0  0' /etc/fstab
+
+# Create a ~/snaps folder for captured images (201708150)
+mkdir /home/pi/snaps
+
+# Set the image index number to 0 (201708150)
+echo "0" > /home/pi/snaps/snap_index.txt
+
+
+echo
+echo "--------------------------------------"
+echo "----- Configure the Video Output -----"
+echo "--------------------------------------"
+
+# Enable the Video output in PAL mode (201707120)
+cd /boot
+sudo sed -i 's/^#sdtv_mode=2/sdtv_mode=2/' config.txt
 cd /home/pi
 
 # Download and compile the components for Comp Vid output whilst using 7 inch screen
@@ -453,6 +507,9 @@ cd /home/pi
 echo "alias menu='/home/pi/rpidatv/scripts/menu.sh menu'" >> /home/pi/.bash_aliases
 echo "alias gui='/home/pi/rpidatv/scripts/utils/guir.sh'"  >> /home/pi/.bash_aliases
 echo "alias ugui='/home/pi/rpidatv/scripts/utils/uguir.sh'"  >> /home/pi/.bash_aliases
+
+# Load modified .bashrc to run startup script on ssh logon
+cp /home/pi/rpidatv/scripts/configs/startup.bashrc /home/pi/.bashrc
 
 # Record Version Number
 cd /home/pi/rpidatv/scripts/
@@ -476,9 +533,16 @@ fi
 echo "${GIT_SRC}" > /home/pi/${GIT_SRC_FILE}
 
 # Reboot
-printf "\nA reboot is required before using the software\n\n"
-printf "Rebooting\n\n"
-printf "If fitted, the touchscreen will be active on reboot\n"
+echo
+echo "--------------------------------"
+echo "----- Complete.  Rebooting -----"
+echo "--------------------------------"
+sleep 1
+echo
+echo "---------------------------------------------------------------"
+echo "----- If fitted, the touchscreen will be active on reboot -----"
+echo "---------------------------------------------------------------"
+
 sudo reboot now
 exit
 

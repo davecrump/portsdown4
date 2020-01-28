@@ -336,6 +336,7 @@ void Start_Highlights_Menu39();
 void Start_Highlights_Menu42();
 void Start_Highlights_Menu43();
 void Start_Highlights_Menu44();
+void Start_Highlights_Menu45();
 
 void MsgBox(const char *);
 void MsgBox2(const char *, const char *);
@@ -1975,19 +1976,28 @@ void ReadModeOutput(char Moutput[256])
   {
     strcpy(Moutput, "notset");
   }
-  // And read LimeCal freq
-  GetConfigParam(PATH_LIME_CAL, "limecalfreq", LimeCalFreqText);
-  LimeCalFreq = atof(LimeCalFreqText);
-  // And read LimeRFE state
-  GetConfigParam(PATH_PCONFIG, "limerfe", LimeRFEStateText);
-  if (strcmp(LimeRFEStateText, "enabled") == 0)
-  {
-    LimeRFEState = 1;
+
+  if (GetLinuxVer() == 10)  // Buster
+  {  
+    // Read LimeCal freq
+    GetConfigParam(PATH_LIME_CAL, "limecalfreq", LimeCalFreqText);
+    LimeCalFreq = atof(LimeCalFreqText);
+    // And read LimeRFE state
+    GetConfigParam(PATH_PCONFIG, "limerfe", LimeRFEStateText);
+    if (strcmp(LimeRFEStateText, "enabled") == 0)
+    {
+      LimeRFEState = 1;
+    }
+    else
+    {
+      LimeRFEState = 0;
+    }
   }
   else
   {
     LimeRFEState = 0;
   }
+
 }
 
 /***************************************************************************//**
@@ -6078,56 +6088,6 @@ void GreyOut11()
 
 void GreyOut15()
 {
-  if ((strcmp(CurrentModeOP, "JLIME") == 0) || (strcmp(CurrentModeOP, "JEXPRESS") == 0)) // Jetson
-  {
-    SetButtonStatus(ButtonNumber(CurrentMenu, 0), 2); // Contest
-    SetButtonStatus(ButtonNumber(CurrentMenu, 3), 0); // HDMI
-    printf("Grey Out Cintest?/n");
-  }
-  else
-  {
-    SetButtonStatus(ButtonNumber(CurrentMenu, 3), 2); // HDMI
-
-    if (strcmp(CurrentFormat, "1080p") == 0)
-    {
-      SetButtonStatus(ButtonNumber(CurrentMenu, 5), 2); // Pi Cam
-      SetButtonStatus(ButtonNumber(CurrentMenu, 6), 2); // CompVid
-      SetButtonStatus(ButtonNumber(CurrentMenu, 7), 2); // TCAnim
-      SetButtonStatus(ButtonNumber(CurrentMenu, 8), 2); // TestCard
-      SetButtonStatus(ButtonNumber(CurrentMenu, 9), 2); // PiScreen
-      SetButtonStatus(ButtonNumber(CurrentMenu, 0), 2); // Contest
-      SetButtonStatus(ButtonNumber(CurrentMenu, 1), 2); // Webcam
-    }
-    else
-    {
-      SetButtonStatus(ButtonNumber(CurrentMenu, 5), 0); // Pi Cam
-      SetButtonStatus(ButtonNumber(CurrentMenu, 6), 0); // CompVid
-      SetButtonStatus(ButtonNumber(CurrentMenu, 7), 0); // TCAnim
-      SetButtonStatus(ButtonNumber(CurrentMenu, 8), 0); // TestCard
-      SetButtonStatus(ButtonNumber(CurrentMenu, 9), 0); // PiScreen
-      SetButtonStatus(ButtonNumber(CurrentMenu, 0), 0); // Contest
-      SetButtonStatus(ButtonNumber(CurrentMenu, 1), 0); // Webcam
-
-      if (strcmp(CurrentEncoding, "H264") == 0)
-      {
-        SetButtonStatus(ButtonNumber(CurrentMenu, 7), 0); // TCAnim
-        SetButtonStatus(ButtonNumber(CurrentMenu, 9), 0); // PiScreen
-        SetButtonStatus(ButtonNumber(CurrentMenu, 6), 0); // CompVid
-      }
-      else //MPEG-2
-      {
-
-        SetButtonStatus(ButtonNumber(CurrentMenu, 7), 2); // TCAnim
-        SetButtonStatus(ButtonNumber(CurrentMenu, 9), 2); // PiScreen
-        SetButtonStatus(ButtonNumber(CurrentMenu, 6), 0); // CompVid
-
-        if (strcmp(CurrentFormat, "720p") == 0)
-        {
-          SetButtonStatus(ButtonNumber(CurrentMenu, 6), 2); // CompVid
-        }
-      }
-    }
-  }
 }
 
 void GreyOutReset25()
@@ -6209,6 +6169,69 @@ void GreyOut44()
     SetButtonStatus(ButtonNumber(CurrentMenu, 1), 2); // Reboot Jetson
   }
 }
+
+void GreyOut45()
+{
+  if ((strcmp(CurrentModeOP, "JLIME") == 0) || (strcmp(CurrentModeOP, "JEXPRESS") == 0)) // Jetson
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 0), 2); // Contest
+    SetButtonStatus(ButtonNumber(CurrentMenu, 1), 2); // Webcam
+    SetButtonStatus(ButtonNumber(CurrentMenu, 6), 2); // Comp Vid
+    SetButtonStatus(ButtonNumber(CurrentMenu, 7), 2); // TCAnim
+    SetButtonStatus(ButtonNumber(CurrentMenu, 9), 2); // PiScreen
+    SetButtonStatus(ButtonNumber(CurrentMenu, 3), 0); // HDMI
+  }
+  else
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 3), 2); // HDMI
+    SetButtonStatus(ButtonNumber(CurrentMenu, 0), 0); // Contest
+    SetButtonStatus(ButtonNumber(CurrentMenu, 1), 0); // Webcam
+    SetButtonStatus(ButtonNumber(CurrentMenu, 6), 0); // Comp Vid
+    SetButtonStatus(ButtonNumber(CurrentMenu, 7), 0); // TCAnim
+    SetButtonStatus(ButtonNumber(CurrentMenu, 9), 0); // PiScreen
+
+    if (strcmp(CurrentFormat, "1080p") == 0)
+    {
+      SetButtonStatus(ButtonNumber(CurrentMenu, 5), 2); // Pi Cam
+      SetButtonStatus(ButtonNumber(CurrentMenu, 6), 2); // CompVid
+      SetButtonStatus(ButtonNumber(CurrentMenu, 7), 2); // TCAnim
+      SetButtonStatus(ButtonNumber(CurrentMenu, 8), 2); // TestCard
+      SetButtonStatus(ButtonNumber(CurrentMenu, 9), 2); // PiScreen
+      SetButtonStatus(ButtonNumber(CurrentMenu, 0), 2); // Contest
+      SetButtonStatus(ButtonNumber(CurrentMenu, 1), 2); // Webcam
+    }
+    else
+    {
+      SetButtonStatus(ButtonNumber(CurrentMenu, 5), 0); // Pi Cam
+      SetButtonStatus(ButtonNumber(CurrentMenu, 6), 0); // CompVid
+      SetButtonStatus(ButtonNumber(CurrentMenu, 7), 0); // TCAnim
+      SetButtonStatus(ButtonNumber(CurrentMenu, 8), 0); // TestCard
+      SetButtonStatus(ButtonNumber(CurrentMenu, 9), 0); // PiScreen
+      SetButtonStatus(ButtonNumber(CurrentMenu, 0), 0); // Contest
+      SetButtonStatus(ButtonNumber(CurrentMenu, 1), 0); // Webcam
+
+      if (strcmp(CurrentEncoding, "H264") == 0)
+      {
+        SetButtonStatus(ButtonNumber(CurrentMenu, 7), 0); // TCAnim
+        SetButtonStatus(ButtonNumber(CurrentMenu, 9), 0); // PiScreen
+        SetButtonStatus(ButtonNumber(CurrentMenu, 6), 0); // CompVid
+      }
+      else //MPEG-2
+      {
+
+        SetButtonStatus(ButtonNumber(CurrentMenu, 7), 2); // TCAnim
+        SetButtonStatus(ButtonNumber(CurrentMenu, 9), 2); // PiScreen
+        SetButtonStatus(ButtonNumber(CurrentMenu, 6), 0); // CompVid
+
+        if (strcmp(CurrentFormat, "720p") == 0)
+        {
+          SetButtonStatus(ButtonNumber(CurrentMenu, 6), 2); // CompVid
+        }
+      }
+    }
+  }
+}
+
 
 void SelectInGroup(int StartButton,int StopButton,int NoButton,int Status)
 {
@@ -7358,19 +7381,35 @@ void CompVidStart()
   {
     finish();
     system("sudo modprobe bcm2835_v4l2");
-    system("v4l2-ctl --set-fmt-overlay=left=0,top=0,width=656,height=512");
-    system("v4l2-ctl --overlay=1 >/dev/null 2>/dev/null");
-    //system("v4l2-ctl -p 25"); // Set framerate??
+    if (strcmp(DisplayType, "Element14_7") == 0) // 7 inch screen
+    {
+      system("v4l2-ctl -d /dev/video0 --set-fmt-overlay=left=0,top=0,width=736,height=416 --overlay=1");
+      system("v4l2-ctl -d /dev/video1 --set-fmt-overlay=left=0,top=0,width=736,height=416 --overlay=1");
+    }
+    else  // 3.5 inch screen
+    {
+      system("v4l2-ctl -d /dev/video0 --set-fmt-overlay=left=0,top=0,width=656,height=512 --overlay=1");
+      system("v4l2-ctl -d /dev/video1 --set-fmt-overlay=left=0,top=0,width=656,height=512 --overlay=1");
+    }
     strcpy(ScreenState, "VideoOut");
     wait_touch();
-    system("v4l2-ctl --overlay=0");
+    system("v4l2-ctl -d /dev/video0 --overlay=0");
+    system("v4l2-ctl -d /dev/video1 --overlay=0");
   }
 
   if (strcmp(CurrentVidSource, "TCAnim") == 0)
   {
     finish();
-    strcpy(fbicmd, "/home/pi/rpidatv/bin/tcanim1v16 \"/home/pi/rpidatv/video/*10\" ");
-    strcat(fbicmd, " \"720\" \"576\" \"48\" \"72\" \"CQ\" \"CQ CQ CQ de ");
+    if (strcmp(DisplayType, "Element14_7") == 0) // 7 inch screen
+    {
+      strcpy(fbicmd, "/home/pi/rpidatv/bin/tcanim1v16 \"/home/pi/rpidatv/video/7inch/*10\" ");
+      strcat(fbicmd, " \"800\" \"480\" \"59\" \"72\" \"CQ\" \"CQ CQ CQ de ");
+    }
+    else  // 3.5 inch screen
+    {
+      strcpy(fbicmd, "/home/pi/rpidatv/bin/tcanim1v16 \"/home/pi/rpidatv/video/*10\" ");
+      strcat(fbicmd, " \"720\" \"576\" \"48\" \"72\" \"CQ\" \"CQ CQ CQ de ");
+    }
     strcat(fbicmd, CallSign);
     strcat(fbicmd, " - ATV on ");
     strcat(fbicmd, TabBandLabel[CompVidBand]);
@@ -7545,7 +7584,6 @@ void CompVidStop()
   system ("sudo /home/pi/rpidatv/scripts/ctlfilter.sh");
   // and wait for it to finish using rpidatvconfig.txt
   usleep(100000);
-
 }
 
 void TransmitStart()
@@ -7554,7 +7592,7 @@ void TransmitStart()
 
   char Param[255];
   char Value[255];
-  #define PATH_SCRIPT_A "/home/pi/rpidatv/scripts/a.sh >/dev/null 2>/dev/null"
+  #define PATH_SCRIPT_A "/home/pi/rpidatv/scripts/a.sh & >/dev/null 2>/dev/null"
 
   // Turn the VCO off in case it has been used for receive
   system("sudo /home/pi/rpidatv/bin/adf4351 off");
@@ -7702,7 +7740,8 @@ void TransmitStop()
   }
 
   // Turn the Viewfinder off
-  system("v4l2-ctl --overlay=0 >/dev/null 2>/dev/null");
+  system("v4l2-ctl -d /dev/video1 --overlay=0 >/dev/null 2>/dev/null");
+  system("v4l2-ctl -d /dev/video0 --overlay=0 >/dev/null 2>/dev/null");
 
   // Stop the audio relay in CompVid mode
   system("sudo killall arecord >/dev/null 2>/dev/null");
@@ -10785,14 +10824,59 @@ void YesNo(int i)  // i == 6 Yes, i == 8 No
   }
 }
 
+void luFEC(int FECint, char *FECtext)
+{
+  switch (FECint)
+  {
+  case 1:
+  case 12:
+    strcpy(FECtext, "1/2");
+    break;
+  case 2:
+  case 23:
+    strcpy(FECtext, "2/3");
+    break;
+  case 3:
+  case 34:
+    strcpy(FECtext, "3/4");
+    break;
+  case 5:
+  case 56:
+    strcpy(FECtext, "5/6");
+    break;
+  case 7:
+    strcpy(FECtext, "7/8");
+    break;
+  case 13:
+    strcpy(FECtext, "1/3");
+    break;
+  case 14:
+    strcpy(FECtext, "1/4");
+    break;
+  case 35:
+    strcpy(FECtext, "3/5");
+    break;
+  case 89:
+    strcpy(FECtext, "8/9");
+    break;
+  case 91:
+    strcpy(FECtext, "9/10");
+    break;
+  default:
+    strcpy(FECtext, "?");
+    break;
+  }
+}
+
+
 void InfoScreen()
 {
-  char result[256];
-  char result2[256] = " ";
+  char result[255];
+  char result2[255] = " ";
 
   // Look up and format all the parameters to be displayed
 
-  char swversion[256] = "Software Version: ";
+  char swversion[255] = "Software Version: ";
   if (GetLinuxVer() == 8)
   {
     strcat(swversion, "Jessie ");
@@ -10808,7 +10892,7 @@ void InfoScreen()
   GetSWVers(result);
   strcat(swversion, result);
 
-  char ipaddress[256] = "IP: ";
+  char ipaddress[255] = "IP: ";
   strcpy(result, "Not connected");
   GetIPAddr(result);
   strcat(ipaddress, result);
@@ -10816,13 +10900,13 @@ void InfoScreen()
   GetIPAddr2(result2);
   strcat(ipaddress, result2);
 
-  char CPUTemp[256];
+  char CPUTemp[255];
   GetCPUTemp(result);
   sprintf(CPUTemp, "CPU temp=%.1f\'C      GPU ", atoi(result)/1000.0);
   GetGPUTemp(result);
   strcat(CPUTemp, result);
 
-  char PowerText[256] = "Temperature has been or is too high";
+  char PowerText[255] = "Temperature has been or is too high";
   GetThrottled(result);
   result[strlen(result) - 1]  = '\0';
   if(strcmp(result,"throttled=0x0")==0)
@@ -10838,7 +10922,8 @@ void InfoScreen()
     strcpy(PowerText,"Low supply voltage now");
   }
 
-  char TXParams1[256] = "TX ";
+  char TXParams1[255] = "TX ";
+  char FECtext[7] = "/";
   GetConfigParam(PATH_PCONFIG,"freqoutput",result);
   strcat(TXParams1, result);
   strcat(TXParams1, " MHz  SR ");
@@ -10846,32 +10931,29 @@ void InfoScreen()
   strcat(TXParams1, result);
   strcat(TXParams1, "  FEC ");
   GetConfigParam(PATH_PCONFIG, "fec", result);
-  result[1] = '\0'; 
-  strcat(TXParams1, result);
-  strcat(TXParams1, "/");
-  sprintf(result, "%d", atoi(result)+1);
-  strcat(TXParams1, result);
+  luFEC(atoi(result), FECtext);
+  strcat(TXParams1, FECtext);
 
-  char TXParams2[256];
-  char vcoding[256];
-  char vsource[256];
+  char TXParams2[255];
+  char vcoding[255];
+  char vsource[255];
   ReadModeInput(vcoding, vsource);
   strcpy(TXParams2, vcoding);
   strcat(TXParams2, " coding from ");
   strcat(TXParams2, vsource);
   
-  char TXParams3[256];
-  char ModeOutput[256];
+  char TXParams3[255];
+  char ModeOutput[255];
   ReadModeOutput(ModeOutput);
   strcpy(TXParams3, "Output to ");
   strcat(TXParams3, ModeOutput);
 
-  char SerNo[256];
-  char CardSerial[256] = "SD Card Serial: ";
+  char SerNo[255];
+  char CardSerial[255] = "SD Card Serial: ";
   GetSerNo(SerNo);
   strcat(CardSerial, SerNo);
 
-  char DeviceTitle[256] = "Audio Devices:";
+  char DeviceTitle[255] = "Audio Devices:";
 
   char Device1[256]=" ";
   char Device2[256]=" ";
@@ -10886,7 +10968,7 @@ void InfoScreen()
 
   // Initialise and calculate the text display
   init(&wscreen, &hscreen);  // Restart the gui
-  BackgroundRGB(0,0,0,255);  // Black background
+  BackgroundRGB(0, 0, 0, 255);  // Black background
   Fill(255, 255, 255, 1);    // White text
   Fontinfo font = SansTypeface;
   VGfloat txtht = TextHeight(font, pointsize);
@@ -11728,14 +11810,15 @@ void MonitorStop()
   // Kill the key processes as nicely as possible
   system("sudo killall rpidatv >/dev/null 2>/dev/null");
   system("sudo killall ffmpeg >/dev/null 2>/dev/null");
-  system("sudo killall tcanim >/dev/null 2>/dev/null");
+  system("sudo killall tcanim1v16 >/dev/null 2>/dev/null");
   system("sudo killall avc2ts >/dev/null 2>/dev/null");
   system("sudo killall netcat >/dev/null 2>/dev/null");
   system("sudo killall ts2es >/dev/null 2>/dev/null");
   system("sudo killall hello_video2.bin >/dev/null 2>/dev/null");
 
   // Turn the Viewfinder off
-  system("v4l2-ctl --overlay=0 >/dev/null 2>/dev/null");
+  system("v4l2-ctl -d /dev/video1 --overlay=0 >/dev/null 2>/dev/null");
+  system("v4l2-ctl -d /dev/video0 --overlay=0 >/dev/null 2>/dev/null");
 
   // Stop the audio relay in CompVid mode
   system("sudo killall arecord >/dev/null 2>/dev/null");
@@ -12812,20 +12895,25 @@ void waituntil(int w,int h)
   // Wait for a screen touch and act on its position
 
   int rawX, rawY, rawPressure, i;
-rawX = 0;
-rawY = 0;
-  // printf("Entering WaitUntil\n");
+  rawX = 0;
+  rawY = 0;
+  int buffertouch = 0;
   // Start the main loop for the Touchscreen
   for (;;)
   {
-    if ((strcmp(ScreenState, "RXwithImage") != 0) && (strcmp(ScreenState, "VideoOut") != 0)) // Don't wait for touch if returning from recieve
+    if (buffertouch == 1)  // Clear the touch buffer if returning from TXwithMenu
+    {
+      getTouchSample(&rawX, &rawY, &rawPressure);
+      buffertouch = 0;
+    }
+    if ((strcmp(ScreenState, "RXwithImage") != 0) && (strcmp(ScreenState, "VideoOut") != 0)) // Don't wait for touch if returning from receive
     {
       // Wait here until screen touched
       if (getTouchSample(&rawX, &rawY, &rawPressure)==0) continue;
     }
 
-    // Screen has been touched or returning from recieve
-    printf("x=%d y=%d\n", rawX, rawY);
+    // Screen has been touched or returning from receive
+    printf("x=%d y=%d ScreenState = %s\n", rawX, rawY, ScreenState);
 
     // React differently depending on context: char ScreenState[255]
 
@@ -12842,8 +12930,6 @@ rawY = 0;
       // SigGen?                                    SigGen      (not implemented yet)
       // WebcamWait                                 Waiting for Webcam reset. Touch listens but does not respond
 
-      // printf("Screenstate is %s \n", ScreenState);
-
      // Sort TXwithImage first:
     if (strcmp(ScreenState, "TXwithImage") == 0)
     {
@@ -12858,7 +12944,7 @@ rawY = 0;
       strcpy(ScreenState, "NormalMenu");
       UpdateWindow();
       continue;  // All reset, and Menu displayed so go back and wait for next touch
-     }
+    }
 
     // Now Sort TXwithMenu:
     if (strcmp(ScreenState, "TXwithMenu") == 0)
@@ -12870,6 +12956,7 @@ rawY = 0;
       {
         strcpy(ScreenState, "NormalMenu");
       }
+      buffertouch = 1; // Clear the touch buffer before doing anything else
       continue;
     }
 
@@ -12929,7 +13016,7 @@ rawY = 0;
     // Not transmitting or receiving, so sort NormalMenu
     if (strcmp(ScreenState, "NormalMenu") == 0)
     {
-      // For Menu (normal), check which button has been pressed (Returns 0 - 23)
+      // For Menu (normal), check which button has been pressed (Returns 0 - 23 for normal menus)
 
       i = IsMenuButtonPushed(rawX, rawY);
       if (i == -1)
@@ -13107,10 +13194,10 @@ rawY = 0;
           UpdateWindow();
           break;
         case 19:
-          printf("MENU 15 \n");        // Source
-          CurrentMenu=15;
-          BackgroundRGB(0,0,0,255);
-          Start_Highlights_Menu15();
+          printf("MENU 45 \n");        // Source
+          CurrentMenu=45;
+          BackgroundRGB(0, 0, 0, 255);
+          Start_Highlights_Menu45();
           UpdateWindow();
           break;
         case 20:                       // TX PTT
@@ -14304,50 +14391,14 @@ rawY = 0;
         continue;   // Completed Menu 14 action, go and wait for touch
       }
 
-      if (CurrentMenu == 15)  // Menu 15 Video Source
+      if (CurrentMenu == 15)  // Menu 15 Spare
       {
         printf("Button Event %d, Entering Menu 15 Case Statement\n",i);
         switch (i)
         {
         case 4:                               // Cancel
           SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 1);
-          printf("Vid Format Cancel\n");
-          break;
-        case 5:                               // PiCam
-          SelectSource(i);
-          printf("PiCam\n");
-          break;
-        case 6:                               // CompVid
-          SelectSource(i);
-          printf("CompVid\n");
-          break;
-        case 7:                               // TCAnim
-          SelectSource(i);
-          printf("TCAnim\n");
-          break;
-        case 8:                               // TestCard
-          SelectSource(i);
-          printf("TestCard\n");
-          break;
-        case 9:                               // PiScreen
-          SelectSource(i);
-          printf("PiScreen\n");
-          break;
-        case 0:                               // Contest
-          SelectSource(i);
-          printf("Contest\n");
-          break;
-        case 1:                               // Webcam
-          SelectSource(i);
-          printf("Webcam\n");
-          break;
-        case 2:                               // C920
-          SelectSource(i);
-          printf("C920\n");
-          break;
-        case 3:                               // HDMI
-          SelectSource(i);
-          printf("HDMI\n");
+          printf("Menu 15 Cancel\n");
           break;
         default:
           printf("Menu 15 Error\n");
@@ -15779,6 +15830,65 @@ rawY = 0;
         default:
           printf("Menu 44 Error\n");
         }
+      }
+
+      if (CurrentMenu == 45)  // Menu 45 Video Source
+      {
+        printf("Button Event %d, Entering Menu 45 Case Statement\n",i);
+        switch (i)
+        {
+        case 4:                               // Cancel
+          SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 1);
+          printf("Vid Format Cancel\n");
+          break;
+        case 5:                               // PiCam
+          SelectSource(i);
+          printf("PiCam\n");
+          break;
+        case 6:                               // CompVid
+          SelectSource(i);
+          printf("CompVid\n");
+          break;
+        case 7:                               // TCAnim
+          SelectSource(i);
+          printf("TCAnim\n");
+          break;
+        case 8:                               // TestCard
+          SelectSource(i);
+          printf("TestCard\n");
+          break;
+        case 9:                               // PiScreen
+          SelectSource(i);
+          printf("PiScreen\n");
+          break;
+        case 0:                               // Contest
+          SelectSource(i);
+          printf("Contest\n");
+          break;
+        case 1:                               // Webcam
+          SelectSource(i);
+          printf("Webcam\n");
+          break;
+        case 2:                               // C920
+          SelectSource(i);
+          printf("C920\n");
+          break;
+        case 3:                               // HDMI
+          SelectSource(i);
+          printf("HDMI\n");
+          break;
+        default:
+          printf("Menu 45 Error\n");
+        }
+        UpdateWindow();
+        usleep(500000);
+        SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 0); // Reset cancel (even if not selected)
+        printf("Returning to MENU 1 from Menu 45\n");
+        CurrentMenu=1;
+        BackgroundRGB(255, 255, 255, 255);
+        Start_Highlights_Menu1();
+        UpdateWindow();
+        continue;   // Completed Menu 15 action, go and wait for touch
       }
 
       if (CurrentMenu == 41)  // Menu 41 Keyboard (should not get here)
@@ -17641,115 +17751,17 @@ void Define_Menu15()
 {
   int button;
 
-  strcpy(MenuTitle[15], "Video Source Menu (15)"); 
+  strcpy(MenuTitle[15], "Menu (15)"); 
 
   // Bottom Row, Menu 15
-  button = CreateButton(15, 0);
-  AddButtonStatus(button, TabSource[5], &Blue);
-  AddButtonStatus(button, TabSource[5], &Green);
-  AddButtonStatus(button, TabSource[5], &Grey);
-
-  button = CreateButton(15, 1);
-  AddButtonStatus(button, TabSource[6], &Blue);
-  AddButtonStatus(button, TabSource[6], &Green);
-  AddButtonStatus(button, TabSource[6], &Grey);
-
-  button = CreateButton(15, 2);
-  AddButtonStatus(button, TabSource[7], &Blue);
-  AddButtonStatus(button, TabSource[7], &Green);
-  AddButtonStatus(button, TabSource[7], &Grey);
-
-  button = CreateButton(15, 3);
-  AddButtonStatus(button, TabSource[8], &Blue);
-  AddButtonStatus(button, TabSource[8], &Green);
-  AddButtonStatus(button, TabSource[8], &Grey);
 
   button = CreateButton(15, 4);
   AddButtonStatus(button, "Cancel", &DBlue);
   AddButtonStatus(button, "Cancel", &LBlue);
-
-  // 2nd Row, Menu 15
-
-  button = CreateButton(15, 5);
-  AddButtonStatus(button, TabSource[0], &Blue);
-  AddButtonStatus(button, TabSource[0], &Green);
-  AddButtonStatus(button, TabSource[0], &Grey);
-
-  button = CreateButton(15, 6);
-  AddButtonStatus(button, TabSource[1], &Blue);
-  AddButtonStatus(button, TabSource[1], &Green);
-  AddButtonStatus(button, TabSource[1], &Grey);
-
-  button = CreateButton(15, 7);
-  AddButtonStatus(button, TabSource[2], &Blue);
-  AddButtonStatus(button, TabSource[2], &Green);
-  AddButtonStatus(button, TabSource[2], &Grey);
-
-  button = CreateButton(15, 8);
-  AddButtonStatus(button, TabSource[3], &Blue);
-  AddButtonStatus(button, TabSource[3], &Green);
-  AddButtonStatus(button, TabSource[3], &Grey);
-
-  button = CreateButton(15, 9);
-  AddButtonStatus(button, TabSource[4], &Blue);
-  AddButtonStatus(button, TabSource[4], &Green);
-  AddButtonStatus(button, TabSource[4], &Grey);
 }
 
 void Start_Highlights_Menu15()
 {
-  char vcoding[256];
-  char vsource[256];
-  ReadModeInput(vcoding, vsource);
-
-  if(strcmp(CurrentSource, TabSource[0]) == 0)
-  {
-    SelectInGroupOnMenu(15, 5, 9, 5, 1);
-    SelectInGroupOnMenu(15, 0, 3, 5, 1);
-  }
-  if(strcmp(CurrentSource, TabSource[1]) == 0)
-  {
-    SelectInGroupOnMenu(15, 5, 9, 6, 1);
-    SelectInGroupOnMenu(15, 0, 3, 6, 1);
-  }
-  if(strcmp(CurrentSource, TabSource[2]) == 0)
-  {
-    SelectInGroupOnMenu(15, 5, 9, 7, 1);
-    SelectInGroupOnMenu(15, 0, 3, 7, 1);
-  }
-  if(strcmp(CurrentSource, TabSource[3]) == 0)
-  {
-    SelectInGroupOnMenu(15, 5, 9, 8, 1);
-    SelectInGroupOnMenu(15, 0, 3, 8, 1);
-  }
-  if(strcmp(CurrentSource, TabSource[4]) == 0)
-  {
-    SelectInGroupOnMenu(15, 5, 9, 9, 1);
-    SelectInGroupOnMenu(15, 0, 3, 9, 1);
-  }
-  if(strcmp(CurrentSource, TabSource[5]) == 0)
-  {
-    SelectInGroupOnMenu(15, 5, 9, 0, 1);
-    SelectInGroupOnMenu(15, 0, 3, 0, 1);
-  }
-  if(strcmp(CurrentSource, TabSource[6]) == 0)
-  {
-    SelectInGroupOnMenu(15, 5, 9, 1, 1);
-    SelectInGroupOnMenu(15, 0, 3, 1, 1);
-  }
-  if(strcmp(CurrentSource, TabSource[7]) == 0)
-  {
-    SelectInGroupOnMenu(15, 5, 9, 2, 1);
-    SelectInGroupOnMenu(15, 0, 3, 2, 1);
-  }
-  if(strcmp(CurrentSource, TabSource[8]) == 0)
-  {
-    SelectInGroupOnMenu(15, 5, 9, 3, 1);
-    SelectInGroupOnMenu(15, 0, 3, 3, 1);
-
-  // Call to GreyOut inappropriate buttons
-  GreyOut15();
-  }
 }
 
 void Define_Menu16()
@@ -19815,6 +19827,123 @@ void Start_Highlights_Menu44()
   GreyOut44();
 }
 
+void Define_Menu45()
+{
+  int button;
+
+  strcpy(MenuTitle[45], "Video Source Menu (45)"); 
+
+  // Bottom Row, Menu 45
+  button = CreateButton(45, 0);                     // Contest
+  AddButtonStatus(button, "Contest^Numbers", &Blue);
+  AddButtonStatus(button, "Contest^Numbers", &Green);
+  AddButtonStatus(button, "Contest^Numbers", &Grey);
+
+  button = CreateButton(45, 1);                     // Webcam
+  AddButtonStatus(button, "Webcam^inc C920", &Blue);
+  AddButtonStatus(button, "Webcam^inc C920", &Green);
+  AddButtonStatus(button, "Webcam^inc C920", &Grey);
+
+  button = CreateButton(45, 2);                     // Raw C920
+  AddButtonStatus(button, "Raw C920^2 Mbps", &Blue);
+  AddButtonStatus(button, "Raw C920^2 Mbps", &Green);
+  AddButtonStatus(button, "Raw C920^2 Mbps", &Grey);
+
+  button = CreateButton(45, 3);                     // HDMI
+  AddButtonStatus(button, TabSource[8], &Blue);
+  AddButtonStatus(button, TabSource[8], &Green);
+  AddButtonStatus(button, TabSource[8], &Grey);
+
+  button = CreateButton(45, 4);                     // Cancel
+  AddButtonStatus(button, "Cancel", &DBlue);
+  AddButtonStatus(button, "Cancel", &LBlue);
+
+  // 2nd Row, Menu 45
+
+  button = CreateButton(45, 5);                     // Pi Cam
+  AddButtonStatus(button, TabSource[0], &Blue);
+  AddButtonStatus(button, TabSource[0], &Green);
+  AddButtonStatus(button, TabSource[0], &Grey);
+
+  button = CreateButton(45, 6);                     // Comp Vid
+  AddButtonStatus(button, TabSource[1], &Blue);
+  AddButtonStatus(button, TabSource[1], &Green);
+  AddButtonStatus(button, TabSource[1], &Grey);
+
+  button = CreateButton(45, 7);                     // TCAnim
+  AddButtonStatus(button, TabSource[2], &Blue);
+  AddButtonStatus(button, TabSource[2], &Green);
+  AddButtonStatus(button, TabSource[2], &Grey);
+
+  button = CreateButton(45, 8);                     // TestCard
+  AddButtonStatus(button, TabSource[3], &Blue);
+  AddButtonStatus(button, TabSource[3], &Green);
+  AddButtonStatus(button, TabSource[3], &Grey);
+
+  button = CreateButton(45, 9);                     // PiScreen
+  AddButtonStatus(button, TabSource[4], &Blue);
+  AddButtonStatus(button, TabSource[4], &Green);
+  AddButtonStatus(button, TabSource[4], &Grey);
+}
+
+void Start_Highlights_Menu45()
+{
+  char vcoding[256];
+  char vsource[256];
+  ReadModeInput(vcoding, vsource);
+
+  if(strcmp(CurrentSource, TabSource[0]) == 0)
+  {
+    SelectInGroupOnMenu(45, 5, 9, 5, 1);
+    SelectInGroupOnMenu(45, 0, 3, 5, 1);
+  }
+  if(strcmp(CurrentSource, TabSource[1]) == 0)
+  {
+    SelectInGroupOnMenu(45, 5, 9, 6, 1);
+    SelectInGroupOnMenu(45, 0, 3, 6, 1);
+  }
+  if(strcmp(CurrentSource, TabSource[2]) == 0)
+  {
+    SelectInGroupOnMenu(45, 5, 9, 7, 1);
+    SelectInGroupOnMenu(45, 0, 3, 7, 1);
+  }
+  if(strcmp(CurrentSource, TabSource[3]) == 0)
+  {
+    SelectInGroupOnMenu(45, 5, 9, 8, 1);
+    SelectInGroupOnMenu(45, 0, 3, 8, 1);
+  }
+  if(strcmp(CurrentSource, TabSource[4]) == 0)
+  {
+    SelectInGroupOnMenu(45, 5, 9, 9, 1);
+    SelectInGroupOnMenu(45, 0, 3, 9, 1);
+  }
+  if(strcmp(CurrentSource, TabSource[5]) == 0)
+  {
+    SelectInGroupOnMenu(45, 5, 9, 0, 1);
+    SelectInGroupOnMenu(45, 0, 3, 0, 1);
+  }
+  if(strcmp(CurrentSource, TabSource[6]) == 0)
+  {
+    SelectInGroupOnMenu(45, 5, 9, 1, 1);
+    SelectInGroupOnMenu(45, 0, 3, 1, 1);
+  }
+  if(strcmp(CurrentSource, TabSource[7]) == 0)
+  {
+    SelectInGroupOnMenu(45, 5, 9, 2, 1);
+    SelectInGroupOnMenu(45, 0, 3, 2, 1);
+  }
+  if(strcmp(CurrentSource, TabSource[8]) == 0)
+  {
+    SelectInGroupOnMenu(45, 5, 9, 3, 1);
+    SelectInGroupOnMenu(45, 0, 3, 3, 1);
+  }
+
+  // Call to GreyOut inappropriate buttons
+  GreyOut45();
+}
+
+
+
 void Define_Menu41()
 {
   int button;
@@ -20269,6 +20398,7 @@ int main(int argc, char **argv)
   Define_Menu42();
   Define_Menu43();
   Define_Menu44();
+  Define_Menu45();
 
   // Start the button Menu
   Start(wscreen,hscreen);
