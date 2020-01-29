@@ -85,16 +85,16 @@ if ! grep -q PrivateMounts=no systemd-udevd.service; then
 fi
 cd /home/pi
 
-# Install LimeSuite 19.04 as at 25 Oct 19
-# Commit 627c82c76938765e93e85784cb359ea4aa71554e
+# Install LimeSuite 20.01 as at 29 Jan 20
+# Commit c931854ead81307206bce750c17c2301810b5545
 echo
 echo "--------------------------------------"
-echo "----- Installing LimeSuite 19.04 -----"
+echo "----- Installing LimeSuite 20.01 -----"
 echo "--------------------------------------"
-wget https://github.com/myriadrf/LimeSuite/archive/627c82c76938765e93e85784cb359ea4aa71554e.zip -O master.zip
+wget https://github.com/myriadrf/LimeSuite/archive/c931854ead81307206bce750c17c2301810b5545.zip -O master.zip
 unzip -o master.zip
-cp -f -r LimeSuite-627c82c76938765e93e85784cb359ea4aa71554e LimeSuite
-rm -rf LimeSuite-627c82c76938765e93e85784cb359ea4aa71554e
+cp -f -r LimeSuite-c931854ead81307206bce750c17c2301810b5545 LimeSuite
+rm -rf LimeSuite-c931854ead81307206bce750c17c2301810b5545
 rm master.zip
 
 # Compile LimeSuite
@@ -111,10 +111,10 @@ cd /home/pi
 cd LimeSuite/udev-rules
 chmod +x install.sh
 sudo /home/pi/LimeSuite/udev-rules/install.sh
-cd /home/pi
+cd /home/pi	
 
-# Record the LimeSuite Version
-echo "627c82c" >/home/pi/LimeSuite/commit_tag.txt
+# Record the LimeSuite Version	
+echo "c931854" >/home/pi/LimeSuite/commit_tag.txt
 
 # Download the LimeSDR Mini firmware/gateware versions
 echo
@@ -126,10 +126,14 @@ echo "------------------------------------------------------"
 mkdir -p /home/pi/.local/share/LimeSuite/images/19.01/
 wget https://downloads.myriadrf.org/project/limesuite/19.01/LimeSDR-Mini_HW_1.2_r1.29.rpd -O \
                /home/pi/.local/share/LimeSuite/images/19.01/LimeSDR-Mini_HW_1.2_r1.29.rpd
-# Current Version
+# Current Version from 19.04 (used for some touchscreen-driven updates)
 mkdir -p /home/pi/.local/share/LimeSuite/images/19.04/
 wget https://downloads.myriadrf.org/project/limesuite/19.04/LimeSDR-Mini_HW_1.2_r1.30.rpd -O \
                /home/pi/.local/share/LimeSuite/images/19.04/LimeSDR-Mini_HW_1.2_r1.30.rpd
+# Current Version from 20.01 (used for LimeUtil updates)
+mkdir -p /home/pi/.local/share/LimeSuite/images/20.01/
+wget https://downloads.myriadrf.org/project/limesuite/20.01/LimeSDR-Mini_HW_1.2_r1.30.rpd -O \
+               /home/pi/.local/share/LimeSuite/images/20.10/LimeSDR-Mini_HW_1.2_r1.30.rpd
 # DVB-S/S2 Version
 mkdir -p /home/pi/.local/share/LimeSuite/images/v0.3
 wget https://github.com/natsfr/LimeSDR_DVBSGateware/releases/download/v0.3/LimeSDR-Mini_lms7_trx_HW_1.2_auto.rpd -O \

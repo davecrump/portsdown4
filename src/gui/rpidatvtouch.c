@@ -1062,7 +1062,7 @@ void ExecuteUpdate(int NoButton)
         strcpy(Step, "Step 2 of 10\\nLoading Update Script\\n\\nXX--------");
         DisplayUpdateMsg("Latest Jessie", Step);
       }
-      else
+      else if (GetLinuxVer() == 9)  // Stretch, so portsdown repo
       {
         printf("Downloading Normal Update Stretch Version\n");
         strcpy(LinuxCommand, "wget https://raw.githubusercontent.com/BritishAmateurTelevisionClub/portsdown/master/update.sh");
@@ -1071,6 +1071,16 @@ void ExecuteUpdate(int NoButton)
 
         strcpy(Step, "Step 2 of 10\\nLoading Update Script\\n\\nXX--------");
         DisplayUpdateMsg("Latest Stretch", Step);
+      }
+      else                          // Buster, so portsdown-buster repo
+      {
+        printf("Downloading Normal Update Buster Version\n");
+        strcpy(LinuxCommand, "wget https://raw.githubusercontent.com/BritishAmateurTelevisionClub/portsdown-buster/master/update.sh");
+        strcat(LinuxCommand, " -O /home/pi/update.sh");
+        system(LinuxCommand);
+
+        strcpy(Step, "Step 2 of 10\\nLoading Update Script\\n\\nXX--------");
+        DisplayUpdateMsg("Latest Buster", Step);
       }
       strcpy(LinuxCommand, "chmod +x /home/pi/update.sh");   
       system(LinuxCommand);
@@ -1107,7 +1117,7 @@ void ExecuteUpdate(int NoButton)
         strcpy(Step, "Step 2 of 10\\nLoading Update Script\\n\\nXX--------");
         DisplayUpdateMsg("Development Jessie", Step);
       }
-      else
+      else if (GetLinuxVer() == 9)  // Stretch, so portsdown repo
       {
         printf("Downloading Development Update Stretch Version\n");
         strcpy(LinuxCommand, "wget https://raw.githubusercontent.com/davecrump/portsdown/master/update.sh");
@@ -1117,6 +1127,17 @@ void ExecuteUpdate(int NoButton)
         strcpy(Step, "Step 2 of 10\\nLoading Update Script\\n\\nXX--------");
         DisplayUpdateMsg("Development Stretch", Step);
       }
+      else                         // Buster, so portsdown-buster repo
+      {
+        printf("Downloading Development Update Buster Version\n");
+        strcpy(LinuxCommand, "wget https://raw.githubusercontent.com/davecrump/portsdown-buster/master/update.sh");
+        strcat(LinuxCommand, " -O /home/pi/update.sh");
+        system(LinuxCommand);
+
+        strcpy(Step, "Step 2 of 10\\nLoading Update Script\\n\\nXX--------");
+        DisplayUpdateMsg("Development Buster", Step);
+      }
+
       strcpy(LinuxCommand, "chmod +x /home/pi/update.sh");   
       system(LinuxCommand);
       system("reset");
@@ -1171,14 +1192,14 @@ void LimeFWUpdate(int button)
   {
     if (CheckLimeUSBConnect() == 0)  // LimeUSB Connected
     {
-      MsgBox4("Upgrading Lime USB", "To latest standard", "Using LimeUtil 19.04", "Please Wait");
+      MsgBox4("Upgrading Lime USB", "To latest standard", "Using LimeUtil 20.10", "Please Wait");
       system("LimeUtil --update");
       usleep(250000);
       MsgBox4("Upgrade Complete", " ", "Touch Screen to Continue" ," ");
     }
     else if (LimeNETMicroDet == 1)  // LimeNET Micro Connected
     {
-      MsgBox4("Upgrading LimeNET Micro", "To latest standard", "Using LimeUtil 19.04", "Please Wait");
+      MsgBox4("Upgrading LimeNET Micro", "To latest standard", "Using LimeUtil 20.01", "Please Wait");
       system("LimeUtil --update");
       usleep(250000);
       MsgBox4("Upgrade Complete", " ", "Touch Screen to Continue" ," ");
@@ -1202,7 +1223,7 @@ void LimeFWUpdate(int button)
       case 1:
       case 3:
         MsgBox4("Upgrading Lime Firmware", "to 1.30", " ", " ");
-        system("sudo LimeUtil --fpga=/home/pi/.local/share/LimeSuite/images/19.04/LimeSDR-Mini_HW_1.2_r1.30.rpd");
+        system("sudo LimeUtil --fpga=/home/pi/.local/share/LimeSuite/images/20.01/LimeSDR-Mini_HW_1.2_r1.30.rpd");
 
         if (LimeGWRev() == 30)
         {
