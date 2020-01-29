@@ -278,7 +278,8 @@ bool CheckLocator(char *);
 
 // Lime Control
 float LimeCalFreq = 0;  // -2 cal never, -1 = cal every time, 0 = cal next time, freq = no cal if no change
-int LimeRFEState = 0;   // 0 = disbaled, 1 = enabled
+int LimeRFEState = 0;   // 0 = disabled, 1 = enabled
+int LimeNETMicroDet = 0;  // 0 = Not detected, 1 = detected.  Tested on entry to Lime Config menu
 
 // Touch display variables
 int Inversed=0;               //Display is inversed (Waveshare=1)
@@ -1166,16 +1167,23 @@ void LimeFWUpdate(int button)
       MsgBox4("No Lime Connected", " ", "Touch Screen to Continue" ," ");
     }
   }
-  else  // Buster and selectable FW.  0 = 1.29. 1 = 1.30, 2 = Custom
+  else  // Buster and selectable FW.  0 = 1.29. 1 = 1.30, 2 = Custom, 3 = Default for LimeNET Micro
   {
-    if (CheckLimeUSBConnect() == 0)
+    if (CheckLimeUSBConnect() == 0)  // LimeUSB Connected
     {
       MsgBox4("Upgrading Lime USB", "To latest standard", "Using LimeUtil 19.04", "Please Wait");
       system("LimeUtil --update");
       usleep(250000);
       MsgBox4("Upgrade Complete", " ", "Touch Screen to Continue" ," ");
     }
-    else if (CheckLimeMiniConnect() == 0)
+    else if (LimeNETMicroDet == 1)  // LimeNET Micro Connected
+    {
+      MsgBox4("Upgrading LimeNET Micro", "To latest standard", "Using LimeUtil 19.04", "Please Wait");
+      system("LimeUtil --update");
+      usleep(250000);
+      MsgBox4("Upgrade Complete", " ", "Touch Screen to Continue" ," ");
+    }
+    else if ((CheckLimeMiniConnect() == 0) && (LimeNETMicroDet == 0))  // Lime Mini Connected
     {
       switch (button)
       {
@@ -1192,6 +1200,7 @@ void LimeFWUpdate(int button)
         }
         break;
       case 1:
+      case 3:
         MsgBox4("Upgrading Lime Firmware", "to 1.30", " ", " ");
         system("sudo LimeUtil --fpga=/home/pi/.local/share/LimeSuite/images/19.04/LimeSDR-Mini_HW_1.2_r1.30.rpd");
 
@@ -1207,15 +1216,7 @@ void LimeFWUpdate(int button)
       case 2:
         MsgBox4("Upgrading Lime Firmware", "to Custom DVB", " ", " ");
         system("sudo LimeUtil --force --fpga=/home/pi/.local/share/LimeSuite/images/v0.3/LimeSDR-Mini_lms7_trx_HW_1.2_auto.rpd");
-
-        //if (LimeGWRev() == 30)
-        //{
-          MsgBox4("Firmware Upgrade Complete", "DVB", "Touch Screen to Continue" ," ");
-        //}
-        //else
-        //{
-        //  MsgBox4("Firmware Upgrade Unsuccessful", "Further Investigation required", "Touch Screen to Continue" ," ");
-        //}
+        MsgBox4("Firmware Upgrade Complete", "DVB", "Touch Screen to Continue" ," ");
         break;
       default:
         printf("Lime Update button selection error\n");
@@ -2964,6 +2965,42 @@ void ChangeRTLppm()
   snprintf(Value, 6, "%d", RTLppm);
   SetConfigParam(PATH_RTLPRESETS, Param, Value);
 }
+
+/***************************************************************************//**
+ * @brief Detects if a LimeNET Micro is connected
+ *
+ * @param None
+ *
+ * @return 0 = LimeNET Micro not detected
+ *         1 = LimeNET Micro detected
+ *         2 = shell returned unexpected exit status
+*******************************************************************************/
+ 
+int DetectLimeNETMicro()
+{
+  char shell_command[127];
+  FILE * shell;
+  strcpy(shell_command, "cat /proc/device-tree/model | grep 'Raspberry Pi Compute Module 3'");
+  shell = popen(shell_command, "r");
+  int r = pclose(shell);
+  if (WEXITSTATUS(r) == 0)
+  {
+    printf("LimeNET Micro detected\n");
+    return 1;
+  }
+  else if (WEXITSTATUS(r) == 1)
+  {
+    printf("LimeNET Micro not detected\n");
+    return 0;
+  } 
+  else 
+  {
+    printf("LimeNET Micro unexpected exit status %d\n", WEXITSTATUS(r));
+    return 2;
+  }
+}
+
+
 
 
 /***************************************************************************//**
@@ -6143,6 +6180,10 @@ void GreyOut42()
   if (CheckLimeMiniConnect() == 1)  // Lime Mini not connected so GreyOut
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 3), 2); // Lime Mini
+    SetButtonStatus(ButtonNumber(CurrentMenu, 13), 2); // Lime Mini DVB
+  }
+  if (LimeNETMicroDet == 1)  // LimeNET Micro Connected
+  {
     SetButtonStatus(ButtonNumber(CurrentMenu, 13), 2); // Lime Mini DVB
   }
   if (CheckLimeUSBConnect() == 1)  // Lime USB not connected so GreyOut
@@ -15424,15 +15465,11 @@ void waituntil(int w,int h)
         case 0:                               // Lime FW Update 1.29
         case 1:                               // Lime FW Update 1.30
         case 2:                               // Lime FW Update DVB
+        case 3:                               // Lime FW Update for LimeNet Micro
           printf("Lime Firmware Update %d\n", i);
           LimeFWUpdate(i);
           CurrentMenu=37;
           BackgroundRGB(0, 0, 0, 255);
-          UpdateWindow();
-          break;
-        case 3:                               // Toggle LimeRFE
-          ToggleLimeRFE();
-          Start_Highlights_Menu37();
           UpdateWindow();
           break;
         case 4:                               // Cancel
@@ -15463,6 +15500,11 @@ void waituntil(int w,int h)
           LimeMiniTest();
           wait_touch();
           BackgroundRGB(0 ,0, 0, 255);
+          UpdateWindow();
+          break;
+        case 8:                               // Toggle LimeRFE
+          ToggleLimeRFE();
+          Start_Highlights_Menu37();
           UpdateWindow();
           break;
         case 9:                               // Cycle through Lime Cal options
@@ -19395,7 +19437,8 @@ void Define_Menu37()
   AddButtonStatus(button, "Update to^DVB FW", &Green);
 
   button = CreateButton(37, 3);
-  AddButtonStatus(button, "LimeRFE^Disabled", &Blue);
+  AddButtonStatus(button, "Update^Lime Micro", &Blue);
+  AddButtonStatus(button, "Update^Lime Micro", &Green);
 
   button = CreateButton(37, 4);
   AddButtonStatus(button, "Exit", &DBlue);
@@ -19415,9 +19458,8 @@ void Define_Menu37()
   AddButtonStatus(button, "Lime^Report", &Blue);
   AddButtonStatus(button, "Lime^Report", &Green);
 
-  //button = CreateButton(37, 8);
-  //AddButtonStatus(button, "Update^Lime FW", &Blue);
-  //AddButtonStatus(button, "Update^Lime FW", &Green);
+  button = CreateButton(37, 8);
+  AddButtonStatus(button, "LimeRFE^Disabled", &Blue);
 
   button = CreateButton(37, 9);
   AddButtonStatus(button, "Calibrate^Every TX", &Blue);
@@ -19427,14 +19469,23 @@ void Start_Highlights_Menu37()
 {
   // Lime Config Menu
 
-  // Button 3 LimeRFE Enable/Disable
+  // Grey out update buttons if LimeNet Micro detected
+  LimeNETMicroDet = DetectLimeNETMicro();
+  if (LimeNETMicroDet == 1)
+  {
+    AmendButtonStatus(ButtonNumber(37, 0), 0, "Update to^FW 1.29", &Grey);
+    AmendButtonStatus(ButtonNumber(37, 1), 0, "Update to^FW 1.30", &Grey);
+    AmendButtonStatus(ButtonNumber(37, 2), 0, "Update to^DVB FW", &Grey);
+  }
+
+  // Button 8 LimeRFE Enable/Disable
   if (LimeRFEState == 1)  // Enabled
   {
-    AmendButtonStatus(ButtonNumber(37, 3), 0, "LimeRFE^Enabled", &Blue);
+    AmendButtonStatus(ButtonNumber(37, 8), 0, "LimeRFE^Enabled", &Blue);
   }
   else                    // Disabled
   {
-    AmendButtonStatus(ButtonNumber(37, 3), 0, "LimeRFE^Disabled", &Blue);
+    AmendButtonStatus(ButtonNumber(37, 8), 0, "LimeRFE^Disabled", &Blue);
   }
 
   // Button 9, Lime Calibration
