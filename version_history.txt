@@ -1,4 +1,5 @@
 202001310
+Update to LimeSuite 20.01
 Initial Buster Release
 LimeDVB with some modes released
 Repeater TX mode implemented

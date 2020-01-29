@@ -171,10 +171,10 @@ wget https://github.com/${GIT_SRC}/portsdown-buster/archive/master.zip -O master
 
 #if [ "$1" == "-d" ]; then
 #  echo "Installing development load"
-#  wget https://github.com/davecrump/portsdown/archive/master.zip -O master.zip
+#  wget https://github.com/davecrump/portsdown-buster/archive/master.zip -O master.zip
 #else
 #  echo "Installing BATC Production load"
-#  wget https://github.com/BritishAmateurTelevisionClub/portsdown/archive/master.zip -O master.zip
+#  wget https://github.com/BritishAmateurTelevisionClub/portsdown-buster/archive/master.zip -O master.zip
 #fi
 
 # Unzip and overwrite where we need to
