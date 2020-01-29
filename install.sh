@@ -111,6 +111,10 @@ cd /home/pi
 cd LimeSuite/udev-rules
 chmod +x install.sh
 sudo /home/pi/LimeSuite/udev-rules/install.sh
+cd /home/pi	
+
+# Record the LimeSuite Version	
+echo "c931854" >/home/pi/LimeSuite/commit_tag.txt
 
 # Download the LimeSDR Mini firmware/gateware versions
 echo
