@@ -100,7 +100,7 @@ int main( int argc, char *argv[] )
   
   /* Set up commands in buffers */
   snprintf(sdnCommand,32,"shutdown -h now");
-  snprintf(startCommand,64,"sudo /home/pi/rpidatv/scripts/a.sh >/dev/null 2>/dev/null");
+  snprintf(startCommand,64,"/home/pi/rpidatv/scripts/a.sh >/dev/null 2>/dev/null &");
   snprintf(stopCommand1,64,"sudo /home/pi/rpidatv/scripts/b.sh 2>/dev/null");
     
   if(KeyGPIO > 0)
@@ -185,6 +185,7 @@ void Start_Function(void)
 
   if(IndicationGPIO >= 0)
   {
+    printf("turning on GPIO\n");
     digitalWrite(IndicationGPIO, HIGH);
   }
   strcpy(stream_state, "on");  
@@ -195,7 +196,7 @@ void Start_Function(void)
 void Stop_Function(void)
 {
   /* Stop the transmission */
-  system(stopCommand1);
+  system(stopCommand1);                // This runs for a few seconds and TX commands are ignored during this time
 
   if(IndicationGPIO >= 0)
   {
@@ -203,4 +204,9 @@ void Stop_Function(void)
   }
   strcpy(stream_state, "off");  
   printf("Stopping transmission\n");
+
+  if(digitalRead(KeyGPIO) == HIGH)    // So transmission has been demanded during shutdown period
+  {
+    Edge_ISR();  // restart transmission if required
+  }  
 }
