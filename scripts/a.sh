@@ -909,7 +909,17 @@ fi
       # Webcam in use
       # If a C920 put it in the right mode
       if [ $C920Present == 1 ]; then
-         v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=800,height=600,pixelformat=0
+        if [ "$BITRATE_VIDEO" -gt 300000 ]; then
+          v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=864,height=480,pixelformat=0 --set-ctrl=exposure_auto=1
+          VIDEO_WIDTH=864
+          VIDEO_HEIGHT=480
+          VIDEO_FPS=25
+        else
+          v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=448,height=240,pixelformat=0 --set-ctrl=exposure_auto=1
+          VIDEO_WIDTH=448
+          VIDEO_HEIGHT=240
+          VIDEO_FPS=25
+        fi
       fi
       ANALOGCAMNAME=$VID_WEBCAM
     fi
