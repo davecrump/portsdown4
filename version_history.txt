@@ -1,3 +1,8 @@
+202002140
+Based on Buster 2020-02-05
+H264 encoding for BATC Streamer corrected
+Added C920 as working video source
+
 202001310
 Update to LimeSuite 20.01
 Initial Buster Release

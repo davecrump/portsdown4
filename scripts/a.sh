@@ -683,13 +683,11 @@ fi
             -f alsa -ac $AUDIO_CHANNELS -ar $AUDIO_SAMPLE \
             -i hw:$AUDIO_CARD_NUMBER,0 \
             $VF $CAPTION -framerate 25 \
-            -video_size "$VIDEO_WIDTH"x"$VIDEO_HEIGHT" -c:v h264 -b:v 512k \
+            -video_size "$VIDEO_WIDTH"x"$VIDEO_HEIGHT" -c:v h264_omx -b:v 512k \
             -ar 22050 -ac $AUDIO_CHANNELS -ab 64k \
             -g 25 \
             -f flv $STREAM_URL/$STREAM_KEY &
         fi
-#            -video_size "$VIDEO_WIDTH"x"$VIDEO_HEIGHT" -c:v h264_omx -b:v 576k \
-
       ;;
       *)
         if [ "$AUDIO_CARD" == "0" ] && [ "$AUDIO_CHANNELS" == "0" ]; then
@@ -908,6 +906,7 @@ fi
     else
       # Webcam in use
       # If a C920 put it in the right mode
+      AUDIO_SAMPLE=32000
       if [ $C920Present == 1 ]; then
         if [ "$BITRATE_VIDEO" -gt 300000 ]; then
           v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=864,height=480,pixelformat=0 --set-ctrl=exposure_auto=1
@@ -967,10 +966,16 @@ fi
       # ******************************* H264 VIDEO WITH AUDIO ************************************
 
       BITRATE_AUDIO=24000
-      let TS_AUDIO_BITRATE=$BITRATE_AUDIO*12/10
-      let BITRATE_VIDEO=($BITRATE_TS-12000-$TS_AUDIO_BITRATE)*725/1000
+      let TS_AUDIO_BITRATE=$BITRATE_AUDIO*15/10
+     # let BITRATE_VIDEO=($BITRATE_TS-12000-$TS_AUDIO_BITRATE)*725/1000
+      let BITRATE_VIDEO=($BITRATE_TS-24000-$TS_AUDIO_BITRATE)*725/1000
 
-      arecord -f S16_LE -r $AUDIO_SAMPLE -c 2 -B $ARECORD_BUF -D plughw:$AUDIO_CARD_NUMBER,0 > audioin.wav &
+      if [ $AUDIO_SAMPLE != 48000 ]; then
+        arecord -f S16_LE -r $AUDIO_SAMPLE -c 2 -B $ARECORD_BUF -D plughw:$AUDIO_CARD_NUMBER,0 \
+          | sox --buffer 1024 -t wav - audioin.wav rate 48000 &
+      else
+        arecord -f S16_LE -r $AUDIO_SAMPLE -c 2 -B $ARECORD_BUF -D plughw:$AUDIO_CARD_NUMBER,0 > audioin.wav &
+      fi
 
       sudo $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -d 300 -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
         -f $VIDEO_FPS -i $IDRPERIOD $OUTPUT_FILE -t 2 -e $ANALOGCAMNAME -p $PIDPMT -s $CALL $OUTPUT_IP \
@@ -1109,7 +1114,7 @@ fi
       ;;
       "LIMEMINI" | "LIMEUSB" | "LIMEDVB")
       $PATHRPI"/limesdr_dvb" -i videots -s "$SYMBOLRATE_K"000 -f $FECNUM/$FECDEN -r $UPSAMPLE -m $MODTYPE -c $CONSTLN $PILOTS $FRAMES \
-        -t "$FREQ_OUTPUT"e6 -g $LIME_GAINF -q $CAL $CUSTOM_FPGA -D $DIGITAL_GAIN &
+        -t "$FREQ_OUTPUT"e6 -g $LIME_GAINF -q $CAL $CUSTOM_FPGA -D $DIGITAL_GAIN -e $BAND_GPIO &
       ;;
       *)
         sudo $PATHRPI"/rpidatv" -i videots -s $SYMBOLRATE_K -c $FECNUM"/"$FECDEN -f $FREQUENCY_OUT -p $GAIN -m $MODE -x $PIN_I -y $PIN_Q &
