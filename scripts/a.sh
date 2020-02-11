@@ -846,7 +846,7 @@ fi
       ;;
       "LIMEMINI" | "LIMEUSB" | "LIMEDVB")
         $PATHRPI"/limesdr_dvb" -i videots -s "$SYMBOLRATE_K"000 -f $FECNUM/$FECDEN -r $UPSAMPLE -m $MODTYPE -c $CONSTLN $PILOTS $FRAMES \
-        -t "$FREQ_OUTPUT"e6 -g $LIME_GAINF -q $CAL $CUSTOM_FPGA -D $DIGITAL_GAIN &
+        -t "$FREQ_OUTPUT"e6 -g $LIME_GAINF -q $CAL $CUSTOM_FPGA -D $DIGITAL_GAIN -e $BAND_GPIO &
       ;;
       "COMPVID")
         OUTPUT_FILE="/dev/null" #Send avc2ts output to /dev/null
@@ -906,20 +906,21 @@ fi
     else
       # Webcam in use
       # If a C920 put it in the right mode
+      # Anything over 640x480 does not work
       AUDIO_SAMPLE=32000
       if [ $C920Present == 1 ]; then
-        if [ "$BITRATE_VIDEO" -gt 300000 ]; then
-          v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=864,height=480,pixelformat=0 --set-ctrl=exposure_auto=1
-          VIDEO_WIDTH=864
-          VIDEO_HEIGHT=480
+        if [ "$BITRATE_VIDEO" -gt 190000 ]; then  # 333KS FEC 1/2 or better
+          v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=640,height=360,pixelformat=0 #--set-ctrl=exposure_auto=0
+          VIDEO_WIDTH=640
+          VIDEO_HEIGHT=360
           VIDEO_FPS=25
         else
-          v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=448,height=240,pixelformat=0 --set-ctrl=exposure_auto=1
+          v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=448,height=240,pixelformat=0 #--set-ctrl=exposure_auto=0
           VIDEO_WIDTH=448
           VIDEO_HEIGHT=240
           VIDEO_FPS=25
         fi
-      fi
+     fi
       ANALOGCAMNAME=$VID_WEBCAM
     fi
 
@@ -956,7 +957,7 @@ fi
     if [ "$AUDIO_CARD" == 0 ]; then
       # ******************************* H264 VIDEO, NO AUDIO ************************************
 
-      let BITRATE_VIDEO=($BITRATE_TS-12000)*725/1000
+      let BITRATE_VIDEO=($BITRATE_TS-24000)*725/1000 # 24000 works better at low SRs
 
       sudo $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -d 300 -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
         -f $VIDEO_FPS -i $IDRPERIOD $OUTPUT_FILE -t 2 -e $ANALOGCAMNAME -p $PIDPMT -s $CALL $OUTPUT_IP \
@@ -967,8 +968,7 @@ fi
 
       BITRATE_AUDIO=24000
       let TS_AUDIO_BITRATE=$BITRATE_AUDIO*15/10
-     # let BITRATE_VIDEO=($BITRATE_TS-12000-$TS_AUDIO_BITRATE)*725/1000
-      let BITRATE_VIDEO=($BITRATE_TS-24000-$TS_AUDIO_BITRATE)*725/1000
+      let BITRATE_VIDEO=($BITRATE_TS-24000-$TS_AUDIO_BITRATE)*725/1000  # 24000 works better at low SRs
 
       if [ $AUDIO_SAMPLE != 48000 ]; then
         arecord -f S16_LE -r $AUDIO_SAMPLE -c 2 -B $ARECORD_BUF -D plughw:$AUDIO_CARD_NUMBER,0 \
@@ -1139,7 +1139,7 @@ fi
       ;;
       "LIMEMINI" | "LIMEUSB" | "LIMEDVB")
       $PATHRPI"/limesdr_dvb" -i $TSVIDEOFILE -s "$SYMBOLRATE_K"000 -f $FECNUM/$FECDEN -r $UPSAMPLE -m $MODTYPE -c $CONSTLN $PILOTS $FRAMES \
-        -t "$FREQ_OUTPUT"e6 -g $LIME_GAINF -q $CAL $CUSTOM_FPGA -D $DIGITAL_GAIN &
+        -t "$FREQ_OUTPUT"e6 -g $LIME_GAINF -q $CAL $CUSTOM_FPGA -D $DIGITAL_GAIN -e $BAND_GPIO &
       ;;
       *)
         sudo $PATHRPI"/rpidatv" -i $TSVIDEOFILE -s $SYMBOLRATE_K -c $FECNUM"/"$FECDEN -f $FREQUENCY_OUT -p $GAIN -m $MODE -l -x $PIN_I -y $PIN_Q &;;
@@ -1289,7 +1289,7 @@ fi
       ;;
       "LIMEMINI" | "LIMEUSB" | "LIMEDVB")
         $PATHRPI"/limesdr_dvb" -i videots -s "$SYMBOLRATE_K"000 -f $FECNUM/$FECDEN -r $UPSAMPLE -m $MODTYPE -c $CONSTLN $PILOTS $FRAMES \
-        -t "$FREQ_OUTPUT"e6 -g $LIME_GAINF -q $CAL $CUSTOM_FPGA -D $DIGITAL_GAIN &
+        -t "$FREQ_OUTPUT"e6 -g $LIME_GAINF -q $CAL $CUSTOM_FPGA -D $DIGITAL_GAIN -e $BAND_GPIO &
       ;;
       *)
         # For IQ, QPSKRF, DIGITHIN and DTX1 rpidatv generates the IQ (and RF for QPSKRF)
@@ -1485,7 +1485,7 @@ fi
       ;;
       "LIMEMINI" | "LIMEUSB" | "LIMEDVB")
         $PATHRPI"/limesdr_dvb" -i videots -s "$SYMBOLRATE_K"000 -f $FECNUM/$FECDEN -r $UPSAMPLE -m $MODTYPE -c $CONSTLN $PILOTS $FRAMES \
-        -t "$FREQ_OUTPUT"e6 -g $LIME_GAINF -q $CAL $CUSTOM_FPGA -D $DIGITAL_GAIN &
+        -t "$FREQ_OUTPUT"e6 -g $LIME_GAINF -q $CAL $CUSTOM_FPGA -D $DIGITAL_GAIN -e $BAND_GPIO &
       ;;
       *)
         # For IQ, QPSKRF, DIGITHIN and DTX1 rpidatv generates the IQ (and RF for QPSKRF)
@@ -1603,7 +1603,7 @@ fi
       ;;
       "LIMEMINI" | "LIMEUSB" | "LIMEDVB")
         $PATHRPI"/limesdr_dvb" -i videots -s "$SYMBOLRATE_K"000 -f $FECNUM/$FECDEN -r $UPSAMPLE -m $MODTYPE -c $CONSTLN $PILOTS $FRAMES \
-        -t "$FREQ_OUTPUT"e6 -g $LIME_GAINF -q $CAL $CUSTOM_FPGA -D $DIGITAL_GAIN &
+        -t "$FREQ_OUTPUT"e6 -g $LIME_GAINF -q $CAL $CUSTOM_FPGA -D $DIGITAL_GAIN -e $BAND_GPIO &
       ;;
       *)
         # For IQ, QPSKRF, DIGITHIN and DTX1 rpidatv generates the IQ (and RF for QPSKRF)
