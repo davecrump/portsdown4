@@ -144,9 +144,11 @@ detect_audio()
     fi
 
     # Check for the presence of a C525 or C170 with mono audio
+    C170Present=0
     arecord -l | grep -E -q \
       "Webcam C525|Webcam C170"
     if [ $? == 0 ]; then   ## Present
+      C170Present=1
       # Look for the video dongle, select the line and take
       # the 6th character.  Max card number = 8 !!
       WCAM="$(arecord -l | grep -E \

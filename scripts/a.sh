@@ -2,7 +2,7 @@
 
 # set -x # Uncomment for testing
 
-# Version 201911230 Buster build
+# Version 202002140 Buster build
 
 ############# SET GLOBAL VARIABLES ####################
 
@@ -39,11 +39,9 @@ UDPOUTADDR=$(get_config_var udpoutaddr $PCONFIGFILE)
 CALL=$(get_config_var call $PCONFIGFILE)
 CHANNEL="Portsdown"
 FREQ_OUTPUT=$(get_config_var freqoutput $PCONFIGFILE)
-
 STREAM_URL=$(get_config_var streamurl $PCONFIGFILE)
 STREAM_KEY=$(get_config_var streamkey $PCONFIGFILE)
 OUTPUT_STREAM="-f flv $STREAM_URL/$STREAM_KEY"
-
 MODE_OUTPUT=$(get_config_var modeoutput $PCONFIGFILE)
 SYMBOLRATEK=$(get_config_var symbolrate $PCONFIGFILE)
 GAIN=$(get_config_var rfpower $PCONFIGFILE)
@@ -53,6 +51,7 @@ PIDPMT=$(get_config_var pidpmt $PCONFIGFILE)
 PIDSTART=$(get_config_var pidstart $PCONFIGFILE)
 SERVICEID=$(get_config_var serviceid $PCONFIGFILE)
 LOCATOR=$(get_config_var locator $PCONFIGFILE)
+
 PIN_I=$(get_config_var gpio_i $PCONFIGFILE)
 PIN_Q=$(get_config_var gpio_q $PCONFIGFILE)
 
@@ -318,83 +317,101 @@ OUTPUT_QPSK="videots"
 # MODE_DEBUG=quiet
  MODE_DEBUG=debug
 
-# ************************ CALCULATE BITRATES ******************
+# ************************ CALCULATE BITRATES AND IMAGE SIZES ******************
 
 # Maximum BITRATE:
-let BITRATE_TS=SYMBOLRATE*BITSPERSYMBOL*188*FECNUM/204/FECDEN
+# let BITRATE_TS=SYMBOLRATE*BITSPERSYMBOL*188*FECNUM/204/FECDEN # Not used 
 
-echo Theoretical Bitrate TS $BITRATE_TS
+UPSAMPLE=1  # Set here to allow bitrate calculation
+let SYMBOLRATE_K=SYMBOLRATE/1000
+
+BITRATE_TS="$($PATHRPI"/dvb2iq" -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
+              -d -r $UPSAMPLE -m $MODTYPE -c $CONSTLN $PILOTS $FRAMES )"
+echo  Bitrate TS $NEW_BITRATE_TS
 
 # Calculate the Video Bit Rate for MPEG-2 Sound/no sound
 if [ "$MODE_INPUT" == "CAMMPEG-2" ] || [ "$MODE_INPUT" == "ANALOGMPEG-2" ] \
   || [ "$MODE_INPUT" == "CAMHDMPEG-2" ] || [ "$MODE_INPUT" == "CARDMPEG-2" ] \
   || [ "$MODE_INPUT" == "CAM16MPEG-2" ] || [ "$MODE_INPUT" == "ANALOG16MPEG-2" ]; then
-  if [ "$AUDIO_CHANNELS" != 0 ]; then                 # Sound active
+  if [ "$AUDIO_CHANNELS" != 0 ]; then                 # MPEG-2 with Audio
     let BITRATE_VIDEO=(BITRATE_TS*75)/100-74000
-  else
+  else                                                # MPEG-2 no audio
     let BITRATE_VIDEO=(BITRATE_TS*75)/100-10000
   fi
-else # h264
-  let BITRATE_VIDEO=(BITRATE_TS*75)/100-10000
-fi
 
-let SYMBOLRATE_K=SYMBOLRATE/1000
-
-# Increase video resolution for CAMHDMPEG-2 and CAM16MPEG-2
-if [ "$MODE_INPUT" == "CAMHDMPEG-2" ] && [ "$BITRATE_VIDEO" -gt 500000 ]; then
-  VIDEO_WIDTH=1280
-  VIDEO_HEIGHT=720
-  VIDEO_FPS=15
-elif [ "$MODE_INPUT" == "CAM16MPEG-2" ] && [ "$BITRATE_VIDEO" -gt 500000 ]; then
-  VIDEO_WIDTH=1024
-  VIDEO_HEIGHT=576
-  VIDEO_FPS=15
-else
-  # Reduce video resolution at low bit rates
-  if [ "$BITRATE_VIDEO" -lt 170000 ]; then
-    VIDEO_WIDTH=160
-    VIDEO_HEIGHT=140
-  else
-    if [ "$BITRATE_VIDEO" -lt 300000 ]; then
-      VIDEO_WIDTH=352
-      VIDEO_HEIGHT=288
-    else
-      VIDEO_WIDTH=720
-      VIDEO_HEIGHT=$IMAGE_HEIGHT
-    fi
-  fi
-  if [ "$BITRATE_VIDEO" -lt 100000 ]; then
-    VIDEO_WIDTH=96
-    VIDEO_HEIGHT=80
-  fi
-
-  # Reduce frame rate at low bit rates
-  if [ "$BITRATE_VIDEO" -lt 150000 ]; then  # was 300000
+  # And the image size for MPEG-2
+  # Increase video resolution for CAMHDMPEG-2 and CAM16MPEG-2
+  if [ "$MODE_INPUT" == "CAMHDMPEG-2" ] && [ "$BITRATE_VIDEO" -gt 500000 ]; then
+    VIDEO_WIDTH=1280
+    VIDEO_HEIGHT=720
+    VIDEO_FPS=15
+  elif [ "$MODE_INPUT" == "CAM16MPEG-2" ] && [ "$BITRATE_VIDEO" -gt 500000 ]; then
+    VIDEO_WIDTH=1024
+    VIDEO_HEIGHT=576
     VIDEO_FPS=15
   else
-    # Switch to 30 fps if required
-    if [ "$IMAGE_HEIGHT" == "480" ]; then
-      VIDEO_FPS=30
+    # Reduce video resolution at low bit rates
+    if [ "$BITRATE_VIDEO" -lt 170000 ]; then
+      VIDEO_WIDTH=160
+      VIDEO_HEIGHT=140
     else
-      VIDEO_FPS=25
+      if [ "$BITRATE_VIDEO" -lt 300000 ]; then
+        VIDEO_WIDTH=352
+        VIDEO_HEIGHT=288
+      else
+        VIDEO_WIDTH=720
+        VIDEO_HEIGHT=$IMAGE_HEIGHT
+      fi
+    fi
+    if [ "$BITRATE_VIDEO" -lt 100000 ]; then
+      VIDEO_WIDTH=96
+      VIDEO_HEIGHT=80
+    fi
+
+    # Reduce MPEG-2 frame rate at low bit rates
+    if [ "$BITRATE_VIDEO" -lt 150000 ]; then  # was 300000
+      VIDEO_FPS=15
+    else
+      # Switch to 30 fps if required
+      if [ "$IMAGE_HEIGHT" == "480" ]; then
+        VIDEO_FPS=30
+      else
+        VIDEO_FPS=25
+      fi
     fi
   fi
+else # h264
+  if [ "$AUDIO_CHANNELS" != 0 ]; then                 # H264 or H265 with AAC audio
+    ARECORD_BUF=55000     # arecord buffer in us
+    BITRATE_AUDIO=24000
+    let TS_AUDIO_BITRATE=$BITRATE_AUDIO*15/10
+    let BITRATE_VIDEO=($BITRATE_TS-24000-$TS_AUDIO_BITRATE)*725/1000
+  else                                                # H264 or H265 no audio
+    let BITRATE_VIDEO=($BITRATE_TS-12000)*725/1000
+  fi
+
+  # Set the H264 image size
+  if [ "$BITRATE_VIDEO" -gt 190000 ]; then  # 333KS FEC 1/2 or better
+    VIDEO_WIDTH=704
+    VIDEO_HEIGHT=576
+    VIDEO_FPS=25
+  else
+    VIDEO_WIDTH=352
+    VIDEO_HEIGHT=288
+    VIDEO_FPS=25
+  fi
+  if [ "$BITRATE_VIDEO" -lt 100000 ]; then
+    VIDEO_WIDTH=160
+    VIDEO_HEIGHT=120
+  fi
 fi
-
-# Set H264 Audio Settings
-ARECORD_BUF=55000     # arecord buffer in us
-
-# Input sampling rate to arecord is adjusted depending on source
-BITRATE_AUDIO=32000  # aac encoder output
-
-# Set h264 aac audio bitrate for avc2ts
-AUDIO_MARGIN=60000   # headroom allowed in TS
 
 # Set IDRPeriod for avc2ts
 # Default is 100, ie one every 4 sec at 25 fps
 IDRPERIOD=100
 
-# Set the SDR Up-sampling rate and correct gain for Lime
+
+# Set the SDR Up-sampling rate and correct gain for Lime Modes
 case "$MODE_OUTPUT" in
   "LIMEMINI" | "LIMEUSB" | "LIMEDVB" | "JLIME" | "JEXPRESS")
     let DIGITAL_GAIN=($LIME_GAIN*31)/100 # For LIMEDVB
@@ -489,17 +506,6 @@ case "$MODE_OUTPUT" in
     NEW_BITRATE_TS="$($PATHRPI"/dvb2iq" -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
                       -d -r $UPSAMPLE -m $MODTYPE -c $CONSTLN $PILOTS $FRAMES )"
 
-    echo
-    echo Old Bitrate $BITRATE_TS
-    echo New Bitrate $NEW_BITRATE_TS
-
-    # Fudge the bitrate for an improvement
-    let BITRATE_TS=$NEW_BITRATE_TS #+1000
-    let BITRATE_VIDEO=($BITRATE_TS-12000)*650/1000
-
-    echo Corrected Bitrate $BITRATE_TS
-    echo Video Bitrate $BITRATE_VIDEO
-    echo
   ;;
 esac
 
@@ -507,13 +513,11 @@ esac
 LIMESENDBUF=10000
 
 # Clean up before starting fifos
-sudo rm videoes >/dev/null 2>/dev/null
 sudo rm videots >/dev/null 2>/dev/null
 sudo rm netfifo >/dev/null 2>/dev/null
 sudo rm audioin.wav >/dev/null 2>/dev/null
 
 # Create the fifos
-mkfifo videoes
 mkfifo videots
 mkfifo netfifo
 mkfifo audioin.wav
@@ -524,7 +528,6 @@ echo Bitrate Video $BITRATE_VIDEO
 echo Size $VIDEO_WIDTH x $VIDEO_HEIGHT at $VIDEO_FPS fps
 echo "************************************"
 echo "ModeINPUT="$MODE_INPUT
-#
 echo "LIME_GAINF="$LIME_GAINF
 
 OUTPUT_FILE="-o videots"
@@ -575,20 +578,18 @@ case "$MODE_INPUT" in
     if [ "$AUDIO_CARD" == 0 ]; then
       # ******************************* H264 VIDEO, NO AUDIO ************************************
 
-      let BITRATE_VIDEO=($BITRATE_TS-12000)*725/1000
-
       sudo $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -d 300 -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
         -f $VIDEO_FPS -i $IDRPERIOD $OUTPUT_FILE -t 0 -e $ANALOGCAMNAME -p $PIDPMT -s $CALL $OUTPUT_IP \
          > /dev/null &
     else
       # ******************************* H264 VIDEO WITH AUDIO ************************************
 
-      BITRATE_AUDIO=24000
-      let TS_AUDIO_BITRATE=$BITRATE_AUDIO*12/10
-      let BITRATE_VIDEO=($BITRATE_TS-12000-$TS_AUDIO_BITRATE)*725/1000
-
-      arecord -f S16_LE -r $AUDIO_SAMPLE -c 2 -B $ARECORD_BUF -D plughw:$AUDIO_CARD_NUMBER,0 > audioin.wav &
-
+      if [ $AUDIO_SAMPLE != 48000 ]; then
+        arecord -f S16_LE -r $AUDIO_SAMPLE -c 2 -B $ARECORD_BUF -D plughw:$AUDIO_CARD_NUMBER,0 \
+          | sox --buffer 1024 -t wav - audioin.wav rate 48000 &
+      else
+        arecord -f S16_LE -r $AUDIO_SAMPLE -c 2 -B $ARECORD_BUF -D plughw:$AUDIO_CARD_NUMBER,0 > audioin.wav &
+      fi
    
       sudo $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -d 300 -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
         -f $VIDEO_FPS -i $IDRPERIOD $OUTPUT_FILE -t 0 -e $ANALOGCAMNAME -p $PIDPMT -s $CALL $OUTPUT_IP \
@@ -803,8 +804,6 @@ fi
     if [ "$AUDIO_CARD" == 0 ]; then
       # ******************************* H264 TCANIM, NO AUDIO ************************************
 
-      let BITRATE_VIDEO=($BITRATE_TS-12000)*725/1000
-
       sudo $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -d 300 -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
         -f $VIDEO_FPS -i $IDRPERIOD $OUTPUT_FILE -t 3 -e $ANALOGCAMNAME -p $PIDPMT -s $CALL $OUTPUT_IP \
          > /dev/null &
@@ -812,11 +811,12 @@ fi
     else
       # ******************************* H264 TCANIM WITH AUDIO ************************************
 
-      BITRATE_AUDIO=24000
-      let TS_AUDIO_BITRATE=$BITRATE_AUDIO*12/10
-      let BITRATE_VIDEO=($BITRATE_TS-12000-$TS_AUDIO_BITRATE)*725/1000
-
-      arecord -f S16_LE -r $AUDIO_SAMPLE -c 2 -B $ARECORD_BUF -D plughw:$AUDIO_CARD_NUMBER,0 > audioin.wav &
+      if [ $AUDIO_SAMPLE != 48000 ]; then
+        arecord -f S16_LE -r $AUDIO_SAMPLE -c 2 -B $ARECORD_BUF -D plughw:$AUDIO_CARD_NUMBER,0 \
+          | sox --buffer 1024 -t wav - audioin.wav rate 48000 &
+      else
+        arecord -f S16_LE -r $AUDIO_SAMPLE -c 2 -B $ARECORD_BUF -D plughw:$AUDIO_CARD_NUMBER,0 > audioin.wav &
+      fi
    
       sudo $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -d 300 -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
         -f $VIDEO_FPS -i $IDRPERIOD $OUTPUT_FILE -t 3 -e $ANALOGCAMNAME -p $PIDPMT -s $CALL $OUTPUT_IP \
@@ -860,8 +860,6 @@ fi
     if [ "$AUDIO_CARD" == 0 ]; then
       # ******************************* H264 VIDEO, NO AUDIO ************************************
 
-      let BITRATE_VIDEO=($BITRATE_TS-12000)*725/1000
-
       sudo $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -d 300 -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
         -f $VIDEO_FPS -i $IDRPERIOD $OUTPUT_FILE -t 4 -e $VNCADDR -p $PIDPMT -s $CALL $OUTPUT_IP \
          > /dev/null &
@@ -869,11 +867,12 @@ fi
     else
       # ******************************* H264 VIDEO WITH AUDIO ************************************
 
-      BITRATE_AUDIO=24000
-      let TS_AUDIO_BITRATE=$BITRATE_AUDIO*12/10
-      let BITRATE_VIDEO=($BITRATE_TS-12000-$TS_AUDIO_BITRATE)*725/1000
-
-      arecord -f S16_LE -r $AUDIO_SAMPLE -c 2 -B $ARECORD_BUF -D plughw:$AUDIO_CARD_NUMBER,0 > audioin.wav &
+      if [ $AUDIO_SAMPLE != 48000 ]; then
+        arecord -f S16_LE -r $AUDIO_SAMPLE -c 2 -B $ARECORD_BUF -D plughw:$AUDIO_CARD_NUMBER,0 \
+          | sox --buffer 1024 -t wav - audioin.wav rate 48000 &
+      else
+        arecord -f S16_LE -r $AUDIO_SAMPLE -c 2 -B $ARECORD_BUF -D plughw:$AUDIO_CARD_NUMBER,0 > audioin.wav &
+      fi
 
       sudo $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -d 300 -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
         -f $VIDEO_FPS -i $IDRPERIOD $OUTPUT_FILE -t 4 -e $VNCADDR -p $PIDPMT -s $CALL $OUTPUT_IP \
@@ -906,13 +905,13 @@ fi
     else
       # Webcam in use
       # If a C920 put it in the right mode
-      # Anything over 640x480 does not work
-      AUDIO_SAMPLE=32000
+      # Anything over 800x448 does not work because 30 fps is not available
       if [ $C920Present == 1 ]; then
+        AUDIO_SAMPLE=32000
         if [ "$BITRATE_VIDEO" -gt 190000 ]; then  # 333KS FEC 1/2 or better
-          v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=640,height=360,pixelformat=0 #--set-ctrl=exposure_auto=0
-          VIDEO_WIDTH=640
-          VIDEO_HEIGHT=360
+          v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=800,height=448,pixelformat=0 #--set-ctrl=exposure_auto=0
+          VIDEO_WIDTH=800
+          VIDEO_HEIGHT=448
           VIDEO_FPS=25
         else
           v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=448,height=240,pixelformat=0 #--set-ctrl=exposure_auto=0
@@ -921,6 +920,20 @@ fi
           VIDEO_FPS=25
         fi
      fi
+     if [ $C170Present == 1 ]; then
+        AUDIO_CARD=0   # Can't get sound to work at present
+        if [ "$BITRATE_VIDEO" -gt 190000 ]; then  # 333KS FEC 1/2 or better
+          v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=640,height=480,pixelformat=0
+          VIDEO_WIDTH=640
+          VIDEO_HEIGHT=480
+          VIDEO_FPS=10 # This webcam only seems to work at 15 fps
+        else
+          v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=352,height=288,pixelformat=0
+          VIDEO_WIDTH=352
+          VIDEO_HEIGHT=288
+          VIDEO_FPS=10 # This webcam only seems to work at 15 fps
+        fi
+      fi
       ANALOGCAMNAME=$VID_WEBCAM
     fi
 
@@ -954,10 +967,11 @@ fi
 
     # Now generate the stream
 
+
     if [ "$AUDIO_CARD" == 0 ]; then
       # ******************************* H264 VIDEO, NO AUDIO ************************************
 
-      let BITRATE_VIDEO=($BITRATE_TS-24000)*725/1000 # 24000 works better at low SRs
+      #let BITRATE_VIDEO=($BITRATE_TS-12000)*725/1000
 
       sudo $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -d 300 -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
         -f $VIDEO_FPS -i $IDRPERIOD $OUTPUT_FILE -t 2 -e $ANALOGCAMNAME -p $PIDPMT -s $CALL $OUTPUT_IP \
@@ -965,10 +979,6 @@ fi
 
     else
       # ******************************* H264 VIDEO WITH AUDIO ************************************
-
-      BITRATE_AUDIO=24000
-      let TS_AUDIO_BITRATE=$BITRATE_AUDIO*15/10
-      let BITRATE_VIDEO=($BITRATE_TS-24000-$TS_AUDIO_BITRATE)*725/1000  # 24000 works better at low SRs
 
       if [ $AUDIO_SAMPLE != 48000 ]; then
         arecord -f S16_LE -r $AUDIO_SAMPLE -c 2 -B $ARECORD_BUF -D plughw:$AUDIO_CARD_NUMBER,0 \
@@ -1075,28 +1085,14 @@ fi
 
     # Audio does not work well, and is not required, so disabled.
 
-#    if [ "$AUDIO_CARD" == 0 ]; then
-      # ******************************* H264 VIDEO, NO AUDIO ************************************
+    # ******************************* H264 VIDEO, NO AUDIO ************************************
 
-      let BITRATE_VIDEO=($BITRATE_TS-12000)*725/1000
+    VIDEO_FPS=10  #
+    IDRPERIOD=10  #  Setting these parameters prevents the partial picture problem
 
-      sudo $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -d 300 -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
-        -f $VIDEO_FPS -i $IDRPERIOD $OUTPUT_FILE -t 3 -p $PIDPMT -s $CALL $OUTPUT_IP \
-         > /dev/null &
-
-#    else
-      # ******************************* H264 VIDEO WITH AUDIO ************************************
-
-#      BITRATE_AUDIO=24000
-#      let TS_AUDIO_BITRATE=$BITRATE_AUDIO*12/10
-#      let BITRATE_VIDEO=($BITRATE_TS-12000-$TS_AUDIO_BITRATE)*725/1000
-
-#      arecord -f S16_LE -r $AUDIO_SAMPLE -c 2 -B $ARECORD_BUF -D plughw:$AUDIO_CARD_NUMBER,0 > audioin.wav &
-
-#      sudo $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -d 300 -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
-#        -f $VIDEO_FPS -i $IDRPERIOD $OUTPUT_FILE -t 3  -p $PIDPMT -s $CALL $OUTPUT_IP \
-#        -a audioin.wav -z $BITRATE_AUDIO > /dev/null &
-#    fi
+     sudo $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -d 300 -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
+      -f $VIDEO_FPS -i $IDRPERIOD $OUTPUT_FILE -t 3 -p $PIDPMT -s $CALL $OUTPUT_IP \
+       > /dev/null &
   ;;
 
 # *********************************** TRANSPORT STREAM INPUT THROUGH IP ******************************************
@@ -1114,7 +1110,7 @@ fi
       ;;
       "LIMEMINI" | "LIMEUSB" | "LIMEDVB")
       $PATHRPI"/limesdr_dvb" -i videots -s "$SYMBOLRATE_K"000 -f $FECNUM/$FECDEN -r $UPSAMPLE -m $MODTYPE -c $CONSTLN $PILOTS $FRAMES \
-        -t "$FREQ_OUTPUT"e6 -g $LIME_GAINF -q $CAL $CUSTOM_FPGA -D $DIGITAL_GAIN -e $BAND_GPIO &
+        -t "$FREQ_OUTPUT"e6 -g $LIME_GAINF -q $CAL $CUSTOM_FPGA -D $DIGITAL_GAIN -e $BAND_GPIO -e $BAND_GPIO &
       ;;
       *)
         sudo $PATHRPI"/rpidatv" -i videots -s $SYMBOLRATE_K -c $FECNUM"/"$FECDEN -f $FREQUENCY_OUT -p $GAIN -m $MODE -x $PIN_I -y $PIN_Q &
@@ -1139,7 +1135,7 @@ fi
       ;;
       "LIMEMINI" | "LIMEUSB" | "LIMEDVB")
       $PATHRPI"/limesdr_dvb" -i $TSVIDEOFILE -s "$SYMBOLRATE_K"000 -f $FECNUM/$FECDEN -r $UPSAMPLE -m $MODTYPE -c $CONSTLN $PILOTS $FRAMES \
-        -t "$FREQ_OUTPUT"e6 -g $LIME_GAINF -q $CAL $CUSTOM_FPGA -D $DIGITAL_GAIN -e $BAND_GPIO &
+        -t "$FREQ_OUTPUT"e6 -g $LIME_GAINF -q $CAL $CUSTOM_FPGA -D $DIGITAL_GAIN &
       ;;
       *)
         sudo $PATHRPI"/rpidatv" -i $TSVIDEOFILE -s $SYMBOLRATE_K -c $FECNUM"/"$FECDEN -f $FREQUENCY_OUT -p $GAIN -m $MODE -l -x $PIN_I -y $PIN_Q &;;
