@@ -133,7 +133,7 @@ wget https://downloads.myriadrf.org/project/limesuite/19.04/LimeSDR-Mini_HW_1.2_
 # Current Version from 20.01 (used for LimeUtil updates)
 mkdir -p /home/pi/.local/share/LimeSuite/images/20.01/
 wget https://downloads.myriadrf.org/project/limesuite/20.01/LimeSDR-Mini_HW_1.2_r1.30.rpd -O \
-               /home/pi/.local/share/LimeSuite/images/20.10/LimeSDR-Mini_HW_1.2_r1.30.rpd
+               /home/pi/.local/share/LimeSuite/images/20.01/LimeSDR-Mini_HW_1.2_r1.30.rpd
 # DVB-S/S2 Version
 mkdir -p /home/pi/.local/share/LimeSuite/images/v0.3
 wget https://github.com/natsfr/LimeSDR_DVBSGateware/releases/download/v0.3/LimeSDR-Mini_lms7_trx_HW_1.2_auto.rpd -O \
