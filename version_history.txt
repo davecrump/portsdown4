@@ -1,3 +1,6 @@
+202002141
+Rotate 7 inch Screen and other bug fixes
+
 202002140
 Based on Buster 2020-02-05
 H264 encoding for BATC Streamer corrected
