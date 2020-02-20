@@ -1,3 +1,6 @@
+202002142
+Correct LimeDVB Output level at 1000 kS
+
 202002141
 Rotate 7 inch Screen and other bug fixes
 

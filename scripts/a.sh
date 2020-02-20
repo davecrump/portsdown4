@@ -414,6 +414,13 @@ IDRPERIOD=100
 # Set the SDR Up-sampling rate and correct gain for Lime Modes
 case "$MODE_OUTPUT" in
   "LIMEMINI" | "LIMEUSB" | "LIMEDVB" | "JLIME" | "JEXPRESS")
+
+    # Make sure Lime gain is sensible
+    if [ "$LIME_GAIN" -lt 6 ]; then
+      LIMEGAIN=6
+    fi
+
+    # Set digital gain
     let DIGITAL_GAIN=($LIME_GAIN*31)/100 # For LIMEDVB
 
     if [ "$SYMBOLRATE_K" -lt 990 ] ; then
@@ -424,29 +431,29 @@ case "$MODE_OUTPUT" in
       LIME_GAINF=`echo - | awk '{print '$LIME_GAIN' / 100}'`
     else
       UPSAMPLE=1
-      if [ "$LIME_GAIN" -lt 6 ]; then
-        LIMEGAIN=6
-      fi
       LIME_GAINF=`echo - | awk '{print ( '$LIME_GAIN' - 6 ) / 100}'`
     fi
 
     # Equalise Carrier Mode Level for Lime
     if [ "$MODE_INPUT" == "CARRIER" ]; then
-      if [ "$LIME_GAIN" -lt 6 ]; then
-        LIMEGAIN=6
-      fi
       LIME_GAINF=`echo - | awk '{print ( '$LIME_GAIN' - 6 ) / 100}'`
     fi
 
     # Override for LIMEDVB Mode
 
     if [ "$MODE_OUTPUT" == "LIMEDVB" ]; then
+
+      # For Low SRs
       UPSAMPLE=4
+      LIME_GAINF=`echo - | awk '{print '$LIME_GAIN' / 100}'`
+
       if [ "$SYMBOLRATE_K" -gt 1010 ] ; then
         UPSAMPLE=2
+        LIME_GAINF=`echo - | awk '{print ( '$LIME_GAIN' - 6 ) / 100}'`
       fi
       if [ "$SYMBOLRATE_K" -gt 4010 ] ; then
         UPSAMPLE=1
+        LIME_GAINF=`echo - | awk '{print ( '$LIME_GAIN' - 6 ) / 100}'`
       fi
       CUSTOM_FPGA="-F"
     else
@@ -480,7 +487,6 @@ case "$MODE_OUTPUT" in
     # CAL=1 # Calibrate every time
     # CAL=0 # Use saved cal
 
-
     if [ -f "$PATH_LIME_CAL" ]; then                                   # Lime Cal file exists, so read it
       LIMECALFREQ=$(get_config_var limecalfreq $PATH_LIME_CAL)
     else                                                               # No file, so set to calibrate 
@@ -504,11 +510,6 @@ case "$MODE_OUTPUT" in
         set_config_var limecalfreq "$FREQ_OUTPUT" $PATH_LIME_CAL       # and reset cal freq
       fi
     fi
-
-    # Calculate the exact TS Bitrate for Lime
-    #NEW_BITRATE_TS="$($PATHRPI"/dvb2iq" -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
-    #                  -d -r $UPSAMPLE -m $MODTYPE -c $CONSTLN $PILOTS $FRAMES )"
-
   ;;
 esac
 
