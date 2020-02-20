@@ -420,6 +420,9 @@ case "$MODE_OUTPUT" in
       LIMEGAIN=6
     fi
 
+    # Set digital gain
+    let DIGITAL_GAIN=($LIME_GAIN*31)/100 # For LIMEDVB
+
     if [ "$SYMBOLRATE_K" -lt 990 ] ; then
       UPSAMPLE=2
       LIME_GAINF=`echo - | awk '{print '$LIME_GAIN' / 100}'`
@@ -439,9 +442,6 @@ case "$MODE_OUTPUT" in
     # Override for LIMEDVB Mode
 
     if [ "$MODE_OUTPUT" == "LIMEDVB" ]; then
-
-      # Set digital gain
-      let DIGITAL_GAIN=($LIME_GAIN*31)/100 # For LIMEDVB
 
       # For Low SRs
       UPSAMPLE=4
