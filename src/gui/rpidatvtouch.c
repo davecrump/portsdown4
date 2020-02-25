@@ -8002,6 +8002,100 @@ int CheckStream()
   }
 }
 
+void DisplayIPStream()
+{
+  int StreamStatus;
+  int count;
+  char startCommand[255];
+  char WaitMessage[63];
+
+  strcpy(startCommand, "/home/pi/rpidatv/scripts/omx_udp.sh ");
+//  strcat(startCommand, "udp://:@:10000");
+  strcat(startCommand, " &");
+
+  strcpy(WaitMessage, "Waiting for IP Stream on port 10000");
+
+  printf("Starting Stream receiver ....\n");
+  IQAvailable = 0;           // Set flag to prompt user reboot before transmitting
+  FinishedButton = 0;
+  BackgroundRGB(0, 0, 0, 0);
+  finish();                  // Close the graphics sub-system
+  DisplayHere(WaitMessage);
+
+  // Create Wait Button thread
+  pthread_create (&thbutton, NULL, &WaitButtonEvent, NULL);
+
+  while (FinishedButton == 0)
+  {
+    // With no stream, this loop is executed about once every 10 seconds
+
+    // first make sure that the stream status is not stale
+    system("rm /home/pi/tmp/stream_status.txt >/dev/null 2>/dev/null");
+    usleep(500000);
+
+    // run the omxplayer script
+ 
+    system(startCommand);
+
+    StreamStatus = CheckStream();
+
+    // = 0 Stream running
+    // = 1 Not started yet
+    // = 2 started but audio only
+    // = 3 terminated
+    
+    // Now wait 10 seconds for omxplayer to respond
+    // checking every 0.5 seconds.  It will time out at 5 seconds
+
+    count = 0;
+    while ((StreamStatus == 1) && (count < 20) && (FinishedButton == 0))
+    {
+      usleep(500000); 
+      count = count + 1;
+      StreamStatus = CheckStream();
+    }
+
+    // If it is running properly, wait here
+    if (StreamStatus == 0)
+    {
+      DisplayHere("Valid Stream Detected");
+
+      while (StreamStatus == 0 && (FinishedButton == 0))
+      {
+        // Wait in this loop while the stream is running
+        usleep(500000); // Check every 0.5 seconds
+        StreamStatus = CheckStream();
+      }
+
+      if (FinishedButton == 0)
+      {
+        DisplayHere("Stream Dropped Out");
+        usleep(500000); // Display dropout message for 0.5 sec
+      }
+      else
+      {
+        DisplayHere(""); // Clear messages
+      }
+    }     
+
+    if (StreamStatus == 2)  // Audio only
+    {
+      DisplayHere("Audio Stream Detected, Trying for Video");
+    }
+
+    if ((StreamStatus == 3) || (StreamStatus == 1))  // Nothing detected
+    {
+      DisplayHere(WaitMessage);
+    }
+
+    // Make sure that omxplayer is no longer running
+    system("killall -9 omxplayer.bin >/dev/null 2>/dev/null");
+  }
+  DisplayHere("");
+  init(&wscreen, &hscreen);  // Restart the graphics
+  pthread_join(thbutton, NULL);
+}
+
 
 void DisplayStream(int NoButton)
 {
@@ -13382,8 +13476,10 @@ void waituntil(int w,int h)
         case 7:                               // Not used
           UpdateWindow();
           break;
-        case 8:                               // Not used
-          UpdateWindow();
+        case 8:                               // IPTS Viewer
+          DisplayIPStream();
+          BackgroundRGB(0, 0, 0, 255);
+          UpdateWindow();                     // Stay in Menu 2
           break;
         case 9:                               // Not used
           printf("MENU 7 \n");
@@ -16495,9 +16591,9 @@ void Define_Menu2()
   //AddButtonStatus(button, " ", &Blue);
   //AddButtonStatus(button, " ", &Green);
 
-  //button = CreateButton(2, 8);
-  //AddButtonStatus(button, " ", &Blue);
-  //AddButtonStatus(button, " ", &Green);
+  button = CreateButton(2, 8);
+  AddButtonStatus(button, "IPTS^Viewer", &Blue);
+  AddButtonStatus(button, "IPTS^Viewer", &Green);
 
   button = CreateButton(2, 9);
   AddButtonStatus(button, "More^Functions", &Blue);
