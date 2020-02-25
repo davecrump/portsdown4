@@ -2,6 +2,7 @@
 Add IPTS Viewer
 Correct format of null packets in limesdr_dvb.cpp
 Reduce frame rate for C920
+Lime Carrier Mode restored
 
 202002142
 Correct LimeDVB Output level at 1000 kS
