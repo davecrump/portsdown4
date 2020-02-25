@@ -1156,14 +1156,15 @@ fi
         echo "set car on" >> /tmp/expctrl
         echo "set ptt tx" >> /tmp/expctrl
       ;;
-      "LIMEMINI" | "LIMEUSB" | "LIMEDVB")
+      "LIMEMINI" | "LIMEUSB")
+      $PATHRPI"/limesdr_dvb" -s 1000000 -f carrier -r 1 -m DVBS2 -c QPSK \
+        -t "$FREQ_OUTPUT"e6 -g $LIME_GAINF -q $CAL $CUSTOM_FPGA -D $DIGITAL_GAIN -e $BAND_GPIO &
+      ;;
+      "LIMEDVB")
+      let DIGITAL_GAIN=6  # To equalise levels with normal DVB-S2 +/- 2 dB
       $PATHRPI"/limesdr_dvb" -s 1000000 -f carrier -r 1 -m DVBS2 -c QPSK \
         -t "$FREQ_OUTPUT"e6 -g $LIME_GAINF -q $CAL $CUSTOM_FPGA -D $DIGITAL_GAIN -e $BAND_GPIO &
 
-      #"LIMEMINI" | "LIMEUSB")
-      #  $PATHRPI"/dvb2iq" -f carrier -r 1 -s 50 \
-      #     | sudo $PATHRPI"/limesdr_send" -f $FREQ_OUTPUTHZ -b 2.5e6 -s 50000 \
-      #     -g $LIME_GAINF -p 0.05 -r 1 -l $LIMESENDBUF -e $BAND_GPIO &
       ;;
       *)
         # sudo $PATHRPI"/rpidatv" -i videots -s $SYMBOLRATE_K -c "carrier" -f $FREQUENCY_OUT -p $GAIN -m $MODE -x $PIN_I -y $PIN_Q &
