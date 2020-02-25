@@ -1,12 +1,9 @@
 #!/bin/bash
 
-# Called by streamrx to start the stream receiver and return stdout
+# Called by rpidatvtouch to start the player for IPTS and return stdout
 # in a status file
 
-# Read in URL argument
-STREAMURL=$1
-
-stdbuf -oL omxplayer --timeout 2 $STREAMURL 2>/dev/null | {
+stdbuf -oL omxplayer --video_queue 0.5 --timeout 5 udp://:@:10000 2>/dev/null | {
 LINE="1"
 rm  /home/pi/tmp/stream_status.txt >/dev/null 2>/dev/null
 while IFS= read -r line

@@ -327,7 +327,6 @@ let SYMBOLRATE_K=SYMBOLRATE/1000
 
 BITRATE_TS="$($PATHRPI"/dvb2iq" -s $SYMBOLRATE_K -f $FECNUM"/"$FECDEN \
               -d -r $UPSAMPLE -m $MODTYPE -c $CONSTLN $PILOTS $FRAMES )"
-echo  Bitrate TS $NEW_BITRATE_TS
 
 # Calculate the Video Bit Rate for MPEG-2 Sound/no sound
 if [ "$MODE_INPUT" == "CAMMPEG-2" ] || [ "$MODE_INPUT" == "ANALOGMPEG-2" ] \
@@ -912,33 +911,33 @@ fi
     else
       # Webcam in use
       # If a C920 put it in the right mode
-      # Anything over 800x448 does not work because 30 fps is not available
+      # Anything over 800x448 does not work
       if [ $C920Present == 1 ]; then
         AUDIO_SAMPLE=32000
         if [ "$BITRATE_VIDEO" -gt 190000 ]; then  # 333KS FEC 1/2 or better
-          v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=800,height=448,pixelformat=0 #--set-ctrl=exposure_auto=0
+          v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=800,height=448,pixelformat=0 --set-parm=15 #--set-ctrl=exposure_auto=0
           VIDEO_WIDTH=800
           VIDEO_HEIGHT=448
-          VIDEO_FPS=25
+          VIDEO_FPS=15
         else
-          v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=448,height=240,pixelformat=0 #--set-ctrl=exposure_auto=0
+          v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=448,height=240,pixelformat=0 --set-parm=15 #--set-ctrl=exposure_auto=0
           VIDEO_WIDTH=448
           VIDEO_HEIGHT=240
-          VIDEO_FPS=25
+          VIDEO_FPS=15
         fi
      fi
      if [ $C170Present == 1 ]; then
         AUDIO_CARD=0   # Can't get sound to work at present
         if [ "$BITRATE_VIDEO" -gt 190000 ]; then  # 333KS FEC 1/2 or better
-          v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=640,height=480,pixelformat=0
+          v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=640,height=480,pixelformat=0 --set-parm=10
           VIDEO_WIDTH=640
           VIDEO_HEIGHT=480
-          VIDEO_FPS=10 # This webcam only seems to work at 15 fps
+          VIDEO_FPS=10 # This webcam only seems to work at 10 fps
         else
-          v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=352,height=288,pixelformat=0
+          v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=352,height=288,pixelformat=0 --set-parm=10
           VIDEO_WIDTH=352
           VIDEO_HEIGHT=288
-          VIDEO_FPS=10 # This webcam only seems to work at 15 fps
+          VIDEO_FPS=10 # This webcam only seems to work at 10 fps
         fi
       fi
       ANALOGCAMNAME=$VID_WEBCAM
@@ -1117,7 +1116,7 @@ fi
       ;;
       "LIMEMINI" | "LIMEUSB" | "LIMEDVB")
       $PATHRPI"/limesdr_dvb" -i videots -s "$SYMBOLRATE_K"000 -f $FECNUM/$FECDEN -r $UPSAMPLE -m $MODTYPE -c $CONSTLN $PILOTS $FRAMES \
-        -t "$FREQ_OUTPUT"e6 -g $LIME_GAINF -q $CAL $CUSTOM_FPGA -D $DIGITAL_GAIN -e $BAND_GPIO -e $BAND_GPIO &
+        -t "$FREQ_OUTPUT"e6 -g $LIME_GAINF -q $CAL $CUSTOM_FPGA -D $DIGITAL_GAIN -e $BAND_GPIO &
       ;;
       *)
         sudo $PATHRPI"/rpidatv" -i videots -s $SYMBOLRATE_K -c $FECNUM"/"$FECDEN -f $FREQUENCY_OUT -p $GAIN -m $MODE -x $PIN_I -y $PIN_Q &
