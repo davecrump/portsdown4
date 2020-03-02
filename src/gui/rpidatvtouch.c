@@ -281,6 +281,11 @@ float LimeCalFreq = 0;  // -2 cal never, -1 = cal every time, 0 = cal next time,
 int LimeRFEState = 0;   // 0 = disabled, 1 = enabled
 int LimeNETMicroDet = 0;  // 0 = Not detected, 1 = detected.  Tested on entry to Lime Config menu
 
+// QO-100 Transmit Freqs
+char QOFreq[10][31] = {"2404.75", "2405.25", "2406.25", "2406.75", "2407.25", "2407.75", "2408.25", "2408.75", "2409.25", "2409.75"};
+char QOFreqButts[10][31] = {"10494.25^2404.75", "10494.75^2405.25", "10495.75^2406.25", "10496.25^2406.75", "10496.75^2407.25", \
+                            "10497.25^2407.75", "10497.75^2408.25", "10498.25^2408.75", "10498.75^2409.25", "10499.25^2409.75"};
+
 // Touch display variables
 int Inversed=0;               //Display is inversed (Waveshare=1)
 int PresetStoreTrigger = 0;   //Set to 1 if awaiting preset being stored
@@ -305,6 +310,7 @@ void Start_Highlights_Menu5();
 void Start_Highlights_Menu6();
 void Start_Highlights_Menu7();
 void Start_Highlights_Menu8();
+void Start_Highlights_Menu10();
 void Start_Highlights_Menu11();
 void Start_Highlights_Menu12();
 void Start_Highlights_Menu13();
@@ -359,6 +365,7 @@ void YesNo(int);
 static void cleanexit(int);
 int LimeGWRev();
 void LMRX(int);
+void MakeFreqText(int);
 
 /***************************************************************************//**
  * @brief Looks up the value of a Param in PathConfigFile and sets value
@@ -6456,15 +6463,32 @@ void SelectFreq(int NoButton)  //Frequency
 {
   char freqtxt[255];
 
-  SelectInGroupOnMenu(CurrentMenu, 5, 9, NoButton, 1);
+  SelectInGroupOnMenu(CurrentMenu, 5, 19, NoButton, 1);
   SelectInGroupOnMenu(CurrentMenu, 0, 3, NoButton, 1);
   if (NoButton < 4)
   {
-    NoButton = NoButton + 10;
+    NoButton = NoButton + 5;
   }
-  strcpy(freqtxt, TabFreq[NoButton - 5]);
+  else if ((NoButton > 4) && (NoButton < 10))
+  {
+    NoButton = NoButton - 5;
+  }
 
-  if (CallingMenu == 1)  // Transmit Frequency
+  printf("NoButton = %d\n", NoButton);
+
+  if (NoButton < 10) // Normal presets
+  {
+    strcpy(freqtxt, TabFreq[NoButton]);
+  }
+  else              // QO-100 freqs
+  {
+    strcpy(freqtxt, QOFreq[NoButton - 10]);
+  }
+  printf("CallingMenu = %d/n", CallingMenu);
+
+  printf ("freqtxt = %s\n", freqtxt);
+
+  if (CallingMenu == 1)   // Transmit Frequency
   {
     char Param[] = "freqoutput";
     SetConfigParam(PATH_PCONFIG, Param, freqtxt);
@@ -13270,10 +13294,10 @@ void waituntil(int w,int h)
         case 10:
           if (strcmp(CurrentModeOP, TabModeOP[4]) != 0)  // not Streaming
           {
-            printf("MENU 16 \n");        // Set Frequency
-            CurrentMenu=16;
-            BackgroundRGB(0,0,0,255);
-            Start_Highlights_Menu16();
+            printf("MENU 10 \n");        // Set Frequency
+            CurrentMenu=10;
+            BackgroundRGB(0, 0, 0 ,255);
+            Start_Highlights_Menu10();
           }
           else
           {
@@ -14306,6 +14330,68 @@ void waituntil(int w,int h)
         continue;   // Completed Menu 8 action, go and wait for touch
       }
 
+      if (CurrentMenu == 10)  // Menu 10 New TX Frequency
+      {
+        printf("Button Event %d, Entering Menu 10 Case Statement\n",i);
+        switch (i)
+        {
+        case 4:                               // Cancel
+          SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 1);
+          printf("SR Cancel\n");
+          break;
+        case 0:                               // Freq 6
+        case 1:                               // Freq 7
+        case 2:                               // Freq 8
+        case 5:                               // Freq 1
+        case 6:                               // Freq 2
+        case 7:                               // Freq 3
+        case 8:                               // Freq 4
+        case 9:                               // Freq 5
+        case 10:                              // Preset Freq 6
+        case 11:                              // Preset Freq 7
+        case 12:                              // Preset Freq 8
+        case 13:                              // Preset Freq 9
+        case 14:                              // Preset Freq 10
+        case 15:                              // Preset Freq 1
+        case 16:                              // Preset Freq 2
+        case 17:                              // Preset Freq 3
+        case 18:                              // Preset Freq 4
+        case 19:                              // Preset Freq 5
+          SelectFreq(i);
+          printf("Frequency Button %d\n", i);
+          break;
+        case 3:                               // Freq 9 Direct Entry
+          ChangePresetFreq(i);
+          SelectFreq(i);
+          printf("Frequency Button %d\n", i);
+          break;
+        default:
+          printf("Menu 10 Error\n");
+        }
+        if(i != 3)  // Don't pause if frequency has been set on keyboard
+        {
+          UpdateWindow();
+          usleep(500000);
+        }
+        SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 0); // Reset cancel (even if not selected)
+        if (CallingMenu == 1)
+        {
+          printf("Returning to MENU 1 from Menu 10\n");
+          CurrentMenu=1;
+          BackgroundRGB(255,255,255,255);
+          Start_Highlights_Menu1();
+        }
+        else
+        {
+          printf("Returning to MENU 5 from Menu 10\n");
+          printf("This should not happen!\n");
+          CurrentMenu=5;
+          BackgroundRGB(0, 0, 0, 255);
+          Start_Highlights_Menu5();
+        }
+        UpdateWindow();
+        continue;   // Completed Menu 10 action, go and wait for touch
+      }
 
       if (CurrentMenu == 11)  // Menu 11 TX RF Output Mode
       {
@@ -16337,27 +16423,41 @@ void Start_Highlights_Menu1()
   char streamname_[31];
   char key_[15];
   float TvtrFreq;
+  float RealFreq;
+  float DLFreq;
   if (strcmp(CurrentModeOPtext, "BATC^Stream") != 0)
   {
     // Not Streaming, so display Frequency
     strcpy(Param,"freqoutput");
     GetConfigParam(PATH_PCONFIG, Param, Value);
-    if ((TabBandLO[CurrentBand] < 0.1) && (TabBandLO[CurrentBand] > -0.1))
+    if ((TabBandLO[CurrentBand] < 0.1) && (TabBandLO[CurrentBand] > -0.1))  // Direct
     {
-      if (strlen(Value) > 5)
+      // Check if QO-100
+      RealFreq = atof(Value);
+      if ((RealFreq > 2400) && (RealFreq < 2410))  // is QO-100
       {
-        strcpy(Freqtext, "Freq^");
+        DLFreq = RealFreq + 8089.50;
+        strcpy(Freqtext, "QO-100^");
+        snprintf(Value, 10, "%.2f", DLFreq);
         strcat(Freqtext, Value);
-        strcat(Freqtext, " M");
       }
-      else
+      else                                          // Not QO-100
       {
-        strcpy(Freqtext, "Freq^");
-        strcat(Freqtext, Value);
-        strcat(Freqtext, " MHz");
+        if (strlen(Value) > 5)
+        {
+          strcpy(Freqtext, "Freq^");
+          strcat(Freqtext, Value);
+          strcat(Freqtext, " M");
+        }
+        else
+        {
+          strcpy(Freqtext, "Freq^");
+          strcat(Freqtext, Value);
+          strcat(Freqtext, " MHz");
+        }
       }
     }
-    else
+    else                                          // Transverter
     {
       strcpy(Freqtext, "F: ");
       strcat(Freqtext, Value);
@@ -17597,6 +17697,167 @@ void Start_Highlights_Menu8()
     AmendButtonStatus(ButtonNumber(8, 21), 0, LMBtext, &Blue);
   }
 }
+
+void Define_Menu10()
+{
+  int button;
+
+  float TvtrFreq;
+  char Freqtext[31];
+  char Value[31];
+
+  strcpy(MenuTitle[10], "Transmit Frequency Selection Menu (10)"); 
+
+  // Bottom Row, Menu 10
+
+  if ((TabBandLO[5] < 0.1) && (TabBandLO[5] > -0.1))
+  {
+    strcpy(Freqtext, FreqLabel[5]);
+  }
+  else
+  {
+    strcpy(Freqtext, "F: ");
+    strcat(Freqtext, TabFreq[5]);
+    strcat(Freqtext, "^T:");
+    TvtrFreq = atof(TabFreq[5]) + TabBandLO[CurrentBand];
+    if (TvtrFreq < 0)
+    {
+      TvtrFreq = TvtrFreq * -1;
+    }
+    snprintf(Value, 10, "%.2f", TvtrFreq);
+    strcat(Freqtext, Value);
+  }
+ 
+  button = CreateButton(10, 0);
+  AddButtonStatus(button, FreqLabel[5], &Blue);
+  AddButtonStatus(button, FreqLabel[5], &Green);
+
+  button = CreateButton(10, 1);
+  AddButtonStatus(button, FreqLabel[6], &Blue);
+  AddButtonStatus(button, FreqLabel[6], &Green);
+
+  button = CreateButton(10, 2);
+  AddButtonStatus(button, FreqLabel[7], &Blue);
+  AddButtonStatus(button, FreqLabel[7], &Green);
+
+  button = CreateButton(10, 3);
+  AddButtonStatus(button, FreqLabel[8], &Blue);
+  AddButtonStatus(button, FreqLabel[8], &Green);
+
+  button = CreateButton(10, 4);
+  AddButtonStatus(button, "Cancel", &DBlue);
+  AddButtonStatus(button, "Cancel", &LBlue);
+
+  // 2nd Row, Menu 16
+
+  button = CreateButton(10, 5);
+  AddButtonStatus(button, FreqLabel[0], &Blue);
+  AddButtonStatus(button, FreqLabel[0], &Green);
+
+  button = CreateButton(10, 6);
+  AddButtonStatus(button, FreqLabel[1], &Blue);
+  AddButtonStatus(button, FreqLabel[1], &Green);
+
+  button = CreateButton(10, 7);
+  AddButtonStatus(button, FreqLabel[2], &Blue);
+  AddButtonStatus(button, FreqLabel[2], &Green);
+
+  button = CreateButton(10, 8);
+  AddButtonStatus(button, FreqLabel[3], &Blue);
+  AddButtonStatus(button, FreqLabel[3], &Green);
+
+  button = CreateButton(10, 9);
+  AddButtonStatus(button, FreqLabel[4], &Blue);
+  AddButtonStatus(button, FreqLabel[4], &Green);
+
+  button = CreateButton(10, 10);
+  AddButtonStatus(button, QOFreqButts[0], &Blue);
+  AddButtonStatus(button, QOFreqButts[0], &Green);
+
+  button = CreateButton(10, 11);
+  AddButtonStatus(button, QOFreqButts[1], &Blue);
+  AddButtonStatus(button, QOFreqButts[1], &Green);
+
+  button = CreateButton(10, 12);
+  AddButtonStatus(button, QOFreqButts[2], &Blue);
+  AddButtonStatus(button, QOFreqButts[2], &Green);
+
+  button = CreateButton(10, 13);
+  AddButtonStatus(button, QOFreqButts[3], &Blue);
+  AddButtonStatus(button, QOFreqButts[3], &Green);
+
+  button = CreateButton(10, 14);
+  AddButtonStatus(button, QOFreqButts[4], &Blue);
+  AddButtonStatus(button, QOFreqButts[4], &Green);
+
+  button = CreateButton(10, 15);
+  AddButtonStatus(button, QOFreqButts[5], &Blue);
+  AddButtonStatus(button, QOFreqButts[5], &Green);
+
+  button = CreateButton(10, 16);
+  AddButtonStatus(button, QOFreqButts[6], &Blue);
+  AddButtonStatus(button, QOFreqButts[6], &Green);
+
+  button = CreateButton(10, 17);
+  AddButtonStatus(button, QOFreqButts[7], &Blue);
+  AddButtonStatus(button, QOFreqButts[7], &Green);
+
+  button = CreateButton(10, 18);
+  AddButtonStatus(button, QOFreqButts[8], &Blue);
+  AddButtonStatus(button, QOFreqButts[8], &Green);
+
+  button = CreateButton(10, 19);
+  AddButtonStatus(button, QOFreqButts[9], &Blue);
+  AddButtonStatus(button, QOFreqButts[9], &Green);
+}
+
+void Start_Highlights_Menu10()
+{
+  // Frequency
+  char Param[255];
+  char Value[255];
+  int index;
+  int NoButton;
+
+  // Update info in memory
+  ReadPresets();
+
+  // Look up current transmit frequency for highlighting
+  strcpy(Param,"freqoutput");
+  GetConfigParam(PATH_PCONFIG, Param, Value);
+
+  for(index = 0; index <= 8 ; index = index + 1)  // 9 would be cancel button
+  {
+    // Define the button text
+    MakeFreqText(index);
+    NoButton = index + 5; // Valid for bottom row
+    if (index > 4)          // Overwrite for top row
+    {
+      NoButton = index - 5;
+    }
+
+    AmendButtonStatus(ButtonNumber(10, NoButton), 0, FreqBtext, &Blue);
+    AmendButtonStatus(ButtonNumber(10, NoButton), 1, FreqBtext, &Green);
+
+    //Highlight the Current Button
+    if(strcmp(Value, TabFreq[index]) == 0)
+    {
+      SelectInGroupOnMenu(10, 5, 9, NoButton, 1);
+      SelectInGroupOnMenu(10, 0, 3, NoButton, 1);
+    }
+  }
+
+  for(index = 10; index <= 19 ; index = index + 1)
+  {
+    //Highlight the Current Button
+    if (strcmp(Value, QOFreq[index - 10]) == 0)
+    {
+      SelectInGroupOnMenu(10, 0, 3, index, 1);
+      SelectInGroupOnMenu(10, 5, 19, index, 1);
+    }
+  }
+}
+
 
 void Define_Menu11()
 {
@@ -20484,7 +20745,7 @@ int main(int argc, char **argv)
     exit(1);
   }
 
-  // Replace BATC Logo with IP address with BATC Logo alone
+  // Show Portsdown Logo
   system("sudo fbi -T 1 -noverbose -a \"/home/pi/rpidatv/scripts/images/BATC_Black.png\" >/dev/null 2>/dev/null");
   system("(sleep 1; sudo killall -9 fbi >/dev/null 2>/dev/null) &");
 
@@ -20532,6 +20793,7 @@ int main(int argc, char **argv)
   Define_Menu7();
   Define_Menu8();
 
+  Define_Menu10();
   Define_Menu11();
   Define_Menu12();
   Define_Menu13();
