@@ -369,7 +369,7 @@ case "$MODE_STARTUP" in
   ;;
   Display_boot)
     # Start the Touchscreen Scheduler
-    (source /home/pi/rpidatv/scripts/scheduler.sh) &
+    source /home/pi/rpidatv/scripts/scheduler.sh
     return
   ;;
   TestRig_boot)
