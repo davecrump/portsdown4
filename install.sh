@@ -459,6 +459,12 @@ make
 mv keyedtx /home/pi/rpidatv/bin/
 cd /home/pi
 
+# Compile and install the executable for GPIO-switched transmission with touch (202003020)
+cd /home/pi/rpidatv/src/keyedtxtouch
+make
+mv keyedtxtouch /home/pi/rpidatv/bin/
+cd /home/pi
+
 # Compile and install the executable for the Stream Receiver (201807290)
 cd /home/pi/rpidatv/src/streamrx
 make

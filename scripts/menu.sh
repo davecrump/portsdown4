@@ -1571,6 +1571,7 @@ do_autostart_setup()
   Radio9=OFF
   Radio10=OFF
   Radio11=OFF
+  Radio12=OFF
 
   case "$MODE_STARTUP" in
     Prompt)
@@ -1600,11 +1601,14 @@ do_autostart_setup()
     Keyed_TX_boot)
       Radio9=ON
     ;;
-    SigGen_boot)
+    Keyed_TX_Touch_boot)
       Radio10=ON
     ;;
-    StreamRX_boot)
+    SigGen_boot)
       Radio11=ON
+    ;;
+    StreamRX_boot)
+      Radio12=ON
     ;;
     *)
       Radio1=ON
@@ -1612,7 +1616,7 @@ do_autostart_setup()
   esac
 
   chstartup=$(whiptail --title "$StrAutostartSetupTitle" --radiolist \
-   "$StrAutostartSetupContext" 20 78 11 \
+   "$StrAutostartSetupContext" 20 78 12 \
    "Prompt" "$AutostartSetupPrompt" $Radio1 \
    "Console" "$AutostartSetupConsole" $Radio2 \
    "TX_boot" "$AutostartSetupTX_boot" $Radio3 \
@@ -1622,8 +1626,9 @@ do_autostart_setup()
    "Keyed_Stream_boot" "Boot up to Keyed Repeater Streamer" $Radio7 \
    "Cont_Stream_boot" "Boot up to Always-on Repeater Streamer" $Radio8 \
    "Keyed_TX_boot" "Boot up to GPIO Keyed Repeater TX" $Radio9 \
-   "SigGen_boot" "Boot up with the Sig Gen Output On" $Radio10 \
-   "StreamRX_boot" "Boot up to display a BATC Stream" $Radio11 \
+   "Keyed_TX_Touch_boot" "Boot up to GPIO Keyed TX with Touchscreen" $Radio10 \
+   "SigGen_boot" "Boot up with the Sig Gen Output On" $Radio11 \
+   "StreamRX_boot" "Boot up to display a BATC Stream" $Radio12 \
    3>&2 2>&1 1>&3)
 
   if [ $? -eq 0 ]; then
@@ -1642,7 +1647,8 @@ do_autostart_setup()
   # If Keyed or Continuous stream selected, set up cron for 12-hourly reboot
   # Also do it for keyed or continuous TX
   if [[ "$chstartup" == "Keyed_Stream_boot" || "$chstartup" == "Cont_Stream_boot" \
-     || "$chstartup" == "Keyed_TX_boot" || "$chstartup" == "TX_boot" ]]; then
+     || "$chstartup" == "Keyed_TX_boot" || "$chstartup" == "Keyed_TX_Touch_boot" \
+     || "$chstartup" == "TX_boot" ]]; then
     sudo crontab /home/pi/rpidatv/scripts/configs/rptrcron
   else
     sudo crontab /home/pi/rpidatv/scripts/configs/blankcron

@@ -1,5 +1,6 @@
-202003020
-Added QO-100 Frequncies to Menu
+202003140
+Added QO-100 Frequencies to Menu
+Added keyedtxtouch mode
 
 202002290
 Add IPTS Viewer
