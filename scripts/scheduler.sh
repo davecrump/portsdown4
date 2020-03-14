@@ -100,6 +100,8 @@ while [ "$GUI_RETURN_CODE" -gt 127 ];  do
     ;;
     194)
       source /home/pi/rpidatv/scripts/toggle_pwm.sh
+      # Make sure that scheduler reboots and does not repeat the command
+      GUI_RETURN_CODE=192
       sleep 1
       sudo swapoff -a
       sudo reboot now
