@@ -915,12 +915,14 @@ fi
       if [ $C920Present == 1 ]; then
         AUDIO_SAMPLE=32000
         if [ "$BITRATE_VIDEO" -gt 190000 ]; then  # 333KS FEC 1/2 or better
-          v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=800,height=448,pixelformat=0 --set-parm=15 #--set-ctrl=exposure_auto=0
+          v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=800,height=448,pixelformat=0 --set-parm=15 \
+            --set-ctrl power_line_frequency=1
           VIDEO_WIDTH=800
           VIDEO_HEIGHT=448
           VIDEO_FPS=15
         else
-          v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=448,height=240,pixelformat=0 --set-parm=15 #--set-ctrl=exposure_auto=0
+          v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=448,height=240,pixelformat=0 --set-parm=15 \
+            --set-ctrl power_line_frequency=1
           VIDEO_WIDTH=448
           VIDEO_HEIGHT=240
           VIDEO_FPS=15
@@ -1204,7 +1206,8 @@ fi
     ;;
     WEBCAMMPEG-2)
       if [ $C920Present == 1 ]; then
-         v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=640,height=480,pixelformat=0
+        v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=640,height=480,pixelformat=0 \
+          --set-ctrl power_line_frequency=1
       fi
       if [ $C270Present == 1 ]; then
         ITS_OFFSET="-00:00:1.8"
@@ -1218,7 +1221,8 @@ fi
     ;;
     WEBCAM16MPEG-2)
       if [ $C920Present == 1 ]; then
-         v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=1280,height=720,pixelformat=0
+        v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=1280,height=720,pixelformat=0 \
+          --set-ctrl power_line_frequency=1
       fi
       if [ $C270Present == 1 ]; then
         ITS_OFFSET="-00:00:1.8"
@@ -1233,7 +1237,8 @@ fi
     ;;
     WEBCAMHDMPEG-2)
       if [ $C920Present == 1 ]; then
-         v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=1280,height=720,pixelformat=0
+        v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=1280,height=720,pixelformat=0 \
+          --set-ctrl power_line_frequency=1
       fi
       if [ $C270Present == 1 ]; then
         ITS_OFFSET="-00:00:2.0"
@@ -1624,13 +1629,16 @@ fi
     # Now set the camera resolution and H264 output
     case "$MODE_INPUT" in
       C920H264)
-        v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=640,height=480,pixelformat=1
+        v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=640,height=480,pixelformat=1 \
+          --set-ctrl power_line_frequency=1
       ;;
       C920HDH264)
-        v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=1280,height=720,pixelformat=1
+        v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=1280,height=720,pixelformat=1 \
+          --set-ctrl power_line_frequency=1
       ;;
       C920FHDH264)
-        v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=1920,height=1080,pixelformat=1
+        v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=1920,height=1080,pixelformat=1 \
+          --set-ctrl power_line_frequency=1
       ;;
     esac
 
