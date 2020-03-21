@@ -1,3 +1,6 @@
+202003141
+Correct Lime Transmit Stop from Console Menu
+
 202003140
 Added QO-100 Frequencies to Menu
 Added keyedtxtouch mode
