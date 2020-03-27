@@ -25,8 +25,8 @@ cd /home/pi
 
 # Set Beacon Freq and SR here:
 
-FREQ_KHZ="10492500"
-SYMBOLRATEK="2000"
+FREQ_KHZ="10491500"
+SYMBOLRATEK="1500"
 
 
 # Read from receiver config file
