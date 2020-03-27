@@ -1,3 +1,6 @@
+202003280
+Update LongMynd RX for new QO-100 Beacon
+
 202003141
 Correct Lime Transmit Stop from Console Menu
 

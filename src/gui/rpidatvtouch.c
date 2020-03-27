@@ -10684,7 +10684,7 @@ void LMRX(int NoButton)
             if ((MERcount == 10) && (LMRXqoffset == 0) && (TUNEFREQ != 0))
             {
               Text(wscreen * 1.0 / 40.0, hscreen - 5.5 * linepitch, "Calculated LNB Offset", font, pointsize);
-              LMRXqoffset = 10492500 - TUNEFREQ;
+              LMRXqoffset = 10491500 - TUNEFREQ;
               snprintf(FREQtext, 15, "%d KHz", LMRXqoffset);
               Text(wscreen * 1.0 / 40.0, hscreen - 7.5 * linepitch, FREQtext, font, pointsize);
               Text(wscreen * 1.0 / 40.0, hscreen - 9.5 * linepitch, "Saved to memory card", font, pointsize);
