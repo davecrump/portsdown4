@@ -6244,7 +6244,7 @@ void GreyOut45()
   if ((strcmp(CurrentModeOP, "JLIME") == 0) || (strcmp(CurrentModeOP, "JEXPRESS") == 0)) // Jetson
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 0), 2); // Contest
-    SetButtonStatus(ButtonNumber(CurrentMenu, 1), 2); // Webcam
+    SetButtonStatus(ButtonNumber(CurrentMenu, 2), 2); // C920 Raw
     SetButtonStatus(ButtonNumber(CurrentMenu, 6), 2); // Comp Vid
     SetButtonStatus(ButtonNumber(CurrentMenu, 7), 2); // TCAnim
     SetButtonStatus(ButtonNumber(CurrentMenu, 9), 2); // PiScreen
@@ -6254,7 +6254,7 @@ void GreyOut45()
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 3), 2); // HDMI
     SetButtonStatus(ButtonNumber(CurrentMenu, 0), 0); // Contest
-    SetButtonStatus(ButtonNumber(CurrentMenu, 1), 0); // Webcam
+    SetButtonStatus(ButtonNumber(CurrentMenu, 2), 0); // C920 Raw
     SetButtonStatus(ButtonNumber(CurrentMenu, 6), 0); // Comp Vid
     SetButtonStatus(ButtonNumber(CurrentMenu, 7), 0); // TCAnim
     SetButtonStatus(ButtonNumber(CurrentMenu, 9), 0); // PiScreen
@@ -19815,8 +19815,8 @@ void Define_Menu37()
   AddButtonStatus(button, "Update to^DVB FW", &Green);
 
   button = CreateButton(37, 3);
-  AddButtonStatus(button, "Update^Lime Micro", &Blue);
-  AddButtonStatus(button, "Update^Lime Micro", &Green);
+  AddButtonStatus(button, "U/D LNM or^Lime USB", &Blue);
+  AddButtonStatus(button, "U/D LNM or^Lime USB", &Green);
 
   button = CreateButton(37, 4);
   AddButtonStatus(button, "Exit", &DBlue);

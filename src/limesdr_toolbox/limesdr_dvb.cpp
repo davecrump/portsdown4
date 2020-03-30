@@ -399,10 +399,11 @@ int main(int argc, char **argv)
 	bool WithCalibration = false;
 	bool FPGAMapping = false;
         uint8_t gpio_band = 0;
+	bool LimeSDR_USB = false;        
 
 	while (1)
 	{
-		a = getopt(argc, argv, "i:s:f:c:hf:m:c:pr:dvt:g:q:FD:e:");
+		a = getopt(argc, argv, "i:s:f:c:hf:m:c:pr:dvt:g:q:FD:e:U");
 
 		if (a == -1)
 		{
@@ -516,6 +517,9 @@ int main(int argc, char **argv)
 		case 'e':
 			gpio_band = atoi(optarg);
 			break;
+		case 'U':
+			LimeSDR_USB = true;
+			break;
 		case -1:
 			break;
 		case '?':
@@ -589,16 +593,22 @@ int main(int argc, char **argv)
 		fprintf(stderr, "Using file mode\n");
 
 	// Init LimeSDR
-  char const *antenna = "BAND2";  // for < 2 GHz
 
-  if (freq > 2000000000)  // 2 GHz
+  // Determine correct Antenna first
+  char const *antenna = "BAND1";  // correct for < 2 GHz LimeSDR USB, or > 2 GHz LimeSDR Mini or LMN
+
+  if ((LimeSDR_USB == true) && (freq > 2000000000))
   {
-    antenna = "BAND1";
+    antenna = "BAND2";
+  }
+  if ((LimeSDR_USB == false) && (freq < 2000000000))
+  {
+    antenna = "BAND2";
   }
 
+  // printf("\n\nAntenna: %s\n", antenna);
+
 	double host_sample_rate;
-
-
 
 	//if (FPGAMapping)		SymbolRate = SymbolRate / 2;
 	if (upsample > 1)
