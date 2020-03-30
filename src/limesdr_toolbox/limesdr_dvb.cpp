@@ -668,7 +668,7 @@ int main(int argc, char **argv)
 	{
 		buffer_size = 8000 * upsample * CoeffBufferSize; //FixMe for DVB-S
 		if (FPGAMapping)
-			buffer_size = 272 * 10000; //FixMe
+			buffer_size = 272 * 10000/16; //(FixMe) /16 added by G8GKQ = 170,000 
 	}
 
 	 lms_stream_t tx_stream;
