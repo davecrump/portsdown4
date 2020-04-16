@@ -1,3 +1,13 @@
+202004300
+LongMynd LNB voltage control and MiniTiouner Express support
+VLC Player for limited H265 display in LongMynd
+Revised Comp Video monitor (display of EasyCap input)
+Pi Cam and C920 monitor modes
+Screen capture for LongMynd, Comp Video, Pi Cam
+Screen capture for C920, TS and Stream Viewers
+Automatic graphics restart after graphics crash
+Use 2020-02-13 Version of Buster Lite
+
 202003301
 Reduce delay for DVB-S in LimeDVB mode
 

@@ -25,8 +25,12 @@
 
 GUI_RETURN_CODE=129             # Start rpidatvgui on first call
 
-while [ "$GUI_RETURN_CODE" -gt 127 ];  do
+while [ "$GUI_RETURN_CODE" -gt 127 ] || [ "$GUI_RETURN_CODE" -eq 0 ];  do
   case "$GUI_RETURN_CODE" in
+    0)
+      /home/pi/rpidatv/bin/rpidatvgui
+      GUI_RETURN_CODE="$?"
+    ;;
     128)
       # Jump out of the loop
       break

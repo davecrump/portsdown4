@@ -28,13 +28,13 @@ cd /home/pi
 FREQ_KHZ="10491500"
 SYMBOLRATEK="1500"
 
-
 # Read from receiver config file
 Q_OFFSET=$(get_config_var qoffset $RCONFIGFILE)
 UDPIP=$(get_config_var udpip $RCONFIGFILE)
 UDPPORT=$(get_config_var udpport $RCONFIGFILE)
 INPUT_SEL=$(get_config_var input $RCONFIGFILE)
 DISPLAY=$(get_config_var display $PCONFIGFILE)
+LNBVOLTS=$(get_config_var lnbvolts $RCONFIGFILE)
 
 # Correct for LNB LO Frequency
 let FREQ_KHZ=$FREQ_KHZ-$Q_OFFSET
@@ -45,18 +45,23 @@ if [ "$INPUT_SEL" == "b" ]; then
   INPUT_CMD="-w"
 fi
 
-sudo killall hello_video.bin
-sudo killall ts2es
-sudo killall longmynd
+# Set the LNB Volts
+VOLTS_CMD=" "
+if [ "$LNBVOLTS" == "h" ]; then
+  VOLTS_CMD="-p h"
+fi
+if [ "$LNBVOLTS" == "v" ]; then
+  VOLTS_CMD="-p v"
+fi
 
-sudo rm fifo.264
+sudo killall longmynd
 
 sudo rm longmynd_main_ts
 
 if [ "$DISPLAY" != "Element14_7" ]; then # Select bleeps (which don't work with the Element 14 display)
-  sudo /home/pi/longmynd/longmynd -b -i $UDPIP $UDPPORT -s longmynd_status_fifo $INPUT_CMD $FREQ_KHZ $SYMBOLRATEK &
+  sudo /home/pi/longmynd/longmynd -b -i $UDPIP $UDPPORT -s longmynd_status_fifo $VOLTS_CMD $INPUT_CMD $FREQ_KHZ $SYMBOLRATEK &
 else
-  sudo /home/pi/longmynd/longmynd -i $UDPIP $UDPPORT -s longmynd_status_fifo $INPUT_CMD $FREQ_KHZ $SYMBOLRATEK &
+  sudo /home/pi/longmynd/longmynd -i $UDPIP $UDPPORT -s longmynd_status_fifo $VOLTS_CMD $INPUT_CMD $FREQ_KHZ $SYMBOLRATEK &
 fi
 
 exit

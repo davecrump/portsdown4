@@ -31,6 +31,7 @@ RX_MODE=$(get_config_var mode $RCONFIGFILE)
 Q_OFFSET=$(get_config_var qoffset $RCONFIGFILE)
 INPUT_SEL=$(get_config_var input $RCONFIGFILE)
 INPUT_SEL_T=$(get_config_var input1 $RCONFIGFILE)
+LNBVOLTS=$(get_config_var lnbvolts $RCONFIGFILE)
 
 # Correct for LNB LO Frequency if required
 if [ "$RX_MODE" == "sat" ]; then
@@ -47,6 +48,15 @@ if [ "$INPUT_SEL" == "b" ]; then
   INPUT_CMD="-w"
 fi
 
+# Set the LNB Volts
+VOLTS_CMD=" "
+if [ "$LNBVOLTS" == "h" ]; then
+  VOLTS_CMD="-p h"
+fi
+if [ "$LNBVOLTS" == "v" ]; then
+  VOLTS_CMD="-p v"
+fi
+
 sudo killall hello_video.bin
 sudo killall ts2es
 sudo killall longmynd
@@ -58,7 +68,7 @@ mkfifo fifo.264
 sudo rm longmynd_main_ts
 mkfifo longmynd_main_ts
 
-sudo /home/pi/longmynd/longmynd -s longmynd_status_fifo $INPUT_CMD $FREQ_KHZ $SYMBOLRATEK &
+sudo /home/pi/longmynd/longmynd -s longmynd_status_fifo $VOLTS_CMD $INPUT_CMD $FREQ_KHZ $SYMBOLRATEK &
 
 sleep 1  # Required for good start every time
 

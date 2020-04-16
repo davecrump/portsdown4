@@ -156,6 +156,10 @@ DisplayUpdateMsg "Step 4a of 10\nStill Updating Software Packages\n\nXXXX------"
 
 sudo apt-get -y dist-upgrade # Upgrade all the installed packages to their latest version
 
+# --------- Install new packages as Required ---------
+
+sudo apt-get -y install mplayer vlc libpng12-dev # 202004300 Used for video monitor and LongMynd
+
 # ---------- Update rpidatv -----------
 
 DisplayUpdateMsg "Step 5 of 10\nDownloading Portsdown SW\n\nXXXXX-----"
@@ -164,18 +168,6 @@ cd /home/pi
 
 # Download selected source of rpidatv
 wget https://github.com/${GIT_SRC}/portsdown-buster/archive/master.zip -O master.zip
-
-# Check which source to download.  Default is production
-# option -p or null is the production load
-# option -d is development from davecrump
-
-#if [ "$1" == "-d" ]; then
-#  echo "Installing development load"
-#  wget https://github.com/davecrump/portsdown-buster/archive/master.zip -O master.zip
-#else
-#  echo "Installing BATC Production load"
-#  wget https://github.com/BritishAmateurTelevisionClub/portsdown-buster/archive/master.zip -O master.zip
-#fi
 
 # Unzip and overwrite where we need to
 unzip -o master.zip
@@ -231,6 +223,20 @@ cp limesdr_stopchannel /home/pi/rpidatv/bin/
 cp limesdr_forward /home/pi/rpidatv/bin/
 make dvb
 cp limesdr_dvb /home/pi/rpidatv/bin/
+cd /home/pi
+
+# Update the previously selected version of LongMynd
+echo
+echo "--------------------------------------------"
+echo "----- Installing the LongMynd Receiver -----"
+echo "--------------------------------------------"
+wget https://github.com/${GIT_SRC}/longmynd/archive/master.zip
+unzip -o master.zip
+mv longmynd-master longmynd
+rm master.zip
+cd longmynd
+touch main.c
+make
 cd /home/pi
 
 #install adf4351
@@ -302,6 +308,19 @@ make
 cp /home/pi/rpidatv/src/atten/set_attenuator /home/pi/rpidatv/bin/set_attenuator
 cd /home/pi
 
+# Check if raspi2png needs to be installed (202004300)
+if [ ! -f "/usr/bin/raspi2png" ]; then
+  echo "Installing raspi2png"
+  wget https://github.com/AndrewFromMelbourne/raspi2png/archive/master.zip
+  unzip master.zip
+  mv raspi2png-master raspi2png
+  rm master.zip
+  cd raspi2png
+  make
+  sudo make install
+  cd /home/pi
+fi
+
 # May need to re-copy the other files in /bin here
 # Check after publishing!
 
@@ -340,6 +359,17 @@ cp -f -r "$PATHUBACKUP"/jetson_config.txt "$PATHSCRIPT"/jetson_config.txt
 
 # Restore the user's original LongMynd config
 cp -f -r "$PATHUBACKUP"/longmynd_config.txt "$PATHSCRIPT"/longmynd_config.txt
+
+# Add LNB Voltage if not included
+if ! grep -q lnbvolts "$PATHSCRIPT"/longmynd_config.txt; then
+  # File needs updating
+  printf "Adding lnbvolts entry to user's longmynd_config.txt\n"
+  # Delete any blank lines
+  sed -i -e '/^$/d' "$PATHSCRIPT"/longmynd_config.txt
+  # Add the new entry and a new line 
+  echo "lnbvolts=off" >> "$PATHSCRIPT"/longmynd_config.txt
+  echo "lnbvolts1=off" >> "$PATHSCRIPT"/longmynd_config.txt
+fi
 
 # Restore the user's original User Button scripts
 cp -f -r "$PATHUBACKUP"/user_button1.sh "$PATHSCRIPT"/user_button1.sh

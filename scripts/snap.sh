@@ -12,18 +12,18 @@
 
 ############ IDENTIFY USB VIDEO DEVICES #############################
 
-# List the video devices, select the 2 lines for any usb device, then
+# List the video devices, select the 2 lines for the usbtv device, then
 # select the line with the device details and delete the leading tab
 
 VID_USB="$(v4l2-ctl --list-devices 2> /dev/null | \
-  sed -n '/usb/,/dev/p' | grep 'dev' | tr -d '\t')"
+  sed -n '/usbtv/,/dev/p' | grep 'dev' | tr -d '\t')"
 
 if [ "$VID_USB" == '' ]; then
   printf "VID_USB was not found, setting to /dev/video0\n"
   VID_USB="/dev/video0"
 fi
 
-# printf "The USB device string is $VID_USB\n"
+printf "The USB device string is $VID_USB\n"
 
 ###########################################################################
 
