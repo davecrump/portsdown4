@@ -158,7 +158,7 @@ sudo apt-get -y dist-upgrade # Upgrade all the installed packages to their lates
 
 # --------- Install new packages as Required ---------
 
-sudo apt-get -y install mplayer vlc libpng12-dev # 202004300 Used for video monitor and LongMynd
+sudo apt-get -y install mplayer vlc # 202004300 Used for video monitor and LongMynd
 
 # ---------- Update rpidatv -----------
 
