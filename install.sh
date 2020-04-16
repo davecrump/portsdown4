@@ -71,7 +71,7 @@ sudo apt-get -y install sshpass  # 201905090 For Jetson Nano
 sudo apt-get -y install libbsd-dev # 201910100 for raspi2raspi
 sudo apt-get -y install libasound2-dev sox # 201910230 for LongMynd tone and avc2ts audio
 sudo apt-get -y install libavcodec-dev libavformat-dev libswscale-dev libavdevice-dev # Required for ffmpegsrc.cpp
-sudo apt-get -y install mplayer vlc libpng12-dev # 202004300 Used for video monitor and LongMynd
+sudo apt-get -y install mplayer vlc # 202004300 Used for video monitor and LongMynd (not libpng12-dev)
 
 sudo pip install pyrtlsdr  #20180101 FreqShow
 
