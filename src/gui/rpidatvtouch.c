@@ -206,7 +206,7 @@ char MenuText[5][63];
 // "JHDMI", "JCAM", "JPC", "JCARD", "JTCANIM", "JWEBCAM"
 
 // Composite Video Output variables
-char TabVidSource[8][15] = {"Pi Cam", "CompVid", "TCAnim", "TestCard", "Snap", "Contest", "Webcam", "Movie"};
+char TabVidSource[8][15] = {"Pi Cam", "CompVid", "TCAnim", "TestCard", "Snap", "Contest", "C920", "Movie"};
 char CurrentVidSource[15] = "TestCard";
 int VidPTT = 0;             // 0 is off, 1 is on
 int CompVidBand = 2;        // Band used for Comp Vid Contest numbers
@@ -253,6 +253,7 @@ char LMRXudpip[20];         // UDP IP address
 char LMRXudpport[10];       // UDP IP port
 char LMRXmode[10];          // sat or terr
 char LMRXaudio[15];         // rpi or usb
+char LMRXvolts[7];          // off, v or h             
 
 // LongMynd RX Received Parameters for display
 
@@ -3194,6 +3195,13 @@ void ReadLMRXPresets()
   // QO-100 LNB Offset:
   GetConfigParam(PATH_LMCONFIG, "qoffset", Value);
   LMRXqoffset = atoi(Value);
+
+  // LNB Voltage
+  GetConfigParam(PATH_LMCONFIG, "lnbvolts", LMRXvolts);
+  if (strlen(LMRXvolts) == 0)
+  {
+    strcpy(LMRXvolts, "off");
+  }
 
   if (strcmp(LMRXmode, "sat") == 0)
   {
@@ -7483,6 +7491,16 @@ void CompVidStart()
     system("v4l2-ctl -d /dev/video1 --overlay=0");
   }
 
+  if (strcmp(CurrentVidSource, "C920") == 0)
+  {
+    finish();
+    system("/home/pi/rpidatv/scripts/av3.sh &");
+
+    strcpy(ScreenState, "VideoOut");
+    wait_touch();
+    system("sudo killall mplayer");
+  }
+
   if (strcmp(CurrentVidSource, "TCAnim") == 0)
   {
     finish();
@@ -7929,7 +7947,33 @@ void *WaitButtonEvent(void * arg)
   return NULL;
 }
 
-void *WaitButtonLMRX(void * arg)
+void *WaitButtonVideo(void * arg)
+{
+  int rawX, rawY, rawPressure;
+  FinishedButton = 0;
+  while(FinishedButton == 0)
+  {
+    while(getTouchSample(&rawX, &rawY, &rawPressure)==0);  // Wait here for touch
+
+    TransformTouchMap(rawX, rawY);  // Sorts out orientation and approx scaling of the touch map
+    CorrectTouchMap();       // Calibrates each individual screen
+
+    // printf("wscreen = %d, hscreen = %d, scaledX = %d, scaledY = %d\n", wscreen, hscreen, scaledX, scaledY);
+
+    if((scaledX <= 5 * wscreen / 40)  && (scaledY <= 2 * hscreen / 12))
+    {
+      printf("snap\n");
+      system("/home/pi/rpidatv/scripts/snap2.sh");
+    }
+    else
+    {
+      FinishedButton=1;
+    }
+  }
+  return NULL;
+}
+
+void *WaitButtonSnap(void * arg)
 {
   int rawX, rawY, rawPressure;
   int count_time_ms;
@@ -7942,7 +7986,7 @@ void *WaitButtonLMRX(void * arg)
     TransformTouchMap(rawX, rawY);  // Sorts out orientation and approx scaling of the touch map
     CorrectTouchMap();       // Calibrates each individual screen
 
-    if((scaledX <= 15 * wscreen / 40) && (scaledX >= wscreen / 40) && (scaledY <= hscreen) && (scaledY >= 1 * hscreen / 12))
+    if((scaledX <= 15 * wscreen / 40) && (scaledX >= wscreen / 40) && (scaledY <= hscreen) && (scaledY >= 2 * hscreen / 12))
     {
       printf("in zone\n");
       if (FinishedButton == 2)  // Toggle parameters on/off 
@@ -7954,6 +7998,12 @@ void *WaitButtonLMRX(void * arg)
         FinishedButton = 2; // graphics off
       }
     }
+    else if((scaledX <= 5 * wscreen / 40)  && (scaledY <= hscreen) && (scaledY <= 2 * hscreen / 12))
+    {
+      printf("snap\n");
+      system("/home/pi/rpidatv/scripts/snap2.sh");
+    }
+
     else
     {
       printf("Out of zone\n");
@@ -7972,6 +8022,67 @@ void *WaitButtonLMRX(void * arg)
       printf("Leaving Delay\n");
       if (touch_response == 1) // count_time has elapsed and still no reponse
       {
+        exit(129);
+      }
+      return NULL;
+    }
+  }
+  return NULL;
+}
+
+
+void *WaitButtonLMRX(void * arg)
+{
+  int rawX, rawY, rawPressure;
+  int count_time_ms;
+  FinishedButton = 1; // Start with Parameters on
+
+  while((FinishedButton == 1) || (FinishedButton = 2))
+  {
+    while(getTouchSample(&rawX, &rawY, &rawPressure)==0);  // Wait here for touch
+
+    TransformTouchMap(rawX, rawY);  // Sorts out orientation and approx scaling of the touch map
+    CorrectTouchMap();       // Calibrates each individual screen
+
+    if((scaledX <= 15 * wscreen / 40) && (scaledX >= wscreen / 40) && (scaledY <= hscreen) && (scaledY >= 2 * hscreen / 12))
+    {
+      printf("in zone\n");
+      if (FinishedButton == 2)  // Toggle parameters on/off 
+      {
+        FinishedButton = 1; // graphics on
+      }
+      else
+      {
+        FinishedButton = 2; // graphics off
+      }
+    }
+    else if((scaledX <= 5 * wscreen / 40)  && (scaledY <= hscreen) && (scaledY <= 2 * hscreen / 12))
+    {
+      printf("snap\n");
+      system("/home/pi/rpidatv/scripts/snap2.sh");
+    }
+
+    else
+    {
+      printf("Out of zone\n");
+      FinishedButton = 0;  // Not in the zone, so exit receive
+      touch_response = 1;
+      count_time_ms = 0;
+
+      // wait here to make sure that touch_response is set back to 0
+      // If not, restart GUI
+      printf("Entering Delay\n");
+      while ((touch_response == 1) && (count_time_ms < 3000))
+      {
+        usleep(1000);
+        count_time_ms = count_time_ms + 1;
+      }
+      printf("Leaving Delay\n");
+      if (touch_response == 1) // count_time has elapsed and still no reponse
+      {
+        system("sudo killall -9 vlc");
+        init(&wscreen, &hscreen);  // Restart the graphics
+        BackgroundRGB(0, 0, 0, 0); // Clear the screen
         exit(129);
       }
       return NULL;
@@ -8047,7 +8158,7 @@ void DisplayIPStream()
   DisplayHere(WaitMessage);
 
   // Create Wait Button thread
-  pthread_create (&thbutton, NULL, &WaitButtonEvent, NULL);
+  pthread_create (&thbutton, NULL, &WaitButtonVideo, NULL);
 
   while (FinishedButton == 0)
   {
@@ -8153,7 +8264,7 @@ void DisplayStream(int NoButton)
   DisplayHere(WaitMessage);
 
   // Create Wait Button thread
-  pthread_create (&thbutton, NULL, &WaitButtonEvent, NULL);
+  pthread_create (&thbutton, NULL, &WaitButtonVideo, NULL);
 
   while (FinishedButton == 0)
   {
@@ -8872,6 +8983,7 @@ void LMRX(int NoButton)
   #define PATH_SCRIPT_LMRXOMX "/home/pi/rpidatv/scripts/lmomx.sh 2>&1"
   #define PATH_SCRIPT_LMRXHV "/home/pi/rpidatv/scripts/lmhv.sh 2>&1"
   #define PATH_SCRIPT_LMRXHV2 "/home/pi/rpidatv/scripts/lmhv2.sh 2>&1"
+  #define PATH_SCRIPT_LMRXVLC "/home/pi/rpidatv/scripts/lmvlc.sh" // 2>&1"
 
   //Local parameters:
 
@@ -8932,391 +9044,6 @@ void LMRX(int NoButton)
   switch (NoButton)
   {
   case 0:
-    BackgroundRGB(0, 0, 0, 0);
-    End();
-    fp=popen(PATH_SCRIPT_LMRXHV2, "r");
-    if(fp==NULL) printf("Process error\n");
-
-    printf("STARTING HelloVideo MPEG-2 RX\n");
-
-    // Start from here
-
-    /* Open status FIFO for read only  */
-    ret = mkfifo("longmynd_status_fifo", 0666);
-    fd_status_fifo = open("longmynd_status_fifo", O_RDONLY); 
-    if (fd_status_fifo < 0)
-    {
-      printf("Failed to open status fifo\n");
-    }
-    printf("Listening, ret = %d\n", ret);
-
-    WindowClear();
-
-    while ((FinishedButton == 1) || (FinishedButton == 2)) // 1 is captions on, 2 is off
-    {
-      num = read(fd_status_fifo, status_message_char, 1);
-      // printf("%s Num= %d \n", "End Read", num);
-      if (num >= 0 )
-      {
-        status_message_char[num]='\0';
-        //if (num>0) printf("%s\n",status_message_char);
-        
-        if (strcmp(status_message_char, "$") == 0)
-        {
-
-          if ((stat_string[0] == '1') && (stat_string[1] == ','))  // Decoder State
-          {
-            strcpy(STATEtext, stat_string);
-            chopN(STATEtext, 2);
-            STATE = atoi(STATEtext);
-            switch(STATE)
-            {
-              case 0:
-              strcpy(STATEtext, "Initialising");
-              break;
-              case 1:
-              strcpy(STATEtext, "Searching");
-              break;
-              case 2:
-              strcpy(STATEtext, "Found Headers");
-              break;
-              case 3:
-              strcpy(STATEtext, "DVB-S Lock");
-              break;
-              case 4:
-              strcpy(STATEtext, "DVB-S2 Lock");
-              break;
-              default:
-              snprintf(STATEtext, 10, "%d", STATE);
-            }
-          }
-
-          if ((stat_string[0] == '6') && (stat_string[1] == ','))  // Frequency
-          {
-            strcpy(FREQtext, stat_string);
-            chopN(FREQtext, 2);
-            FREQ = atof(FREQtext);
-            if (strcmp(LMRXmode, "sat") == 0)
-            {
-              FREQ = FREQ + LMRXqoffset;
-            }
-            FREQ = FREQ / 1000;
-            snprintf(FREQtext, 15, "%.3f MHz", FREQ);
-          }
-
-          if ((stat_string[0] == '9') && (stat_string[1] == ','))  // SR in S
-          {
-            strcpy(SRtext, stat_string);
-            chopN(SRtext, 2);
-            SR = atoi(SRtext) / 1000;
-            snprintf(SRtext, 15, "%d kS", SR);
-          }
-
-          if ((stat_string[0] == '1') && (stat_string[1] == '3'))  // Service Provider
-          {
-            strcpy(ServiceProvidertext, stat_string);
-            chopN(ServiceProvidertext, 3);
-          }
-
-          if ((stat_string[0] == '1') && (stat_string[1] == '4'))  // Service
-          {
-            strcpy(Servicetext, stat_string);
-            chopN(Servicetext, 3);
-          }
-
-          if ((stat_string[0] == '1') && (stat_string[1] == '8'))  // MODCOD
-          {
-            strcpy(MODCODtext, stat_string);
-            chopN(MODCODtext, 3);
-            MODCOD = atoi(MODCODtext);
-            //STATE = 4;
-            if (STATE == 3)                                        // DVB-S
-            {
-              switch(MODCOD)
-              {
-                case 0:
-                  strcpy(FECtext, "FEC 1/2");
-                  MERThreshold = 0; //
-                break;
-                case 1:
-                  strcpy(FECtext, "FEC 2/3");
-                  MERThreshold = 0; //
-                break;
-                case 2:
-                  strcpy(FECtext, "FEC 3/4");
-                  MERThreshold = 0; //
-                break;
-                case 3:
-                  strcpy(FECtext, "FEC 5/6");
-                  MERThreshold = 0; //
-                break;
-                case 4:
-                  strcpy(FECtext, "FEC 6/7");
-                  MERThreshold = 0; //
-                break;
-                case 5:
-                  strcpy(FECtext, "FEC 7/8");
-                  MERThreshold = 0; //
-                break;
-                default:
-                  strcpy(FECtext, "FEC - ");
-                  MERThreshold = 0; //
-                  strcat(FECtext, MODCODtext);
-                break;
-              }
-              strcpy(Modulationtext, "QPSK");
-            }
-            if (STATE == 4)                                        // DVB-S2
-            {
-              switch(MODCOD)
-              {
-                case 1:
-                  strcpy(FECtext, "FEC 1/4");
-                  MERThreshold = -2.3; //
-                break;
-                case 2:
-                  strcpy(FECtext, "FEC 1/3");
-                  MERThreshold = -1.2; //
-                break;
-                case 3:
-                  strcpy(FECtext, "FEC 2/5");
-                  MERThreshold = -0.3; //
-                break;
-                case 4:
-                  strcpy(FECtext, "FEC 1/2");
-                  MERThreshold = 1.0; //
-                break;
-                case 5:
-                  strcpy(FECtext, "FEC 3/5");
-                  MERThreshold = 2.3; //
-                break;
-                case 6:
-                  strcpy(FECtext, "FEC 2/3");
-                  MERThreshold = 3.1; //
-                break;
-                case 7:
-                  strcpy(FECtext, "FEC 3/4");
-                  MERThreshold = 4.1; //
-                break;
-                case 8:
-                  strcpy(FECtext, "FEC 4/5");
-                  MERThreshold = 4.7; //
-                break;
-                case 9:
-                  strcpy(FECtext, "FEC 5/6");
-                  MERThreshold = 5.2; //
-                break;
-                case 10:
-                  strcpy(FECtext, "FEC 8/9");
-                  MERThreshold = 6.2; //
-                break;
-                case 11:
-                  strcpy(FECtext, "FEC 9/10");
-                  MERThreshold = 6.5; //
-                break;
-                case 12:
-                  strcpy(FECtext, "FEC 3/5");
-                  MERThreshold = 5.5; //
-                break;
-                case 13:
-                  strcpy(FECtext, "FEC 2/3");
-                  MERThreshold = 6.6; //
-                break;
-                case 14:
-                  strcpy(FECtext, "FEC 3/4");
-                  MERThreshold = 7.9; //
-                break;
-                case 15:
-                  strcpy(FECtext, "FEC 5/6");
-                  MERThreshold = 9.4; //
-                break;
-                case 16:
-                  strcpy(FECtext, "FEC 8/9");
-                  MERThreshold = 10.7; //
-                break;
-                case 17:
-                  strcpy(FECtext, "FEC 9/10");
-                  MERThreshold = 11.0; //
-                break;
-                case 18:
-                  strcpy(FECtext, "FEC 2/3");
-                  MERThreshold = 9.0; //
-                break;
-                case 19:
-                  strcpy(FECtext, "FEC 3/4");
-                  MERThreshold = 10.2; //
-                break;
-                case 20:
-                  strcpy(FECtext, "FEC 4/5");
-                  MERThreshold = 11.0; //
-                break;
-                case 21:
-                  strcpy(FECtext, "FEC 5/6");
-                  MERThreshold = 11.6; //
-                break;
-                case 22:
-                  strcpy(FECtext, "FEC 8/9");
-                  MERThreshold = 12.9; //
-                break;
-                case 23:
-                  strcpy(FECtext, "FEC 9/10");
-                  MERThreshold = 13.2; //
-                break;
-                case 24:
-                  strcpy(FECtext, "FEC 3/4");
-                  MERThreshold = 12.8; //
-                break;
-                case 25:
-                  strcpy(FECtext, "FEC 4/5");
-                  MERThreshold = 13.7; //
-                break;
-                case 26:
-                  strcpy(FECtext, "FEC 5/6");
-                  MERThreshold = 14.3; //
-                break;
-                case 27:
-                  strcpy(FECtext, "FEC 8/9");
-                  MERThreshold = 15.7; //
-                break;
-                case 28:
-                  strcpy(FECtext, "FEC 9/10");
-                  MERThreshold = 16.1; //
-                break;
-                default:
-                  strcpy(FECtext, "FEC -");
-                  MERThreshold = 0; //
-                break;
-              }
-              if ((MODCOD >= 1) && (MODCOD <= 11 ))
-              {
-                strcpy(Modulationtext, "QPSK");
-              }
-              if ((MODCOD >= 12) && (MODCOD <= 17 ))
-              {
-                strcpy(Modulationtext, "8PSK");
-              }
-              if ((MODCOD >= 18) && (MODCOD <= 23 ))
-              {
-                strcpy(Modulationtext, "16APSK");
-              }
-              if ((MODCOD >= 24) && (MODCOD <= 28 ))
-              {
-                strcpy(Modulationtext, "32APSK");
-              }
-            }
-          }
-
-          if ((stat_string[0] == '1') && (stat_string[1] == '7'))  // Video and audio encoding
-          {
-            strcpy(Encodingtext, stat_string);
-            chopN(Encodingtext, 3);
-            EncodingCode = atoi(Encodingtext);
-            switch(EncodingCode)
-            {
-              case 2:
-                strcpy(VidEncodingtext, "MPEG-2");
-              break;
-              case 3:
-                strcpy(AudEncodingtext, " MPA");
-              break;
-              case 4:
-                strcpy(AudEncodingtext, " MPA");
-              break;
-              case 15:
-                strcpy(AudEncodingtext, " AAC");
-              break;
-              case 16:
-                strcpy(VidEncodingtext, "H263");
-              break;
-              case 27:
-                strcpy(VidEncodingtext, "H264");
-              break;
-              case 32:
-                strcpy(AudEncodingtext, " MPA");
-              break;
-              case 36:
-                strcpy(VidEncodingtext, "H265");
-              break;
-              default:
-                printf("New Encoding Code = %d\n", EncodingCode);
-              break;
-            }
-            strcpy(Encodingtext, VidEncodingtext);
-            strcat(Encodingtext, AudEncodingtext);
-          }
-
-          if ((stat_string[0] == '1') && (stat_string[1] == '2'))  // MER
-          {
-            if (FinishedButton == 1)  // Parameters displayed
-            {
-              Parameters_currently_displayed = 1;
-              strcpy(MERtext, stat_string);
-              chopN(MERtext, 3);
-              MER = atof(MERtext)/10;
-              if (MER > 51)  // Trap spurious MER readings
-              {
-                MER = 0;
-              }
-              snprintf(MERtext, 24, "MER %.1f (%.1f needed)", MER, MERThreshold);
-
-              BackgroundRGB(0, 0, 0, 0);
-              Fill(0, 0, 0, 127);
-              Rect(wscreen * 1.0 / 40.0, hscreen - 9.2 * linepitch, wscreen * 20.0 / 40.0, hscreen);
-              Rect(wscreen * 1.0 / 40.0, hscreen - 11.7 * linepitch, wscreen * 35.0 / 40.0, hscreen - 11.4 * linepitch);
-              Fill(255, 255, 255, 255);
-              Text(wscreen * 1.0 / 40.0, hscreen - 1 * linepitch, STATEtext, font, pointsize);
-              Text(wscreen * 1.0 / 40.0, hscreen - 2 * linepitch, FREQtext, font, pointsize);
-              Text(wscreen * 1.0 / 40.0, hscreen - 3 * linepitch, SRtext, font, pointsize);
-              Text(wscreen * 1.0 / 40.0, hscreen - 4 * linepitch, Modulationtext, font, pointsize);
-              Text(wscreen * 1.0 / 40.0, hscreen - 5 * linepitch, FECtext, font, pointsize);
-              Text(wscreen * 1.0 / 40.0, hscreen - 6 * linepitch, ServiceProvidertext, font, pointsize);
-              Text(wscreen * 1.0 / 40.0, hscreen - 7 * linepitch, Servicetext, font, pointsize);
-              Text(wscreen * 1.0 / 40.0, hscreen - 8 * linepitch, Encodingtext, font, pointsize);
-              if (MER < MERThreshold)
-              {
-                Fill(255, 127, 127, 255);
-              }
-              Text(wscreen * 1.0 / 40.0, hscreen - 9 * linepitch, MERtext, font, pointsize);
-              Fill(255, 255, 255, 255);
-              Text(wscreen * 1.0 / 40.0, hscreen - 11.5 * linepitch, "Touch Left to hide data, Right to exit", font, pointsize);
-            }
-            else
-            {
-              if (Parameters_currently_displayed == 1)
-              {
-                BackgroundRGB(0, 0, 0, 0);
-                Fill(0, 0, 0, 0);
-                Rect(wscreen * 1.0 / 40.0, hscreen - 4.2 * linepitch, wscreen * 15.0 / 40.0, 4.0 * linepitch);
-                Parameters_currently_displayed = 0;
-              }
-            }
-            End();
-          }
-          stat_string[0] = '\0';
-        }
-        else
-        {
-          strcat(stat_string, status_message_char);
-        }
-      }
-      else
-      {
-        FinishedButton = 0;
-      }
-    } 
-    close(fd_status_fifo);
-
-    finish();
-    usleep(1000);
-    init(&wscreen, &hscreen);  // Restart the graphics
-
-    printf("Stopping receive process\n");
-    pclose(fp);
-
-    system("sudo killall lmhv2.sh >/dev/null 2>/dev/null");
-    touch_response = 0; 
-    break;
-  case 1:
     BackgroundRGB(0, 0, 0, 0);
     End();
     fp=popen(PATH_SCRIPT_LMRXHV, "r");
@@ -9661,7 +9388,8 @@ void LMRX(int NoButton)
               }
               Text(wscreen * 1.0 / 40.0, hscreen - 9 * linepitch, MERtext, font, pointsize);
               Fill(255, 255, 255, 255);
-              Text(wscreen * 1.0 / 40.0, hscreen - 11.5 * linepitch, "Touch Left to hide data, Right to exit", font, pointsize);
+              Text(wscreen * 1.0 / 40.0, hscreen - 10.5 * linepitch, "Touch Left to hide data, Right to exit", font, pointsize);
+              Text(wscreen * 1.0 / 40.0, hscreen - 11.5 * linepitch, "Touch Lower left for image capture", font, pointsize);
             }
             else
             {
@@ -9697,7 +9425,7 @@ void LMRX(int NoButton)
     system("sudo killall lmhv.sh >/dev/null 2>/dev/null");
     touch_response = 0; 
     break;
-  case 2:
+  case 1:
     BackgroundRGB(0, 0, 0, 0);
     End();
     fp=popen(PATH_SCRIPT_LMRXOMX, "r");
@@ -10043,7 +9771,8 @@ void LMRX(int NoButton)
               }
               Text(wscreen * 1.0 / 40.0, hscreen - 9 * linepitch, MERtext, font, pointsize);
               Fill(255, 255, 255, 255);
-              Text(wscreen * 1.0 / 40.0, hscreen - 11.5 * linepitch, "Touch Left to hide data, Right to exit", font, pointsize);
+              Text(wscreen * 1.0 / 40.0, hscreen - 10.5 * linepitch, "Touch Left to hide data, Right to exit", font, pointsize);
+              Text(wscreen * 1.0 / 40.0, hscreen - 11.5 * linepitch, "Touch Lower left for image capture", font, pointsize);
             }
             else
             {
@@ -10077,6 +9806,391 @@ void LMRX(int NoButton)
     printf("Stopping receive process\n");
     pclose(fp);
     system("sudo killall lmomx.sh >/dev/null 2>/dev/null");
+    touch_response = 0; 
+    break;
+  case 2:
+    BackgroundRGB(0, 0, 0, 0);
+    End();
+    fp=popen(PATH_SCRIPT_LMRXVLC, "r");
+    if(fp==NULL) printf("Process error\n");
+
+    printf("STARTING VLC RX\n");
+
+    /* Open status FIFO for read only  */
+    ret=mkfifo("longmynd_status_fifo", 0666);
+    fd_status_fifo = open("longmynd_status_fifo", O_RDONLY); 
+    if (fd_status_fifo < 0)
+    {
+      printf("Failed to open status fifo\n");
+    }
+
+    printf("Listening\n");
+
+    WindowClear();
+
+    while ((FinishedButton == 1) || (FinishedButton == 2)) 
+    {
+      num = read(fd_status_fifo, status_message_char, 1);
+      // printf("%s Num= %d \n", "End Read", num);
+      if (num >= 0 )
+      {
+        status_message_char[num]='\0';
+        //if (num>0) printf("%s\n",status_message_char);
+        
+        if (strcmp(status_message_char, "$") == 0)
+        {
+
+          if ((stat_string[0] == '1') && (stat_string[1] == ','))  // Decoder State
+          {
+            strcpy(STATEtext, stat_string);
+            chopN(STATEtext, 2);
+            STATE = atoi(STATEtext);
+            switch(STATE)
+            {
+              case 0:
+              strcpy(STATEtext, "Initialising");
+              break;
+              case 1:
+              strcpy(STATEtext, "Searching");
+              break;
+              case 2:
+              strcpy(STATEtext, "Found Headers");
+              break;
+              case 3:
+              strcpy(STATEtext, "DVB-S Lock");
+              break;
+              case 4:
+              strcpy(STATEtext, "DVB-S2 Lock");
+              break;
+              default:
+              snprintf(STATEtext, 10, "%d", STATE);
+            }
+          }
+
+          if ((stat_string[0] == '6') && (stat_string[1] == ','))  // Frequency
+          {
+            strcpy(FREQtext, stat_string);
+            chopN(FREQtext, 2);
+            FREQ = atof(FREQtext);
+            if (strcmp(LMRXmode, "sat") == 0)
+            {
+              FREQ = FREQ + LMRXqoffset;
+            }
+            FREQ = FREQ / 1000;
+            snprintf(FREQtext, 15, "%.3f MHz", FREQ);
+          }
+
+          if ((stat_string[0] == '9') && (stat_string[1] == ','))  // SR in S
+          {
+            strcpy(SRtext, stat_string);
+            chopN(SRtext, 2);
+            SR = atoi(SRtext) / 1000;
+            snprintf(SRtext, 15, "%d kS", SR);
+          }
+
+          if ((stat_string[0] == '1') && (stat_string[1] == '3'))  // Service Provider
+          {
+            strcpy(ServiceProvidertext, stat_string);
+            chopN(ServiceProvidertext, 3);
+          }
+
+          if ((stat_string[0] == '1') && (stat_string[1] == '4'))  // Service
+          {
+            strcpy(Servicetext, stat_string);
+            chopN(Servicetext, 3);
+          }
+
+          if ((stat_string[0] == '1') && (stat_string[1] == '8'))  // MODCOD
+          {
+            strcpy(MODCODtext, stat_string);
+            chopN(MODCODtext, 3);
+            MODCOD = atoi(MODCODtext);
+            //STATE = 4;
+            if (STATE == 3)                                        // DVB-S
+            {
+              switch(MODCOD)
+              {
+                case 0:
+                  strcpy(FECtext, "FEC 1/2");
+                  MERThreshold = 0; //
+                break;
+                case 1:
+                  strcpy(FECtext, "FEC 2/3");
+                  MERThreshold = 0; //
+                break;
+                case 2:
+                  strcpy(FECtext, "FEC 3/4");
+                  MERThreshold = 0; //
+                break;
+                case 3:
+                  strcpy(FECtext, "FEC 5/6");
+                  MERThreshold = 0; //
+                break;
+                case 4:
+                  strcpy(FECtext, "FEC 6/7");
+                  MERThreshold = 0; //
+                break;
+                case 5:
+                  strcpy(FECtext, "FEC 7/8");
+                  MERThreshold = 0; //
+                break;
+                default:
+                  strcpy(FECtext, "FEC -");
+                  MERThreshold = 0; //
+                  strcat(FECtext, MODCODtext);
+                break;
+              }
+              strcpy(Modulationtext, "QPSK");
+            }
+            if (STATE == 4)                                        // DVB-S2
+            {
+              switch(MODCOD)
+              {
+                case 1:
+                  strcpy(FECtext, "FEC 1/4");
+                  MERThreshold = -2.3; //
+                break;
+                case 2:
+                  strcpy(FECtext, "FEC 1/3");
+                  MERThreshold = -1.2; //
+                break;
+                case 3:
+                  strcpy(FECtext, "FEC 2/5");
+                  MERThreshold = -0.3; //
+                break;
+                case 4:
+                  strcpy(FECtext, "FEC 1/2");
+                  MERThreshold = 1.0; //
+                break;
+                case 5:
+                  strcpy(FECtext, "FEC 3/5");
+                  MERThreshold = 2.3; //
+                break;
+                case 6:
+                  strcpy(FECtext, "FEC 2/3");
+                  MERThreshold = 3.1; //
+                break;
+                case 7:
+                  strcpy(FECtext, "FEC 3/4");
+                  MERThreshold = 4.1; //
+                break;
+                case 8:
+                  strcpy(FECtext, "FEC 4/5");
+                  MERThreshold = 4.7; //
+                break;
+                case 9:
+                  strcpy(FECtext, "FEC 5/6");
+                  MERThreshold = 5.2; //
+                break;
+                case 10:
+                  strcpy(FECtext, "FEC 8/9");
+                  MERThreshold = 6.2; //
+                break;
+                case 11:
+                  strcpy(FECtext, "FEC 9/10");
+                  MERThreshold = 6.5; //
+                break;
+                case 12:
+                  strcpy(FECtext, "FEC 3/5");
+                  MERThreshold = 5.5; //
+                break;
+                case 13:
+                  strcpy(FECtext, "FEC 2/3");
+                  MERThreshold = 6.6; //
+                break;
+                case 14:
+                  strcpy(FECtext, "FEC 3/4");
+                  MERThreshold = 7.9; //
+                break;
+                case 15:
+                  strcpy(FECtext, "FEC 5/6");
+                  MERThreshold = 9.4; //
+                break;
+                case 16:
+                  strcpy(FECtext, "FEC 8/9");
+                  MERThreshold = 10.7; //
+                break;
+                case 17:
+                  strcpy(FECtext, "FEC 9/10");
+                  MERThreshold = 11.0; //
+                break;
+                case 18:
+                  strcpy(FECtext, "FEC 2/3");
+                  MERThreshold = 9.0; //
+                break;
+                case 19:
+                  strcpy(FECtext, "FEC 3/4");
+                  MERThreshold = 10.2; //
+                break;
+                case 20:
+                  strcpy(FECtext, "FEC 4/5");
+                  MERThreshold = 11.0; //
+                break;
+                case 21:
+                  strcpy(FECtext, "FEC 5/6");
+                  MERThreshold = 11.6; //
+                break;
+                case 22:
+                  strcpy(FECtext, "FEC 8/9");
+                  MERThreshold = 12.9; //
+                break;
+                case 23:
+                  strcpy(FECtext, "FEC 9/10");
+                  MERThreshold = 13.2; //
+                break;
+                case 24:
+                  strcpy(FECtext, "FEC 3/4");
+                  MERThreshold = 12.8; //
+                break;
+                case 25:
+                  strcpy(FECtext, "FEC 4/5");
+                  MERThreshold = 13.7; //
+                break;
+                case 26:
+                  strcpy(FECtext, "FEC 5/6");
+                  MERThreshold = 14.3; //
+                break;
+                case 27:
+                  strcpy(FECtext, "FEC 8/9");
+                  MERThreshold = 15.7; //
+                break;
+                case 28:
+                  strcpy(FECtext, "FEC 9/10");
+                  MERThreshold = 16.1; //
+                break;
+                default:
+                  strcpy(FECtext, "FEC -");
+                  MERThreshold = 0; //
+                break;
+              }
+              if ((MODCOD >= 1) && (MODCOD <= 11 ))
+              {
+                strcpy(Modulationtext, "QPSK");
+              }
+              if ((MODCOD >= 12) && (MODCOD <= 17 ))
+              {
+                strcpy(Modulationtext, "8PSK");
+              }
+              if ((MODCOD >= 18) && (MODCOD <= 23 ))
+              {
+                strcpy(Modulationtext, "16APSK");
+              }
+              if ((MODCOD >= 24) && (MODCOD <= 28 ))
+              {
+                strcpy(Modulationtext, "32APSK");
+              }
+            }
+          }
+
+          if ((stat_string[0] == '1') && (stat_string[1] == '7'))  // Video and audio encoding
+          {
+            strcpy(Encodingtext, stat_string);
+            chopN(Encodingtext, 3);
+            EncodingCode = atoi(Encodingtext);
+            switch(EncodingCode)
+            {
+              case 2:
+                strcpy(VidEncodingtext, "MPEG-2");
+              break;
+              case 3:
+                strcpy(AudEncodingtext, " MPA");
+              break;
+              case 4:
+                strcpy(AudEncodingtext, " MPA");
+              break;
+              case 15:
+                strcpy(AudEncodingtext, " AAC");
+              break;
+              case 16:
+                strcpy(VidEncodingtext, "H263");
+              break;
+              case 27:
+                strcpy(VidEncodingtext, "H264");
+              break;
+              case 32:
+                strcpy(AudEncodingtext, " MPA");
+              break;
+              case 36:
+                strcpy(VidEncodingtext, "H265");
+              break;
+              default:
+                printf("New Encoding Code = %d\n", EncodingCode);
+              break;
+            }
+            strcpy(Encodingtext, VidEncodingtext);
+            strcat(Encodingtext, AudEncodingtext);
+          }
+
+          if ((stat_string[0] == '1') && (stat_string[1] == '2'))  // MER
+          {
+            if (FinishedButton == 1)  // Parameters displayed
+            {
+              Parameters_currently_displayed = 1;
+              strcpy(MERtext, stat_string);
+              chopN(MERtext, 3);
+              MER = atof(MERtext)/10;
+              if (MER > 51)  // Trap spurious MER readings
+              {
+                MER = 0;
+              }
+              snprintf(MERtext, 24, "MER %.1f (%.1f needed)", MER, MERThreshold);
+
+              BackgroundRGB(0, 0, 0, 0);
+              Fill(0, 0, 0, 127);
+              Rect(wscreen * 1.0 / 40.0, hscreen - 9.2 * linepitch, wscreen * 20.0 / 40.0, hscreen);
+              Rect(wscreen * 1.0 / 40.0, hscreen - 11.7 * linepitch, wscreen * 35.0 / 40.0, hscreen - 11.4 * linepitch);
+              Fill(255, 255, 255, 255);
+              Text(wscreen * 1.0 / 40.0, hscreen - 1 * linepitch, STATEtext, font, pointsize);
+              Text(wscreen * 1.0 / 40.0, hscreen - 2 * linepitch, FREQtext, font, pointsize);
+              Text(wscreen * 1.0 / 40.0, hscreen - 3 * linepitch, SRtext, font, pointsize);
+              Text(wscreen * 1.0 / 40.0, hscreen - 4 * linepitch, Modulationtext, font, pointsize);
+              Text(wscreen * 1.0 / 40.0, hscreen - 5 * linepitch, FECtext, font, pointsize);
+              Text(wscreen * 1.0 / 40.0, hscreen - 6 * linepitch, ServiceProvidertext, font, pointsize);
+              Text(wscreen * 1.0 / 40.0, hscreen - 7 * linepitch, Servicetext, font, pointsize);
+              Text(wscreen * 1.0 / 40.0, hscreen - 8 * linepitch, Encodingtext, font, pointsize);
+              if (MER < MERThreshold)
+              {
+                Fill(255, 127, 127, 255);
+              }
+              Text(wscreen * 1.0 / 40.0, hscreen - 9 * linepitch, MERtext, font, pointsize);
+              Fill(255, 255, 255, 255);
+              Text(wscreen * 1.0 / 40.0, hscreen - 10.5 * linepitch, "Touch Left to hide data, Right to exit", font, pointsize);
+              Text(wscreen * 1.0 / 40.0, hscreen - 11.5 * linepitch, "Touch Lower left for image capture", font, pointsize);
+            }
+            else
+            {
+              if (Parameters_currently_displayed == 1)
+              {
+                BackgroundRGB(0, 0, 0, 0);
+                Fill(0, 0, 0, 0);
+                Rect(wscreen * 1.0 / 40.0, hscreen - 4.2 * linepitch, wscreen * 15.0 / 40.0, 4.0 * linepitch);
+                Parameters_currently_displayed = 0;
+              }
+            }
+            End();
+          }
+          stat_string[0] = '\0';
+        }
+        else
+        {
+          strcat(stat_string, status_message_char);
+        }
+      }
+      else
+      {
+        FinishedButton = 0;
+      }
+    } 
+    system("sudo killall vlc >/dev/null 2>/dev/null");
+
+    close(fd_status_fifo); 
+    finish();
+    usleep(1000);
+    init(&wscreen, &hscreen);  // Restart the graphics
+
+    printf("Stopping receive process\n");
+    pclose(fp);
+    system("sudo killall lmvlc.sh >/dev/null 2>/dev/null");
     touch_response = 0; 
     break;
   case 3:
@@ -10469,6 +10583,7 @@ void LMRX(int NoButton)
     while ((FinishedButton == 1) || (FinishedButton == 2)) // 1 is captions on, 2 is off
     {
       num = read(fd_status_fifo, status_message_char, 1);
+
       if (num >= 0 )
       {
         status_message_char[num]='\0';
@@ -10730,7 +10845,30 @@ void LMRX(int NoButton)
   system("sudo killall hello_video.bin >/dev/null 2>/dev/null");
   system("sudo killall hello_video2.bin >/dev/null 2>/dev/null");
   system("sudo killall -9 hello_video2.bin >/dev/null 2>/dev/null");
+  system("sudo killall vlc >/dev/null 2>/dev/null");
   pthread_join(thbutton, NULL);
+}
+
+void CycleLNBVolts()
+{
+  if (strcmp(LMRXvolts, "h") == 0)
+  {
+    strcpy(LMRXvolts, "v");
+  }
+  else
+  {
+    if (strcmp(LMRXvolts, "off") == 0)
+    {
+      strcpy(LMRXvolts, "h");
+    }
+    else  // All other cases
+    {
+      strcpy(LMRXvolts, "off");
+    }
+  }
+  SetConfigParam(PATH_LMCONFIG, "lnbvolts", LMRXvolts);
+  strcpy(LMRXvolts, "off");
+  GetConfigParam(PATH_LMCONFIG, "lnbvolts", LMRXvolts);
 }
 
 void wait_touch()
@@ -11956,20 +12094,35 @@ void do_freqshow()
   cleanexit(131);
 }
 
-void do_video_monitor()
+void do_video_monitor(int button)
 {
   char startCommand[255];
-  printf("Starting Video Monitor, calling av2.sh\n");
 
-  strcpy(startCommand, "/home/pi/rpidatv/scripts/av2.sh");
-  strcat(startCommand, " &");
+  switch(button)
+  {
+  case 10:
+    printf("Starting Video Monitor, calling av2.sh\n");
+    strcpy(startCommand, "/home/pi/rpidatv/scripts/av2.sh");
+    strcat(startCommand, " &");
+    break;
+  case 11:
+    printf("Starting Pi Cam Monitor, calling av1.sh\n");
+    strcpy(startCommand, "/home/pi/rpidatv/scripts/av1.sh");
+    strcat(startCommand, " &");
+    break;
+  case 12:
+    printf("Starting C920 Monitor, calling av3.sh\n");
+    strcpy(startCommand, "/home/pi/rpidatv/scripts/av3.sh");
+    strcat(startCommand, " &");
+    break;
+  }
 
   FinishedButton = 0;
   BackgroundRGB(0, 0, 0, 0);
   finish();                  // Close the graphics sub-system
 
   // Create Wait Button thread
-  pthread_create (&thbutton, NULL, &WaitButtonEvent, NULL);
+  pthread_create (&thbutton, NULL, &WaitButtonVideo, NULL);
 
   system(startCommand);
 
@@ -11995,6 +12148,7 @@ void MonitorStop()
   system("sudo killall netcat >/dev/null 2>/dev/null");
   system("sudo killall ts2es >/dev/null 2>/dev/null");
   system("sudo killall hello_video2.bin >/dev/null 2>/dev/null");
+  system("sudo killall mplayer >/dev/null 2>/dev/null");
 
   // Turn the Viewfinder off
   system("v4l2-ctl -d /dev/video1 --overlay=0 >/dev/null 2>/dev/null");
@@ -12002,13 +12156,6 @@ void MonitorStop()
 
   // Stop the audio relay in CompVid mode
   system("sudo killall arecord >/dev/null 2>/dev/null");
-
-  // Then pause and make sure that avc2ts has really been stopped (needed at high SRs)
-  //usleep(1000);
-  //system("sudo killall -9 avc2ts >/dev/null 2>/dev/null");
-
-  // And make sure rpidatv has been stopped (required for brief transmit selections)
-  //system("sudo killall -9 rpidatv >/dev/null 2>/dev/null");
 }
 
 
@@ -13500,56 +13647,50 @@ void waituntil(int w,int h)
         case 7:                               // Not used
           UpdateWindow();
           break;
-        case 8:                               // IPTS Viewer
-          DisplayIPStream();
-          BackgroundRGB(0, 0, 0, 255);
-          UpdateWindow();                     // Stay in Menu 2
-          break;
-        case 9:                               // Not used
+        case 8:                               // More Functions Menu
           printf("MENU 7 \n");
-          CurrentMenu=7;
-          BackgroundRGB(0,0,0,255);
+          CurrentMenu = 7;
+          BackgroundRGB(0, 0, 0, 255);
           Start_Highlights_Menu7();
           UpdateWindow();
           break;
-        case 10:                              // Take Snap from EasyCap Input
-          do_snap();
-          UpdateWindow();
-          break;
-        case 11:                              // View EasyCap Input
-          do_videoview();
-          UpdateWindow();
-          break;
-        case 12:                              // Check Snaps
-          do_snapcheck();
-          UpdateWindow();
-          break;
-        case 13:                              // Select Video Monitor
-          do_video_monitor();
-          BackgroundRGB(0,0,0,255);
-          UpdateWindow();
-          break;
-        case 14:                              // Stream Viewer
+        case 9:                              // Stream Viewer
           printf("MENU 20 \n");
-          CurrentMenu=20;
-          BackgroundRGB(0,0,0,255);
+          CurrentMenu = 20;
+          BackgroundRGB(0, 0, 0, 255);
           Start_Highlights_Menu20();
           UpdateWindow();
           break;
           UpdateWindow();
           break;
-        case 15:                               // Select FreqShow
-          if(CheckRTL()==0)
-          {
-            DisplayLogo();
-            do_freqshow();
-          }
-          else
-          {
-            MsgBox("No RTL-SDR Connected");
-            wait_touch();
-          }
-          BackgroundRGB(0,0,0,255);
+        case 10:                              // Video Monitor (EasyCap)
+        case 11:                              // Pi Cam Monitor
+        case 12:                              // Check Snaps
+          do_video_monitor(i);
+          BackgroundRGB(0, 0, 0, 255);
+          UpdateWindow();
+          break;
+        case 13:                               // IPTS Viewer
+          DisplayIPStream();
+          BackgroundRGB(0, 0, 0, 255);
+          UpdateWindow();                     // Stay in Menu 2
+          break;
+        case 14:                              // Check Snaps
+          do_snapcheck();
+          UpdateWindow();
+          break;
+        case 15:                               // Was FreqShow
+          //if(CheckRTL()==0)
+          //{
+            //DisplayLogo();
+            //do_freqshow();
+          //}
+          //else
+          //{
+            //MsgBox("No RTL-SDR Connected");
+            //wait_touch();
+          //}
+          BackgroundRGB(0, 0, 0, 255);
           UpdateWindow();
           break;
         case 16:                               // Start Sig Gen and Exit
@@ -14218,6 +14359,10 @@ void waituntil(int w,int h)
           UpdateWindow();
           usleep(500000);
           break;
+        case 10:                                       // Video Snap
+          do_snap();
+          UpdateWindow();
+          break;
         case 22:                              // Menu 1
           printf("MENU 1 \n");
           CurrentMenu=1;
@@ -14238,9 +14383,9 @@ void waituntil(int w,int h)
         CallingMenu = 8;
         switch (i)
         {
-        case 0:                                           // Simple MPEG-2
-        case 1:                                           // Simple H264
-        case 2:                                           // OMXPlayer
+        case 0:                                           // Simple H264
+        case 1:                                           // OMXPlayer
+        case 2:                                           // VLC
         case 3:                                           // UDP Output
           BackgroundRGB(0,0,0,255);
           Start(wscreen,hscreen);
@@ -14577,6 +14722,12 @@ void waituntil(int w,int h)
           Start_Highlights_Menu13();
           UpdateWindow();
           break;
+        case 8:                                        // LNB Volts
+          CycleLNBVolts();
+          Start_Highlights_Menu13();
+          UpdateWindow();
+          break;
+
         case 9:                                        // Audio Output
           if (strcmp(LMRXaudio, "rpi") == 0)
           {
@@ -16692,42 +16843,34 @@ void Define_Menu2()
   //AddButtonStatus(button, " ", &Green);
 
   button = CreateButton(2, 8);
-  AddButtonStatus(button, "IPTS^Viewer", &Blue);
-  AddButtonStatus(button, "IPTS^Viewer", &Green);
+  AddButtonStatus(button, "More^Functions", &Blue);
+
 
   button = CreateButton(2, 9);
-  AddButtonStatus(button, "More^Functions", &Blue);
-  AddButtonStatus(button, "More^Functions", &Green);
+  AddButtonStatus(button, "Stream^Viewer", &Blue);
+  AddButtonStatus(button, "Stream^Viewer", &Green);
 
   // 3rd line up Menu 2
 
   button = CreateButton(2, 10);
-  AddButtonStatus(button, "Video^Snap", &Blue);
-  AddButtonStatus(button, " ", &Green);
+  AddButtonStatus(button, "Video^Monitor", &Blue);
 
   button = CreateButton(2, 11);
-  AddButtonStatus(button, "Video^View", &Blue);
-  AddButtonStatus(button, " ", &Green);
+  AddButtonStatus(button, "Pi Cam^Monitor", &Blue);
 
   button = CreateButton(2, 12);
-  AddButtonStatus(button, "Snap^Check", &Blue);
-  AddButtonStatus(button, " ", &Green);
+  AddButtonStatus(button, "C920^Monitor", &Blue);
 
-  if (CheckMPEG2() == 1)
-  {
-    button = CreateButton(2, 13);
-    AddButtonStatus(button, "Video^Monitor", &Blue);
-    AddButtonStatus(button, "Video^Monitor", &Green);
-  }
+  button = CreateButton(2, 13);
+  AddButtonStatus(button, "IPTS^Monitor", &Blue);
 
   button = CreateButton(2, 14);
-  AddButtonStatus(button, "Stream^Viewer", &Blue);
-  AddButtonStatus(button, "Stream^Viewer", &Green);
+  AddButtonStatus(button, "Snap^Check", &Blue);
 
   // 4th line up Menu 2
 
   button = CreateButton(2, 15);
-  AddButtonStatus(button, "Freq Show^Spectrum", &Blue);
+  //AddButtonStatus(button, "Freq Show^Spectrum", &Blue);
   //AddButtonStatus(button, " ", &Green);
 
   button = CreateButton(2, 16);
@@ -16848,10 +16991,10 @@ void Define_Menu4()
   //AddButtonStatus(button, TabVidSource[5], &Green);
   //AddButtonStatus(button, TabVidSource[5], &Grey);
 
-  //button = CreateButton(4, 1);
-  //AddButtonStatus(button, TabVidSource[6], &Blue);
-  //AddButtonStatus(button, TabVidSource[6], &Green);
-  //AddButtonStatus(button, TabVidSource[6], &Grey);
+  button = CreateButton(4, 1);
+  AddButtonStatus(button, TabVidSource[6], &Blue);
+  AddButtonStatus(button, TabVidSource[6], &Green);
+  AddButtonStatus(button, TabVidSource[6], &Grey);
 
   //button = CreateButton(4, 2);
   //AddButtonStatus(button, TabVidSource[7], &Blue);
@@ -17397,9 +17540,13 @@ void Define_Menu7()
   AddButtonStatus(button, "Button 5", &Blue);
   AddButtonStatus(button, "Button 5", &Green);
 
-  // 2nd line up Menu 7: Lime Config 
+  // 2nd line up Menu 7:  
 
   // 3rd line up Menu 7: 
+
+  button = CreateButton(7, 10);
+  AddButtonStatus(button, "Video^Snap", &Blue);
+  AddButtonStatus(button, " ", &Green);
 
   // 4th line up Menu 7: 
 
@@ -17423,16 +17570,16 @@ void Define_Menu8()
   // Bottom Row, Menu 8
 
   button = CreateButton(8, 0);
-  AddButtonStatus(button, "Simple^MPEG-2", &Blue);
-  AddButtonStatus(button, "Simple^MPEG-2", &Green);
+  AddButtonStatus(button, "H264^No Audio", &Blue);
+  AddButtonStatus(button, "H264^No Audio", &Green);
 
   button = CreateButton(8, 1);
-  AddButtonStatus(button, "Simple^H264", &Blue);
-  AddButtonStatus(button, "Simple^H264", &Green);
-
-  button = CreateButton(8, 2);
   AddButtonStatus(button, "OMX^Player", &Blue);
   AddButtonStatus(button, "OMX^Player", &Green);
+
+  button = CreateButton(8, 2);
+  AddButtonStatus(button, "VLC^Player", &Blue);
+  AddButtonStatus(button, "VLC^Player", &Green);
 
   button = CreateButton(8, 3);
   AddButtonStatus(button, "UDP^Output", &Blue);
@@ -18079,6 +18226,11 @@ void Define_Menu13()
   AddButtonStatus(button, "Input^A", &Blue);
   AddButtonStatus(button, "Input^A", &Blue);
 
+  button = CreateButton(13, 8);
+  AddButtonStatus(button, "LNB Volts^OFF", &Blue);
+  AddButtonStatus(button, "LNB Volts^18 Horiz", &Green);
+  AddButtonStatus(button, "LNB Volts^13 Vert", &Green);
+
   button = CreateButton(13, 9);
   AddButtonStatus(button, "Audio out^RPi Jack", &Blue);
   AddButtonStatus(button, "Audio out^RPi Jack", &Blue);
@@ -18101,6 +18253,20 @@ void Start_Highlights_Menu13()
     SetButtonStatus(ButtonNumber(CurrentMenu, 6), 1);
   }
   AmendButtonStatus(ButtonNumber(13, 7), 0, LMBtext, &Blue);
+
+  if (strcmp(LMRXvolts, "off") == 0)
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 8), 0);
+  }
+  if (strcmp(LMRXvolts, "h") == 0)
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 8), 1);
+  }
+  if (strcmp(LMRXvolts, "v") == 0)
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 8), 2);
+  }
+  
 
   if (strcmp(LMRXaudio, "rpi") == 0)
   {

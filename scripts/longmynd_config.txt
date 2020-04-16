@@ -52,4 +52,6 @@ tsr6=125
 2ndsr0=1500
 2ndfreq1=437000
 2ndsr1=333
+lnbvolts=off
+lnbvolts1=off
 

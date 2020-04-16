@@ -1,5 +1,7 @@
 #!/bin/bash
 
+echo Made ti
+
 PATHBIN="/home/pi/rpidatv/bin/"
 RCONFIGFILE="/home/pi/rpidatv/scripts/longmynd_config.txt"
 
@@ -66,16 +68,14 @@ if [ "$LNBVOLTS" == "v" ]; then
 fi
 
 sudo killall longmynd >/dev/null 2>/dev/null
-sudo killall omxplayer.bin >/dev/null 2>/dev/null
+sudo killall vlc >/dev/null 2>/dev/null
 
 sudo rm longmynd_main_ts
 mkfifo longmynd_main_ts
 
 sudo /home/pi/longmynd/longmynd -s longmynd_status_fifo $VOLTS_CMD $INPUT_CMD $FREQ_KHZ $SYMBOLRATEK &
 
-omxplayer --adev $AUDIO_MODE --live --layer 0 longmynd_main_ts & ## works for touchscreens
-
-#omxplayer --adev $AUDIO_MODE --live --display 5 --layer 10 longmynd_main_ts &  ## for HDMI
+cvlc -f --gain 6 -A alsa:plughw:1,0  longmynd_main_ts 2>/home/pi/vlclog.txt &
 
 exit
 

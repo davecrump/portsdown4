@@ -1,8 +1,6 @@
 #!/bin/bash
 
-# This script uses mplayer to display the video from the EasyCap.
-# It scales the video by 3/4 (this is easiest in processor load)
-# The video overflows if not scaled.
+# This script uses mplayer to display the video from the C920.
 
 # set -x
 
@@ -12,7 +10,7 @@
 # select the line with the device details and delete the leading tab
 
 VID_USB="$(v4l2-ctl --list-devices 2> /dev/null | \
-  sed -n '/usbtv/,/dev/p' | grep 'dev' | tr -d '\t')"
+  sed -n '/C920/,/dev/p' | grep 'dev' | tr -d '\t')"
 
 if [ "$VID_USB" == '' ]; then
   printf "VID_USB was not found, setting to /dev/video0\n"
@@ -25,8 +23,7 @@ printf "The USB device string is $VID_USB\n"
 
 sudo killall mplayer >/dev/null 2>/dev/null
 
-mplayer tv:// -tv driver=v4l2:device="$VID_USB":norm=PAL:input=0:width=540:height=432 \
-  -vf scale=540:432 -fs -vo fbdev /dev/fb0
-
+mplayer tv:// -tv driver=v4l2:device="$VID_USB" \
+   -fs -vo fbdev /dev/fb0
 
 
