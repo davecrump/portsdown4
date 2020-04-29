@@ -1,5 +1,6 @@
 #!/bin/bash
 
+PCONFIGFILE="/home/pi/rpidatv/scripts/portsdown_config.txt"
 RCONFIGFILE="/home/pi/rpidatv/scripts/longmynd_config.txt"
 
 ############ FUNCTION TO READ CONFIG FILE #############################
@@ -32,6 +33,7 @@ AUDIO_OUT=$(get_config_var audio $RCONFIGFILE)
 INPUT_SEL=$(get_config_var input $RCONFIGFILE)
 INPUT_SEL_T=$(get_config_var input1 $RCONFIGFILE)
 LNBVOLTS=$(get_config_var lnbvolts $RCONFIGFILE)
+DISPLAY=$(get_config_var display $PCONFIGFILE)
 
 # Correct for LNB LO Frequency if required
 if [ "$RX_MODE" == "sat" ]; then
@@ -72,7 +74,11 @@ mkfifo longmynd_main_ts
 
 sudo /home/pi/longmynd/longmynd -s longmynd_status_fifo $VOLTS_CMD $INPUT_CMD $FREQ_KHZ $SYMBOLRATEK &
 
-cvlc -I rc --rc-host 127.0.0.1:1111 -f --gain 5 --alsa-audio-device $AUDIO_DEVICE longmynd_main_ts 2>/home/pi/vlclog.txt &
+if [ "$DISPLAY" == "Element14_7" ]; then
+  cvlc -I rc --rc-host 127.0.0.1:1111 -f --width 800 --height 480 --gain 4 --alsa-audio-device $AUDIO_DEVICE longmynd_main_ts 2>/home/pi/vlclog.txt &
+else  # Waveshare
+  cvlc -I rc --rc-host 127.0.0.1:1111 -f --gain 4 --alsa-audio-device $AUDIO_DEVICE longmynd_main_ts 2>/home/pi/vlclog.txt &
+fi
 
 exit
 

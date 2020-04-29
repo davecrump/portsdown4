@@ -1682,17 +1682,17 @@ case "$MODE_OUTPUT" in
   # Set the video format
   if [ "$FORMAT" == "1080p" ]; then
     VIDEO_WIDTH=1920
-    VIDEO_HEIGHT=1080
+    VIDEO_HEIGHT=1056
   elif [ "$FORMAT" == "720p" ]; then
     VIDEO_WIDTH=1280
-    VIDEO_HEIGHT=720
+    VIDEO_HEIGHT=704
   elif [ "$FORMAT" == "16:9" ]; then
     VIDEO_WIDTH=720
-    VIDEO_HEIGHT=400 # was 405
+    VIDEO_HEIGHT=416 # was 405
   else  # SD
     if [ "$BITRATE_VIDEO" -lt 75000 ]; then
       VIDEO_WIDTH=160
-      VIDEO_HEIGHT=140
+      VIDEO_HEIGHT=128
     else
       if [ "$BITRATE_VIDEO" -lt 150000 ]; then
         VIDEO_WIDTH=352
