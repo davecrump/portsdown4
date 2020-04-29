@@ -1,8 +1,5 @@
 #!/bin/bash
 
-echo Made ti
-
-PATHBIN="/home/pi/rpidatv/bin/"
 RCONFIGFILE="/home/pi/rpidatv/scripts/longmynd_config.txt"
 
 ############ FUNCTION TO READ CONFIG FILE #############################
@@ -47,9 +44,9 @@ fi
 
 # Send audio to the correct port
 if [ "$AUDIO_OUT" == "rpi" ]; then
-  AUDIO_MODE="local"
+  AUDIO_DEVICE="hw:CARD=ALSA,DEV=0"
 else
-  AUDIO_MODE="alsa:plughw:1,0"
+  AUDIO_DEVICE="hw:CARD=Device,DEV=0"
 fi
 
 # Select the correct tuner input
@@ -75,11 +72,7 @@ mkfifo longmynd_main_ts
 
 sudo /home/pi/longmynd/longmynd -s longmynd_status_fifo $VOLTS_CMD $INPUT_CMD $FREQ_KHZ $SYMBOLRATEK &
 
-cvlc -f --gain 6 -A alsa:plughw:1,0  longmynd_main_ts 2>/home/pi/vlclog.txt &
+cvlc -I rc --rc-host 127.0.0.1:1111 -f --gain 5 --alsa-audio-device $AUDIO_DEVICE longmynd_main_ts 2>/home/pi/vlclog.txt &
 
 exit
-
-
-
-
 

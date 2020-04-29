@@ -1,3 +1,6 @@
+202004301
+Graceful shutdown for VLC
+
 202004300
 LongMynd LNB voltage control and MiniTiouner Express support
 VLC Player for limited H265 display in LongMynd

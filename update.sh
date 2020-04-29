@@ -207,15 +207,22 @@ echo "Updating limesdr_toolbox"
 cd /home/pi/rpidatv/src/limesdr_toolbox
 
 # Install sub project dvb modulation
-git clone https://github.com/F5OEO/libdvbmod
+# Download and overwrite
+wget https://github.com/F5OEO/libdvbmod/archive/master.zip -O master.zip
+unzip -o master.zip
+cp -f -r libdvbmod-master libdvbmod
+rm master.zip
+rm -rf libdvbmod-master
+
+# Make libdvbmod
 cd libdvbmod/libdvbmod
 make
 cd ../DvbTsToIQ/
 make
 cp dvb2iq /home/pi/rpidatv/bin/
-cd /home/pi/rpidatv/src/limesdr_toolbox/
 
-#Make 
+#Make limesdr_toolbox
+cd /home/pi/rpidatv/src/limesdr_toolbox/
 make 
 cp limesdr_send /home/pi/rpidatv/bin/
 cp limesdr_dump /home/pi/rpidatv/bin/

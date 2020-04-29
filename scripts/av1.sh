@@ -4,7 +4,11 @@
 
 # set -x
 
-############ IDENTIFY USB VIDEO DEVICES #############################
+########### Reload the Pi Cam Driver in case it has been unloaded ###########
+
+sudo modprobe bcm2835_v4l2 >/dev/null 2>/dev/null
+
+############ IDENTIFY USB VIDEO DEVICES ###################################
 
 # List the video devices, select the 2 lines for the PiCam device, then
 # select the line with the device details and delete the leading tab
