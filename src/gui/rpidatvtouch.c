@@ -8046,7 +8046,7 @@ void *WaitButtonLMRX(void * arg)
 
     if((scaledX <= 15 * wscreen / 40) && (scaledX >= wscreen / 40) && (scaledY <= hscreen) && (scaledY >= 2 * hscreen / 12))
     {
-      printf("in zone\n");
+      printf("In parameter zone, so toggle parameter view.\n");
       if (FinishedButton == 2)  // Toggle parameters on/off 
       {
         FinishedButton = 1; // graphics on
@@ -8058,13 +8058,12 @@ void *WaitButtonLMRX(void * arg)
     }
     else if((scaledX <= 5 * wscreen / 40)  && (scaledY <= hscreen) && (scaledY <= 2 * hscreen / 12))
     {
-      printf("snap\n");
+      printf("In snap zone, so take snap.\n");
       system("/home/pi/rpidatv/scripts/snap2.sh");
     }
-
     else
     {
-      printf("Out of zone\n");
+      printf("Out of zone.  End receive requested.\n");
       FinishedButton = 0;  // Not in the zone, so exit receive
       touch_response = 1;
       count_time_ms = 0;
@@ -8072,18 +8071,27 @@ void *WaitButtonLMRX(void * arg)
       // wait here to make sure that touch_response is set back to 0
       // If not, restart GUI
       printf("Entering Delay\n");
-      while ((touch_response == 1) && (count_time_ms < 3000))
+      while ((touch_response == 1) && (count_time_ms < 500))
       {
         usleep(1000);
         count_time_ms = count_time_ms + 1;
       }
-      printf("Leaving Delay\n");
+      printf("Shutting Down VLC\n");
+      system("/home/pi/rpidatv/scripts/lmvlcsd.sh");
+      count_time_ms = 0;
+      while ((touch_response == 1) && (count_time_ms < 2500))
+      {
+        usleep(1000);
+        count_time_ms = count_time_ms + 1;
+      }
+
       if (touch_response == 1) // count_time has elapsed and still no reponse
       {
+
         system("sudo killall -9 vlc");
         init(&wscreen, &hscreen);  // Restart the graphics
         BackgroundRGB(0, 0, 0, 0); // Clear the screen
-        exit(129);
+        exit(129);                 // Restart the GUI
       }
       return NULL;
     }
@@ -10137,6 +10145,8 @@ void LMRX(int NoButton)
 
               BackgroundRGB(0, 0, 0, 0);
               Fill(0, 0, 0, 127);
+              // Note that, if VLC is running, graphics will crash and hang here until VLC is stopped
+              // The Button thread stops VLC on user command to end receiving
               Rect(wscreen * 1.0 / 40.0, hscreen - 9.2 * linepitch, wscreen * 20.0 / 40.0, hscreen);
               Rect(wscreen * 1.0 / 40.0, hscreen - 11.7 * linepitch, wscreen * 35.0 / 40.0, hscreen - 11.4 * linepitch);
               Fill(255, 255, 255, 255);
@@ -10154,7 +10164,7 @@ void LMRX(int NoButton)
               }
               Text(wscreen * 1.0 / 40.0, hscreen - 9 * linepitch, MERtext, font, pointsize);
               Fill(255, 255, 255, 255);
-              Text(wscreen * 1.0 / 40.0, hscreen - 10.5 * linepitch, "Touch Left to hide data, Right to exit", font, pointsize);
+              Text(wscreen * 1.0 / 40.0, hscreen - 10.5 * linepitch, "Touch Right side to exit", font, pointsize);
               Text(wscreen * 1.0 / 40.0, hscreen - 11.5 * linepitch, "Touch Lower left for image capture", font, pointsize);
             }
             else
@@ -10180,8 +10190,9 @@ void LMRX(int NoButton)
       {
         FinishedButton = 0;
       }
-    } 
-    system("sudo killall vlc >/dev/null 2>/dev/null");
+    }
+    // Shutdown VLC if it has not stolen the graphics
+    system("/home/pi/rpidatv/scripts/lmvlcsd.sh");
 
     close(fd_status_fifo); 
     finish();
@@ -20814,8 +20825,6 @@ terminate(int dummy)
   system(Commnd);
   sprintf(Commnd,"reset");
   system(Commnd);
-  //system("sudo swapoff -a");
-  //system("sudo swapon -a");
   exit(1);
 }
 
