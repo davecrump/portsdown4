@@ -58,8 +58,9 @@ sudo killall longmynd
 
 sudo rm longmynd_main_ts
 
-if [ "$DISPLAY" != "Element14_7" ]; then # Select bleeps (which don't work with the Element 14 display)
-  sudo /home/pi/longmynd/longmynd -b -i $UDPIP $UDPPORT -s longmynd_status_fifo $VOLTS_CMD $INPUT_CMD $FREQ_KHZ $SYMBOLRATEK &
+if [ "$DISPLAY" != "Element14_7" ]; then # Select bleeps (which don't work with the Element 14 display (or not at all)) 
+  #sudo /home/pi/longmynd/longmynd -b -i $UDPIP $UDPPORT -s longmynd_status_fifo $VOLTS_CMD $INPUT_CMD $FREQ_KHZ $SYMBOLRATEK &
+  sudo /home/pi/longmynd/longmynd -i $UDPIP $UDPPORT -s longmynd_status_fifo $VOLTS_CMD $INPUT_CMD $FREQ_KHZ $SYMBOLRATEK &
 else
   sudo /home/pi/longmynd/longmynd -i $UDPIP $UDPPORT -s longmynd_status_fifo $VOLTS_CMD $INPUT_CMD $FREQ_KHZ $SYMBOLRATEK &
 fi
