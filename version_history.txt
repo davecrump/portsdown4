@@ -1,3 +1,6 @@
+202004302
+Preserve Lime Calibration Status during updates
+
 202004301
 Graceful shutdown for VLC
 

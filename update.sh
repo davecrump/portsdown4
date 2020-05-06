@@ -133,6 +133,9 @@ cp -f -r "$PATHSCRIPT"/jetson_config.txt "$PATHUBACKUP"/jetson_config.txt
 # Make a safe copy of the LongMynd config
 cp -f -r "$PATHSCRIPT"/longmynd_config.txt "$PATHUBACKUP"/longmynd_config.txt
 
+# Make a safe copy of the Lime Calibration frequency or status
+cp -f -r "$PATHSCRIPT"/limecalfreq.txt "$PATHUBACKUP"/limecalfreq.txt
+
 # Make a safe copy of the User Button scripts
 cp -f -r "$PATHSCRIPT"/user_button1.sh "$PATHUBACKUP"/user_button1.sh
 cp -f -r "$PATHSCRIPT"/user_button2.sh "$PATHUBACKUP"/user_button2.sh
@@ -377,6 +380,9 @@ if ! grep -q lnbvolts "$PATHSCRIPT"/longmynd_config.txt; then
   echo "lnbvolts=off" >> "$PATHSCRIPT"/longmynd_config.txt
   echo "lnbvolts1=off" >> "$PATHSCRIPT"/longmynd_config.txt
 fi
+
+# Restore the user's original Lime Calibration frequency or status
+cp -f -r "$PATHUBACKUP"/limecalfreq.txt "$PATHSCRIPT"/limecalfreq.txt
 
 # Restore the user's original User Button scripts
 cp -f -r "$PATHUBACKUP"/user_button1.sh "$PATHSCRIPT"/user_button1.sh
