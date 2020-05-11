@@ -1,3 +1,6 @@
+202004110
+Improve EasyCap audio
+
 202004302
 Preserve Lime Calibration Status during updates
 
