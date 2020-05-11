@@ -597,7 +597,7 @@ case "$MODE_INPUT" in
       else
         arecord -f S16_LE -r $AUDIO_SAMPLE -c 2 -B $ARECORD_BUF -D plughw:$AUDIO_CARD_NUMBER,0 > audioin.wav &
       fi
-   
+
       sudo $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -d 300 -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
         -f $VIDEO_FPS -i $IDRPERIOD $OUTPUT_FILE -t 0 -e $ANALOGCAMNAME -p $PIDPMT -s $CALL $OUTPUT_IP \
         -a audioin.wav -z $BITRATE_AUDIO > /dev/null &
@@ -915,10 +915,16 @@ fi
       fi
     else
       # Webcam in use
+      # Check audio first
+      if [ "$AUDIO_PREF" == "auto" ] || [ "$AUDIO_PREF" == "webcam" ]; then  # Webcam audio
+        if [ $C920Present == 1 ]; then
+          AUDIO_SAMPLE=32000
+        fi
+      fi
+
       # If a C920 put it in the right mode
       # Anything over 800x448 does not work
       if [ $C920Present == 1 ]; then
-        AUDIO_SAMPLE=32000
         if [ "$BITRATE_VIDEO" -gt 190000 ]; then  # 333KS FEC 1/2 or better
           v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=800,height=448,pixelformat=0 --set-parm=15 \
             --set-ctrl power_line_frequency=1
@@ -970,8 +976,8 @@ fi
         sudo nice -n -30 netcat -u -4 127.0.0.1 1314 < videots &
       ;;
       "LIMEMINI" | "LIMEUSB" | "LIMEDVB")
-      $PATHRPI"/limesdr_dvb" -i videots -s "$SYMBOLRATE_K"000 -f $FECNUM/$FECDEN -r $UPSAMPLE -m $MODTYPE -c $CONSTLN $PILOTS $FRAMES \
-        -t "$FREQ_OUTPUT"e6 -g $LIME_GAINF -q $CAL $CUSTOM_FPGA -D $DIGITAL_GAIN -e $BAND_GPIO $LIMETYPE &
+        $PATHRPI"/limesdr_dvb" -i videots -s "$SYMBOLRATE_K"000 -f $FECNUM/$FECDEN -r $UPSAMPLE -m $MODTYPE -c $CONSTLN $PILOTS $FRAMES \
+          -t "$FREQ_OUTPUT"e6 -g $LIME_GAINF -q $CAL $CUSTOM_FPGA -D $DIGITAL_GAIN -e $BAND_GPIO $LIMETYPE &
       ;;
       *)
         sudo $PATHRPI"/rpidatv" -i videots -s $SYMBOLRATE_K -c $FECNUM"/"$FECDEN -f $FREQUENCY_OUT -p $GAIN -m $MODE -x $PIN_I -y $PIN_Q &
@@ -979,7 +985,6 @@ fi
     esac
 
     # Now generate the stream
-
 
     if [ "$AUDIO_CARD" == 0 ]; then
       # ******************************* H264 VIDEO, NO AUDIO ************************************
@@ -993,12 +998,9 @@ fi
     else
       # ******************************* H264 VIDEO WITH AUDIO ************************************
 
-      if [ $AUDIO_SAMPLE != 48000 ]; then
-        arecord -f S16_LE -r $AUDIO_SAMPLE -c 2 -B $ARECORD_BUF -D plughw:$AUDIO_CARD_NUMBER,0 \
-          | sox --buffer 1024 -t wav - audioin.wav rate 48000 &
-      else
-        arecord -f S16_LE -r $AUDIO_SAMPLE -c 2 -B $ARECORD_BUF -D plughw:$AUDIO_CARD_NUMBER,0 > audioin.wav &
-      fi
+      # Resample the audio (was 32k or 48k which overruns, so this is reduced to 46500)
+      arecord -f S16_LE -r $AUDIO_SAMPLE -c 2 -B $ARECORD_BUF -D plughw:$AUDIO_CARD_NUMBER,0 \
+        | sox -c $AUDIO_CHANNELS --buffer 1024 -t wav - audioin.wav rate 46500 &  
 
       sudo $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -d 300 -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
         -f $VIDEO_FPS -i $IDRPERIOD $OUTPUT_FILE -t 2 -e $ANALOGCAMNAME -p $PIDPMT -s $CALL $OUTPUT_IP \
@@ -1009,7 +1011,8 @@ fi
       do
         sleep 10
         if ! pgrep -x "arecord" > /dev/null; then # arecord is not running, so restart it
-          arecord -f S16_LE -r $AUDIO_SAMPLE -c 2 -B $ARECORD_BUF -D plughw:$AUDIO_CARD_NUMBER,0 > audioin.wav &
+        arecord -f S16_LE -r $AUDIO_SAMPLE -c 2 -B $ARECORD_BUF -D plughw:$AUDIO_CARD_NUMBER,0 \
+          | sox -c $AUDIO_CHANNELS --buffer 1024 -t wav - audioin.wav rate 46500 &  
         fi
       done
     fi
