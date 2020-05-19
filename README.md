@@ -1,4 +1,4 @@
-![portsdown banner](/doc/img/Portsdown A27.jpg)
+![portsdown banner](/doc/img/Portsdown_A27.jpg)
 # Portsdown Buster Build For RPi 4
 
 **The Portsdown** is a DVB-S and DVB-S2 digital television system for the Raspberry Pi.  The core of the system was written by Evariste Courjaud F5OEO and is maintained by him.  This BATC Version, known as the Portsdown, has been developed by a team of BATC members for use with a LimeSDR Mini or a DATV Express PCB and a MiniTiouner.  The intention is that the design should be reproducible by someone who has never used Linux before.  Detailed instructions on loading the software are listed below, and further details of the complete system design and build are on the BATC Wiki at https://wiki.batc.org.uk/The_Portsdown_Transmitter.  There is a Forum for discussion of the project here: https://forum.batc.org.uk/viewforum.php?f=103
