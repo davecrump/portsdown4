@@ -38,7 +38,7 @@ To load the development version, cut and paste in the following lines:
 
 ```sh
 Langstone/stop
-wget https://raw.githubusercontent.com/davecrump/portsdown-a27/install_portsdown.sh
+wget https://raw.githubusercontent.com/davecrump/portsdown-a27/master/install_portsdown.sh
 chmod +x install.sh
 ./install_portsdown.sh -d
 ```
