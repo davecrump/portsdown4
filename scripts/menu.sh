@@ -1,12 +1,11 @@
 #!/bin/bash
 
-# Version 201902250
+# Version 20200531
 
 ############ Set Environment Variables ###############
 
 PATHSCRIPT=/home/pi/rpidatv/scripts
 PATHRPI=/home/pi/rpidatv/bin
-CONFIGFILE=$PATHSCRIPT"/rpidatvconfig.txt"
 PATHCONFIGS="/home/pi/rpidatv/scripts/configs"  ## Path to config files
 PCONFIGFILE="/home/pi/rpidatv/scripts/portsdown_config.txt"
 PATH_PPRESETS="/home/pi/rpidatv/scripts/portsdown_presets.txt"
@@ -1485,11 +1484,6 @@ do_receive()
     sudo killall -9 rtl_tcp >/dev/null 2>/dev/null
   fi
 
-  if ! pgrep -x "fbcp" > /dev/null; then
-    # fbcp is not running, so start it
-    fbcp &
-  fi
-
   MODE_OUTPUT=$(get_config_var modeoutput $PCONFIGFILE)
   case "$MODE_OUTPUT" in
   BATC)
@@ -1592,7 +1586,7 @@ do_autostart_setup()
     Display_boot)
       Radio4=ON
     ;;
-    TestRig_boot)
+    Langstone_boot)
       Radio5=ON
     ;;
     Button_boot)
@@ -1627,7 +1621,7 @@ do_autostart_setup()
    "Console" "$AutostartSetupConsole" $Radio2 \
    "TX_boot" "$AutostartSetupTX_boot" $Radio3 \
    "Display_boot" "$AutostartSetupDisplay_boot" $Radio4 \
-   "TestRig_boot" "Boot-up to Test Rig for F-M Boards" $Radio5 \
+   "Langstone_boot" "Boot-up to the Langstone TRX" $Radio5 \
    "Button_boot" "$AutostartSetupButton_boot" $Radio6 \
    "Keyed_Stream_boot" "Boot up to Keyed Repeater Streamer" $Radio7 \
    "Cont_Stream_boot" "Boot up to Always-on Repeater Streamer" $Radio8 \
@@ -3184,8 +3178,6 @@ do_Shutdown()
 do_TouchScreen()
 {
   reset
-  sudo killall fbcp >/dev/null 2>/dev/null
-  fbcp &
   /home/pi/rpidatv/scripts/scheduler.sh
 }
 
@@ -3202,14 +3194,6 @@ do_KStreamer()
 do_CStreamer()
 {
   /home/pi/rpidatv/bin/keyedstream 0
-}
-
-do_TestRig()
-{
-  reset
-  sudo killall fbcp >/dev/null 2>/dev/null
-  fbcp &
-  /home/pi/rpidatv/bin/testrig
 }
 
 do_EnableButtonSD()
@@ -3234,9 +3218,8 @@ menuchoice=$(whiptail --title "Shutdown Menu" --menu "Select Choice" 16 78 10 \
     "5 Start Keyed TX" "Start the GPIO keyed Transmitter" \
     "6 Start Keyed Streamer" "Start the keyed Repeater Streamer" \
     "7 Start Constant Streamer" "Start the constant Repeater Streamer" \
-    "8 Start Test Rig"  "Test rig for pre-sale testing of FM Boards" \
-    "9 Button Enable" "Enable Shutdown Button" \
-    "10 Button Disable" "Disable Shutdown Button" \
+    "8 Button Enable" "Enable Shutdown Button" \
+    "9 Button Disable" "Disable Shutdown Button" \
       3>&2 2>&1 1>&3)
     case "$menuchoice" in
         1\ *) do_Shutdown ;;
@@ -3246,16 +3229,13 @@ menuchoice=$(whiptail --title "Shutdown Menu" --menu "Select Choice" 16 78 10 \
         5\ *) do_KTransmit ;;
         6\ *) do_KStreamer ;;
         7\ *) do_CStreamer ;;
-        8\ *) do_TestRig ;;
-        9\ *) do_EnableButtonSD ;;
-        10\ *) do_DisableButtonSD ;;
+        8\ *) do_EnableButtonSD ;;
+        9\ *) do_DisableButtonSD ;;
     esac
 }
 
 display_splash()
 {
-  sudo killall -9 fbcp >/dev/null 2>/dev/null
-  fbcp & >/dev/null 2>/dev/null  ## fbcp gets started here and stays running. Not called by a.sh
   sudo fbi -T 1 -noverbose -a $PATHSCRIPT"/images/BATC_Black.png" >/dev/null 2>/dev/null
   (sleep 1; sudo killall -9 fbi >/dev/null 2>/dev/null) &  ## kill fbi once it has done its work
 }

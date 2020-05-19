@@ -6,7 +6,7 @@
 
 sudo killall rpidatvgui >/dev/null 2>/dev/null
 cd /home/pi/rpidatv/src/gui
-make clean
+# make clean
 make
 if [ $? != "0" ]; then
   echo
@@ -19,6 +19,5 @@ cd ../
 
 cd /home/pi
 reset
-sudo killall fbcp >/dev/null 2>/dev/null
-fbcp &
+
 /home/pi/rpidatv/scripts/scheduler.sh
