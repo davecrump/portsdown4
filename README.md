@@ -15,7 +15,7 @@ Follow the instructions to load the Langstone system and check that is functioni
 ```sh
 Langstone/stop
 wget https://raw.githubusercontent.com/BritishAmateurTelevisionClub/portsdown-a27/master/install_portsdown.sh
-chmod +x install.sh
+chmod +x install_portsdown.sh
 ./install_portsdown.sh
 ```
 
@@ -39,14 +39,14 @@ To load the development version, cut and paste in the following lines:
 ```sh
 Langstone/stop
 wget https://raw.githubusercontent.com/davecrump/portsdown-a27/master/install_portsdown.sh
-chmod +x install.sh
+chmod +x install_portsdown.sh
 ./install_portsdown.sh -d
 ```
 
 To load a version from your own GitHub repo (github.com/your_account/portsdown-a27), cut, paste and amend the following lines:
 ```sh
 wget https://raw.githubusercontent.com/your_account/portsdown-a27/master/install_portsdown.sh
-chmod +x install.sh
+chmod +x install_portsdown.sh
 ./install_portsdown.sh -u your_account
 ```
 The alternative github user account will need to include forks of the portsdown and avc2ts and longmynd repositories.
