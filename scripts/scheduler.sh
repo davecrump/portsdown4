@@ -1,11 +1,39 @@
 #!/usr/bin/env bash
 
+# set -x
+
 # This script is sourced (run) by startup.sh if the touchscreen interface
 # is required.
 # It enables the various touchscreen applications to call each other
 # by checking their return code
 # If any applications exits abnormally (with a 1 or a 0 exit code)
 # it currently terminates or (for interactive sessions) goes back to a prompt
+
+############ Set Environment Variables ###############
+
+PATHSCRIPT=/home/pi/rpidatv/scripts
+PATHRPI=/home/pi/rpidatv/bin
+PATHCONFIGS="/home/pi/rpidatv/scripts/configs"  ## Path to config files
+PCONFIGFILE="/home/pi/rpidatv/scripts/portsdown_config.txt"
+
+############ Function to Read from Config File ###############
+
+get_config_var() {
+lua - "$1" "$2" <<EOF
+local key=assert(arg[1])
+local fn=assert(arg[2])
+local file=assert(io.open(fn))
+for line in file:lines() do
+local val = line:match("^#?%s*"..key.."=(.*)$")
+if (val ~= nil) then
+print(val)
+break
+end
+end
+EOF
+}
+
+##############################################################
 
 # set -x
 
@@ -18,12 +46,29 @@
 # 131  Exit from rpidatvgui requesting start of spectrum monitor
 # 132  Run Update Script for production load
 # 133  Run Update Script for development load
-# 134  Run XY Display
+# 134  
+# 135  Run the Langstone TRX
 # 160  Shutdown from GUI
 # 192  Reboot from GUI
 # 193  Rotate 7 inch and reboot
 
-GUI_RETURN_CODE=129             # Start rpidatvgui on first call
+MODE_STARTUP=$(get_config_var startup $PCONFIGFILE)
+
+
+case "$MODE_STARTUP" in
+  Display_boot)
+    # Start the Portsdown Touchscreen
+    GUI_RETURN_CODE=129
+  ;;
+  Langstone_boot)
+    # Start the Langstone
+    GUI_RETURN_CODE=135
+  ;;
+  *)
+    # Default to Portsdown
+    GUI_RETURN_CODE=129
+  ;;
+esac
 
 while [ "$GUI_RETURN_CODE" -gt 127 ] || [ "$GUI_RETURN_CODE" -eq 0 ];  do
   case "$GUI_RETURN_CODE" in
@@ -60,6 +105,16 @@ while [ "$GUI_RETURN_CODE" -gt 127 ] || [ "$GUI_RETURN_CODE" -eq 0 ];  do
     134)
       GUI_RETURN_CODE="129"
     ;;
+    135)
+      cd /home/pi
+      /home/pi/Langstone/stop
+      /home/pi/Langstone/run
+      /home/pi/Langstone/stop
+      PLUTOIP=$(get_config_var plutoip $PCONFIGFILE)
+      ssh-keygen -f "/home/pi/.ssh/known_hosts" -R "$PLUTOIP"
+      sshpass -p analog ssh -o StrictHostKeyChecking=no root@"$PLUTOIP" 'reboot'
+      GUI_RETURN_CODE="129"
+    ;;
     160)
       sleep 1
       sudo swapoff -a
@@ -67,6 +122,9 @@ while [ "$GUI_RETURN_CODE" -gt 127 ] || [ "$GUI_RETURN_CODE" -eq 0 ];  do
       break
     ;;
     192)
+      PLUTOIP=$(get_config_var plutoip $PCONFIGFILE)
+      ssh-keygen -f "/home/pi/.ssh/known_hosts" -R "$PLUTOIP"
+      sshpass -p analog ssh -o StrictHostKeyChecking=no root@"$PLUTOIP" 'reboot'
       sleep 1
       sudo swapoff -a
       sudo reboot now

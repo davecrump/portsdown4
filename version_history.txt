@@ -1,3 +1,7 @@
+202005310
+Initial A27 build for RPi 4 with langstone
+LongMynd Receiver only
+
 202005110
 Improve EasyCap audio
 

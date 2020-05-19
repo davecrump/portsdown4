@@ -30,9 +30,9 @@ pathmedia=/home/pi/rpidatv/video
 gpio_i=12
 gpio_q=13
 udpoutaddr=192.168.2.110
-display=Waveshare
+display=Element14_7
 menulanguage=en
-startup=Display_boot
+startup=Langstone_boot
 adfref=25000000
 vfinder=on
 batcoutput=streamname
@@ -45,4 +45,5 @@ frames=long
 format=4:3
 encoding=H264
 limerfe=disabled
+plutoip=192.168.2.1
 

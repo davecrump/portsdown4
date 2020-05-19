@@ -5,7 +5,7 @@
 # This script is sourced from .bashrc at boot and ssh session start
 # to sort out driver issues and
 # to select the user's selected start-up option.
-# Dave Crump 20170721 Revised for Stretch 20180327 and 20190130
+# Dave Crump 20200516
 
 ############ Set Environment Variables ###############
 
@@ -133,7 +133,8 @@ MODE_STARTUP=$(get_config_var startup $PCONFIGFILE)
 
 # But only if it is a boot session and display boot selected
 
-if [[ "$SESSION_TYPE" == "boot" && "$MODE_STARTUP" == "Display_boot" ]]; then
+if [[ "$SESSION_TYPE" == "boot" && "$MODE_STARTUP" == "Display_boot" ]] || \
+   [[ "$SESSION_TYPE" == "boot" && "$MODE_STARTUP" == "Langstone_boot" ]] ; then
 
   # Test if the device is a LimeNet Micro
   # (0 for LimeNet Micro detected, 1 for not detected)
@@ -290,15 +291,6 @@ if [[ "$SESSION_TYPE" == "boot" && "$MODE_STARTUP" == "Display_boot" ]]; then
   fi
 fi
 
-# Test if Waveshare selected, but raspi2raspi set to run
-# If so, unset it and reboot
-if [ "$DISPLAY" == "Waveshare" ]; then
-  if [ -f "/etc/systemd/system/raspi2raspi.service" ]; then
-    source /home/pi/rpidatv/scripts/7_inch_comp_vid_off.sh
-    sudo reboot now
-  fi
-fi
-
 # If pi-sdn is not running, check if it is required to run
 ps -cax | grep 'pi-sdn' >/dev/null 2>/dev/null
 RESULT="$?"
@@ -312,16 +304,6 @@ fi
 # Calls .wifi_off if present and runs "sudo ip link set wlan0 down"
 if [ -f ~/.wifi_off ]; then
     . ~/.wifi_off
-fi
-
-
-# If framebuffer copy is not already running, start it for non-Element 14 displays
-if [ "$DISPLAY" != "Element14_7" ]; then
-  ps -cax | grep 'fbcp' >/dev/null 2>/dev/null
-  RESULT="$?"
-  if [ "$RESULT" -ne 0 ]; then
-    fbcp &
-  fi
 fi
 
 # If a boot session, put up the BATC Splash Screen, and then kill the process
@@ -349,6 +331,9 @@ fi
 
 # Select the appropriate action
 
+echo MODE_STARTUP Just before case statement >> start_log.txt
+echo $MODE_STARTUP >> start_log.txt
+
 case "$MODE_STARTUP" in
   Prompt)
     # Go straight to command prompt
@@ -369,26 +354,21 @@ case "$MODE_STARTUP" in
   ;;
   Display_boot)
     # Start the Touchscreen Scheduler
+echo "Reached Portsdown boot" >> start_log.txt
+
     source /home/pi/rpidatv/scripts/scheduler.sh
     return
   ;;
-  TestRig_boot)
-    # Start the touchscreen interface for the filter-mod test rig
-    /home/pi/rpidatv/bin/testrig
+  Langstone_boot)
+    # Start the Touchscreen Scheduler
+echo "Reached Langstone boot" >> start_log.txt
+    source /home/pi/rpidatv/scripts/scheduler.sh
     return
   ;;
   Keyed_Stream_boot)
     # Start the Switched stream with the default GPIO Pins
     if [ "$SESSION_TYPE" == "boot" ]; then
       /home/pi/rpidatv/bin/keyedstream 1 7 &
-      (/home/pi/rpidatv/scripts/streamer_process_watchdog.sh >/dev/null 2>/dev/null) &
-    fi
-    return
-  ;;
-  Cont_Stream_boot)
-    # Start a continuous stream
-    if [ "$SESSION_TYPE" == "boot" ]; then
-      /home/pi/rpidatv/bin/keyedstream 0 &
       (/home/pi/rpidatv/scripts/streamer_process_watchdog.sh >/dev/null 2>/dev/null) &
     fi
     return
@@ -404,21 +384,6 @@ case "$MODE_STARTUP" in
     # Start the Switched transmitter with the default GPIO Pins and Touchscreen
     if [ "$SESSION_TYPE" == "boot" ]; then
       (sleep 10; /home/pi/rpidatv/bin/keyedtxtouch 1 7) &
-    fi
-    return
-  ;;
-  SigGen_boot)
-    # Start the Sig Gen with the output on
-    if [ "$SESSION_TYPE" == "boot" ]; then
-      /home/pi/rpidatv/bin/siggen on
-    fi
-    return
-  ;;
-  StreamRX_boot)
-    # Start the Streamer Display with the default GPIO Pin
-    reset
-    if [ "$SESSION_TYPE" == "boot" ]; then
-      /home/pi/rpidatv/bin/streamrx &
     fi
     return
   ;;

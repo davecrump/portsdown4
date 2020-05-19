@@ -1,13 +1,13 @@
 #!/bin/bash
 
-# Updated by davecrump 201911230 for Buster
+# Updated by davecrump 20200516 for Buster
 
 DisplayUpdateMsg() {
   # Delete any old update message image
   rm /home/pi/tmp/update.jpg >/dev/null 2>/dev/null
 
   # Create the update image in the tempfs folder
-  convert -size 720x576 xc:white \
+  convert -size 800x480 xc:white \
     -gravity North -pointsize 40 -annotate 0 "\nUpdating Portsdown Software" \
     -gravity Center -pointsize 50 -annotate 0 "$1""\n\nPlease wait" \
     -gravity South -pointsize 50 -annotate 0 "DO NOT TURN POWER OFF" \
@@ -23,7 +23,7 @@ DisplayRebootMsg() {
   rm /home/pi/tmp/update.jpg >/dev/null 2>/dev/null
 
   # Create the update image in the tempfs folder
-  convert -size 720x576 xc:white \
+  convert -size 800x480 xc:white \
     -gravity North -pointsize 40 -annotate 0 "\nUpdating Portsdown Software" \
     -gravity Center -pointsize 50 -annotate 0 "$1""\n\nDone" \
     -gravity South -pointsize 50 -annotate 0 "SAFE TO POWER OFF" \
@@ -57,7 +57,7 @@ printf "\nCommencing update.\n\n"
 
 cd /home/pi
 
-## Check which update to load. From M0DNY 201905090
+## Check which update to load
 GIT_SRC_FILE=".portsdown_gitsrc"
 if [ -e ${GIT_SRC_FILE} ]; then
   GIT_SRC=$(</home/pi/${GIT_SRC_FILE})
@@ -76,11 +76,11 @@ if [ "$1" == "-d" ]; then
 fi
 
 if [ "$GIT_SRC" == "BritishAmateurTelevisionClub" ]; then
-  echo "Updating to latest Production Portsdown build";
+  echo "Updating to latest Production Portsdown RPi 4 build";
 elif [ "$GIT_SRC" == "davecrump" ]; then
-  echo "Updating to latest development Portsdown build";
+  echo "Updating to latest development Portsdown RPi 4 build";
 else
-  echo "Updating to latest ${GIT_SRC} development Portsdown build";
+  echo "Updating to latest ${GIT_SRC} development Portsdown RPi 4 build";
 fi
 
 printf "Pausing Streamer or TX if running.\n\n"
@@ -161,7 +161,7 @@ sudo apt-get -y dist-upgrade # Upgrade all the installed packages to their lates
 
 # --------- Install new packages as Required ---------
 
-sudo apt-get -y install mplayer vlc # 202004300 Used for video monitor and LongMynd
+# none required yet
 
 # ---------- Update rpidatv -----------
 
@@ -170,18 +170,18 @@ DisplayUpdateMsg "Step 5 of 10\nDownloading Portsdown SW\n\nXXXXX-----"
 cd /home/pi
 
 # Download selected source of rpidatv
-wget https://github.com/${GIT_SRC}/portsdown-buster/archive/master.zip -O master.zip
+wget https://github.com/${GIT_SRC}/portsdown-a27/archive/master.zip -O master.zip
 
 # Unzip and overwrite where we need to
 unzip -o master.zip
-cp -f -r portsdown-buster-master/bin rpidatv
-cp -f -r portsdown-buster-master/scripts rpidatv
-cp -f -r portsdown-buster-master/src rpidatv
+cp -f -r portsdown-a27-master/bin rpidatv
+cp -f -r portsdown-a27-master/scripts rpidatv
+cp -f -r portsdown-a27-master/src rpidatv
 rm -f rpidatv/video/*.jpg
-cp -f -r portsdown-buster-master/video rpidatv
-cp -f -r portsdown-buster-master/version_history.txt rpidatv/version_history.txt
+cp -f -r portsdown-a27-master/video rpidatv
+cp -f -r portsdown-a27-master/version_history.txt rpidatv/version_history.txt
 rm master.zip
-rm -rf portsdown-buster-master
+rm -rf portsdown-a27-master
 cd /home/pi
 
 DisplayUpdateMsg "Step 6 of 10\nCompiling Portsdown SW\n\nXXXXXX----"
@@ -194,6 +194,9 @@ touch rpidatv.c
 make clean
 make
 sudo make install
+
+# Ensure that wrong dtblob.bin is disabled
+sudo mv /boot/dt-blob.bin /boot/dt-blob.bin.old
 
 # Compile rpidatv gui
 sudo killall -9 rpidatvgui
@@ -257,31 +260,6 @@ make
 cp adf4351 ../../bin/
 cd /home/pi
 
-#install H264 Decoder : hello_video
-#compile ilcomponet first
-cd /opt/vc/src/hello_pi/
-sudo ./rebuild.sh
-
-# install H264 player
-echo "Installing hello_video"
-cd /home/pi/rpidatv/src/hello_video
-touch video.c
-make
-cp hello_video.bin ../../bin/
-
-# install MPEG-2 player
-echo "Installing hello_video2"
-cd /home/pi/rpidatv/src/hello_video2
-touch video.c
-make
-cp hello_video2.bin ../../bin/
-
-# Compile and install the executable for switched repeater streaming (201708150)
-echo "Installing switched repeater streaming"
-cd /home/pi/rpidatv/src/rptr
-make
-mv keyedstream /home/pi/rpidatv/bin/
-cd /home/pi
 
 # Compile and install the executable for GPIO-switched transmission (201710080)
 echo "Installing keyedtx"
@@ -296,40 +274,12 @@ make
 mv keyedtxtouch /home/pi/rpidatv/bin/
 cd /home/pi
 
-# Compile and install the executable for the Stream Receiver (201807290)
-echo "Installing streamrx"
-cd /home/pi/rpidatv/src/streamrx
-make
-mv streamrx /home/pi/rpidatv/bin/
-cd /home/pi
-
-# Compile the Signal Generator (201710280)
-echo "Installing siggen"
-cd /home/pi/rpidatv/src/siggen
-make clean
-make
-sudo make install
-cd /home/pi
-
 # Compile the Attenuator Driver (201801060)
 echo "Installing atten"
 cd /home/pi/rpidatv/src/atten
 make
 cp /home/pi/rpidatv/src/atten/set_attenuator /home/pi/rpidatv/bin/set_attenuator
 cd /home/pi
-
-# Check if raspi2png needs to be installed (202004300)
-if [ ! -f "/usr/bin/raspi2png" ]; then
-  echo "Installing raspi2png"
-  wget https://github.com/AndrewFromMelbourne/raspi2png/archive/master.zip
-  unzip master.zip
-  mv raspi2png-master raspi2png
-  rm master.zip
-  cd raspi2png
-  make
-  sudo make install
-  cd /home/pi
-fi
 
 # May need to re-copy the other files in /bin here
 # Check after publishing!
@@ -394,8 +344,6 @@ cp -f -r "$PATHUBACKUP"/user_button5.sh "$PATHSCRIPT"/user_button5.sh
 # Restore the user's original transmit start and transmit stop scripts
 cp -f -r "$PATHUBACKUP"/TXstartextras.sh "$PATHSCRIPT"/TXstartextras.sh
 cp -f -r "$PATHUBACKUP"/TXstopextras.sh "$PATHSCRIPT"/TXstopextras.sh
-
-
 
 DisplayUpdateMsg "Step 9 of 10\nFinishing Off\n\nXXXXXXXXX-"
 

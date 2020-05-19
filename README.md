@@ -1,4 +1,4 @@
-![portsdown banner](/doc/img/Portsdown_A27.jpg)
+![portsdown banner](/doc/img/Portsdown A27.jpg)
 # Portsdown Buster Build For RPi 4
 
 **The Portsdown** is a DVB-S and DVB-S2 digital television system for the Raspberry Pi.  The core of the system was written by Evariste Courjaud F5OEO and is maintained by him.  This BATC Version, known as the Portsdown, has been developed by a team of BATC members for use with a LimeSDR Mini or a DATV Express PCB and a MiniTiouner.  The intention is that the design should be reproducible by someone who has never used Linux before.  Detailed instructions on loading the software are listed below, and further details of the complete system design and build are on the BATC Wiki at https://wiki.batc.org.uk/The_Portsdown_Transmitter.  There is a Forum for discussion of the project here: https://forum.batc.org.uk/viewforum.php?f=103
@@ -14,9 +14,9 @@ Follow the instructions to load the Langstone system and check that is functioni
 
 ```sh
 Langstone/stop
-wget https://raw.githubusercontent.com/BritishAmateurTelevisionClub/portsdown-a27/master/install.sh
+wget https://raw.githubusercontent.com/BritishAmateurTelevisionClub/portsdown-a27/master/install_portsdown.sh
 chmod +x install.sh
-./install.sh
+./install_portsdown.sh
 ```
 
 The initial build can take between 45 minutes and one hour, however it does not need any user input, so go and make a cup of coffee and keep an eye on the touchscreen.  When the build is finished the Pi will reboot and start-up with the touchscreen menu.
@@ -38,15 +38,15 @@ To load the development version, cut and paste in the following lines:
 
 ```sh
 Langstone/stop
-wget https://raw.githubusercontent.com/davecrump/portsdown-a27/master/install.sh
+wget https://raw.githubusercontent.com/davecrump/portsdown-a27/install_portsdown.sh
 chmod +x install.sh
-./install.sh -d
+./install_portsdown.sh -d
 ```
 
 To load a version from your own GitHub repo (github.com/your_account/portsdown-a27), cut, paste and amend the following lines:
 ```sh
-wget https://raw.githubusercontent.com/your_account/portsdown-a27/master/install.sh
+wget https://raw.githubusercontent.com/your_account/portsdown-a27/master/install_portsdown.sh
 chmod +x install.sh
-./install.sh -u your_account
+./install_portsdown.sh -u your_account
 ```
-The alternative github user account will need to include forks of both the portsdown and avc2ts repositories.
+The alternative github user account will need to include forks of the portsdown and avc2ts and longmynd repositories.
