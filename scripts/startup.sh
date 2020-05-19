@@ -331,9 +331,6 @@ fi
 
 # Select the appropriate action
 
-echo MODE_STARTUP Just before case statement >> start_log.txt
-echo $MODE_STARTUP >> start_log.txt
-
 case "$MODE_STARTUP" in
   Prompt)
     # Go straight to command prompt
@@ -354,14 +351,11 @@ case "$MODE_STARTUP" in
   ;;
   Display_boot)
     # Start the Touchscreen Scheduler
-echo "Reached Portsdown boot" >> start_log.txt
-
     source /home/pi/rpidatv/scripts/scheduler.sh
     return
   ;;
   Langstone_boot)
     # Start the Touchscreen Scheduler
-echo "Reached Langstone boot" >> start_log.txt
     source /home/pi/rpidatv/scripts/scheduler.sh
     return
   ;;
