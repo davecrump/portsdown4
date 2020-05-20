@@ -161,7 +161,8 @@ sudo apt-get -y dist-upgrade # Upgrade all the installed packages to their lates
 
 # --------- Install new packages as Required ---------
 
-# none required yet
+# Install these because of typo in first install file
+sudo apt-get -y install fbi netcat imagemagick omxplayer
 
 # ---------- Update rpidatv -----------
 
