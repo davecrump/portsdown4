@@ -352,12 +352,12 @@ case "$MODE_STARTUP" in
   Display_boot)
     # Start the Touchscreen Scheduler
     source /home/pi/rpidatv/scripts/scheduler.sh
-    return
+    #return
   ;;
   Langstone_boot)
     # Start the Touchscreen Scheduler
     source /home/pi/rpidatv/scripts/scheduler.sh
-    return
+    #return
   ;;
   Keyed_Stream_boot)
     # Start the Switched stream with the default GPIO Pins

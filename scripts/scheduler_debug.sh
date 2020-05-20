@@ -73,7 +73,7 @@ esac
 while [ "$GUI_RETURN_CODE" -gt 127 ] || [ "$GUI_RETURN_CODE" -eq 0 ];  do
   case "$GUI_RETURN_CODE" in
     0)
-      /home/pi/rpidatv/bin/rpidatvgui > /tmp/PortsdownGUI.log 2>&1
+      /home/pi/rpidatv/bin/rpidatvgui
       GUI_RETURN_CODE="$?"
     ;;
     128)
@@ -81,7 +81,7 @@ while [ "$GUI_RETURN_CODE" -gt 127 ] || [ "$GUI_RETURN_CODE" -eq 0 ];  do
       break
     ;;
     129)
-      /home/pi/rpidatv/bin/rpidatvgui > /tmp/PortsdownGUI.log 2>&1
+      /home/pi/rpidatv/bin/rpidatvgui
       GUI_RETURN_CODE="$?"
     ;;
     130)
