@@ -5517,7 +5517,7 @@ void ShowMenuText()
   for (line = 0; line < 5; line = line + 1)
   {
     //tw = TextWidth(MenuText[line], font, pointsize);
-    //Text(wscreen / 12, hscreen - (4 + line) * linepitch, MenuText[line], font, pointsize);
+    Text(wscreen / 12, hscreen - (2 + line) * linepitch, MenuText[line], pointsize);
   }
 }
 
@@ -15674,13 +15674,6 @@ rawY = 0;
           Start_Highlights_Menu1();
           UpdateWindow();
           break;
-        case 3:                                 // Add MPEG-2 Licence
-          MPEG2License();
-          CurrentMenu=1;
-          BackgroundRGB(255,255,255,255);
-          Start_Highlights_Menu1();
-          UpdateWindow();
-          break;
         case 5:                                 // All defined in ExecuteUpdate(i)
         case 6:
         case 7:
@@ -19595,9 +19588,9 @@ void Define_Menu33()
 
   // Bottom Row, Menu 33
 
-  button = CreateButton(33, 3);
-  AddButtonStatus(button, "MPEG-2^License", &Blue);
-  AddButtonStatus(button, "MPEG-2^License", &Green);
+  //button = CreateButton(33, 3);
+  //AddButtonStatus(button, "MPEG-2^License", &Blue);
+  //AddButtonStatus(button, "MPEG-2^License", &Green);
 
   button = CreateButton(33, 4);
   AddButtonStatus(button, "Exit", &DBlue);
