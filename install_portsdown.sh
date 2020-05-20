@@ -74,7 +74,7 @@ echo "-------------------------------"
 # Required in addition for Portsdown
 sudo apt-get -y install libx11-dev buffer libjpeg-dev indent 
 sudo apt-get -y install ttf-dejavu-core bc usbmount libvncserver-dev
-sudo apt-get -y install fbi netcat imagemagick omplayer
+sudo apt-get -y install fbi netcat imagemagick omxplayer
 sudo apt-get -y install libvdpau-dev libva-dev  # For latest ffmpeg build
 sudo apt-get -y install libsqlite3-dev libi2c-dev # 201811300 Lime
 sudo apt-get -y install sshpass  # 201905090 For Jetson Nano
