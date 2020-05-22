@@ -1143,26 +1143,16 @@ void ExecuteUpdate(int NoButton)
       strcpy(LinuxCommand, "rm /home/pi/update.sh >/dev/null 2>/dev/null");
       system(LinuxCommand);
 
-      if (GetLinuxVer() == 8)  // Jessie, so rpidatv repo
-      {
-        printf("Downloading Normal Update Jessie Version\n");
-        strcpy(LinuxCommand, "wget https://raw.githubusercontent.com/BritishAmateurTelevisionClub/rpidatv/master/update.sh");
-        strcat(LinuxCommand, " -O /home/pi/update.sh");
-        system(LinuxCommand);
+      // This is only for Buster A27, so
 
-        strcpy(Step, "Step 2 of 10\\nLoading Update Script\\n\\nXX--------");
-        DisplayUpdateMsg("Latest Jessie", Step);
-      }
-      else
-      {
-        printf("Downloading Normal Update Stretch Version\n");
-        strcpy(LinuxCommand, "wget https://raw.githubusercontent.com/BritishAmateurTelevisionClub/portsdown/master/update.sh");
-        strcat(LinuxCommand, " -O /home/pi/update.sh");
-        system(LinuxCommand);
+      printf("Downloading Normal Update Buster A27 Version\n");
+      strcpy(LinuxCommand, "wget https://raw.githubusercontent.com/BritishAmateurTelevisionClub/portsdown-a27/master/update.sh");
+      strcat(LinuxCommand, " -O /home/pi/update.sh");
+      system(LinuxCommand);
 
-        strcpy(Step, "Step 2 of 10\\nLoading Update Script\\n\\nXX--------");
-        DisplayUpdateMsg("Latest Stretch", Step);
-      }
+      strcpy(Step, "Step 2 of 10\\nLoading Update Script\\n\\nXX--------");
+      DisplayUpdateMsg("Latest Buster A27", Step);
+
       strcpy(LinuxCommand, "chmod +x /home/pi/update.sh");   
       system(LinuxCommand);
       system("reset");
@@ -1188,26 +1178,16 @@ void ExecuteUpdate(int NoButton)
       strcpy(LinuxCommand, "rm /home/pi/update.sh >/dev/null 2>/dev/null");
       system(LinuxCommand);
 
-      if (GetLinuxVer() == 8)  // Jessie, so rpidatv repo
-      {
-        printf("Downloading Development Update for Jessie\n");
-        strcpy(LinuxCommand, "wget https://raw.githubusercontent.com/davecrump/rpidatv/master/update.sh");
-        strcat(LinuxCommand, " -O /home/pi/update.sh");
-        system(LinuxCommand);
+      // This is only for Buster A27, so
 
-        strcpy(Step, "Step 2 of 10\\nLoading Update Script\\n\\nXX--------");
-        DisplayUpdateMsg("Development Jessie", Step);
-      }
-      else
-      {
-        printf("Downloading Development Update Stretch Version\n");
-        strcpy(LinuxCommand, "wget https://raw.githubusercontent.com/davecrump/portsdown/master/update.sh");
-        strcat(LinuxCommand, " -O /home/pi/update.sh");
-        system(LinuxCommand);
+      printf("Downloading Development Update Buster A27 Version\n");
+      strcpy(LinuxCommand, "wget https://raw.githubusercontent.com/davecrump/portsdown-a27/master/update.sh");
+      strcat(LinuxCommand, " -O /home/pi/update.sh");
+      system(LinuxCommand);
 
-        strcpy(Step, "Step 2 of 10\\nLoading Update Script\\n\\nXX--------");
-        DisplayUpdateMsg("Development Stretch", Step);
-      }
+      strcpy(Step, "Step 2 of 10\\nLoading Update Script\\n\\nXX--------");
+      DisplayUpdateMsg("Latest Development Buster A27", Step);
+
       strcpy(LinuxCommand, "chmod +x /home/pi/update.sh");   
       system(LinuxCommand);
       system("reset");
@@ -1229,95 +1209,56 @@ void ExecuteUpdate(int NoButton)
 
 void LimeFWUpdate(int button)
 {
-  if (GetLinuxVer() == 9)  // Stretch and 1.29
+  // Buster A27 and selectable FW.  0 = 1.29. 1 = 1.30, 2 = Custom
+  if (CheckLimeUSBConnect() == 0)
   {
-    MsgBox4("Please wait", " ", " ", " ");
-    if ((CheckLimeMiniConnect() == 0) || (CheckLimeUSBConnect() == 0))
+    MsgBox4("Upgrading Lime USB", "To latest standard", "Using LimeUtil 19.04", "Please Wait");
+    system("LimeUtil --update");
+    usleep(250000);
+    MsgBox4("Upgrade Complete", " ", "Touch Screen to Continue" ," ");
+  }
+  else if (CheckLimeMiniConnect() == 0)
+  {
+    switch (button)
     {
-      if (CheckGoogle() == 0)
+    case 0:
+      MsgBox4("Upgrading Lime Firmware", "to 1.29", " ", " ");
+      system("sudo LimeUtil --fpga=/home/pi/.local/share/LimeSuite/images/19.01/LimeSDR-Mini_HW_1.2_r1.29.rpd");
+      if (LimeGWRev() == 29)
       {
-        MsgBox4("Upgrading Lime Firmware", " ", " ", " ");
-        system("LimeUtil --update");
-        usleep(250000);
-        if (LimeGWRev() == 29)
-        {
-          MsgBox4("Firmware Upgrade Successful", "Now at Gateware 1.29", "Touch Screen to Continue" ," ");
-        }
-        else
-        {
-          MsgBox4("Firmware Upgrade Unsuccessful", "Further Investigation required", "Touch Screen to Continue" ," ");
-        }
+        MsgBox4("Firmware Upgrade Successful", "Now at Gateware 1.29", "Touch Screen to Continue" ," ");
       }
       else
       {
-        MsgBox4("No Internet Connection", "Please connect before upgrading", "Touch Screen to Continue" ," ");
+        MsgBox4("Firmware Upgrade Unsuccessful", "Further Investigation required", "Touch Screen to Continue" ," ");
       }
-    }
-    else
-    {
-      MsgBox4("No Lime Connected", " ", "Touch Screen to Continue" ," ");
+      break;
+    case 1:
+      MsgBox4("Upgrading Lime Firmware", "to 1.30", " ", " ");
+      system("sudo LimeUtil --fpga=/home/pi/.local/share/LimeSuite/images/19.04/LimeSDR-Mini_HW_1.2_r1.30.rpd");
+      if (LimeGWRev() == 30)
+      {
+        MsgBox4("Firmware Upgrade Successful", "Now at Gateware 1.30", "Touch Screen to Continue" ," ");
+      }
+      else
+      {
+        MsgBox4("Firmware Upgrade Unsuccessful", "Further Investigation required", "Touch Screen to Continue" ," ");
+      }
+      break;
+    case 2:
+      MsgBox4("Upgrading Lime Firmware", "to Custom DVB", " ", " ");
+      system("sudo LimeUtil --force --fpga=/home/pi/.local/share/LimeSuite/images/v0.3/LimeSDR-Mini_lms7_trx_HW_1.2_auto.rpd");
+
+      MsgBox4("Firmware Upgrade Complete", "DVB", "Touch Screen to Continue" ," ");
+      break;
+    default:
+      printf("Lime Update button selection error\n");
+      break;
     }
   }
-  else  // Buster and selectable FW.  0 = 1.29. 1 = 1.30, 2 = Custom
+  else
   {
-    if (CheckLimeUSBConnect() == 0)
-    {
-      MsgBox4("Upgrading Lime USB", "To latest standard", "Using LimeUtil 19.04", "Please Wait");
-      system("LimeUtil --update");
-      usleep(250000);
-      MsgBox4("Upgrade Complete", " ", "Touch Screen to Continue" ," ");
-    }
-    else if (CheckLimeMiniConnect() == 0)
-    {
-      switch (button)
-      {
-      case 0:
-        MsgBox4("Upgrading Lime Firmware", "to 1.29", " ", " ");
-        system("sudo LimeUtil --fpga=/home/pi/.local/share/LimeSuite/images/19.01/LimeSDR-Mini_HW_1.2_r1.29.rpd");
-        if (LimeGWRev() == 29)
-        {
-          MsgBox4("Firmware Upgrade Successful", "Now at Gateware 1.29", "Touch Screen to Continue" ," ");
-        }
-        else
-        {
-          MsgBox4("Firmware Upgrade Unsuccessful", "Further Investigation required", "Touch Screen to Continue" ," ");
-        }
-        break;
-      case 1:
-        MsgBox4("Upgrading Lime Firmware", "to 1.30", " ", " ");
-        system("sudo LimeUtil --fpga=/home/pi/.local/share/LimeSuite/images/19.04/LimeSDR-Mini_HW_1.2_r1.30.rpd");
-
-        if (LimeGWRev() == 30)
-        {
-          MsgBox4("Firmware Upgrade Successful", "Now at Gateware 1.30", "Touch Screen to Continue" ," ");
-        }
-        else
-        {
-          MsgBox4("Firmware Upgrade Unsuccessful", "Further Investigation required", "Touch Screen to Continue" ," ");
-        }
-        break;
-      case 2:
-        MsgBox4("Upgrading Lime Firmware", "to Custom DVB", " ", " ");
-        system("sudo LimeUtil --force --fpga=/home/pi/.local/share/LimeSuite/images/v0.3/LimeSDR-Mini_lms7_trx_HW_1.2_auto.rpd");
-
-        //if (LimeGWRev() == 30)
-        //{
-          MsgBox4("Firmware Upgrade Complete", "DVB", "Touch Screen to Continue" ," ");
-        //}
-        //else
-        //{
-        //  MsgBox4("Firmware Upgrade Unsuccessful", "Further Investigation required", "Touch Screen to Continue" ," ");
-        //}
-        break;
-      default:
-        printf("Lime Update button selection error\n");
-        break;
-      }
-    }
-    else
-    {
-      MsgBox4("No LimeSDR Detected", " ", "Touch Screen to Continue", " ");
-    }
+    MsgBox4("No LimeSDR Detected", " ", "Touch Screen to Continue", " ");
   }
   wait_touch();
 }
@@ -2069,27 +2010,20 @@ void ReadModeOutput(char Moutput[256])
     strcpy(Moutput, "notset");
   }
 
-  if (GetLinuxVer() == 10)  // Buster
-  {  
-    // Read LimeCal freq
-    //GetConfigParam(PATH_LIME_CAL, "limecalfreq", LimeCalFreqText);
-    LimeCalFreq = 437.0; //atof(LimeCalFreqText);
-    // And read LimeRFE state
-    GetConfigParam(PATH_PCONFIG, "limerfe", LimeRFEStateText);
-    if (strcmp(LimeRFEStateText, "enabled") == 0)
-    {
-      LimeRFEState = 1;
-    }
-    else
-    {
-      LimeRFEState = 0;
-    }
+  // Read LimeCal freq
+  GetConfigParam(PATH_LIME_CAL, "limecalfreq", LimeCalFreqText);
+  LimeCalFreq = atof(LimeCalFreqText);
+
+  // And read LimeRFE state
+  GetConfigParam(PATH_PCONFIG, "limerfe", LimeRFEStateText);
+  if (strcmp(LimeRFEStateText, "enabled") == 0)
+  {
+    LimeRFEState = 1;
   }
   else
   {
     LimeRFEState = 0;
   }
-
 }
 
 /***************************************************************************//**
@@ -4133,14 +4067,14 @@ void LimeInfo()
   {
     if (line > 0)    //skip first line
     {
-      //Text(wscreen/12, hscreen - (1.2 * line + 2) * th, response, SansTypeface, 20);
+      Text(wscreen/12, hscreen - (1.2 * line + 2) * th, response, 20);
     }
     line = line + 1;
   }
 
   /* close */
   pclose(fp);
-  //Text(wscreen/12, 1.2 * th, "Touch Screen to Continue", SansTypeface, 20);
+  Text(wscreen/12, 1.2 * th, "Touch Screen to Continue", 20);
 
   End();
 }
@@ -11243,7 +11177,7 @@ void InfoScreen()
   }
   else if (GetLinuxVer() == 10)
   {
-    strcat(swversion, "Buster ");
+    strcat(swversion, "Buster A27 ");
   }
   GetSWVers(result);
   strcat(swversion, result);
@@ -11325,7 +11259,6 @@ void InfoScreen()
   }
 
   // Initialise and calculate the text display
-  //init(&wscreen, &hscreen);  // Restart the gui
   BackgroundRGB(0,0,0,255);  // Black background
   Fill(255, 255, 255, 1);    // White text
   //Fontinfo font = SansTypeface;
@@ -11340,37 +11273,37 @@ void InfoScreen()
   TextMid(wscreen / 2.0, hscreen - linenumber * linepitch, "BATC Portsdown Information Screen", pointsize);
   linenumber = linenumber + 2.0;
 
-  //Text(wscreen/12.0, hscreen - linenumber * linepitch, swversion, pointsize);
+  Text(wscreen/12.0, hscreen - linenumber * linepitch, swversion, pointsize);
   linenumber = linenumber + 1.0;
 
-  //Text(wscreen/12.0, hscreen - linenumber * linepitch, ipaddress, pointsize);
+  Text(wscreen/12.0, hscreen - linenumber * linepitch, ipaddress, pointsize);
   linenumber = linenumber + 1.0;
 
-  //Text(wscreen/12.0, hscreen - linenumber * linepitch, CPUTemp, pointsize);
+  Text(wscreen/12.0, hscreen - linenumber * linepitch, CPUTemp, pointsize);
   linenumber = linenumber + 1.0;
 
-  //Text(wscreen/12.0, hscreen - linenumber * linepitch, PowerText, pointsize);
+  Text(wscreen/12.0, hscreen - linenumber * linepitch, PowerText, pointsize);
   linenumber = linenumber + 1.0;
 
-  //Text(wscreen/12.0, hscreen - linenumber * linepitch, TXParams1, pointsize);
+  Text(wscreen/12.0, hscreen - linenumber * linepitch, TXParams1, pointsize);
   linenumber = linenumber + 1.0;
 
-  //Text(wscreen/12.0, hscreen - linenumber * linepitch, TXParams2, pointsize);
+  Text(wscreen/12.0, hscreen - linenumber * linepitch, TXParams2, pointsize);
   linenumber = linenumber + 1.0;
 
-  //Text(wscreen/12.0, hscreen - linenumber * linepitch, TXParams3, pointsize);
+  Text(wscreen/12.0, hscreen - linenumber * linepitch, TXParams3, pointsize);
   linenumber = linenumber + 1.0;
 
-  //Text(wscreen/12.0, hscreen - linenumber * linepitch, CardSerial, pointsize);
+  Text(wscreen/12.0, hscreen - linenumber * linepitch, CardSerial, pointsize);
   linenumber = linenumber + 1.0;
 
-  //Text(wscreen/12.0, hscreen - linenumber * linepitch, DeviceTitle, pointsize);
+  Text(wscreen/12.0, hscreen - linenumber * linepitch, DeviceTitle, pointsize);
   linenumber = linenumber + 1.0;
 
-  //Text(wscreen/12.0, hscreen - linenumber * linepitch, Device1, pointsize);
+  Text(wscreen/12.0, hscreen - linenumber * linepitch, Device1, pointsize);
   linenumber = linenumber + 1.0;
 
-  //Text(wscreen/12.0, hscreen - linenumber * linepitch, Device2, pointsize);
+  Text(wscreen/12.0, hscreen - linenumber * linepitch, Device2, pointsize);
   linenumber = linenumber + 1.0;
 
   //tw = 20; //TextWidth("Touch Screen to Continue", pointsize);
@@ -12976,6 +12909,18 @@ void UpdateLangstone()
   }
   wait_touch();
   UpdateWindow();
+}
+
+void BackupLangstone()
+{
+  // Copy the Langstone config file out of the Langstone directory for later use.
+  system("cp -f /home/pi/Langstone/Langstone.conf /home/pi/rpidatv/scripts/configs/Langstone.conf > /tmp/PortsdownGUI.log 2>&1");
+}
+
+void RestoreLangstone()
+{
+  // Copy the Langstone config file back into the Langstone directory.
+  system("cp -f /home/pi/rpidatv/scripts/configs/Langstone.conf /home/pi/Langstone/Langstone.conf > /tmp/PortsdownGUI.log 2>&1");
 }
 
 
@@ -15897,13 +15842,33 @@ rawY = 0;
           Start_Highlights_Menu39();
           UpdateWindow();
           break;
-        case 1:                               // Update Langstone
-          printf("Updating the Langstone\n");
+        case 1:                               // Backup Config
+          printf("Backing up Langstone Config\n");
           SetButtonStatus(ButtonNumber(39, 1), 1);
+          UpdateWindow();
+          BackupLangstone();
+          BackgroundRGB(0, 0, 0, 255);
+          SetButtonStatus(ButtonNumber(39, 1), 0);
+          Start_Highlights_Menu39();
+          UpdateWindow();
+          break;
+        case 2:                               // Update Langstone
+          printf("Updating the Langstone\n");
+          SetButtonStatus(ButtonNumber(39, 2), 1);
           UpdateWindow();
           UpdateLangstone();
           BackgroundRGB(0, 0, 0, 255);
-          SetButtonStatus(ButtonNumber(39, 1), 0);
+          SetButtonStatus(ButtonNumber(39, 2), 0);
+          Start_Highlights_Menu39();
+          UpdateWindow();
+          break;
+        case 3:                               // Restore Config
+          printf("Restoring Langstone Config\n");
+          SetButtonStatus(ButtonNumber(39, 3), 1);
+          UpdateWindow();
+          RestoreLangstone();
+          BackgroundRGB(0, 0, 0, 255);
+          SetButtonStatus(ButtonNumber(39, 3), 0);
           Start_Highlights_Menu39();
           UpdateWindow();
           break;
@@ -19802,7 +19767,7 @@ void Define_Menu37()
 {
   int button;
 
-  strcpy(MenuTitle[37], "Buster Lime Configuration Menu (37)"); 
+  strcpy(MenuTitle[37], "Lime Configuration Menu (37)"); 
 
   // Bottom Row, Menu 37
 
@@ -19910,8 +19875,16 @@ void Define_Menu39()
   AddButtonStatus(button, "Enter^Pluto IP", &Blue);
 
   button = CreateButton(39, 1);
+  AddButtonStatus(button,"Back-up^Langstone",&Blue);
+  AddButtonStatus(button,"Back-up^Langstone",&Green);
+
+  button = CreateButton(39, 2);
   AddButtonStatus(button,"Update^Langstone",&Blue);
   AddButtonStatus(button,"Update^Langstone",&Green);
+
+  button = CreateButton(39, 3);
+  AddButtonStatus(button,"Restore^Langstone",&Blue);
+  AddButtonStatus(button,"Restore^Langstone",&Green);
 
   button = CreateButton(39, 4);
   AddButtonStatus(button, "Exit", &DBlue);
