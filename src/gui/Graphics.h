@@ -99,7 +99,7 @@ void displayBlankChar()
 void TextMid(int xpos, int ypos, char*s, int pt)
 {
   int sx;
-  int ysize = 1;
+  //int ysize = 1;
   int p;
   p=0;
   ypos = ypos + 30;
