@@ -203,7 +203,7 @@ sudo mv /boot/dt-blob.bin /boot/dt-blob.bin.old
 sudo killall -9 rpidatvgui
 echo "Installing rpidatvgui"
 cd gui
-make clean
+#make clean
 make
 sudo make install
 cd /home/pi
