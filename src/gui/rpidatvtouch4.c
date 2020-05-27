@@ -13,65 +13,35 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-shapedemo: testbed for OpenVG APIs
-by Anthony Starks (ajstarks@gmail.com)
-
 Initial code by Evariste F5OEO
 Rewitten by Dave, G8GKQ
 */
 //
-#include <linux/input.h>
-#include <string.h>
-#include "touch.h"
-#include <signal.h>
+
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
+#include <stdbool.h>
 #include <unistd.h>
 #include <string.h>
+#include <signal.h>
+#include <pthread.h>
+#include <fftw3.h>
+#include <getopt.h>
+#include <linux/input.h>
 #include <fcntl.h>
 #include <dirent.h>
 #include <ctype.h>
-#include <stdbool.h>
-
-
-// Replace type VGfloat with float throughout
-// Work round all references to SansTypeface
-// Set all calls to TextHeight to 20
-// Set all calls to TextDepth to 20
-// Comment out all Text calls
-// Comment out all RoundRect calls
-// Comment out all setfill calls
-// Comment out all Circle calls
-// Comment out all init() calls
-// Comment out all RGBA calls
-
-//#include "Font.h"
-#include "Graphics.h"
-#include "Touch.h"
-
-// Dummy Function Prototypes
-
-void finish();
-//void BackgroundRGB(int, int, int, int);
-//void Fill();
-void End();
-void WindowClear();
-void StrokeWidth(int);
-void Stroke(int, int, int, float);
-void Line(float, float, float, float);
-void saveterm();
-void rawterm();
-void restoreterm();
-void Start(int, int);
-
-#include <pthread.h>
-#include <fftw3.h>
 #include <math.h>
 #include <wiringPi.h>
-
 #include <sys/stat.h> 
 #include <sys/types.h> 
 
+
+#include "font/font.h"
+#include "touch.h"
+//#include "Font.h"  // Colin's fonts
+#include "Graphics.h"
 
 #define KWHT  "\x1B[37m"
 #define KYEL  "\x1B[33m"
@@ -79,7 +49,6 @@ void Start(int, int);
 #define PATH_CONFIG "/home/pi/rpidatv/scripts/rpidatvconfig.txt"
 #define PATH_PCONFIG "/home/pi/rpidatv/scripts/portsdown_config.txt"
 #define PATH_PPRESETS "/home/pi/rpidatv/scripts/portsdown_presets.txt"
-#define PATH_TOUCHCAL "/home/pi/rpidatv/scripts/touchcal.txt"
 #define PATH_SGCONFIG "/home/pi/rpidatv/src/siggen/siggenconfig.txt"
 #define PATH_RTLPRESETS "/home/pi/rpidatv/scripts/rtl-fm_presets.txt"
 #define PATH_LOCATORS "/home/pi/rpidatv/scripts/portsdown_locators.txt"
@@ -396,58 +365,6 @@ static void cleanexit(int);
 int LimeGWRev();
 void LMRX(int);
 void MakeFreqText(int);
-
-
-void finish()
-{
-}
-
-//void BackgroundRGB(int a, int b , int c, int d)
-//{
-//}
-
-//void Fill()
-//{
-//}
-
-void End()
-{
-}
-
-void WindowClear()
-{
-}
-
-void StrokeWidth(int a)
-{
-}
-
-void Stroke(int a, int b, int c , float d)
-{
-}
-
-void Line(float a, float b, float c, float d)
-{
-}
-
-void saveterm()
-{
-}
-
-void rawterm()
-{
-}
-
-void restoreterm()
-{
-}
-
-void Start(int a, int b)
-{
-}
-
-
-
 
 
 
@@ -1135,7 +1052,6 @@ void ExecuteUpdate(int NoButton)
       // code for normal update
 
       // Display the updating message
-      finish();
       strcpy(Step, "Step 1 of 10\\nDownloading Update\\n\\nX---------");
       DisplayUpdateMsg("Latest" , Step);
 
@@ -1170,7 +1086,6 @@ void ExecuteUpdate(int NoButton)
     {
       // Code for Dev Update
       // Display the updating message
-      finish();
       strcpy(Step, "Step 1 of 10\\nDownloading Update\\n\\nX---------");
       DisplayUpdateMsg("Development", Step);
 
@@ -3386,176 +3301,6 @@ void SaveCurrentRX()
   SetConfigParam(PATH_RXPRESETS, Param, RXfastlock[0]);
 }
 
-/***************************************************************************//**
- * @brief Saves Current LeanDVB Config as a Preset
- *        
- * @param Preset button number 0-9, but not 4
- *
- * @return void
-*******************************************************************************/
-
-void SaveRXPreset(int PresetButton)
-{
-  char Param[255];
-  char Value[255];
-  char Prompt[63];
-  int index;
-  int Spaces = 1;
-  int j;
-
-  // Transform button number into preset index
-  index = PresetButton + 1;  // works for bottom row
-
-  // Read the current preset label and ask for a new value
-  snprintf(Prompt, 62, "Enter the new label for LeanDVB Preset %d (no spaces):", index);
-
-  // Check that there are no spaces
-  while (Spaces >= 1)
-  {
-    Keyboard(Prompt, RXlabel[index], 10);
-
-    // Check that there are no spaces
-    Spaces = 0;
-    for (j = 0; j < strlen(KeyboardReturn); j = j + 1)
-    {
-      if (isspace(KeyboardReturn[j]))
-      {
-        Spaces = Spaces +1;
-      }
-    }
-  }
-  strcpy(RXlabel[index], KeyboardReturn);
-  snprintf(Param, 10, "rx%dlabel", index);
-  SetConfigParam(PATH_RXPRESETS, Param, KeyboardReturn);
-
-  // Copy the current values into the presets arrays
-  strcpy(RXfreq[index], RXfreq[0]);               // String with frequency in MHz
-  RXsr[index] = RXsr[0];                          // Symbol rate in K
-  strcpy(RXfec[index], RXfec[0]);                 // FEC as String
-  RXsamplerate[index] = RXsamplerate[0];          // Samplerate in K. 0 = auto
-  RXgain[index] = RXgain[0];                      // Gain
-  strcpy(RXmodulation[index], RXmodulation[0]);   // Modulation
-  strcpy(RXencoding[index], RXencoding[0]);       // Encoding
-  strcpy(RXsdr[index], RXsdr[0]);                 // SDR Type
-  strcpy(RXgraphics[index], RXgraphics[0]);       // Graphics on/off
-  strcpy(RXparams[index], RXparams[0]);           // Parameters on/off
-  strcpy(RXsound[index], RXsound[0]);             // Sound on/off
-  strcpy(RXfastlock[index], RXfastlock[0]);       // Fastlock on/off
-
-  // Save the current values into the presets File for the preset
-  snprintf(Param, 15, "rx%dfrequency", index);          // Frequency
-  SetConfigParam(PATH_RXPRESETS, Param, RXfreq[0]);
-    
-  snprintf(Param, 15, "rx%dsr", index);                 // SR
-  snprintf(Value, 5, "%d", RXsr[0]);
-  SetConfigParam(PATH_RXPRESETS, Param, Value);
-
-  snprintf(Param, 15, "rx%dfec", index);                // FEC
-  SetConfigParam(PATH_RXPRESETS, Param, RXfec[0]);
-
-  snprintf(Param, 15, "rx%dsamplerate", index);         // Sample Rate
-  snprintf(Value, 5, "%d", RXsamplerate[0]);
-  SetConfigParam(PATH_RXPRESETS, Param, Value);
-
-  snprintf(Param, 15, "rx%dgain", index);               // Gain
-  snprintf(Value, 5, "%d", RXgain[0]);
-  SetConfigParam(PATH_RXPRESETS, Param, Value);
-
-  snprintf(Param, 15, "rx%dmodulation", index);         // Modulation
-  SetConfigParam(PATH_RXPRESETS, Param, RXmodulation[0]);
-
-  snprintf(Param, 15, "rx%dencoding", index);           // Encoding
-  SetConfigParam(PATH_RXPRESETS, Param, RXencoding[0]);
-
-  snprintf(Param, 15, "rx%dsdr", index);                // SDR Type
-  SetConfigParam(PATH_RXPRESETS, Param, RXsdr[0]);
-
-  snprintf(Param, 15, "rx%dgraphics", index);           // Graphics on/off
-  SetConfigParam(PATH_RXPRESETS, Param, RXgraphics[0]);
-
-  snprintf(Param, 15, "rx%dparameters", index);         // Parameters on/off
-  SetConfigParam(PATH_RXPRESETS, Param, RXparams[0]);
-
-  snprintf(Param, 15, "rx%dsound", index);              // Sound on/off
-  SetConfigParam(PATH_RXPRESETS, Param, RXsound[0]);
-
-  snprintf(Param, 15, "rx%dfastlock", index);           // Fastlock on/off
-  SetConfigParam(PATH_RXPRESETS, Param, RXfastlock[0]);
-}
-
-/***************************************************************************//**
- * @brief Loads LeanDVB settings from in-use variables which store preset
- *  and saves them to file as Preset 0    
- * @param Preset button number 0-3
- *
- * @return void
-*******************************************************************************/
-
-void RecallRXPreset(int PresetButton)
-{
-  int index;
-
-  // Transform button number into preset index
-  index = PresetButton + 1;  // works for bottom row
-
-  // Copy stored parameters into in-use parameters
-  strcpy(RXfreq[0], RXfreq[index]);               // String with frequency in MHz
-  strcpy(RXlabel[0], RXlabel[index]);             // String for label
-  RXsr[0] = RXsr[index];                          // Symbol rate in K
-  strcpy(RXfec[0], RXfec[index]);                 // FEC as String
-  RXsamplerate[0] = RXsamplerate[index];          // Samplerate in K. 0 = auto
-  RXgain[0] = RXgain[index];                      // Gain
-  strcpy(RXmodulation[0], RXmodulation[index]);   // Modulation
-  strcpy(RXencoding[0], RXencoding[index]);       // Encoding
-  strcpy(RXsdr[0], RXsdr[index]);                 // SDR Type
-  strcpy(RXgraphics[0], RXgraphics[index]);       // Graphics on/off
-  strcpy(RXparams[0], RXparams[index]);           // Parameters on/off
-  strcpy(RXsound[0], RXsound[index]);             // Sound on/off
-  strcpy(RXfastlock[0], RXfastlock[index]);       // Fastlock on/off
-
-  // Save the new values as preset 0
-  SaveCurrentRX();
-}
-
-/***************************************************************************//**
- * @brief Loads the current transmit settings to LeanDVB
- *  and saves them to file as Preset 0    
- * @param Preset button number 0-3
- *
- * @return void
-*******************************************************************************/
-
-void SetRXLikeTX()
-{
-  char Param[255];
-  char Value[255];
-
-  // Copy TX parameters into in-use LeanDVB parameters
-
-  strcpy(Param, "freqoutput");
-  GetConfigParam(PATH_PCONFIG, Param, Value);
-  strcpy(RXfreq[0], Value);                       // String with frequency in MHz
-  strcpy(RXlabel[0], "As_TX");                    // String for label
-  strcpy(Param, "symbolrate");
-  GetConfigParam(PATH_PCONFIG, Param, Value);
-  RXsr[0] = atoi(Value);                          // Symbol rate in K
-  strcpy(Param, "fec");
-  GetConfigParam(PATH_PCONFIG, Param, Value);
-  strcpy(RXfec[0], Value);                        // FEC as String
-  RXsamplerate[0] = 0;                            // Samplerate: 0 = auto
-  RXgain[0] = 0;                                  // Gain: 0 = auto
-  strcpy(RXmodulation[0], "DVB-S");               // Modulation = DVB-S
-  strcpy(RXencoding[0], CurrentEncoding);         // Encoding
-  strcpy(RXsdr[0], "RTLSDR");                     // SDR Type
-  strcpy(RXgraphics[0], "ON");                    // Graphics on/off
-  strcpy(RXparams[0], "ON");                      // Parameters on/off
-  strcpy(RXsound[0], "OFF");                      // Sound on/off
-  strcpy(RXfastlock[0], "OFF");                   // Fastlock on/off
-
-  // Save the new values as preset 0
-  SaveCurrentRX();
-}
-
 
 /***************************************************************************//**
  * @brief Sets the RTLmode after a button press
@@ -3858,7 +3603,8 @@ int StartExpressServer()
       MsgBox4("Failed to load", "DATV Express firmware.", "Please check connections", "and try again");
       wait_touch();
     }
-    BackgroundRGB(0,0,0,255);
+    setBackColour(0, 0, 0);
+    clearScreen();
   }
   else
   {
@@ -3884,7 +3630,8 @@ void CheckExpress()
     {
       MsgBox2("DATV Express Not connected", "Connect it now or select another mode");
       wait_touch();
-      BackgroundRGB(0,0,0,255);
+      setBackColour(0, 0, 0);
+      clearScreen();
     }
     if (CheckExpressConnect() != 1)   // Connected
     {
@@ -3893,38 +3640,6 @@ void CheckExpress()
   }
 }
 
-/***************************************************************************//**
- * @brief Checks whether fbcp is Running
- *
- * @param 
- *
- * @return 0 if running, 1 if not running
-*******************************************************************************/
-
-int CheckfbcpRunning()
-{
-  //FILE *fp;
-  //char response[255];
-  //int responseint;
-
-  /* Open the command for reading. */
-  //fp = popen("pgrep -x 'fbcp' ; echo $?", "r");
-  //if (fp == NULL) {
-  //  printf("Failed to run command\n" );
-  //  exit(1);
-  //}
-
-  ///* Read the output a line at a time - output it. */
-  //while (fgets(response, 7, fp) != NULL)
-  //{
-  //  responseint = atoi(response);
-  //}
-
-  ///* close */
-  //pclose(fp);
-  //return responseint;
-  return 1;
-}
 
 /***************************************************************************//**
  * @brief Checks whether a Lime Mini is connected
@@ -4045,11 +3760,13 @@ void CheckLimeReady()
 void LimeInfo()
 {
   MsgBox4("Please wait", " ", " ", " ");
-  BackgroundRGB(0,0,0,255);  // Black background
-  Fill(255, 255, 255, 1);    // White text
-  float th = 20; // TextHeight(SansTypeface, 20);
-  //Text(wscreen/12, hscreen - 1 * th, "Lime Firmware Information", SansTypeface, 20);
 
+  // Initialise and calculate the text display
+  setForeColour(255, 255, 255);    // White text
+  setBackColour(0, 0, 0);          // on Black
+  const font_t *font_ptr = &font_dejavu_sans_22;
+  int txtht =  font_ptr->ascent;
+  int linepitch = (14 * txtht) / 10;
 
   FILE *fp;
   char response[255];
@@ -4062,21 +3779,22 @@ void LimeInfo()
     exit(1);
   }
 
+  clearScreen();
+  Text2(wscreen/12, hscreen - 1 * linepitch, "Lime Firmware Information", font_ptr);
+
   /* Read the output a line at a time - output it. */
   while (fgets(response, 50, fp) != NULL)
   {
     if (line > 0)    //skip first line
     {
-      Text(wscreen/12, hscreen - (1.2 * line + 2) * th, response, 20);
+      Text2(wscreen/12, hscreen - (1.2 * line + 2) * linepitch, response, font_ptr);
     }
     line = line + 1;
   }
 
   /* close */
   pclose(fp);
-  Text(wscreen/12, 1.2 * th, "Touch Screen to Continue", 20);
-
-  End();
+  Text2(wscreen/12, 1.2 * linepitch, "Touch Screen to Continue", font_ptr);
 }
 
 /***************************************************************************//**
@@ -4264,9 +3982,6 @@ int LimeHWVer()
 *******************************************************************************/
 void LimeMiniTest()
 {
-  BackgroundRGB(0,0,0,255);  // Black background
-  Fill(255, 255, 255, 1);    // White text
-  float th = 20; //TextHeight(SansTypeface, 20);
   char version_info[51];
   int LHWVer = 0;
   int LFWVer = 0;
@@ -4286,36 +4001,41 @@ void LimeMiniTest()
   int rflt = 1;     // RF Loopback Test
   int bt = 1;       // Board tests
 
-  MsgBox4("Testing...", " ", "Please Wait", " ");
-  BackgroundRGB(0,0,0,255);  // Black background
+  setForeColour(255, 255, 255);    // White text
+  setBackColour(0, 0, 0);          // on Black
+  const font_t *font_ptr = &font_dejavu_sans_22;
+  int txtht =  font_ptr->ascent;
+  int th = (14 * txtht) / 10;
 
-  //Text(wscreen/12, hscreen - 1 * th, "Portsdown LimeSDR Mini Test Report", SansTypeface, 20);
+  clearScreen();
+  Text2(wscreen/12, hscreen - 1 * th, "Portsdown LimeSDR Mini Test Report", font_ptr);
 
   // First check that a LimeSDR Mini (not a USB version) is connected
   if ((CheckLimeMiniConnect() != 0) || (CheckExpressConnect() == 0))  // No Lime Mini Connected or express
   {
     if (CheckExpressConnect() == 0)
     {
-      //Text(wscreen/12, hscreen - 3 * th, "DATV Express Connected", SansTypeface, 20);
-      //Text(wscreen/12, hscreen - 5 * th, "Please retry without DATV Express", SansTypeface, 20);
-      //Text(wscreen/12, hscreen - 6.1 * th, "and only LimeSDR Mini connected", SansTypeface, 20);
+      Text2(wscreen/12, hscreen - 3 * th, "DATV Express Connected", font_ptr);
+      Text2(wscreen/12, hscreen - 5 * th, "Please retry without DATV Express", font_ptr);
+      Text2(wscreen/12, hscreen - 6.1 * th, "and only LimeSDR Mini connected", font_ptr);
     }
     else
     {
       if (CheckLimeUSBConnect() == 0)  // Lime USB Connnected
       {
-        //Text(wscreen/12, hscreen - 3 * th, "LimeSDR USB Connected", SansTypeface, 20);
-        //Text(wscreen/12, hscreen - 5 * th, "This test only works for the LimeSDR Mini", SansTypeface, 20);
+        Text2(wscreen/12, hscreen - 3 * th, "LimeSDR USB Connected", font_ptr);
+        Text2(wscreen/12, hscreen - 5 * th, "This test only works for the LimeSDR Mini", font_ptr);
       }
       else  // Nothing connected
       {
-        //Text(wscreen/12, hscreen - 3 * th, "No LimeSDR Connected", SansTypeface, 20);
-        //Text(wscreen/12, hscreen - 5 * th, "Please check connections", SansTypeface, 20);
+        Text2(wscreen/12, hscreen - 3 * th, "No LimeSDR Connected", font_ptr);
+        Text2(wscreen/12, hscreen - 5 * th, "Please check connections", font_ptr);
       }
     }
   }
   else  // LimeSDR Mini connected, so check HW, FW and GW versions
   {
+    MsgBox4("Testing...", " ", "Please Wait", " ");
 
     fp = popen("LimeUtil --make", "r");
     if (fp == NULL)
@@ -4368,8 +4088,11 @@ void LimeMiniTest()
     }
     pclose(fp);
 
+    clearScreen();
+    Text2(wscreen/12, hscreen - 1 * th, "Portsdown LimeSDR Mini Test Report", font_ptr);
+
     snprintf(version_info, 50, "Hardware V1.%d, Firmware V%d, Gateware V%d.%d", LHWVer, LFWVer, LGWVer, LGWRev);
-    //Text(wscreen/48, hscreen - (3.8 * th), version_info, SansTypeface, 18);
+    Text2(wscreen/48, hscreen - (2.5 * th), version_info, font_ptr);
 
     fp = popen("LimeQuickTest", "r");
     if (fp == NULL)
@@ -4387,10 +4110,10 @@ void LimeMiniTest()
         test_string[15] = '\0';
         if (strcmp(test_string, "  Test results:") == 0)
         {
-          //Text(wscreen/12, hscreen - (5.5 * th), "REF clock test", SansTypeface, 20);
+          Text2(wscreen/12, hscreen - (4.5 * th), "REF clock test", font_ptr);
           strncpy(test_string, &response[strlen(response) - 7], strlen(response));
           test_string[6] = '\0';
-          //Text(wscreen*6/12, hscreen - (5.5 * th), test_string, SansTypeface, 20);
+          Text2(wscreen*6/12, hscreen - (4.5 * th), test_string, font_ptr);
           rct = strcmp(test_string, "PASSED");
         }
 
@@ -4398,80 +4121,80 @@ void LimeMiniTest()
         test_string[11] = '\0';
         if (strcmp(test_string, "  Results :") == 0)
         {
-          //Text(wscreen/12, hscreen - (6.6 * th), "VCTCXO test", SansTypeface, 20);
+          Text2(wscreen/12, hscreen - (5.6 * th), "VCTCXO test", font_ptr);
           strncpy(test_string, &response[strlen(response) - 7], strlen(response));
           test_string[6] = '\0';
-          //Text(wscreen*6/12, hscreen - (6.6 * th), test_string, SansTypeface, 20);
+          Text2(wscreen*6/12, hscreen - (5.6 * th), test_string, font_ptr);
           vctcxot = strcmp(test_string, "PASSED");
         }
         strcpy(test_string, response);
         test_string[11] = '\0';
         if (strcmp(test_string, "->Clock Net") == 0)
         {
-          //Text(wscreen/12, hscreen - (7.7 * th), "Clock Network Test", SansTypeface, 20);
+          Text2(wscreen/12, hscreen - (6.7 * th), "Clock Network Test", font_ptr);
           strncpy(test_string, &response[strlen(response) - 7], strlen(response));
           test_string[6] = '\0';
-          //Text(wscreen*6/12, hscreen - (7.7 * th), test_string, SansTypeface, 20);
+          Text2(wscreen*6/12, hscreen - (6.7 * th), test_string, font_ptr);
           cnt = strcmp(test_string, "PASSED");
         }
         strcpy(test_string, response);
         test_string[12] = '\0';
         if (strcmp(test_string, "->FPGA EEPRO") == 0)
         {
-          //Text(wscreen/12, hscreen - (8.8 * th), "FPGA EEPROM Test", SansTypeface, 20);
+          Text2(wscreen/12, hscreen - (7.8 * th), "FPGA EEPROM Test", font_ptr);
           strncpy(test_string, &response[strlen(response) - 7], strlen(response));
           test_string[6] = '\0';
-          //Text(wscreen*6/12, hscreen - (8.8 * th), test_string, SansTypeface, 20);
+          Text2(wscreen*6/12, hscreen - (7.8 * th), test_string, font_ptr);
           fpgae = strcmp(test_string, "PASSED");
         }
         strcpy(test_string, response);
         test_string[12] = '\0';
         if (strcmp(test_string, "->LMS7002M T") == 0)
         {
-          //Text(wscreen/12, hscreen - (9.9 * th), "LMS7002M Test", SansTypeface, 20);
+          Text2(wscreen/12, hscreen - (8.9 * th), "LMS7002M Test", font_ptr);
           strncpy(test_string, &response[strlen(response) - 7], strlen(response));
           test_string[6] = '\0';
-          //Text(wscreen*6/12, hscreen - (9.9 * th), test_string, SansTypeface, 20);
+          Text2(wscreen*6/12, hscreen - (8.9 * th), test_string, font_ptr);
           lmst = strcmp(test_string, "PASSED");
         }
         strcpy(test_string, response);
         test_string[12] = '\0';
         if (strcmp(test_string, "  CH0 (SXR=1") == 0)
         {
-          //Text(wscreen/12, hscreen - (11 * th), "TX_2 -> LNA_W Test", SansTypeface, 20);
+          Text2(wscreen/12, hscreen - (10 * th), "TX_2 -> LNA_W Test", font_ptr);
           strncpy(test_string, &response[strlen(response) - 7], strlen(response));
           test_string[6] = '\0';
-          //Text(wscreen*6/12, hscreen - (11 * th), test_string, SansTypeface, 20);
+          Text2(wscreen*6/12, hscreen - (10 * th), test_string, font_ptr);
           tx2lnawt = strcmp(test_string, "PASSED");
         }
         strcpy(test_string, response);
         test_string[12] = '\0';
         if (strcmp(test_string, "  CH0 (SXR=2") == 0)
         {
-          //Text(wscreen/12, hscreen - (12.1 * th), "TX_1 -> LNA_H Test", SansTypeface, 20);
+          Text2(wscreen/12, hscreen - (11.1 * th), "TX_1 -> LNA_H Test", font_ptr);
           strncpy(test_string, &response[strlen(response) - 7], strlen(response));
           test_string[6] = '\0';
-          //Text(wscreen*6/12, hscreen - (12.1 * th), test_string, SansTypeface, 20);
+          Text2(wscreen*6/12, hscreen - (11.1 * th), test_string, font_ptr);
           tx1lnaht = strcmp(test_string, "PASSED");
         }
         strcpy(test_string, response);
         test_string[12] = '\0';
         if (strcmp(test_string, "->RF Loopbac") == 0)
         {
-          //Text(wscreen/12, hscreen - (13.2 * th), "RF Loopback Test", SansTypeface, 20);
+          Text2(wscreen/12, hscreen - (12.2 * th), "RF Loopback Test", font_ptr);
           strncpy(test_string, &response[strlen(response) - 7], strlen(response));
           test_string[6] = '\0';
-          //Text(wscreen*6/12, hscreen - (13.2 * th), test_string, SansTypeface, 20);
+          Text2(wscreen*6/12, hscreen - (12.2 * th), test_string, font_ptr);
           rflt = strcmp(test_string, "PASSED");
         }
         strcpy(test_string, response);
         test_string[12] = '\0';
         if (strcmp(test_string, "=> Board tes") == 0)
         {
-          //Text(wscreen/12, hscreen - (14.3 * th), "Board tests", SansTypeface, 20);
+          Text2(wscreen/12, hscreen - (13.3 * th), "Board tests", font_ptr);
           strncpy(test_string, &response[strlen(response) - 10], strlen(response));
           test_string[6] = '\0';
-          //Text(wscreen*6/12, hscreen - (14.3 * th), test_string, SansTypeface, 20);
+          Text2(wscreen*6/12, hscreen - (13.3 * th), test_string, font_ptr);
           bt = strcmp(test_string, "PASSED");
         }
       }
@@ -4480,22 +4203,19 @@ void LimeMiniTest()
     pclose(fp);
     if ((rct + vctcxot + cnt + fpgae + lmst + tx2lnawt + tx1lnaht + rflt + bt) == 0)       // All passed
     {
-      Fill(127, 255, 127, 1);    // Green text
-      //Text(wscreen/12, 1.0 * th, "All tests passed", SansTypeface, 20);
+      setForeColour(127, 255, 127);    // Green text
+      Text2(wscreen/12, 1.0 * th, "All tests passed", font_ptr);
     }
     else
     {
-      Fill(255, 63, 63, 1);    // Red text
-      //Text(wscreen/12, hscreen - (15.4 * th), "Further investigation required", SansTypeface, 20);
-      //Text(wscreen/12, hscreen - (16.5 * th), "Note that the custom FPGA always fails", SansTypeface, 20);
+      setForeColour(255, 63, 63);    // Red text
+      Text2(wscreen/12, hscreen - (14.4 * th), "Further investigation required", font_ptr);
+      Text2(wscreen/12, hscreen - (15.5 * th), "Note that the custom FPGA nearly always fails", font_ptr);
     }
   }
-  Fill(255, 255, 255, 1);    // White text
-  //Text(wscreen*5/12, 1.0 * th, "Touch Screen to Continue", SansTypeface, 20);
-
-  End();
+  setForeColour(255, 255, 255);    // White text
+  Text2(wscreen*5/12, 1, "Touch Screen to Continue", font_ptr);
 }
-
 
 
 /***************************************************************************//**
@@ -4508,11 +4228,15 @@ void LimeMiniTest()
 
 void LimeUtilInfo()
 {
-  BackgroundRGB(0,0,0,255);  // Black background
-  Fill(255, 255, 255, 1);    // White text
-  float th = 20; //TextHeight(SansTypeface, 20);
-  //Text(wscreen/12, hscreen - 1 * th, "LimeSuite Version Information", SansTypeface, 20);
+  // Initialise and calculate the text display
+  setForeColour(255, 255, 255);    // White text
+  setBackColour(0, 0, 0);          // on Black
+  const font_t *font_ptr = &font_dejavu_sans_22;
+  int txtht =  font_ptr->ascent;
+  int th = (14 * txtht) / 10;
 
+  clearScreen();
+  Text2(wscreen/12, hscreen - 1 * th, "LimeSuite Version Information", font_ptr);
 
   FILE *fp;
   char response[255];
@@ -4530,16 +4254,14 @@ void LimeUtilInfo()
   {
     if ((line > 4) && (line < 11))    // Select lines for display
     {
-      //Text(wscreen/12, hscreen - (1.5 * line - 2) * th, response, SansTypeface, 20);
+      Text2(wscreen/12, hscreen - (1.5 * line - 2) * th, response, font_ptr);
     }
     line = line + 1;
   }
 
   /* close */
   pclose(fp);
-  //Text(wscreen/12, 1.2 * th, "Touch Screen to Continue", SansTypeface, 20);
-
-  End();
+  Text2(wscreen/12, 1.2 * th, "Touch Screen to Continue", font_ptr);
 }
 
 /***************************************************************************//**
@@ -4552,44 +4274,10 @@ void LimeUtilInfo()
 
 void DisplayLogo()
 {
-  finish();
   system("sudo fbi -T 1 -noverbose -a \"/home/pi/rpidatv/scripts/images/BATC_Black.png\" >/dev/null 2>/dev/null");
   system("(sleep 1; sudo killall -9 fbi >/dev/null 2>/dev/null) &");
 }
 
-
-void MPEG2License()
-{
-  //char Param[31];
-  //char Value[31];
-  char Prompt[63];
-  char serialstring[63];
-  char keystring[63];
-
-  // Check and display validity here
-
-  // Compose the prompt
-  GetRPiSerial(serialstring);
-  strcpy(Prompt, "Enter key for ");
-  strcat(Prompt, serialstring);
-
-  // Look for existing key
-  GetMPEGKey(keystring);
-  
-  Keyboard(Prompt, keystring, 15);
-
-  // If key is unchanged, return without doing anything
-  if(strcmp(KeyboardReturn, keystring) == 0)
-  {
-    return;
-  }
-
-  // If key line exists in /boot/config.txt, overwrite with new entry
-
-  // If key line does not exist, add it.
-  NewMPEGKey(KeyboardReturn);
-
-}
 
 int mymillis()
 {
@@ -4598,258 +4286,6 @@ int mymillis()
   return (tv.tv_sec) * 1000 + (tv.tv_usec)/1000;
 }
 
-void ReadTouchCal()
-{
-  char Param[255];
-  char Value[255];
-
-  // Read CalFactors
-  strcpy(Param, "CalFactorX");
-  GetConfigParam(PATH_TOUCHCAL,Param,Value);
-  CalFactorX = strtof(Value, 0);
-  printf("Starting with CalfactorX = %f\n", CalFactorX);
-  strcpy(Param, "CalFactorY");
-  GetConfigParam(PATH_TOUCHCAL,Param,Value);
-  CalFactorY = strtof(Value, 0);
-  printf("Starting with CalfactorY = %f\n", CalFactorY);
-
-  // Read CalShifts
-  strcpy(Param, "CalShiftX");
-  GetConfigParam(PATH_TOUCHCAL,Param,Value);
-  CalShiftX = strtof(Value, 0);
-  printf("Starting with CalShiftX = %f\n", CalShiftX);
-  strcpy(Param, "CalShiftY");
-  GetConfigParam(PATH_TOUCHCAL,Param,Value);
-  CalShiftY = strtof(Value, 0);
-  printf("Starting with CalShiftY = %f\n", CalShiftY);
-}
-
-void touchcal()
-{
-  float cross_x;                 // Position of white cross
-  float cross_y;                 // Position of white cross
-  int n;                           // Loop counter
-  int rawX, rawY, rawPressure;     // Raw touch position
-  int lowerY = 0, higherY = 0;     // Screen referenced touch average
-  int leftX = 0, rightX = 0;       // Screen referenced touch average
-  int touchposX[8];                // Screen referenced uncorrected touch position
-  int touchposY[8];                // Screen referenced uncorrected touch position
-  int correctedX;                  // Screen referenced corrected touch position
-  int correctedY;                  // Screen referenced corrected touch position
-  char Param[255];                 // Parameter name for writing to Calibration File
-  char Value[255];                 // Value for writing to Calibration File
-
-  MsgBox4("TOUCHSCREEN CALIBRATION", "Touch the screen on each cross"
-    , "Screen will be recalibrated after 8 touches", "Touch screen to start");
-  wait_touch();
-
-  for (n = 1; n < 9; n = n + 1 )
-  {
-    BackgroundRGB(0,0,0,255);
-    Fill(255, 255, 255, 1); 
-    WindowClear();
-    StrokeWidth(3);
-    Stroke(255, 255, 255, 0.8);    // White lines
-
-    // Draw Frame of 3 points deep around screen inner
-    Line(0,         hscreen, wscreen-1, hscreen);
-    Line(0,         1,       wscreen-1, 1      );
-    Line(0,         1,       0,         hscreen);
-    Line(wscreen-1, 1,       wscreen-1, hscreen);
-
-    // Calculate cross centres for 10% and 90% crosses
-    if ((n == 1) || (n ==5) || (n == 4) || (n == 8))
-    {
-      cross_y = (hscreen * 9) / 10;
-    }
-    else
-    {
-      cross_y = hscreen / 10;
-    }
-    if ((n == 3) || (n ==4) || (n == 7) || (n == 8))
-    {
-      cross_x = (wscreen * 9) / 10;
-    }
-    else
-    {
-      cross_x = wscreen / 10;
-    }
-
-    // Draw cross
-    Line(cross_x-wscreen/20, cross_y, cross_x+wscreen/20, cross_y);
-    Line(cross_x, cross_y-hscreen/20, cross_x, cross_y+hscreen/20);
-
-    //Send to Screen
-    End();
-
-    // Wait here until screen touched
-    while(getTouchSample(&rawX, &rawY, &rawPressure)==0)
-    {
-      usleep(100000);
-    }
-
-    // Transform touch to display coordinate system
-    // Results returned in scaledX and scaledY (globals)
-    TransformTouchMap(rawX, rawY);
-
-    printf("x=%d y=%d scaledX=%d scaledY=%d\n ",rawX,rawY,scaledX,scaledY);
-
-    if ((n == 1) || (n ==5) || (n == 4) || (n == 8))
-    {
-      if (scaledY < hscreen/2)  // gross error
-      {
-        StrokeWidth(0);
-        MsgBox4("Last touch was too far", "from the cross", "Touch Screen to continue", "and then try again");
-        wait_touch();
-        return;
-      }
-      higherY = higherY + scaledY;
-    }
-    else
-    {
-     if (scaledY > hscreen/2)  // gross error
-      {
-        StrokeWidth(0);
-        MsgBox4("Last touch was too far", "from the cross", "Touch Screen to continue", "and then try again");
-        wait_touch();
-        return;
-      }
-      lowerY = lowerY + scaledY;
-    }
-    if ((n == 3) || (n ==4) || (n == 7) || (n == 8))
-    {
-     if (scaledX < wscreen/2)  // gross error
-      {
-        StrokeWidth(0);
-        MsgBox4("Last touch was too far", "from the cross", "Touch Screen to continue", "and then try again");
-        wait_touch();
-        return;
-      }
-      rightX = rightX + scaledX;
-    }
-    else
-    {
-     if (scaledX > wscreen/2)  // gross error
-      {
-        StrokeWidth(0);
-        MsgBox4("Last touch was too far", "from the cross", "Touch Screen to continue", "and then try again");
-        wait_touch();
-        return;
-      }
-      leftX = leftX + scaledX;
-    }
-
-    // Save touch position for display
-    touchposX[n] = scaledX;
-    touchposY[n] = scaledY;
-  }
-    
-  // Average out touches
-  higherY = higherY/4; // higherY is the height of the upper horixontal line
-  lowerY = lowerY/4;   // lowerY is the height of the lower horizontal line
-  rightX = rightX/4;   // rightX is the left-right pos of the right hand vertical line
-  leftX = leftX/4;     // leftX is the left-right pos of the left hand vertical line
-
-  // Now calculate the global calibration factors
-  CalFactorX = (0.8 * wscreen)/(rightX-leftX);
-  CalFactorY = (0.8 * hscreen)/(higherY-lowerY);
-  CalShiftX= wscreen/10 - leftX * CalFactorX;
-  CalShiftY= hscreen/10 - lowerY * CalFactorY;
-
-  // Save them to the calibration file
-
-  // Save CalFactors
-  snprintf(Value, 10, "%.4f", CalFactorX);
-  strcpy(Param, "CalFactorX");
-  SetConfigParam(PATH_TOUCHCAL,Param,Value);
-  snprintf(Value, 10, "%.4f", CalFactorY);
-  strcpy(Param, "CalFactorY");
-  SetConfigParam(PATH_TOUCHCAL,Param,Value);
-
-  // Save CalShifts
-  snprintf(Value, 10, "%.1f", CalShiftX);
-  strcpy(Param, "CalShiftX");
-  SetConfigParam(PATH_TOUCHCAL,Param,Value);
-  snprintf(Value, 10, "%.1f", CalShiftY);
-  strcpy(Param, "CalShiftY");
-  SetConfigParam(PATH_TOUCHCAL,Param,Value);
-
-  //printf("Left = %d, right = %d \n", leftX, rightX);
-  //printf("Lower  = %d, upper = %d \n", lowerY, higherY);
-  //printf("CalFactorX = %lf \n", CalFactorX);
-  //printf("CalFactorY = %lf \n", CalFactorY);
-  //printf("CalShiftX = %lf \n", CalShiftX);
-  //printf("CalShiftY = %lf \n", CalShiftY);
-
-  // Draw crosses in red where the touches were
-  // and in green where the corrected touches are
-  
-  BackgroundRGB(0,0,0,255);
-  Fill(255, 255, 255, 1); 
-  WindowClear();
-  StrokeWidth(3);
-  Stroke(255, 255, 255, 0.8);
-
-  float th = 20; // TextHeight(SansTypeface, 25);
-  //TextMid(wscreen/2, hscreen/2+th, "Red crosses are before calibration,", SansTypeface, 25);
-  //TextMid(wscreen/2, hscreen/2-th, "Green crosses after calibration", SansTypeface, 25);
-  //TextMid(wscreen/2, hscreen/24, "Touch Screen to Continue", SansTypeface, 25);
-
-  // Draw Frame
-  Line(0,         hscreen, wscreen-1, hscreen);
-  Line(0,         1,       wscreen-1, 1      );
-  Line(0,         1,       0,         hscreen);
-  Line(wscreen-1, 1,       wscreen-1, hscreen);
-
-  // Draw the crosses
-  for (n = 1; n < 9; n = n + 1 )
-  {
-    // Calculate cross centres
-    if ((n == 1) || (n == 4) || (n == 5) || (n == 8))
-    {
-      cross_y = (hscreen * 9) / 10;
-    }
-    else
-    {
-      cross_y = hscreen / 10;
-    }
-    if ((n == 3) || (n == 4) || (n == 7) || (n == 8))
-    {
-      cross_x = (wscreen * 9) / 10;
-    }
-    else
-    {
-      cross_x = wscreen / 10;
-    }
-
-    // Draw reference cross in white
-    Stroke(255, 255, 255, 0.8);
-    Line(cross_x-wscreen/20, cross_y, cross_x+wscreen/20, cross_y);
-    Line(cross_x, cross_y-hscreen/20, cross_x, cross_y+hscreen/20);
-
-    // Draw uncorrected touch cross in red
-    Stroke(255, 0, 0, 0.8);
-    Line(touchposX[n]-wscreen/40, touchposY[n]-hscreen/40, touchposX[n]+wscreen/40, touchposY[n]+hscreen/40);
-    Line(touchposX[n]+wscreen/40, touchposY[n]-hscreen/40, touchposX[n]-wscreen/40, touchposY[n]+hscreen/40);
-
-    // Draw corrected touch cross in green
-    correctedX = touchposX[n] * CalFactorX;
-    correctedX = correctedX + CalShiftX;
-    correctedY = touchposY[n] * CalFactorY;
-    correctedY = correctedY + CalShiftY;
-    Stroke(0, 255, 0, 0.8);
-    Line(correctedX-wscreen/40, correctedY-hscreen/40, correctedX+wscreen/40, correctedY+hscreen/40);
-    Line(correctedX+wscreen/40, correctedY-hscreen/40, correctedX-wscreen/40, correctedY+hscreen/40);
-  }
-
-  //Send to Screen
-  End();
-  wait_touch();
-
-  // Set screen back to normal
-  BackgroundRGB(0,0,0,255);
-  StrokeWidth(0);
-}
 
 void TransformTouchMap(int x, int y)
 {
@@ -4888,26 +4324,10 @@ void TransformTouchMap(int x, int y)
   }
 }
 
-void CorrectTouchMap()
-{
-  // This function takes the approx touch data and applies the calibration correction
-  // It works directly on the globals scaledX and scaledY based on the constants read
-  // from the ScreenCal.txt file during initialisation
-
-  scaledX = scaledX * CalFactorX;
-  scaledX = scaledX + CalShiftX;
-
-  scaledY = scaledY * CalFactorY;
-  scaledY = scaledY + CalShiftY;
-}
 
 int IsButtonPushed(int NbButton,int x,int y)
 {
-  //int  scaledX, scaledY;
-
   TransformTouchMap(x,y);  // Sorts out orientation and approx scaling of the touch map
-
-  CorrectTouchMap();       // Calibrates each individual screen
 
   //printf("x=%d y=%d scaledx %d scaledy %d sxv %f syv %f Button %d\n",x,y,scaledX,scaledY,scaleXvalue,scaleYvalue, NbButton);
 
@@ -4933,10 +4353,8 @@ int IsMenuButtonPushed(int x,int y)
   cmo = ButtonNumber(CurrentMenu, 0); // Current Menu Button number Offset
   cmsize = ButtonNumber(CurrentMenu + 1, 0) - ButtonNumber(CurrentMenu, 0);
   TransformTouchMap(x,y);       // Sorts out orientation and approx scaling of the touch map
-  CorrectTouchMap();            // Calibrates each individual screen
 
   //printf("x=%d y=%d scaledx %d scaledy %d sxv %f syv %f Button %d\n",x,y,scaledX,scaledY,scaleXvalue,scaleYvalue, NbButton);
-
 
   // For each button in the current Menu, check if it has been pushed.
   // If it has been pushed, return the button number.  If nothing valid has been pushed return -1
@@ -4967,7 +4385,6 @@ int IsImageToBeChanged(int x,int y)
   // Returns -1 for LHS touch, 0 for centre and 1 for RHS
 
   TransformTouchMap(x,y);       // Sorts out orientation and approx scaling of the touch map
-  CorrectTouchMap();            // Calibrates each individual screen
 
   if (scaledY >= hscreen/2)
   {
@@ -5217,63 +4634,69 @@ void DrawButton(int ButtonIndex)
 {
   button_t *Button=&(ButtonArray[ButtonIndex]);
   char label[255];
+  char line1[15];
+  char line2[15];
 
-  if (CurrentMenu == 41)
-  {
-    StrokeWidth(2);
-    Stroke(150, 150, 200, 0.8);
-  }
-  else
-  {
-    StrokeWidth(0);
-  }
-
-  Fill(Button->Status[Button->NoStatus].Color.r, Button->Status[Button->NoStatus].Color.g, Button->Status[Button->NoStatus].Color.b, 1);
-  //Roundrect(Button->x,Button->y,Button->w,Button->h, Button->w/10, Button->w/10);
-  
+  // Look up the label
   strcpy(label, Button->Status[Button->NoStatus].Text);
 
-  // printf("%s Button x %d, Button y %d, w %d, h %d\n", label, Button->x, Button->y, Button->w, Button->h);
-  showButton(label, Button->x, Button->y + 1, Button->w, Button->h, Button->Status[Button->NoStatus].Color.r, Button->Status[Button->NoStatus].Color.g, Button->Status[Button->NoStatus].Color.b);
+  // Draw the basic button
+  rectangle(Button->x, Button->y + 1, Button->w, Button->h, 
+    Button->Status[Button->NoStatus].Color.r,
+    Button->Status[Button->NoStatus].Color.g,
+    Button->Status[Button->NoStatus].Color.b);
 
-  Fill(255, 255, 255, 1);				   // White text
+  // Set text and background colours
+  setForeColour(255, 255, 255);				   // White text
+  setBackColour(Button->Status[Button->NoStatus].Color.r,
+                Button->Status[Button->NoStatus].Color.g,
+                Button->Status[Button->NoStatus].Color.b);
 
-  //char label[256];
-  strcpy(label, Button->Status[Button->NoStatus].Text);
+
+
+  // Separate button text into 2 lines if required  
   char find = '^';                                  // Line separator is ^
   const char *ptr = strchr(label, find);            // pointer to ^ in string
-  if((ptr) && (CurrentMenu != 41))                                           // if ^ found then 2 lines
-  {
+
+  if((ptr) && (CurrentMenu != 41))                  // if ^ found then
+  {                                                 // 2 lines
     int index = ptr - label;                        // Position of ^ in string
-    char line1[15];
-    char line2[15];
     snprintf(line1, index+1, label);                // get text before ^
     snprintf(line2, strlen(label) - index, label + index + 1);  // and after ^
-    //TextMid(Button->x+Button->w/2, Button->y+Button->h*11/16, line1, SansTypeface, 18);	
-    //TextMid(Button->x+Button->w/2, Button->y+Button->h* 3/16, line2, SansTypeface, 18);
+
+    // Display the text on the button
+    TextMid2(Button->x+Button->w/2, Button->y+Button->h*11/16, line1, &font_dejavu_sans_20);	
+    TextMid2(Button->x+Button->w/2, Button->y+Button->h*3/16, line2, &font_dejavu_sans_20);	
   
-    // Draw overlay button.  Menus 1 or 4, 2 lines and Button status = 0 only
+    // Draw green overlay half-button.  Menus 1 or 4, 2 lines and Button status = 0 only
     if (((CurrentMenu == 1) || (CurrentMenu == 4)) && (Button->NoStatus == 0))
     {
-      Fill(Button->Status[1].Color.r, Button->Status[1].Color.g, Button->Status[1].Color.b, 1);
-      //Roundrect(Button->x,Button->y,Button->w,Button->h/2, Button->w/10, Button->w/10);
-      Fill(255, 255, 255, 1);				   // White text
-      //TextMid(Button->x+Button->w/2, Button->y+Button->h* 3/16, line2, SansTypeface, 18);
+      // Draw the green box
+      rectangle(Button->x, Button->y + 1, Button->w, Button->h/2,
+        Button->Status[1].Color.r,
+        Button->Status[1].Color.g,
+        Button->Status[1].Color.b);
+
+      // Set the background colour and then display the text
+      setBackColour(Button->Status[1].Color.r,
+                    Button->Status[1].Color.g,
+                    Button->Status[1].Color.b);
+      TextMid2(Button->x+Button->w/2, Button->y+Button->h*3/16, line2, &font_dejavu_sans_20);	
     }
   }
   else                                              // One line only
   {
     if ((CurrentMenu <= 10) && (CurrentMenu != 4))
     {
-      //TextMid(Button->x+Button->w/2, Button->y+Button->h/2, label, SansTypeface, Button->w/strlen(label));
+      TextMid2(Button->x+Button->w/2, Button->y+Button->h/2, label, &font_dejavu_sans_28);
     }
-    else if (CurrentMenu == 41)
+    else if (CurrentMenu == 41)  // Keyboard
     {
-      //TextMid(Button->x+Button->w/2, Button->y+Button->h/2 - hscreen / 64, label, SansTypeface, 24);
+      TextMid2(Button->x+Button->w/2, Button->y+Button->h/2 - hscreen / 64, label, &font_dejavu_sans_28);
     }
-    else // fix text size at 18
+    else // fix text size at 20
     {
-      //TextMid(Button->x+Button->w/2, Button->y+Button->h/2, label, SansTypeface, 18);
+      TextMid2(Button->x+Button->w/2, Button->y+Button->h/2, label, &font_dejavu_sans_20);
     }
   }
 }
@@ -5438,53 +4861,50 @@ int getTouchSample(int *rawX, int *rawY, int *rawPressure)
 
 void ShowMenuText()
 {
+  // Called to display software update information in Menu 33
+
   // Initialise and calculate the text display
   int line;
-  //Fontinfo font = SansTypeface;
-  int pointsize = 20;
-  float txtht =  20; // TextHeight(font, pointsize);
-  float txtdp = 20; //TextDepth(font, pointsize);
-  float linepitch = 1.1 * (txtht + txtdp);
-  Fill(255, 255, 255, 1);    // White text
+  const font_t *font_ptr = &font_dejavu_sans_28;
+  int txtht =  font_ptr->ascent;
+  int linepitch = (14 * txtht) / 10;
+
+  setForeColour(255, 255, 255);    // White text
+  setBackColour(0, 0, 0);          // on Black
 
   // Display Text
   for (line = 0; line < 5; line = line + 1)
   {
-    //tw = TextWidth(MenuText[line], font, pointsize);
-    Text(wscreen / 12, hscreen - (2 + line) * linepitch, MenuText[line], pointsize);
+    Text2(wscreen / 12, hscreen - (3 + line) * linepitch, MenuText[line], font_ptr);
   }
 }
 
 void ShowTitle()
 {
-  // Initialise and calculate the text display
-  //BackgroundRGB(0,0,0,255);  // Black background
-  if (CurrentMenu == 1)
+  // Set the colours
+  if (CurrentMenu == 1)               // Main menu
   {
-    Fill(0, 0, 0, 1);    // Black text
+    setForeColour(0, 0, 0);          // Black text
+    setBackColour(255, 255, 255);    // on White
   }
-  else
+  else if (CurrentMenu == 4)         // Comp Vid Menu
   {
-    Fill(255, 255, 255, 1);    // White text
+    setForeColour(255, 255, 255);    // White text
+    setBackColour(127, 127, 127);    // on grey
   }
-  //Fontinfo font = SansTypeface;
-  int pointsize = 20;
-  float txtht =  20; //TextHeight(font, pointsize);
-  float txtdp = 20; // TextDepth(font, pointsize);
-  float linepitch = 1.1 * (txtht + txtdp);
-  float linenumber = 1.0;
-  float tw;
-  //char font[31] = "sans";
+  else                               // All others
+  {
+    setForeColour(255, 255, 255);    // White text
+    setBackColour(0, 0, 0);          // on Black
+  }
+
+  const font_t *font_ptr = &font_dejavu_sans_28;
+  int txtht =  font_ptr->ascent;
+  int linepitch = (12 * txtht) / 10;
+  int linenumber = 1;
 
   // Display Text
-
-  TextMid(wscreen / 2.0, hscreen - linenumber * linepitch, MenuTitle[CurrentMenu], pointsize);
-
-
-  //printf("Try TextMid(%d, %d, %s, %d)\n",wscreen / 2, hscreen , MenuTitle[CurrentMenu], pointsize);
-
-  //tw = 20; //TextWidth(MenuTitle[CurrentMenu], font, pointsize);
-  //Text(wscreen / 2.0 - (tw / 2.0), hscreen - linenumber * linepitch, MenuTitle[CurrentMenu], font, pointsize);
+  TextMid2(wscreen / 2.0, hscreen - linenumber * linepitch, MenuTitle[CurrentMenu], &font_dejavu_sans_28);
 }
 
 void UpdateWindow()
@@ -5495,46 +4915,52 @@ void UpdateWindow()
   int last;
 
   // Set the background colour
-  // Maybe a select statement here in future?
-  if (CurrentMenu == 1)
+  if (CurrentMenu == 1)           // Main Menu White
   {
-    BackgroundRGB(255, 255, 255, 255);
+    setBackColour(255, 255, 255);
   }
-  else
+  else if (CurrentMenu == 4)      // Comp Vid Menu Grey
   {
-    BackgroundRGB(0, 0, 0, 255);
+    setBackColour(127, 127, 127);
   }
-
-  first = ButtonNumber(CurrentMenu, 0);
-  last = ButtonNumber(CurrentMenu + 1 , 0) - 1;
-
+  else                            // All others Black
+  {
+    setBackColour(0, 0, 0);
+  }
+  
+  if (CurrentMenu != 41)  // If not the keyboard
+  {
+    clearScreen();
+  }
+  // Draw the backgrounds for the smaller menus
   if ((CurrentMenu >= 11) && (CurrentMenu <= 40))  // 10-button menus
   {
-    Fill(127, 127, 127, 1);
-    //Roundrect(10, 10, wscreen-18, hscreen*2/6+10, 10, 10);
+    rectangle(10, 12, wscreen - 18, hscreen * 2 / 6 + 12, 127, 127, 127);
   }
 
   if ((CurrentMenu >= 42) && (CurrentMenu <= 46))  // 15-button menus
   {
-    Fill(127, 127, 127, 1);
-    //Roundrect(10, 10, wscreen-18, hscreen*3/6+10, 10, 10);
+    rectangle(10, 12, wscreen - 18, hscreen * 3 / 6 + 12, 127, 127, 127);
   }
 
-  for(i=first; i<=last; i++)
+  // Draw each button in turn
+  first = ButtonNumber(CurrentMenu, 0);
+  last = ButtonNumber(CurrentMenu + 1 , 0) - 1;
+
+  for(i = first; i <= last; i++)
   {
-    // printf("Looking at button %d\n", i);
     if (ButtonArray[i].IndexStatus > 0)  // If button needs to be drawn
     {
       DrawButton(i);                     // Draw the button
     }
   }
+
+  // Show the title and any required text
   ShowTitle();
   if (CurrentMenu == 33)
   {
     ShowMenuText();
   }
-
-  End();                      // Write the drawn buttons to the screen
 }
 
 void ApplyTXConfig()
@@ -7157,58 +6583,6 @@ void SetReceiveLOFreq(int NoButton)
   SetConfigParam(PATH_RXPRESETS ,Param, KeyboardReturn);
 }
 
-void SetSampleRate()
-{
-  char Prompt[63];
-  char Value[15];
-  int NewSampleRate = -1;
-  snprintf(Value, 6, "%d", RXsamplerate[0]); 
-  while ((NewSampleRate < 0) || (NewSampleRate > 2400))
-  {
-    snprintf(Prompt, 63, "Set the LeanDVB Sample Rate in KSamples/sec (0 = auto)");
-    Keyboard(Prompt, Value, 6);
-    NewSampleRate = atoi(KeyboardReturn);
-  }
-  RXsamplerate[0] = NewSampleRate;
-  SetConfigParam(PATH_RXPRESETS, "rx0samplerate", KeyboardReturn);
-}
-
-void SetRXGain()
-{
-  char Prompt[63];
-  char Value[15];
-  int NewGain = -1;
-  snprintf(Value, 6, "%d", RXgain[0]); 
-  while ((NewGain < 0) || (NewGain > 100))
-  {
-    snprintf(Prompt, 63, "Set the LeanDVB Gain in the range 0 to 100 dB");
-    Keyboard(Prompt, Value, 6);
-    NewGain = atoi(KeyboardReturn);
-  }
-  RXgain[0] = NewGain;
-  SetConfigParam(PATH_RXPRESETS, "rx0gain", KeyboardReturn);
-}
-
-void ToggleEncoding()
-{
-  if (strcmp(RXencoding[0], "H264") == 0)
-  {
-     if (CheckMPEG2() == 1)
-    {
-      strcpy(RXencoding[0], "MPEG-2");
-    }
-    else
-    {
-      MsgBox2("Please purchase and install the", "MPEG-2 decoder licence");
-      wait_touch();
-    }
-  }
-  else
-  {
-    strcpy(RXencoding[0], "H264");
-  }
-  SetConfigParam(PATH_RXPRESETS, "rx0encoding", RXencoding[0]);
-}
 
 void SavePreset(int PresetButton)
 {
@@ -7457,7 +6831,6 @@ void CompVidStart()
 
   if (strcmp(CurrentVidSource, "Pi Cam") == 0)
   {
-    finish();
     system("sudo modprobe bcm2835_v4l2");
     system("v4l2-ctl --set-fmt-overlay=left=0,top=0,width=656,height=512");
     system("v4l2-ctl --overlay=1 >/dev/null 2>/dev/null");
@@ -7469,7 +6842,6 @@ void CompVidStart()
 
   if (strcmp(CurrentVidSource, "TCAnim") == 0)
   {
-    finish();
     strcpy(fbicmd, "/home/pi/rpidatv/bin/tcanim1v16 \"/home/pi/rpidatv/video/*10\" ");
     strcat(fbicmd, " \"720\" \"576\" \"48\" \"72\" \"CQ\" \"CQ CQ CQ de ");
     strcat(fbicmd, CallSign);
@@ -7502,7 +6874,6 @@ void CompVidStart()
 
     // Make the display ready
     strcpy(ScreenState, "VideoOut");
-    finish();
 
     strcpy(fbicmd, "sudo fbi -T 1 -noverbose -a /home/pi/tmp/contest");
     strcat(fbicmd, ".jpg >/dev/null 2>/dev/null");
@@ -7514,7 +6885,6 @@ void CompVidStart()
   {
     // Make the display ready
     strcpy(ScreenState, "VideoOut");
-    finish();
 
     // Delete any old test card with caption
     system("rm /home/pi/tmp/caption.png >/dev/null 2>/dev/null");
@@ -7581,7 +6951,6 @@ void CompVidStart()
   {
     // Make the display ready
     strcpy(ScreenState, "VideoOut");
-    finish();
 
     // Fetch the Next Snap serial number
     fp = popen("cat /home/pi/snaps/snap_index.txt", "r");
@@ -7597,9 +6966,6 @@ void CompVidStart()
     }
     /* close */
     pclose(fp);
-
-    // Make the display ready
-    finish();
 
     SnapNumber=atoi(SnapIndex);
     Snap = SnapNumber - 1;
@@ -7672,7 +7038,6 @@ void TransmitStart()
   {
     // Load the camera driver and start the viewfinder
     system("sudo modprobe bcm2835_v4l2");
-    finish();
     system("v4l2-ctl --overlay=1 >/dev/null 2>/dev/null");
     strcpy(ScreenState, "TXwithImage");
   }
@@ -7680,7 +7045,6 @@ void TransmitStart()
   // Check if H264 Camera selected
   if(strcmp(ModeInput,"CAMH264") == 0)
   {
-    finish();
     strcpy(ScreenState, "TXwithImage");
   }
 
@@ -7695,7 +7059,6 @@ void TransmitStart()
     || (strcmp(ModeInput,"CARD16MPEG-2")==0)
     || (strcmp(ModeInput,"CARDHDMPEG-2")==0))
   {
-    finish();
     strcpy(ScreenState, "TXwithImage");
   }
 
@@ -7828,15 +7191,6 @@ void TransmitStop()
   // Make sure that a.sh has stopped
   system("sudo killall a.sh >/dev/null 2>/dev/null");
 
-  // restart fbcp if it was stopped
-  //if (CheckfbcpRunning() == 1) // not running
-  //{
-  //  if (strcmp(DisplayType, "Element14_7") != 0 )  // Don't restart fbcp for 7 inch screen
-  //  {
-  //    system("fbcp &");
-  //  }
-  //}
-
   // Delete the transmit fifos
   system("sudo rm videoes >/dev/null 2>/dev/null");
   system("sudo rm videots >/dev/null 2>/dev/null");
@@ -7862,11 +7216,6 @@ void TransmitStop()
   }
 }
 
-void coordpoint(float x, float y, float size, float pcolor[4]) {
-  //setfill(pcolor);
-  //Circle(x, y, size);
-  //setfill(pcolor);
-}
 
 void *DisplayFFT(void * arg)
 {
@@ -7914,7 +7263,6 @@ void *WaitButtonVideo(void * arg)
     while(getTouchSample(&rawX, &rawY, &rawPressure)==0);  // Wait here for touch
 
     TransformTouchMap(rawX, rawY);  // Sorts out orientation and approx scaling of the touch map
-    CorrectTouchMap();       // Calibrates each individual screen
 
     // printf("wscreen = %d, hscreen = %d, scaledX = %d, scaledY = %d\n", wscreen, hscreen, scaledX, scaledY);
 
@@ -7942,7 +7290,6 @@ void *WaitButtonSnap(void * arg)
     while(getTouchSample(&rawX, &rawY, &rawPressure)==0);  // Wait here for touch
 
     TransformTouchMap(rawX, rawY);  // Sorts out orientation and approx scaling of the touch map
-    CorrectTouchMap();       // Calibrates each individual screen
 
     if((scaledX <= 15 * wscreen / 40) && (scaledX >= wscreen / 40) && (scaledY <= hscreen) && (scaledY >= 2 * hscreen / 12))
     {
@@ -8000,7 +7347,6 @@ void *WaitButtonLMRX(void * arg)
     while(getTouchSample(&rawX, &rawY, &rawPressure)==0);  // Wait here for touch
 
     TransformTouchMap(rawX, rawY);  // Sorts out orientation and approx scaling of the touch map
-    CorrectTouchMap();       // Calibrates each individual screen
 
     if((scaledX <= 15 * wscreen / 40) && (scaledX >= wscreen / 40) && (scaledY <= hscreen) && (scaledY >= 2 * hscreen / 12))
     {
@@ -8047,8 +7393,8 @@ void *WaitButtonLMRX(void * arg)
       {
 
         system("sudo killall -9 vlc");
-        //init(&wscreen, &hscreen);  // Restart the graphics
-        BackgroundRGB(0, 0, 0, 0); // Clear the screen
+        setBackColour(0, 0, 0);
+        clearScreen();
         exit(129);                 // Restart the GUI
       }
       return NULL;
@@ -8120,8 +7466,8 @@ void DisplayIPStream()
   printf("Starting Stream receiver ....\n");
   IQAvailable = 0;           // Set flag to prompt user reboot before transmitting
   FinishedButton = 0;
-  BackgroundRGB(0, 0, 0, 0);
-  finish();                  // Close the graphics sub-system
+  setBackColour(0, 0, 0);
+  clearScreen();
   DisplayHere(WaitMessage);
 
   // Create Wait Button thread
@@ -8226,8 +7572,8 @@ void DisplayStream(int NoButton)
   printf("Starting Stream receiver ....\n");
   IQAvailable = 0;           // Set flag to prompt user reboot before transmitting
   FinishedButton = 0;
-  BackgroundRGB(0, 0, 0, 0);
-  finish();                  // Close the graphics sub-system
+  setBackColour(0, 0, 0);
+  clearScreen();
   DisplayHere(WaitMessage);
 
   // Create Wait Button thread
@@ -8354,7 +7700,8 @@ void AmendStreamPreset(int NoButton)
     MsgBox4("Not a BATC Streamer Address", "Please edit it directly in", "rpidatv/scripts/stream_presets.txt", "Touch Screen to Continue");
     wait_touch();
   }
-  BackgroundRGB(0, 0, 0, 255);  // Clear the background
+  setBackColour(0, 0, 0);
+  clearScreen();
 }
 
 void SelectStreamer(int NoButton)
@@ -8478,455 +7825,8 @@ void AmendStreamerPreset(int NoButton)
   SetConfigParam(PATH_PCONFIG, "streamkey", StreamKey[NoPreset]);
   strcpy(StreamKey[0], StreamKey[NoPreset]);
 
-  BackgroundRGB(0, 0, 0, 255);  // Clear the background
-}
-
-void ProcessLeandvb2()
-{
-  #define PATH_SCRIPT_LEAN2 "sudo /home/pi/rpidatv/scripts/leandvbgui2.sh 2>&1"
-  char *line=NULL;
-  size_t len = 0;
-  ssize_t read;
-  FILE *fp;
-  float shapecolor[4];
-  //RGBA(255, 255, 128, 1, shapecolor);
-
-  printf("Entering LeanDVB Process\n");
-  FinishedButton = 0;
-  FinishedButton2 = 0;  // Enable the fft to run if required
-
-  if((strcmp(RXgraphics[0], "ON") == 0) || (strcmp(RXparams[0], "ON") == 0))
-  {
-    // create FFT Thread 
-    pthread_create (&thfft, NULL, &DisplayFFT, NULL);
-  }
-
-  // Create Wait Button thread
-  pthread_create (&thbutton, NULL, &WaitButtonEvent, NULL);
-
-  // Start RTL-SDR, LeanDVB and HelloVideo from BASH
-  fp=popen(PATH_SCRIPT_LEAN2, "r");
-  if(fp==NULL) printf("Process error\n");
-
-  // Deal with each display case differently
-
-  // No graphics or parameters
-  if((strcmp(RXgraphics[0], "OFF") == 0) && (strcmp(RXparams[0], "OFF") == 0))
-  {
-    BackgroundRGB(0, 0, 0, 0);
-    End();
-    while (FinishedButton == 0)
-    {
-      usleep(1000);
-      if(FinishedButton == 1)
-      {
-        printf("Trying to kill LeanDVB\n");
-        system("(sudo killall -9 leandvb >/dev/null 2>/dev/null) &");
-      }
-    }
-  }
-
-  // Both graphics and parameters
-  if((strcmp(RXgraphics[0], "ON") == 0) && (strcmp(RXparams[0], "ON") == 0))
-  { 
-    // While there is data, display it
-    while (((read = getline(&line, &len, fp)) != -1) && (FinishedButton == 0))
-    {
-      char  strTag[20];
-      int NbData;
-      static int Decim = 0;
-      sscanf(line,"%s ",strTag);
-      char * token;
-      static int Lock = 0;
-      static float SignalStrength = 0;
-      static float MER = 0;
-      static float FREQ = 0;
-
-      // Deal with the Symbol Data
-      if(strcmp(strTag, "SYMBOLS")==0)
-      {
-        token = strtok(line, " ");
-        token = strtok(NULL, " ");
-        sscanf(token,"%d",&NbData);
-
-        if(Decim%25==0)  // Lock, signal strength and MER
-        {
-          BackgroundRGB(0, 0, 0, 0);
-
-          // Lock status Rectangle (red/green with white text)
-          char sLock[100];
-          if(Lock == 1)
-          {
-            strcpy(sLock,"Lock");
-            Fill(0,255,0, 1);
-          }
-          else
-          {
-            strcpy(sLock,"----");
-            Fill(255,0,0, 1);
-          }
-          //Roundrect(200,0,100,50, 10, 10);
-          Fill(255, 255, 255, 1);
-          //Text(200, 20, sLock, SerifTypeface, 25);
-
-          // Signal Strength: White text to right of Lock status
-          char sSignalStrength[100];
-          sprintf(sSignalStrength, "%3.0f", SignalStrength);
-          Fill(255-SignalStrength, SignalStrength, 0, 1);
-          //Roundrect(350, 0, 20+SignalStrength/2, 50, 10, 10);
-          Fill(255, 255, 255, 1);
-          //Text(350, 20, sSignalStrength, SerifTypeface, 25);
-
-          //MER: 2-30 to right of Sig Stength.  Bar length indicative.
-          char sMER[100];
-          sprintf(sMER, "%2.1fdB", MER);
-          Fill(255-MER*8, (MER*8), 0, 1);
-          //Roundrect(500, 0, (MER*8), 50, 10, 10);
-          Fill(255, 255, 255, 1);
-          //Text(500, 20, sMER, SerifTypeface, 25);
-
-          // Frequency indicator bar
-          Stroke(0, 0, 255, 0.8);
-          Line(FFT_SIZE/2, 0, FFT_SIZE/2, 10);
-          Stroke(0, 0, 255, 0.8);
-          Line(0,hscreen-300,256,hscreen-300);
-          StrokeWidth(10);
-          Line(128+(FREQ/40000.0)*256.0,hscreen-300-20,128+(FREQ/40000.0)*256.0,hscreen-300+20);
-
-          // Frequency text
-          char sFreq[100];
-          sprintf(sFreq,"%2.1fkHz",FREQ/1000.0);
-          //Text(0,hscreen-300+25, sFreq, SerifTypeface, 20);
-        }
-
-        if(Decim%25==0)
-        {
-          // Draw FFT
-          static float PowerFFTx[FFT_SIZE];
-          static float PowerFFTy[FFT_SIZE];
-          StrokeWidth(2);
-          Stroke(150, 150, 200, 0.8);
-          int i;
-          if(fftout != NULL)
-          {
-            for(i = 0; i < FFT_SIZE; i += 2)
-            {
-              PowerFFTx[i] = (i<FFT_SIZE/2)?(FFT_SIZE+i)/2:i/2;
-              PowerFFTy[i] = log10f(sqrt(fftout[i][0]*fftout[i][0]+fftout[i][1]*fftout[i][1])/FFT_SIZE)*100;	
-              Line(PowerFFTx[i], 0, PowerFFTx[i], PowerFFTy[i]);
-            }
-
-            // Draw Constellation
-            int x, y;
-            Decim++;
-            StrokeWidth(2);
-            Stroke(255, 255, 128, 0.8);
-            for(i = 0; i < NbData ; i++)
-            {
-              token = strtok(NULL, " ");
-              sscanf(token, "%d, %d", &x, &y);
-              coordpoint(x+128, hscreen-(y+128), 5, shapecolor); // dots
-
-              Stroke(0, 255, 255, 0.8);
-              Line(0, hscreen-128, 256, hscreen-128);
-              Line(128, hscreen, 128, hscreen-256);  // Axis
-            }
-          }
-          End();
-        }
-        else
-        {
-          Decim++;
-        }
-      }
-
-      if((strcmp(strTag, "SS") == 0))
-      {
-        token = strtok(line," ");
-        token = strtok(NULL," ");
-        sscanf(token,"%f",&SignalStrength);
-      }
-
-      if((strcmp(strTag, "MER") == 0))
-      {
-        token = strtok(line," ");
-        token = strtok(NULL," ");
-        sscanf(token,"%f",&MER);
-      }
-
-      if((strcmp(strTag,"FREQ")==0))
-      {
-        token = strtok(line," ");
-        token = strtok(NULL," ");
-        sscanf(token,"%f",&FREQ);
-      }
-
-      if((strcmp(strTag,"LOCK")==0))
-      {
-        token = strtok(line," ");
-        token = strtok(NULL," ");
-        sscanf(token,"%d",&Lock);
-      }
-
-      free(line);
-      line=NULL;
-
-      if(FinishedButton == 1)
-      {
-        printf("Trying to kill LeanDVB\n");
-        system("(sudo killall -9 leandvb >/dev/null 2>/dev/null) &");
-      }
-    }
-  }
- 
-  // Only graphics, no  parameters
-  if((strcmp(RXgraphics[0], "ON") == 0) && (strcmp(RXparams[0], "OFF") == 0))
-  { 
-    // While there is data, display it
-    while (((read = getline(&line, &len, fp)) != -1) && (FinishedButton == 0))
-    {
-      char  strTag[20];
-      int NbData;
-      static int Decim = 0;
-      sscanf(line,"%s ",strTag);
-      char * token;
-
-      // Deal with the Symbol Data
-      if(strcmp(strTag, "SYMBOLS")==0)
-      {
-        token = strtok(line, " ");
-        token = strtok(NULL, " ");
-        sscanf(token,"%d",&NbData);
-
-        if(Decim%25==0)
-        {
-          BackgroundRGB(0, 0, 0, 0);
-
-          // Draw FFT
-          static float PowerFFTx[FFT_SIZE];
-          static float PowerFFTy[FFT_SIZE];
-          StrokeWidth(2);
-          Stroke(150, 150, 200, 0.8);
-          int i;
-          if(fftout != NULL)
-          {
-            for(i = 0; i < FFT_SIZE; i += 2)
-            {
-              PowerFFTx[i] = (i<FFT_SIZE/2)?(FFT_SIZE+i)/2:i/2;
-              PowerFFTy[i] = log10f(sqrt(fftout[i][0]*fftout[i][0]+fftout[i][1]*fftout[i][1])/FFT_SIZE)*100;	
-              Line(PowerFFTx[i], 0, PowerFFTx[i], PowerFFTy[i]);
-            }
-          }
-
-          // Draw Constellation
-          int x, y;
-          Decim++;
-          StrokeWidth(2);
-          Stroke(255, 255, 128, 0.8);
-          for(i = 0; i < NbData ; i++)
-          {
-            token = strtok(NULL, " ");
-            sscanf(token, "%d, %d", &x, &y);
-            coordpoint(x+128, hscreen-(y+128), 5, shapecolor); // dots
-
-            Stroke(0, 255, 255, 0.8);
-            Line(0, hscreen-128, 256, hscreen-128);
-            Line(128, hscreen, 128, hscreen-256);  // Axis
-          }
-          End();
-        }
-        else
-        {
-          Decim++;
-        }
-      }
-
-      free(line);
-      line=NULL;
-
-      if(FinishedButton == 1)
-      {
-        printf("Trying to kill LeanDVB\n");
-        system("(sudo killall -9 leandvb >/dev/null 2>/dev/null) &");
-      }
-    }
-  }
-
-  // Only parameters, no graphics
-  if((strcmp(RXgraphics[0], "OFF") == 0) && (strcmp(RXparams[0], "ON") == 0))
-  { 
-    // While there is data, display it
-    while (((read = getline(&line, &len, fp)) != -1) && (FinishedButton == 0))
-    {
-      char  strTag[20];
-      int NbData;
-      static int Decim = 0;
-      sscanf(line,"%s ",strTag);
-      char * token;
-      static int Lock = 0;
-      static float SignalStrength = 0;
-      static float MER = 0;
-      static float FREQ = 0;
-
-      // Deal with the Symbol Data
-      if(strcmp(strTag, "SYMBOLS")==0)
-      {
-
-        token = strtok(line, " ");
-        token = strtok(NULL, " ");
-        sscanf(token,"%d",&NbData);
-
-        if(Decim%25==0)  // Lock, signal strength and MER
-        {
-          BackgroundRGB(0, 0, 0, 0);
-          StrokeWidth(2);
-
-          // Lock status Rectangle (red/green with white text)
-          char sLock[100];
-          if(Lock == 1)
-          {
-            strcpy(sLock,"Lock");
-            Fill(0,255,0, 1);
-          }
-          else
-          {
-            strcpy(sLock,"----");
-            Fill(255,0,0, 1);
-          }
-          //Roundrect(200,0,100,50, 10, 10);
-          Fill(255, 255, 255, 1);
-          //Text(200, 20, sLock, SerifTypeface, 25);
-
-          // Signal Strength: White text to right of Lock status
-          char sSignalStrength[100];
-          sprintf(sSignalStrength, "%3.0f", SignalStrength);
-          Fill(255-SignalStrength, SignalStrength, 0, 1);
-          //Roundrect(350, 0, 20+SignalStrength/2, 50, 10, 10);
-          Fill(255, 255, 255, 1);
-          //Text(350, 20, sSignalStrength, SerifTypeface, 25);
-
-          //MER: 2-30 to right of Sig Stength.  Bar length indicative.
-          char sMER[100];
-          sprintf(sMER, "%2.1fdB", MER);
-          Fill(255-MER*8, (MER*8), 0, 1);
-          //Roundrect(500, 0, (MER*8), 50, 10, 10);
-          Fill(255, 255, 255, 1);
-          //Text(500, 20, sMER, SerifTypeface, 25);
-
-          // Frequency indicator bar
-          Stroke(0, 0, 255, 0.8);
-          Line(FFT_SIZE/2, 0, FFT_SIZE/2, 10);
-          Stroke(0, 0, 255, 0.8);
-          Line(0,hscreen-300,256,hscreen-300);
-          StrokeWidth(10);
-          Line(128+(FREQ/40000.0)*256.0,hscreen-300-20,128+(FREQ/40000.0)*256.0,hscreen-300+20);
-
-          // Frequency text
-          char sFreq[100];
-          sprintf(sFreq,"%2.1fkHz",FREQ/1000.0);
-          //Text(0,hscreen-300+25, sFreq, SerifTypeface, 20);
-        }
-
-        if(Decim%25==0)
-        {
-          // Do the data elements of Draw FFT
-
-          int i;
-          if(fftout != NULL)
-          {
-            // Draw Constellation
-            int x, y;
-            Decim++;
-            for(i = 0; i < NbData ; i++)
-            {
-              token = strtok(NULL, " ");
-              sscanf(token, "%d, %d", &x, &y);
-            }
-          }
-          End();
-        }
-        else
-        {
-          Decim++;
-        }
-      }
-
-      if((strcmp(strTag, "SS") == 0))
-      {
-        token = strtok(line," ");
-        token = strtok(NULL," ");
-        sscanf(token,"%f",&SignalStrength);
-      }
-
-      if((strcmp(strTag, "MER") == 0))
-      {
-        token = strtok(line," ");
-        token = strtok(NULL," ");
-        sscanf(token,"%f",&MER);
-      }
-
-      if((strcmp(strTag,"FREQ")==0))
-      {
-        token = strtok(line," ");
-        token = strtok(NULL," ");
-        sscanf(token,"%f",&FREQ);
-      }
-
-      if((strcmp(strTag,"LOCK")==0))
-      {
-        token = strtok(line," ");
-        token = strtok(NULL," ");
-        sscanf(token,"%d",&Lock);
-      }
-
-      free(line);
-      line=NULL;
-
-      if(FinishedButton == 1)
-      {
-        printf("Trying to kill LeanDVB\n");
-        system("(sudo killall -9 leandvb >/dev/null 2>/dev/null) &");
-      }
-    }
-  }
-
-  FinishedButton2 = 1;  // Stop the FFT running at a safe point in time
-
-  system("(sudo killall -9 leandvb >/dev/null 2>/dev/null) &");
-  system("(sudo killall rtl_sdr >/dev/null 2>/dev/null) &");
-
-  system("sudo killall fbi >/dev/null 2>/dev/null");  // kill any previous images
-  system("sudo fbi -T 1 -noverbose -a /home/pi/rpidatv/scripts/images/BATC_Black.png");  // Add logo image
-
-  pthread_join(thfft, NULL);
-  pclose(fp);
-  pthread_join(thbutton, NULL);
- 
-  system("sudo killall -9 hello_video.bin >/dev/null 2>/dev/null");
-  system("sudo killall -9 hello_video2.bin >/dev/null 2>/dev/null");
-  system("sudo killall fbi >/dev/null 2>/dev/null");
-  system("sudo killall leandvb >/dev/null 2>/dev/null");
-  system("sudo killall ts2es >/dev/null 2>/dev/null");
-  finish();
-}
-
-
-void ReceiveStart2()
-{
-  strcpy(ScreenState, "RXwithImage");  //  Signal to display touch menu without further touch
-  system("sudo killall hello_video.bin >/dev/null 2>/dev/null");
-  system("sudo killall hello_video2.bin >/dev/null 2>/dev/null");
-  system("sudo rm /home/pi/fifo.iq >/dev/null 2>/dev/null");  // Clean up before receive
-  ProcessLeandvb2();
-}
-
-
-void ReceiveStop()
-{
-  system("sudo killall leandvb >/dev/null 2>/dev/null");
-  system("sudo killall -9 hello_video.bin >/dev/null 2>/dev/null");
-  system("sudo killall -9 hello_video2.bin >/dev/null 2>/dev/null");
-  printf("Receive Stop\n");
+  setBackColour(0, 0, 0);
+  clearScreen();
 }
 
 
@@ -8992,17 +7892,24 @@ void LMRX(int NoButton)
   // Set globals
   FinishedButton = 1;
 
-  int pointsize = 20;
+  // Initialise and calculate the text display
+  setForeColour(255, 255, 255);    // White text
+  setBackColour(0, 0, 0);          // on Black
+  const font_t *font_ptr = &font_dejavu_sans_28;
+  int txtht =  font_ptr->ascent;
+  int txttot =  font_ptr->height;
+  int txtdesc = font_ptr->height - font_ptr->ascent;
+  int linepitch = (14 * txtht) / 10;
+ 
+  // Display Text
+  clearScreen();
 
-  int linepitch = 40;
   // Create Wait Button thread
   pthread_create (&thbutton, NULL, &WaitButtonLMRX, NULL);
   
   switch (NoButton)
   {
   case 0:
-    BackgroundRGB(0, 0, 0, 0);
-    End();
     fp=popen(PATH_SCRIPT_LMRXMP, "r");
     if(fp==NULL) printf("Process error\n");
 
@@ -9016,8 +7923,6 @@ void LMRX(int NoButton)
       printf("Failed to open status fifo\n");
     }
     printf("Listening, ret = %d\n", ret);
-
-    WindowClear();
 
     while ((FinishedButton == 1) || (FinishedButton == 2)) // 1 is captions on, 2 is off
     {
@@ -9344,45 +8249,41 @@ void LMRX(int NoButton)
                 strcpy(Servicetext, " ");
               }
 
-              Fill(255, 255, 255, 255);  // Set foreground colour to white
-
-              BlankText(wscreen * 1.0 / 40.0, hscreen - 1 * linepitch, 20, pointsize);
-              Text(wscreen * 1.0 / 40.0, hscreen - 1 * linepitch, STATEtext, pointsize);
-              BlankText(wscreen * 1.0 / 40.0, hscreen - 2 * linepitch, 20, pointsize);
-              Text(wscreen * 1.0 / 40.0, hscreen - 2 * linepitch, FREQtext, pointsize);
-              BlankText(wscreen * 1.0 / 40.0, hscreen - 3 * linepitch, 10, pointsize);
-              Text(wscreen * 1.0 / 40.0, hscreen - 3 * linepitch, SRtext, pointsize);
-              BlankText(wscreen * 1.0 / 40.0, hscreen - 4 * linepitch, 10, pointsize);
-              Text(wscreen * 1.0 / 40.0, hscreen - 4 * linepitch, Modulationtext, pointsize);
-              BlankText(wscreen * 1.0 / 40.0, hscreen - 5 * linepitch, 10, pointsize);
-              Text(wscreen * 1.0 / 40.0, hscreen - 5 * linepitch, FECtext, pointsize);
-              BlankText(wscreen * 1.0 / 40.0, hscreen - 6 * linepitch, 20, pointsize);
-              Text(wscreen * 1.0 / 40.0, hscreen - 6 * linepitch, ServiceProvidertext, pointsize);
-              BlankText(wscreen * 1.0 / 40.0, hscreen - 7 * linepitch, 20, pointsize);
-              Text(wscreen * 1.0 / 40.0, hscreen - 7 * linepitch, Servicetext, pointsize);
-              BlankText(wscreen * 1.0 / 40.0, hscreen - 8 * linepitch, 10, pointsize);
-              Text(wscreen * 1.0 / 40.0, hscreen - 8 * linepitch, Encodingtext, pointsize);
+              rectangle(wscreen * 1 / 40, hscreen - 1 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
+              Text2(wscreen * 1 / 40, hscreen - 1 * linepitch, STATEtext, font_ptr);
+              rectangle(wscreen * 1 / 40, hscreen - 2 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
+              Text2(wscreen * 1 / 40, hscreen - 2 * linepitch, FREQtext, font_ptr);
+              rectangle(wscreen * 1 / 40, hscreen - 3 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
+              Text2(wscreen * 1 / 40, hscreen - 3 * linepitch, SRtext, font_ptr);
+              rectangle(wscreen * 1 / 40, hscreen - 4 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
+              Text2(wscreen * 1 / 40, hscreen - 4 * linepitch, Modulationtext, font_ptr);
+              rectangle(wscreen * 1 / 40, hscreen - 5 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
+              Text2(wscreen * 1 / 40, hscreen - 5 * linepitch, FECtext, font_ptr);
+              rectangle(wscreen * 1 / 40, hscreen - 6 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
+              Text2(wscreen * 1 / 40, hscreen - 6 * linepitch, ServiceProvidertext, font_ptr);
+              rectangle(wscreen * 1 / 40, hscreen - 7 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
+              Text2(wscreen * 1 / 40, hscreen - 7 * linepitch, Servicetext, font_ptr);
+              rectangle(wscreen * 1 / 40, hscreen - 8 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
+              Text2(wscreen * 1 / 40, hscreen - 8 * linepitch, Encodingtext, font_ptr);
               if (MER < MERThreshold)
               {
-                Fill(255, 63, 63, 255);  // Set foreground colour to red
+                setForeColour(255, 63, 63); // Set foreground colour to red
               }
-              BlankText(wscreen * 1.0 / 40.0, hscreen - 9 * linepitch, 25, pointsize);
-              Text(wscreen * 1.0 / 40.0, hscreen - 9 * linepitch, MERtext, pointsize);
-              Fill(255, 255, 255, 255);  // Set foreground colour to white
-              Text(wscreen * 1.0 / 40.0, hscreen - 10.5 * linepitch, "Touch Right side to exit", pointsize);
-              Text(wscreen * 1.0 / 40.0, hscreen - 11.5 * linepitch, "Touch Lower left for image capture", pointsize);
+              rectangle(wscreen * 1 / 40, hscreen - 9 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
+              Text2(wscreen * 1 / 40, hscreen - 9 * linepitch, MERtext, font_ptr);
+              setForeColour(255, 255, 255);  // Set foreground colour to white
+              Text2(wscreen * 1 / 40, hscreen - 11 * linepitch, "Touch Right side to exit", font_ptr);
+              Text2(wscreen * 1 / 40, hscreen - 12 * linepitch, "Touch Lower left for image capture", font_ptr);
             }
             else
             {
               if (Parameters_currently_displayed == 1)
               {
-                BackgroundRGB(0, 0, 0, 0);
-                Fill(0, 0, 0, 0);
-                //Rect(wscreen * 1.0 / 40.0, hscreen - 4.2 * linepitch, wscreen * 15.0 / 40.0, 4.0 * linepitch);
+                setBackColour(0, 0, 0);
+                clearScreen();
                 Parameters_currently_displayed = 0;
               }
             }
-            End();
           }
           stat_string[0] = '\0';
         }
@@ -9397,18 +8298,15 @@ void LMRX(int NoButton)
       }
     } 
     close(fd_status_fifo); 
-    finish();
     usleep(1000);
-    //init(&wscreen, &hscreen);  // Restart the graphics
 
     printf("Stopping receive process\n");
     pclose(fp);
     system("sudo killall lmmp.sh >/dev/null 2>/dev/null");
     touch_response = 0; 
     break;
+
   case 1:
-    BackgroundRGB(0, 0, 0, 0);
-    End();
     fp=popen(PATH_SCRIPT_LMRXOMX, "r");
     if(fp==NULL) printf("Process error\n");
 
@@ -9424,8 +8322,6 @@ void LMRX(int NoButton)
 
     printf("Listening\n");
 
-    WindowClear();
-
     while ((FinishedButton == 1) || (FinishedButton == 2)) 
     {
       num = read(fd_status_fifo, status_message_char, 1);
@@ -9751,45 +8647,41 @@ void LMRX(int NoButton)
                 strcpy(Servicetext, " ");
               }
 
-              Fill(255, 255, 255, 255);  // Set foreground colour to white
-
-              BlankText(wscreen * 1.0 / 40.0, hscreen - 1 * linepitch, 20, pointsize);
-              Text(wscreen * 1.0 / 40.0, hscreen - 1 * linepitch, STATEtext, pointsize);
-              BlankText(wscreen * 1.0 / 40.0, hscreen - 2 * linepitch, 20, pointsize);
-              Text(wscreen * 1.0 / 40.0, hscreen - 2 * linepitch, FREQtext, pointsize);
-              BlankText(wscreen * 1.0 / 40.0, hscreen - 3 * linepitch, 10, pointsize);
-              Text(wscreen * 1.0 / 40.0, hscreen - 3 * linepitch, SRtext, pointsize);
-              BlankText(wscreen * 1.0 / 40.0, hscreen - 4 * linepitch, 10, pointsize);
-              Text(wscreen * 1.0 / 40.0, hscreen - 4 * linepitch, Modulationtext, pointsize);
-              BlankText(wscreen * 1.0 / 40.0, hscreen - 5 * linepitch, 10, pointsize);
-              Text(wscreen * 1.0 / 40.0, hscreen - 5 * linepitch, FECtext, pointsize);
-              BlankText(wscreen * 1.0 / 40.0, hscreen - 6 * linepitch, 20, pointsize);
-              Text(wscreen * 1.0 / 40.0, hscreen - 6 * linepitch, ServiceProvidertext, pointsize);
-              BlankText(wscreen * 1.0 / 40.0, hscreen - 7 * linepitch, 20, pointsize);
-              Text(wscreen * 1.0 / 40.0, hscreen - 7 * linepitch, Servicetext, pointsize);
-              BlankText(wscreen * 1.0 / 40.0, hscreen - 8 * linepitch, 10, pointsize);
-              Text(wscreen * 1.0 / 40.0, hscreen - 8 * linepitch, Encodingtext, pointsize);
+              rectangle(wscreen * 1 / 40, hscreen - 1 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
+              Text2(wscreen * 1 / 40, hscreen - 1 * linepitch, STATEtext, font_ptr);
+              rectangle(wscreen * 1 / 40, hscreen - 2 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
+              Text2(wscreen * 1 / 40, hscreen - 2 * linepitch, FREQtext, font_ptr);
+              rectangle(wscreen * 1 / 40, hscreen - 3 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
+              Text2(wscreen * 1 / 40, hscreen - 3 * linepitch, SRtext, font_ptr);
+              rectangle(wscreen * 1 / 40, hscreen - 4 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
+              Text2(wscreen * 1 / 40, hscreen - 4 * linepitch, Modulationtext, font_ptr);
+              rectangle(wscreen * 1 / 40, hscreen - 5 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
+              Text2(wscreen * 1 / 40, hscreen - 5 * linepitch, FECtext, font_ptr);
+              rectangle(wscreen * 1 / 40, hscreen - 6 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
+              Text2(wscreen * 1 / 40, hscreen - 6 * linepitch, ServiceProvidertext, font_ptr);
+              rectangle(wscreen * 1 / 40, hscreen - 7 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
+              Text2(wscreen * 1 / 40, hscreen - 7 * linepitch, Servicetext, font_ptr);
+              rectangle(wscreen * 1 / 40, hscreen - 8 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
+              Text2(wscreen * 1 / 40, hscreen - 8 * linepitch, Encodingtext, font_ptr);
               if (MER < MERThreshold)
               {
-                Fill(255, 63, 63, 255);  // Set foreground colour to red
+                setForeColour(255, 63, 63); // Set foreground colour to red
               }
-              BlankText(wscreen * 1.0 / 40.0, hscreen - 9 * linepitch, 25, pointsize);
-              Text(wscreen * 1.0 / 40.0, hscreen - 9 * linepitch, MERtext, pointsize);
-              Fill(255, 255, 255, 255);  // Set foreground colour to white
-              Text(wscreen * 1.0 / 40.0, hscreen - 10.5 * linepitch, "Touch Right side to exit", pointsize);
-              Text(wscreen * 1.0 / 40.0, hscreen - 11.5 * linepitch, "Touch Lower left for image capture", pointsize);
+              rectangle(wscreen * 1 / 40, hscreen - 9 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
+              Text2(wscreen * 1 / 40, hscreen - 9 * linepitch, MERtext, font_ptr);
+              setForeColour(255, 255, 255);  // Set foreground colour to white
+              Text2(wscreen * 1 / 40, hscreen - 11 * linepitch, "Touch Right side to exit", font_ptr);
+              Text2(wscreen * 1 / 40, hscreen - 12 * linepitch, "Touch Lower left for image capture", font_ptr);
             }
             else
             {
               if (Parameters_currently_displayed == 1)
               {
-                BackgroundRGB(0, 0, 0, 0);
-                Fill(0, 0, 0, 0);
-                //Rect(wscreen * 1.0 / 40.0, hscreen - 4.2 * linepitch, wscreen * 15.0 / 40.0, 4.0 * linepitch);
+                setBackColour(0, 0, 0);
+                clearScreen();
                 Parameters_currently_displayed = 0;
               }
             }
-            End();
           }
           stat_string[0] = '\0';
         }
@@ -9804,18 +8696,15 @@ void LMRX(int NoButton)
       }
     } 
     close(fd_status_fifo); 
-    finish();
     usleep(1000);
-    //init(&wscreen, &hscreen);  // Restart the graphics
 
     printf("Stopping receive process\n");
     pclose(fp);
     system("sudo killall lmomx.sh >/dev/null 2>/dev/null");
     touch_response = 0; 
     break;
+
   case 2:
-    BackgroundRGB(0, 0, 0, 0);
-    End();
     fp=popen(PATH_SCRIPT_LMRXVLC, "r");
     if(fp==NULL) printf("Process error\n");
 
@@ -9831,8 +8720,6 @@ void LMRX(int NoButton)
 
     printf("Listening\n");
 
-    WindowClear();
-
     while ((FinishedButton == 1) || (FinishedButton == 2)) 
     {
       num = read(fd_status_fifo, status_message_char, 1);
@@ -10158,45 +9045,41 @@ void LMRX(int NoButton)
                 strcpy(Servicetext, " ");
               }
 
-              Fill(255, 255, 255, 255);  // Set foreground colour to white
-
-              BlankText(wscreen * 1.0 / 40.0, hscreen - 1 * linepitch, 20, pointsize);
-              Text(wscreen * 1.0 / 40.0, hscreen - 1 * linepitch, STATEtext, pointsize);
-              BlankText(wscreen * 1.0 / 40.0, hscreen - 2 * linepitch, 20, pointsize);
-              Text(wscreen * 1.0 / 40.0, hscreen - 2 * linepitch, FREQtext, pointsize);
-              BlankText(wscreen * 1.0 / 40.0, hscreen - 3 * linepitch, 10, pointsize);
-              Text(wscreen * 1.0 / 40.0, hscreen - 3 * linepitch, SRtext, pointsize);
-              BlankText(wscreen * 1.0 / 40.0, hscreen - 4 * linepitch, 10, pointsize);
-              Text(wscreen * 1.0 / 40.0, hscreen - 4 * linepitch, Modulationtext, pointsize);
-              BlankText(wscreen * 1.0 / 40.0, hscreen - 5 * linepitch, 10, pointsize);
-              Text(wscreen * 1.0 / 40.0, hscreen - 5 * linepitch, FECtext, pointsize);
-              BlankText(wscreen * 1.0 / 40.0, hscreen - 6 * linepitch, 20, pointsize);
-              Text(wscreen * 1.0 / 40.0, hscreen - 6 * linepitch, ServiceProvidertext, pointsize);
-              BlankText(wscreen * 1.0 / 40.0, hscreen - 7 * linepitch, 20, pointsize);
-              Text(wscreen * 1.0 / 40.0, hscreen - 7 * linepitch, Servicetext, pointsize);
-              BlankText(wscreen * 1.0 / 40.0, hscreen - 8 * linepitch, 10, pointsize);
-              Text(wscreen * 1.0 / 40.0, hscreen - 8 * linepitch, Encodingtext, pointsize);
+              rectangle(wscreen * 1 / 40, hscreen - 1 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
+              Text2(wscreen * 1 / 40, hscreen - 1 * linepitch, STATEtext, font_ptr);
+              rectangle(wscreen * 1 / 40, hscreen - 2 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
+              Text2(wscreen * 1 / 40, hscreen - 2 * linepitch, FREQtext, font_ptr);
+              rectangle(wscreen * 1 / 40, hscreen - 3 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
+              Text2(wscreen * 1 / 40, hscreen - 3 * linepitch, SRtext, font_ptr);
+              rectangle(wscreen * 1 / 40, hscreen - 4 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
+              Text2(wscreen * 1 / 40, hscreen - 4 * linepitch, Modulationtext, font_ptr);
+              rectangle(wscreen * 1 / 40, hscreen - 5 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
+              Text2(wscreen * 1 / 40, hscreen - 5 * linepitch, FECtext, font_ptr);
+              rectangle(wscreen * 1 / 40, hscreen - 6 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
+              Text2(wscreen * 1 / 40, hscreen - 6 * linepitch, ServiceProvidertext, font_ptr);
+              rectangle(wscreen * 1 / 40, hscreen - 7 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
+              Text2(wscreen * 1 / 40, hscreen - 7 * linepitch, Servicetext, font_ptr);
+              rectangle(wscreen * 1 / 40, hscreen - 8 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
+              Text2(wscreen * 1 / 40, hscreen - 8 * linepitch, Encodingtext, font_ptr);
               if (MER < MERThreshold)
               {
-                Fill(255, 63, 63, 255);  // Set foreground colour to red
+                setForeColour(255, 63, 63); // Set foreground colour to red
               }
-              BlankText(wscreen * 1.0 / 40.0, hscreen - 9 * linepitch, 25, pointsize);
-              Text(wscreen * 1.0 / 40.0, hscreen - 9 * linepitch, MERtext, pointsize);
-              Fill(255, 255, 255, 255);  // Set foreground colour to white
-              Text(wscreen * 1.0 / 40.0, hscreen - 10.5 * linepitch, "Touch Right side to exit", pointsize);
-              Text(wscreen * 1.0 / 40.0, hscreen - 11.5 * linepitch, "Touch Lower left for image capture", pointsize);
+              rectangle(wscreen * 1 / 40, hscreen - 9 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
+              Text2(wscreen * 1 / 40, hscreen - 9 * linepitch, MERtext, font_ptr);
+              setForeColour(255, 255, 255);  // Set foreground colour to white
+              Text2(wscreen * 1 / 40, hscreen - 11 * linepitch, "Touch Right side to exit", font_ptr);
+              Text2(wscreen * 1 / 40, hscreen - 12 * linepitch, "Touch Lower left for image capture", font_ptr);
             }
             else
             {
               if (Parameters_currently_displayed == 1)
               {
-                BackgroundRGB(0, 0, 0, 0);
-                Fill(0, 0, 0, 0);
-                //Rect(wscreen * 1.0 / 40.0, hscreen - 4.2 * linepitch, wscreen * 15.0 / 40.0, 4.0 * linepitch);
+                setBackColour(0, 0, 0);
+                clearScreen();
                 Parameters_currently_displayed = 0;
               }
             }
-            End();
           }
           stat_string[0] = '\0';
         }
@@ -10214,19 +9097,16 @@ void LMRX(int NoButton)
     system("/home/pi/rpidatv/scripts/lmvlcsd.sh");
 
     close(fd_status_fifo); 
-    finish();
     usleep(1000);
-    //init(&wscreen, &hscreen);  // Restart the graphics
 
     printf("Stopping receive process\n");
     pclose(fp);
     system("sudo killall lmvlc.sh >/dev/null 2>/dev/null");
     touch_response = 0; 
     break;
+
   case 3:
     snprintf(udp_string, 63, "UDP Output to %s:%s", LMRXudpip, LMRXudpport);
-    BackgroundRGB(0, 0, 0, 0);
-    End();
     fp=popen(PATH_SCRIPT_LMRXUDP, "r");
     if(fp==NULL) printf("Process error\n");
 
@@ -10239,9 +9119,8 @@ void LMRX(int NoButton)
     {
       printf("Failed to open status fifo\n");
     }
-    WindowClear();
-   printf("FinishedButton = %d\n", FinishedButton);
 
+    printf("FinishedButton = %d\n", FinishedButton);
 
     while ((FinishedButton == 1) || (FinishedButton == 2)) // 1 is captions on, 2 is off
     {
@@ -10567,34 +9446,31 @@ void LMRX(int NoButton)
                 strcpy(Servicetext, " ");
               }
 
-              Fill(255, 255, 255, 255);  // Set foreground colour to white
-
-              BlankText(wscreen * 1.0 / 40.0, hscreen - 1 * linepitch, 20, pointsize);
-              Text(wscreen * 1.0 / 40.0, hscreen - 1 * linepitch, STATEtext, pointsize);
-              BlankText(wscreen * 1.0 / 40.0, hscreen - 2 * linepitch, 20, pointsize);
-              Text(wscreen * 1.0 / 40.0, hscreen - 2 * linepitch, FREQtext, pointsize);
-              BlankText(wscreen * 1.0 / 40.0, hscreen - 3 * linepitch, 10, pointsize);
-              Text(wscreen * 1.0 / 40.0, hscreen - 3 * linepitch, SRtext, pointsize);
-              BlankText(wscreen * 1.0 / 40.0, hscreen - 4 * linepitch, 10, pointsize);
-              Text(wscreen * 1.0 / 40.0, hscreen - 4 * linepitch, Modulationtext, pointsize);
-              BlankText(wscreen * 1.0 / 40.0, hscreen - 5 * linepitch, 10, pointsize);
-              Text(wscreen * 1.0 / 40.0, hscreen - 5 * linepitch, FECtext, pointsize);
-              BlankText(wscreen * 1.0 / 40.0, hscreen - 6 * linepitch, 20, pointsize);
-              Text(wscreen * 1.0 / 40.0, hscreen - 6 * linepitch, ServiceProvidertext, pointsize);
-              BlankText(wscreen * 1.0 / 40.0, hscreen - 7 * linepitch, 20, pointsize);
-              Text(wscreen * 1.0 / 40.0, hscreen - 7 * linepitch, Servicetext, pointsize);
-              BlankText(wscreen * 1.0 / 40.0, hscreen - 8 * linepitch, 10, pointsize);
-              Text(wscreen * 1.0 / 40.0, hscreen - 8 * linepitch, Encodingtext, pointsize);
+              rectangle(wscreen * 1 / 40, hscreen - 1 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
+              Text2(wscreen * 1 / 40, hscreen - 1 * linepitch, STATEtext, font_ptr);
+              rectangle(wscreen * 1 / 40, hscreen - 2 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
+              Text2(wscreen * 1 / 40, hscreen - 2 * linepitch, FREQtext, font_ptr);
+              rectangle(wscreen * 1 / 40, hscreen - 3 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
+              Text2(wscreen * 1 / 40, hscreen - 3 * linepitch, SRtext, font_ptr);
+              rectangle(wscreen * 1 / 40, hscreen - 4 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
+              Text2(wscreen * 1 / 40, hscreen - 4 * linepitch, Modulationtext, font_ptr);
+              rectangle(wscreen * 1 / 40, hscreen - 5 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
+              Text2(wscreen * 1 / 40, hscreen - 5 * linepitch, FECtext, font_ptr);
+              rectangle(wscreen * 1 / 40, hscreen - 6 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
+              Text2(wscreen * 1 / 40, hscreen - 6 * linepitch, ServiceProvidertext, font_ptr);
+              rectangle(wscreen * 1 / 40, hscreen - 7 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
+              Text2(wscreen * 1 / 40, hscreen - 7 * linepitch, Servicetext, font_ptr);
+              rectangle(wscreen * 1 / 40, hscreen - 8 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
+              Text2(wscreen * 1 / 40, hscreen - 8 * linepitch, Encodingtext, font_ptr);
               if (MER < MERThreshold)
               {
-                Fill(255, 63, 63, 255);  // Set foreground colour to red
+                setForeColour(255, 63, 63); // Set foreground colour to red
               }
-              BlankText(wscreen * 1.0 / 40.0, hscreen - 9 * linepitch, 25, pointsize);
-              Text(wscreen * 1.0 / 40.0, hscreen - 9 * linepitch, MERtext, pointsize);
-              Fill(255, 255, 255, 255);  // Set foreground colour to white
-              Text(wscreen * 1.0 / 40.0, hscreen - 10.5 * linepitch, "Touch Right side to exit", pointsize);
-              Text(wscreen * 1.0 / 40.0, hscreen - 11.5 * linepitch, "Touch Lower left for image capture", pointsize);
-            End();
+              rectangle(wscreen * 1 / 40, hscreen - 9 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
+              Text2(wscreen * 1 / 40, hscreen - 9 * linepitch, MERtext, font_ptr);
+              setForeColour(255, 255, 255);  // Set foreground colour to white
+              Text2(wscreen * 1 / 40, hscreen - 11 * linepitch, "UDP Output", font_ptr);
+              Text2(wscreen * 1 / 40, hscreen - 12 * linepitch, "Touch Right Side to Exit", font_ptr);
           }
           stat_string[0] = '\0';
         }
@@ -10609,9 +9485,7 @@ void LMRX(int NoButton)
       }
     } 
     close(fd_status_fifo); 
-    finish();
     usleep(1000);
-    //init(&wscreen, &hscreen);  // Restart the graphics
 
     printf("Stopping receive process\n");
     pclose(fp);
@@ -10619,10 +9493,9 @@ void LMRX(int NoButton)
     system("sudo killall lmudp.sh >/dev/null 2>/dev/null");
     touch_response = 0; 
     break;
+
   case 4:
     snprintf(udp_string, 63, "UDP Output to %s:%s", LMRXudpip, LMRXudpport);
-    BackgroundRGB(0, 0, 0, 0);
-    End();
     fp=popen(PATH_SCRIPT_LMRXMER, "r");
     if(fp==NULL) printf("Process error\n");
 
@@ -10635,7 +9508,6 @@ void LMRX(int NoButton)
     {
       printf("Failed to open status fifo\n");
     }
-    WindowClear();
 
     while ((FinishedButton == 1) || (FinishedButton == 2)) // 1 is captions on, 2 is off
     {
@@ -10698,28 +9570,26 @@ void LMRX(int NoButton)
               MERcount = 10;
             }
 
-            Fill(255, 255, 255, 255);
-              BlankText(wscreen * 1.0 / 40.0, hscreen - 1 * linepitch, 20, pointsize);
-              Text(wscreen * 1.0 / 40.0, hscreen - 1 * linepitch, STATEtext, pointsize);
-             BlankText(wscreen * 1.0 / 40.0, hscreen - 9 * linepitch, 25, pointsize);
-              Text(wscreen * 1.0 / 40.0, hscreen - 9 * linepitch, MERtext, pointsize);
- 
+
+              rectangle(wscreen * 1 / 40, hscreen - 1 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
+              Text2(wscreen * 1 / 40, hscreen - 1 * linepitch, STATEtext, font_ptr);
+              rectangle(wscreen * 1 / 40, hscreen - 9 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
+              Text2(wscreen * 1 / 40, hscreen - 9 * linepitch, MERtext, font_ptr);
+              Text2(wscreen * 1 / 40, hscreen - 12 * linepitch, "Touch Right Side to Exit", font_ptr);
+
             if (MERcount == 10)
             {
-              if (MER > refMER)
+              if (MER > refMER)  // Green rectangle
               {
-                Fill(0, 255, 0, 255); // Green
-                //Rect(wscreen * 38.0 / 40.0, hscreen * 0.30, wscreen, (hscreen * (MER - refMER) * 0.3));
+                rectangle(wscreen * 38 / 40, hscreen * 0.30, wscreen * 2 / 40, (hscreen * (MER - refMER) / 8), 0, 255, 0);
+                rectangle(wscreen * 38 / 40, (hscreen * 0.30) + (hscreen * (MER - refMER) / 8), wscreen * 2 / 40, 120, 0, 0, 0);
               }
               else
               {
-                Fill(255, 0, 0, 255); // Red
-                //Rect(wscreen * 38.0 / 40.0, hscreen * 0.30 + (hscreen * (MER - refMER) * 0.3), wscreen, (hscreen * (refMER - MER) * 0.3));
+                rectangle(wscreen * 38 / 40, hscreen * 0.30 + (hscreen * (MER - refMER) / 8), wscreen * 2 / 40, (hscreen * (refMER - MER) / 8), 255, 0, 0);
+                //rectangle(wscreen * 38 / 40, 1, wscreen * 2 / 40, hscreen * 0.30 + (hscreen * (MER - refMER) / 8), 0, 0, 0);
               }
             }
-            Fill(255, 255, 255, 255);
-            Text(wscreen * 1.0 / 40.0, hscreen - 10.5 * linepitch, "Touch Screen to exit", pointsize);
-            End();
           }
           stat_string[0] = '\0';
         }
@@ -10734,9 +9604,7 @@ void LMRX(int NoButton)
       }
     } 
     close(fd_status_fifo); 
-    finish();
     usleep(1000);
-    //init(&wscreen, &hscreen);  // Restart the graphics
 
     printf("Stopping receive process\n");
     pclose(fp);
@@ -10744,10 +9612,11 @@ void LMRX(int NoButton)
     system("sudo killall lmmer.sh >/dev/null 2>/dev/null");
     touch_response = 0; 
     break;
+
   case 5:
     snprintf(udp_string, 63, "UDP Output to %s:%s", LMRXudpip, LMRXudpport);
-    BackgroundRGB(0, 0, 0, 0);
-    End();
+    setBackColour(0, 0, 0);
+    clearScreen();
     fp=popen(PATH_SCRIPT_LMRXMER, "r");
     if(fp==NULL) printf("Process error\n");
 
@@ -10761,7 +9630,6 @@ void LMRX(int NoButton)
     {
       printf("Failed to open status fifo\n");
     }
-    WindowClear();
     while ((FinishedButton == 1) || (FinishedButton == 2)) // 1 is captions on, 2 is off
     {
       num = read(fd_status_fifo, status_message_char, 1);
@@ -10835,12 +9703,10 @@ void LMRX(int NoButton)
               MERcount = 10;
             }
 
-            //BackgroundRGB(0, 0, 0, 0);
-            Fill(255, 255, 255, 255);
-              BlankText(wscreen * 1.0 / 40.0, hscreen - 1 * linepitch, 20, pointsize);
-              Text(wscreen * 1.0 / 40.0, hscreen - 1 * linepitch, STATEtext, pointsize);
-              BlankText(wscreen * 1.0 / 40.0, hscreen - 3 * linepitch, 25, pointsize);
-              Text(wscreen * 1.0 / 40.0, hscreen - 3 * linepitch, MERtext, pointsize);
+            rectangle(wscreen * 1 / 40, hscreen - 1 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
+            Text2(wscreen * 1 / 40, hscreen - 1 * linepitch, STATEtext, font_ptr);
+            rectangle(wscreen * 1 / 40, hscreen - 3 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
+            Text2(wscreen * 1 / 40, hscreen - 3 * linepitch, MERtext, font_ptr);
        
             // Make sure that the Tuner frequency is sensible
             if ((TUNEFREQ < 143000) || (TUNEFREQ > 2650000))
@@ -10850,23 +9716,21 @@ void LMRX(int NoButton)
 
             if ((MERcount == 10) && (LMRXqoffset == 0) && (TUNEFREQ != 0))
             {
-              Text(wscreen * 1.0 / 40.0, hscreen - 5.5 * linepitch, "Calculated LNB Offset", pointsize);
+              Text2(wscreen * 1.0 / 40.0, hscreen - 5.5 * linepitch, "Calculated LNB Offset", font_ptr);
               LMRXqoffset = 10491500 - TUNEFREQ;
               snprintf(FREQtext, 15, "%d KHz", LMRXqoffset);
-              Text(wscreen * 1.0 / 40.0, hscreen - 7.5 * linepitch, FREQtext, pointsize);
-              Text(wscreen * 1.0 / 40.0, hscreen - 9.5 * linepitch, "Saved to memory card", pointsize);
+              Text2(wscreen * 1.0 / 40.0, hscreen - 7.5 * linepitch, FREQtext, font_ptr);
+              Text2(wscreen * 1.0 / 40.0, hscreen - 9.5 * linepitch, "Saved to memory card", font_ptr);
               snprintf(Value, 15, "%d", LMRXqoffset);
               SetConfigParam(PATH_LMCONFIG, "qoffset", Value);
             }
             if ((MERcount == 10) && (LMRXqoffset != 0)) // Done, so just display results
             {
-              Text(wscreen * 1.0 / 40.0, hscreen - 5.5 * linepitch, "Calculated LNB Offset", pointsize);
+              Text2(wscreen * 1.0 / 40.0, hscreen - 5.5 * linepitch, "Calculated LNB Offset", font_ptr);
               snprintf(FREQtext, 15, "%d KHz", LMRXqoffset);
-              Text(wscreen * 1.0 / 40.0, hscreen - 7.5 * linepitch, FREQtext, pointsize);
-              Text(wscreen * 1.0 / 40.0, hscreen - 9.5 * linepitch, "Saved to memory card", pointsize);
+              Text2(wscreen * 1.0 / 40.0, hscreen - 7.5 * linepitch, FREQtext, font_ptr);
             }
-            Text(wscreen * 1.0 / 40.0, hscreen - 11.5 * linepitch, "Touch right side of screen to exit", pointsize);
-            End();
+            Text2(wscreen * 1.0 / 40.0, hscreen - 11.5 * linepitch, "Touch right side of screen to exit", font_ptr);
           }
           stat_string[0] = '\0';
         }
@@ -10881,9 +9745,7 @@ void LMRX(int NoButton)
       }
     } 
     close(fd_status_fifo); 
-    finish();
     usleep(1000);
-    //init(&wscreen, &hscreen);  // Restart the graphics
 
     printf("Stopping receive process\n");
     pclose(fp);
@@ -10940,50 +9802,50 @@ void wait_touch()
 
 void MsgBox(const char *message)
 {
-  //init(&wscreen, &hscreen);  // Restart the gui
-  BackgroundRGB(0,0,0,255);  // Black background
-  Fill(255, 255, 255, 1);    // White text
+  // Display a one-line message and wait for touch
+  setForeColour(255, 255, 255);    // White text
+  setBackColour(0, 0, 0);          // on Black
+  const font_t *font_ptr = &font_dejavu_sans_32;
 
-  TextMid(wscreen/2, hscreen/2, message, 25);
+  clearScreen();
+  TextMid2(wscreen / 2, hscreen /2, message, font_ptr);
+  TextMid2(wscreen / 2, 20, "Touch Screen to Continue", font_ptr);
 
-  //float tw = 20; //TextWidth("Touch Screen to Continue", SansTypeface, 25);
-  TextMid(wscreen / 2.0, 20, "Touch Screen to Continue", 25);
-  End();
   printf("MsgBox called and waiting for touch\n");
 }
 
 void MsgBox2(const char *message1, const char *message2)
 {
-  //init(&wscreen, &hscreen);  // Restart the gui
-  BackgroundRGB(0, 0, 0, 255);  // Black background
-  Fill(255, 255, 255, 1);    // White text
+  // Display a 2-line message and wait for touch
+  setForeColour(255, 255, 255);    // White text
+  setBackColour(0, 0, 0);          // on Black
+  const font_t *font_ptr = &font_dejavu_sans_32;
+  int txtht =  font_ptr->ascent;
+  int linepitch = (14 * txtht) / 10;
 
-  float th =  20; //TextHeight(SansTypeface, 25);
+  clearScreen();
+  TextMid2(wscreen / 2, hscreen / 2 + linepitch, message1, font_ptr);
+  TextMid2(wscreen / 2, hscreen / 2 - linepitch, message2, font_ptr);
+  TextMid2(wscreen / 2, 20, "Touch Screen to Continue", font_ptr);
 
-
-  TextMid(wscreen/2, hscreen/2+th, message1, 25);
-  TextMid(wscreen/2, hscreen/2-th, message2, 25);
-
-  float tw = 20; //TextWidth("Touch Screen to Continue", 25);
-  TextMid(wscreen / 2.0, 20, "Touch Screen to Continue", 25);
-  //End();
   printf("MsgBox2 called and waiting for touch\n");
 }
 
 void MsgBox4(const char *message1, const char *message2, const char *message3, const char *message4)
 {
-  //init(&wscreen, &hscreen);  // Restart the gui
-  BackgroundRGB(0, 0, 0, 255);  // Black background
-  Fill(255, 255, 255, 1);    // White text
+  // Display a 4-line message
+  setForeColour(255, 255, 255);    // White text
+  setBackColour(0, 0, 0);          // on Black
+  const font_t *font_ptr = &font_dejavu_sans_32;
+  int txtht =  font_ptr->ascent;
+  int linepitch = (14 * txtht) / 10;
 
-  float th =  20; //TextHeight(SansTypeface, 25);
+  clearScreen();
+  TextMid2(wscreen / 2, hscreen / 2 + (linepitch * 3) / 2, message1, font_ptr);
+  TextMid2(wscreen / 2, hscreen / 2 + (linepitch * 3) / 4, message2, font_ptr);
+  TextMid2(wscreen / 2, hscreen / 2 - (linepitch * 3) / 4, message3, font_ptr);
+  TextMid2(wscreen / 2, hscreen / 2 - (linepitch * 3) / 2, message4, font_ptr);
 
-  TextMid(wscreen/2, hscreen/2 + 2.1 * th, message1, 25);
-  TextMid(wscreen/2, hscreen/2 + 0.7 * th, message2, 25);
-  TextMid(wscreen/2, hscreen/2 - 0.7 * th, message3, 25);
-  TextMid(wscreen/2, hscreen/2 - 2.1 * th, message4, 25);
-
-  //End();
   printf("MsgBox4 called\n");
 }
 
@@ -11010,7 +9872,8 @@ void YesNo(int i)  // i == 6 Yes, i == 8 No
     case 8:     // No
       MsgBox("Current settings retained");
       wait_touch();
-      BackgroundRGB(0, 0, 0, 255);
+      setBackColour(0, 0, 0);
+      clearScreen();
       break;
     }
     CurrentMenu = 43;
@@ -11035,7 +9898,8 @@ void YesNo(int i)  // i == 6 Yes, i == 8 No
     case 8:     // No
       MsgBox("Current settings retained");
       wait_touch();
-      BackgroundRGB(0, 0, 0, 255);
+      setBackColour(0, 0, 0);
+      clearScreen();
       break;
     }
     CurrentMenu = 43;
@@ -11060,7 +9924,8 @@ void YesNo(int i)  // i == 6 Yes, i == 8 No
     case 8:     // No
       MsgBox("Current settings retained");
       wait_touch();
-      BackgroundRGB(0, 0, 0, 255);
+      setBackColour(0, 0, 0);
+      clearScreen();
       break;
     }
     CurrentMenu = 43;
@@ -11075,12 +9940,14 @@ void YesNo(int i)  // i == 6 Yes, i == 8 No
       system("/home/pi/rpidatv/scripts/copy_settings_to_usb.sh");
       MsgBox("Current settings saved to USB");
       wait_touch();
-      BackgroundRGB(0, 0, 0, 255);
+      setBackColour(0, 0, 0);
+      clearScreen();
       break;
     case 8:     // No
       MsgBox("Settings not saved");
       wait_touch();
-      BackgroundRGB(0, 0, 0, 255);
+      setBackColour(0, 0, 0);
+      clearScreen();
       break;
     }
     CurrentMenu = 43;
@@ -11095,12 +9962,14 @@ void YesNo(int i)  // i == 6 Yes, i == 8 No
       system("/home/pi/rpidatv/scripts/copy_settings_to_boot_folder.sh");
       MsgBox("Current settings saved to /boot");
       wait_touch();
-      BackgroundRGB(0,0,0,255);
+      setBackColour(0, 0, 0);
+      clearScreen();
       break;
     case 8:     // No
       MsgBox("Settings not saved");
       wait_touch();
-      BackgroundRGB(0,0,0,255);
+      setBackColour(0, 0, 0);
+      clearScreen();
       break;
     }
     CurrentMenu = 43;
@@ -11119,13 +9988,13 @@ void YesNo(int i)  // i == 6 Yes, i == 8 No
       system("sudo rm /tmp/expctrl >/dev/null 2>/dev/null");
       sync();            // Prevents shutdown hang in Stretch
       usleep(1000000);
-      finish();
       cleanexit(194);    // Commands scheduler to rotate and reboot
       break;
     case 8:     // No
       MsgBox("Current settings retained");
       wait_touch();
-      BackgroundRGB(0,0,0,255);
+      setBackColour(0, 0, 0);
+      clearScreen();
       break;
     }
     CurrentMenu = 43;
@@ -11144,13 +10013,13 @@ void YesNo(int i)  // i == 6 Yes, i == 8 No
       system("sudo rm /tmp/expctrl >/dev/null 2>/dev/null");
       sync();            // Prevents shutdown hang in Stretch
       usleep(1000000);
-      finish();
       cleanexit(193);    // Commands scheduler to rotate and reboot
       break;
     case 8:     // No
       MsgBox("Current settings retained");
       wait_touch();
-      BackgroundRGB(0,0,0,255);
+      setBackColour(0, 0, 0);
+      clearScreen();
       break;
     }
     CurrentMenu = 43;
@@ -11161,12 +10030,12 @@ void YesNo(int i)  // i == 6 Yes, i == 8 No
 
 void InfoScreen()
 {
-  char result[256];
-  char result2[256] = " ";
+  char result[255];
+  char result2[255] = " ";
 
   // Look up and format all the parameters to be displayed
 
-  char swversion[256] = "Software Version: ";
+  char swversion[255] = "Software Version: ";
   if (GetLinuxVer() == 8)
   {
     strcat(swversion, "Jessie ");
@@ -11182,7 +10051,7 @@ void InfoScreen()
   GetSWVers(result);
   strcat(swversion, result);
 
-  char ipaddress[256] = "IP: ";
+  char ipaddress[255] = "IP: ";
   strcpy(result, "Not connected");
   GetIPAddr(result);
   strcat(ipaddress, result);
@@ -11190,13 +10059,13 @@ void InfoScreen()
   GetIPAddr2(result2);
   strcat(ipaddress, result2);
 
-  char CPUTemp[256];
+  char CPUTemp[255];
   GetCPUTemp(result);
   sprintf(CPUTemp, "CPU temp=%.1f\'C      GPU ", atoi(result)/1000.0);
   GetGPUTemp(result);
   strcat(CPUTemp, result);
 
-  char PowerText[256] = "Temperature has been or is too high";
+  char PowerText[255] = "Temperature has been or is too high";
   GetThrottled(result);
   result[strlen(result) - 1]  = '\0';
   if(strcmp(result,"throttled=0x0")==0)
@@ -11212,7 +10081,7 @@ void InfoScreen()
     strcpy(PowerText,"Low supply voltage now");
   }
 
-  char TXParams1[256] = "TX ";
+  char TXParams1[255] = "TX ";
   GetConfigParam(PATH_PCONFIG,"freqoutput",result);
   strcat(TXParams1, result);
   strcat(TXParams1, " MHz  SR ");
@@ -11226,91 +10095,79 @@ void InfoScreen()
   sprintf(result, "%d", atoi(result)+1);
   strcat(TXParams1, result);
 
-  char TXParams2[256];
-  char vcoding[256];
-  char vsource[256];
+  char TXParams2[255];
+  char vcoding[255];
+  char vsource[255];
   ReadModeInput(vcoding, vsource);
   strcpy(TXParams2, vcoding);
   strcat(TXParams2, " coding from ");
   strcat(TXParams2, vsource);
   
-  char TXParams3[256];
-  char ModeOutput[256];
+  char TXParams3[255];
+  char ModeOutput[255];
   ReadModeOutput(ModeOutput);
   strcpy(TXParams3, "Output to ");
   strcat(TXParams3, ModeOutput);
 
-  char SerNo[256];
-  char CardSerial[256] = "SD Card Serial: ";
+  char SerNo[255];
+  char CardSerial[255] = "SD Card Serial: ";
   GetSerNo(SerNo);
   strcat(CardSerial, SerNo);
 
-  char DeviceTitle[256] = "Audio Devices:";
+  char DeviceTitle[255] = "Audio Devices:";
 
-  char Device1[256]=" ";
-  char Device2[256]=" ";
+  char Device1[255]=" ";
+  char Device2[255]=" ";
   GetDevices(Device1, Device2);
 
-  int pointsize = 20;
-
-  if (strcmp(DisplayType, "Element14_7") == 0)  // Reduce text size for 7 inch screen
-  {
-    pointsize = 15;
-  }
-
   // Initialise and calculate the text display
-  BackgroundRGB(0,0,0,255);  // Black background
-  Fill(255, 255, 255, 1);    // White text
-  //Fontinfo font = SansTypeface;
-  float txtht =  20; //TextHeight(font, pointsize);
-  float txtdp = 20; //TextDepth(font, pointsize);
-  float linepitch = 30; //1.1 * (txtht + txtdp);
-  float linenumber = 1.0;
-  float tw;
-
+  setForeColour(255, 255, 255);    // White text
+  setBackColour(0, 0, 0);          // on Black
+  const font_t *font_ptr = &font_dejavu_sans_22;
+  int txtht =  font_ptr->ascent;
+  int linepitch = (14 * txtht) / 10;
+  int linenumber = 1;
+ 
   // Display Text
-  //tw = 20; //TextWidth("BATC Portsdown Information Screen", font, pointsize);
-  TextMid(wscreen / 2.0, hscreen - linenumber * linepitch, "BATC Portsdown Information Screen", pointsize);
-  linenumber = linenumber + 2.0;
+  clearScreen();
 
-  Text(wscreen/12.0, hscreen - linenumber * linepitch, swversion, pointsize);
-  linenumber = linenumber + 1.0;
+  TextMid2(wscreen / 2.0, hscreen - linenumber * linepitch, "BATC Portsdown Information Screen", font_ptr);
+  linenumber = linenumber + 2;
 
-  Text(wscreen/12.0, hscreen - linenumber * linepitch, ipaddress, pointsize);
-  linenumber = linenumber + 1.0;
+  Text2(wscreen/25, hscreen - linenumber * linepitch, swversion, font_ptr);
+  linenumber = linenumber + 1;
 
-  Text(wscreen/12.0, hscreen - linenumber * linepitch, CPUTemp, pointsize);
-  linenumber = linenumber + 1.0;
+  Text2(wscreen/25, hscreen - linenumber * linepitch, ipaddress, font_ptr);
+  linenumber = linenumber + 1;
 
-  Text(wscreen/12.0, hscreen - linenumber * linepitch, PowerText, pointsize);
-  linenumber = linenumber + 1.0;
+  Text2(wscreen/25, hscreen - linenumber * linepitch, CPUTemp, font_ptr);
+  linenumber = linenumber + 1;
 
-  Text(wscreen/12.0, hscreen - linenumber * linepitch, TXParams1, pointsize);
-  linenumber = linenumber + 1.0;
+  Text2(wscreen/25, hscreen - linenumber * linepitch, PowerText, font_ptr);
+  linenumber = linenumber + 1;
 
-  Text(wscreen/12.0, hscreen - linenumber * linepitch, TXParams2, pointsize);
-  linenumber = linenumber + 1.0;
+  Text2(wscreen/25, hscreen - linenumber * linepitch, TXParams1, font_ptr);
+  linenumber = linenumber + 1;
 
-  Text(wscreen/12.0, hscreen - linenumber * linepitch, TXParams3, pointsize);
-  linenumber = linenumber + 1.0;
+  Text2(wscreen/25, hscreen - linenumber * linepitch, TXParams2, font_ptr);
+  linenumber = linenumber + 1;
 
-  Text(wscreen/12.0, hscreen - linenumber * linepitch, CardSerial, pointsize);
-  linenumber = linenumber + 1.0;
+  Text2(wscreen/25, hscreen - linenumber * linepitch, TXParams3, font_ptr);
+  linenumber = linenumber + 1;
 
-  Text(wscreen/12.0, hscreen - linenumber * linepitch, DeviceTitle, pointsize);
-  linenumber = linenumber + 1.0;
+  Text2(wscreen/25, hscreen - linenumber * linepitch, CardSerial, font_ptr);
+  linenumber = linenumber + 1;
 
-  Text(wscreen/12.0, hscreen - linenumber * linepitch, Device1, pointsize);
-  linenumber = linenumber + 1.0;
+  Text2(wscreen/25, hscreen - linenumber * linepitch, DeviceTitle, font_ptr);
+  linenumber = linenumber + 1;
 
-  Text(wscreen/12.0, hscreen - linenumber * linepitch, Device2, pointsize);
-  linenumber = linenumber + 1.0;
+  Text2(wscreen/25, hscreen - linenumber * linepitch, Device1, font_ptr);
+  linenumber = linenumber + 1;
 
-  //tw = 20; //TextWidth("Touch Screen to Continue", pointsize);
-  TextMid(wscreen / 2.0, 20, "Touch Screen to Continue", pointsize);
+  Text2(wscreen/25, hscreen - linenumber * linepitch, Device2, font_ptr);
+  linenumber = linenumber + 2;
 
-  // Push to screen
-  End();
+  TextMid2(wscreen / 2, hscreen - linenumber * linepitch, "Touch Screen to Continue", font_ptr);
 
   printf("Info Screen called and waiting for touch\n");
   wait_touch();
@@ -11321,7 +10178,7 @@ void RangeBearing()
   char Param[31];
   char Value[31];
   char IntValue[31];
-  int pointsize = 20;
+  //int pointsize = 20;
   char DispName[10][20];
   char Locator[10][11];
   char MyLocator[11]="IO90LU";
@@ -11375,20 +10232,13 @@ void RangeBearing()
     }
   }
 
-  GetConfigParam(PATH_PCONFIG, Param, Value);
-  if (strcmp(DisplayType,"Element14_7")==0)  
-  {
-    pointsize = 15;
-  }
-
   // Initialise and calculate the text display
-  //init(&wscreen, &hscreen);  // Restart the gui
-  BackgroundRGB(0,0,0,255);  // Black background
-  Fill(255, 255, 255, 1);    // White text
-  //Fontinfo font = SansTypeface;
-  float txtht =  20; //TextHeight(font, pointsize);
-  float txtdp = 20; //TextDepth(font, pointsize);
-  float linepitch = 1.2 * (txtht + txtdp);
+  setForeColour(255, 255, 255);    // White text
+  setBackColour(0, 0, 0);          // on Black
+  const font_t *font_ptr = &font_dejavu_sans_24;
+  int txtht =  font_ptr->ascent;
+  int linepitch = (14 * txtht) / 10;
+  //int linenumber = 1;
 
   // Read my locator
   strcpy(Param,"mylocator");
@@ -11410,10 +10260,11 @@ void RangeBearing()
   strcpyn(FromCall, CallSign, 24);
   sprintf(Value, "From %s", FromCall);
 
-  ////Text(wscreen * 1.0 / 40.0, hscreen - linepitch, Value, font, pointsize);
-  ////Text(wscreen * 15.0 / 40.0, hscreen - linepitch, MyLocator, font, pointsize);
-  ////Text(wscreen * 27.0 / 40.0, hscreen - linepitch, "Bearing", font, pointsize);
-  ////Text(wscreen * 34.0 / 40.0, hscreen - linepitch, "Range", font, pointsize);
+  clearScreen();
+  Text2(wscreen / 40, hscreen - linepitch, Value, font_ptr);
+  Text2((wscreen * 15) / 40, hscreen - linepitch, MyLocator, font_ptr);
+  Text2((wscreen * 27) / 40, hscreen - linepitch, "Bearing", font_ptr);
+  Text2((wscreen * 34) / 40, hscreen - linepitch, "Range", font_ptr);
 
   // Display each row in turn
   for(i = 0; i < 10 ; i++)
@@ -11425,8 +10276,8 @@ void RangeBearing()
       j = j - 10;
     }
 
-    ////Text(wscreen * 1.0 /40.0, hscreen - (i + 3) * linepitch, DispName[j], font, pointsize);
-    ////Text(wscreen * 15.0 /40.0, hscreen - (i + 3) * linepitch, Locator[j], font, pointsize);
+    Text2(wscreen / 40, hscreen - (i + 3) * linepitch, DispName[j], font_ptr);
+    Text2((wscreen * 15) / 40, hscreen - (i + 3) * linepitch, Locator[j], font_ptr);
     snprintf(IntValue, 4, "%d", Bearing[j]);
     if (strlen(IntValue) == 3)
     {
@@ -11443,15 +10294,12 @@ void RangeBearing()
       strcat(Value, IntValue);
     }
     strcat(Value, " deg");
-    ////Text(wscreen * 27.0 / 40.0, hscreen - (i + 3) * linepitch, Value, font, pointsize);
+    Text2((wscreen * 27) / 40, hscreen - (i + 3) * linepitch, Value, font_ptr);
     sprintf(Value, "%d km", Range[j]);
-    ////Text(wscreen * 34.0 / 40.0, hscreen - (i + 3) * linepitch, Value, font, pointsize);
+    Text2((wscreen * 34) / 40, hscreen - (i + 3) * linepitch, Value, font_ptr);
   }
 
-  //TextMid(wscreen/2, 20, "Touch Screen to Continue",  font, pointsize);
-
-  // Push text to screen
-  End();
+  TextMid2(wscreen/2, 20, "Touch Screen to Continue",  font_ptr);
 
   printf("Locator Bearing called and waiting for touch\n");
   wait_touch();
@@ -11462,7 +10310,7 @@ void BeaconBearing()
   char Param[31];
   char Value[31];
   char IntValue[31];
-  int pointsize = 20;
+  //int pointsize = 20;
   char DispName[10][20];
   char Locator[10][11];
   char MyLocator[11]="IO90LU";
@@ -11471,25 +10319,18 @@ void BeaconBearing()
   int Range[10];
   int i;
 
-  // Reduce text size for 7 inch screen
-  if (strcmp(DisplayType, "Element14_7") == 0)  
-  {
-    pointsize = 15;
-  }
-
   // Initialise and calculate the text display
-  //init(&wscreen, &hscreen);  // Restart the gui
-  BackgroundRGB(0,0,0,255);  // Black background
-  Fill(255, 255, 255, 1);    // White text
-  //Fontinfo font = SansTypeface;
-  float txtht = 20; // TextHeight(font, pointsize);
-  float txtdp = 20; //TextDepth(font, pointsize);
-  float linepitch = 1.2 * (txtht + txtdp);
+  setForeColour(255, 255, 255);    // White text
+  setBackColour(0, 0, 0);          // on Black
+  const font_t *font_ptr = &font_dejavu_sans_24;
+  int txtht =  font_ptr->ascent;
+  int linepitch = (14 * txtht) / 10;
+  //int linenumber = 1;
 
   // Read Callsigns and Locators from file, and calculate each r/b
   strcpy(Param,"mylocator");
   GetConfigParam(PATH_LOCATORS, Param, MyLocator);
-  for(i = 0; i < 10 ;i++)
+  for(i = 0; i < 10 ; i++)
   {
     sprintf(Param, "bcallsign%d", i);
     GetConfigParam(PATH_LOCATORS, Param, DispName[i]);
@@ -11504,16 +10345,17 @@ void BeaconBearing()
   strcpyn(FromCall, CallSign, 24);
   sprintf(Value, "From %s", FromCall);
 
-  ////Text(wscreen * 1.0 / 40.0, hscreen - linepitch, Value, font, pointsize);
-  ////Text(wscreen * 15.0 / 40.0, hscreen - linepitch, MyLocator, font, pointsize);
-  ////Text(wscreen * 27.0 / 40.0, hscreen - linepitch, "Bearing", font, pointsize);
-  ////Text(wscreen * 34.0 / 40.0, hscreen - linepitch, "Range", font, pointsize);
+  clearScreen();
+  Text2(wscreen / 40, hscreen - linepitch, Value, font_ptr);
+  Text2((wscreen * 15) / 40, hscreen - linepitch, MyLocator, font_ptr);
+  Text2((wscreen * 27) / 40, hscreen - linepitch, "Bearing", font_ptr);
+  Text2((wscreen * 34) / 40, hscreen - linepitch, "Range", font_ptr);
 
   // Display each row in turn
-  for(i=0; i<10 ;i++)
+  for(i = 0; i < 10 ; i++)
   {
-    ////Text(wscreen * 1.0 /40.0, hscreen - (i + 3) * linepitch, DispName[i], font, pointsize);
-    ////Text(wscreen * 15.0 /40.0, hscreen - (i + 3) * linepitch, Locator[i], font, pointsize);
+    Text2(wscreen / 40, hscreen - (i + 3) * linepitch, DispName[i], font_ptr);
+    Text2((wscreen * 15) / 40, hscreen - (i + 3) * linepitch, Locator[i], font_ptr);
     snprintf(IntValue, 4, "%d", Bearing[i]);
     if (strlen(IntValue) == 3)
     {
@@ -11530,15 +10372,12 @@ void BeaconBearing()
       strcat(Value, IntValue);
     }
     strcat(Value, " deg");
-    ////Text(wscreen * 27.0 / 40.0, hscreen - (i + 3) * linepitch, Value, font, pointsize);
+    Text2((wscreen * 27) / 40, hscreen - (i + 3) * linepitch, Value, font_ptr);
     sprintf(Value, "%d km", Range[i]);
-    ////Text(wscreen * 34.0 / 40.0, hscreen - (i + 3) * linepitch, Value, font, pointsize);
+    Text2((wscreen * 34) / 40, hscreen - (i + 3) * linepitch, Value, font_ptr);
   }
 
-  //TextMid(wscreen/2, 20, "Touch Screen to Continue",  font, pointsize);
-
-  // Push to screen
-  End();
+  TextMid2(wscreen/2, 20, "Touch Screen to Continue",  font_ptr);
 
   printf("Beacon Bearing called and waiting for touch\n");
   wait_touch();
@@ -11869,19 +10708,19 @@ void do_snap()
     MsgBox("No EasyCap Found");
     wait_touch();
     UpdateWindow();
-    BackgroundRGB(0,0,0,255);
+    setBackColour(0, 0, 0);
+    clearScreen();
   }
   else
   {
-    finish();
     printf("do_snap\n");
     system("/home/pi/rpidatv/scripts/snap.sh >/dev/null 2>/dev/null");
     wait_touch();
     system("sudo killall fbi >/dev/null 2>/dev/null");  // kill any previous images
     system("sudo fbi -T 1 -noverbose -a /home/pi/rpidatv/scripts/images/BATC_Black.png  >/dev/null 2>/dev/null");  // Add logo image
-    //init(&wscreen, &hscreen);
-    Start(wscreen,hscreen);
-    BackgroundRGB(0,0,0,255);
+
+    setBackColour(0, 0, 0);
+    clearScreen();
     UpdateWindow();
     system("sudo killall fbi >/dev/null 2>/dev/null");  // kill fbi now
   }
@@ -11899,63 +10738,31 @@ void do_videoview()
     MsgBox("No EasyCap Found");
     wait_touch();
     UpdateWindow();
-    BackgroundRGB(0,0,0,255);
+    setBackColour(0, 0, 0);
+    clearScreen();
   }
   else
   {
-    // Make the display ready
-    finish();
-
     // Create a thread to listen for display touches
     pthread_create (&thview,NULL, &WaitButtonEvent,NULL);
 
-    if ((strcmp(DisplayType, "Waveshare") == 0) || (strcmp(DisplayType, "Waveshare4") == 0))
-    // Write directly to the touchscreen framebuffer for Waveshare displays
-    {
-      USBVidDevice[strcspn(USBVidDevice, "\n")] = 0;  //remove the newline
-      strcpy(ffmpegCMD, "/home/pi/rpidatv/bin/ffmpeg -hide_banner -loglevel panic -f v4l2 -i ");
-      strcat(ffmpegCMD, USBVidDevice);
-      strcat(ffmpegCMD, " -vf \"yadif=0:1:0,scale=480:320\" -f rawvideo -pix_fmt rgb565 -vframes 3 /home/pi/tmp/frame.raw");
-      //system("sudo killall fbcp");
-      // Refresh image until display touched
-      while ( FinishedButton == 0 )
-      {
-        system("sudo rm /home/pi/tmp/* >/dev/null 2>/dev/null");
-        system(ffmpegCMD);
-        system("split -b 307200 -d -a 1 /home/pi/tmp/frame.raw /home/pi/tmp/frame");
-        system("cat /home/pi/tmp/frame2>/dev/fb1");
-      }
-      // Screen has been touched so stop and tidy up
-      //system("fbcp &");
-      system("sudo rm /home/pi/tmp/* >/dev/null 2>/dev/null");
-    }
-    else if (strcmp(DisplayType, "Element14_7") == 0)
     // Write directly to the touchscreen framebuffer for 7 inch displays
-    {
-      USBVidDevice[strcspn(USBVidDevice, "\n")] = 0;  //remove the newline
-      strcpy(ffmpegCMD, "/home/pi/rpidatv/bin/ffmpeg -hide_banner -loglevel panic -f v4l2 -i ");
-      strcat(ffmpegCMD, USBVidDevice);
-      strcat(ffmpegCMD, " -vf \"yadif=0:1:0,scale=800:480\" -f rawvideo -pix_fmt rgb32 -vframes 2 /home/pi/tmp/frame.raw");
+    USBVidDevice[strcspn(USBVidDevice, "\n")] = 0;  //remove the newline
+    strcpy(ffmpegCMD, "/home/pi/rpidatv/bin/ffmpeg -hide_banner -loglevel panic -f v4l2 -i ");
+    strcat(ffmpegCMD, USBVidDevice);
+    strcat(ffmpegCMD, " -vf \"yadif=0:1:0,scale=800:480\" -f rawvideo -pix_fmt rgb32 -vframes 2 /home/pi/tmp/frame.raw");
 
-      // Refresh image until display touched
-      while ( FinishedButton == 0 )
-      {
-        system("sudo rm /home/pi/tmp/* >/dev/null 2>/dev/null");
-        system(ffmpegCMD);
-        system("split -b 1536000 -d -a 1 /home/pi/tmp/frame.raw /home/pi/tmp/frame");
-        system("cat /home/pi/tmp/frame1>/dev/fb0");
-      }
-      // Screen has been touched so stop and tidy up
-      system("sudo rm /home/pi/tmp/* >/dev/null 2>/dev/null");
-    }
-    else  // not a waveshare or 7 inch display so write to the main framebuffer
+    // Refresh image until display touched
+    while ( FinishedButton == 0 )
     {
-      while ( FinishedButton == 0 )
-      {
-        system("/home/pi/rpidatv/scripts/view.sh");
-        usleep(100000);
-      }
+      system("sudo rm /home/pi/tmp/* >/dev/null 2>/dev/null");
+      system(ffmpegCMD);
+      system("split -b 1536000 -d -a 1 /home/pi/tmp/frame.raw /home/pi/tmp/frame");
+      system("cat /home/pi/tmp/frame1>/dev/fb0");
     }
+    // Screen has been touched so stop and tidy up
+    system("sudo rm /home/pi/tmp/* >/dev/null 2>/dev/null");
+
     // Screen has been touched
     printf("videoview exit\n");
 
@@ -11963,9 +10770,9 @@ void do_videoview()
     FinishedButton = 0;
     system("sudo killall fbi >/dev/null 2>/dev/null");  // kill any previous images
     system("sudo fbi -T 1 -noverbose -a /home/pi/rpidatv/scripts/images/BATC_Black.png  >/dev/null 2>/dev/null");  // Add logo image
-    //init(&wscreen, &hscreen);
-    Start(wscreen,hscreen);
-    BackgroundRGB(0,0,0,255);
+
+    setBackColour(0, 0, 0);
+    clearScreen();
     UpdateWindow();
     system("sudo killall fbi >/dev/null 2>/dev/null");  // kill fbi now
   }
@@ -11996,9 +10803,6 @@ void do_snapcheck()
   }
   /* close */
   pclose(fp);
-
-  // Make the display ready
-  finish();
 
   SnapNumber=atoi(SnapIndex);
   Snap = SnapNumber - 1;
@@ -12031,9 +10835,9 @@ void do_snapcheck()
   // Tidy up and display touch menu
   system("sudo killall fbi >/dev/null 2>/dev/null");  // kill any previous images
   system("sudo fbi -T 1 -noverbose -a /home/pi/rpidatv/scripts/images/BATC_Black.png  >/dev/null 2>/dev/null");  // Add logo image
-  //init(&wscreen, &hscreen);
-  Start(wscreen,hscreen);
-  BackgroundRGB(0,0,0,255);
+
+  setBackColour(0, 0, 0);
+  clearScreen();
   UpdateWindow();
 }
 
@@ -12041,8 +10845,9 @@ static void cleanexit(int exit_code)
 {
   strcpy(ModeInput, "DESKTOP"); // Set input so webcam reset script is not called
   TransmitStop();
-  ReceiveStop();
-  finish();
+  setBackColour(0, 0, 0);
+  clearScreen();
+  closeScreen();
   printf("Clean Exit Code %d\n", exit_code);
   char Commnd[255];
   sprintf(Commnd,"stty echo");
@@ -12097,8 +10902,8 @@ void do_video_monitor(int button)
   }
 
   FinishedButton = 0;
-  BackgroundRGB(0, 0, 0, 0);
-  finish();                  // Close the graphics sub-system
+  setBackColour(0, 0, 0);
+  clearScreen();
 
   // Create Wait Button thread
   pthread_create (&thbutton, NULL, &WaitButtonVideo, NULL);
@@ -12169,21 +10974,22 @@ void Keyboard(char RequestText[64], char InitText[64], int MaxLength)
 
   // On initial call set Menu to 41
   CurrentMenu = 41;
-  //Fontinfo font = SansTypeface;
-  int pointsize;
   int rawX, rawY, rawPressure;
   refreshed = false;
-  pointsize = 15;
 
-  Fill(255, 255, 255, 1);    // White text
+  // Set up text
+  setForeColour(255, 255, 255);    // White text
+  setBackColour(0, 0, 0);          // on Black
+  clearScreen();
+  const font_t *font_ptr = &font_dejavu_sans_28;
+
+  // Look up pitch for W (87), the widest caharcter
+  int charPitch = font_ptr->characters[87].render_width;
 
   for (;;)
   {
-
     if (!refreshed)
     {
-      BackgroundRGB(0, 0, 0, 255);
-
       // Sort Shift changes
       ShiftStatus = 2 - (2 * KeyboardShift); // 0 = Upper, 2 = lower
       for (i = ButtonNumber(CurrentMenu, 0); i <= ButtonNumber(CurrentMenu, 49); i = i + 1)
@@ -12198,8 +11004,9 @@ void Keyboard(char RequestText[64], char InitText[64], int MaxLength)
       UpdateWindow();
 
       // Display Instruction Text
-      Fill(255, 255, 255, 1);    // White text
-      Text(30, 420 , RequestText, pointsize);
+      setForeColour(255, 255, 255);    // White text
+      setBackColour(0, 0, 0);          // on Black
+      Text2(10, 420 , RequestText, font_ptr);
 
       // Display Text for Editing
       for (i = 1; i <= strlen(EditText); i = i + 1)
@@ -12208,18 +11015,29 @@ void Keyboard(char RequestText[64], char InitText[64], int MaxLength)
         thischar[1] = '\0';
         if (i > MaxLength)
         {
-          Fill(255, 63, 63, 1);    // Red text
+          setForeColour(255, 63, 63);    // Red text
         }
-        TextMid(i * 24, 330, thischar, pointsize);
+        else
+        {
+          setForeColour(255, 255, 255);    // White text
+        }
+        TextMid2(i * charPitch, 330, thischar, font_ptr);
       }
-      Fill(255, 255, 255, 1);    // White text
 
-      //Draw the cursor
-      for (i = 110; i <= 150; i = i + 1)
+      // Cover deleted text with background colour
+      setBackColour(0, 0, 0);          // on Black
+      for (i = strlen(EditText); i <= 25; i = i + 1)
       {
-        setPixel(12 + 24 * CursorPos, i, 255, 255, 255);
+        rectangle(charPitch * i + (charPitch / 2), 320, charPitch, 40, 0, 0, 0);
       }
 
+      // Draw the cursor and erase cursors either side
+      rectangle(12 + charPitch * CursorPos, 320, 2, 40, 255, 255, 255);
+      rectangle(12 + charPitch * (CursorPos + 1), 320, 2, 40, 0, 0, 0);
+      if (CursorPos >= 1)
+      {
+        rectangle(12 + charPitch * (CursorPos - 1), 320, 2, 40, 0, 0, 0);
+      }
       refreshed = true;
     }
 
@@ -12895,7 +11713,7 @@ void UpdateLangstone()
     usleep(1000000);
     if (file_exist("/home/pi/Langstone/GUI") == 0)
     {
-      MsgBox4("Langstone Successfully Updated"," ", " ", " ");
+      MsgBox4("Langstone Successfully Updated"," ", " ", "Touch Screen to Continue");
     }
     else
     {
@@ -13327,12 +12145,11 @@ rawY = 0;
     if (strcmp(ScreenState, "TXwithImage") == 0)
     {
       TransmitStop();
-      // ReceiveStop();
       system("sudo fbi -T 1 -noverbose -a /home/pi/rpidatv/scripts/images/BATC_Black.png  >/dev/null 2>/dev/null");  // Add logo image
       system("(sleep 1; sudo killall -9 fbi >/dev/null 2>/dev/null) &");
-      //init(&wscreen, &hscreen);
-      Start(wscreen, hscreen);
-      BackgroundRGB(255,255,255,255);
+      setBackColour(255, 255, 255);
+      clearScreen();
+      setBackColour(0, 0, 0);
       SelectPTT(20,0);
       strcpy(ScreenState, "NormalMenu");
       UpdateWindow();
@@ -13362,19 +12179,19 @@ rawY = 0;
     // Now deal with return from receiving
     if (strcmp(ScreenState, "RXwithImage") == 0)
     {
-      ReceiveStop();
       system("sudo fbi -T 1 -noverbose -a /home/pi/rpidatv/scripts/images/BATC_Black.png  >/dev/null 2>/dev/null");  // Add logo image
       system("(sleep 1; sudo killall -9 fbi >/dev/null 2>/dev/null) &");
-      //init(&wscreen, &hscreen);
-      Start(wscreen, hscreen);
       if (CallingMenu == 1)
       {
-        BackgroundRGB(255,255,255,255);
+      setBackColour(255, 255, 255);
+      clearScreen();
+      setBackColour(0, 0, 0);
         SelectPTT(21,0);
       }
       else
       {
-        BackgroundRGB(0, 0, 0,255);
+        setBackColour(0, 0, 0);
+        clearScreen();
       }
       strcpy(ScreenState, "NormalMenu");
       UpdateWindow();
@@ -13385,9 +12202,9 @@ rawY = 0;
     {
       system("sudo fbi -T 1 -noverbose -a /home/pi/rpidatv/scripts/images/BATC_Black.png  >/dev/null 2>/dev/null");  // Add logo image
       system("(sleep 1; sudo killall -9 fbi >/dev/null 2>/dev/null) &");
-      //init(&wscreen, &hscreen);
-      Start(wscreen, hscreen);
-      BackgroundRGB(63, 63, 127, 255);
+      setBackColour(127, 127, 127);
+      clearScreen();
+      setBackColour(0, 0, 0);
       strcpy(ScreenState, "NormalMenu");
       UpdateWindow();
       continue;
@@ -13397,9 +12214,8 @@ rawY = 0;
     {
       system("sudo fbi -T 1 -noverbose -a /home/pi/rpidatv/scripts/images/BATC_Black.png  >/dev/null 2>/dev/null");  // Add logo image
       system("(sleep 1; sudo killall -9 fbi >/dev/null 2>/dev/null) &");
-      //init(&wscreen, &hscreen);
-      Start(wscreen, hscreen);
-      BackgroundRGB(0, 0, 0, 255);
+      setBackColour(0, 0, 0);
+      clearScreen();
       strcpy(ScreenState, "NormalMenu");
       UpdateWindow();
       continue;
@@ -13446,7 +12262,9 @@ rawY = 0;
             SavePreset(i);  // Set preset
             PresetStoreTrigger = 0;
             SetButtonStatus(4,0);
-            BackgroundRGB(255,255,255,255);
+            setBackColour(255, 255, 255);
+            clearScreen();
+            setBackColour(0, 0, 0);
           }
           SetButtonStatus(i, 1);
           Start_Highlights_Menu1();    // Refresh button labels
@@ -13471,35 +12289,41 @@ rawY = 0;
         case 5:
           printf("MENU 21 \n");       // EasyCap
           CurrentMenu=21;
-          BackgroundRGB(0,0,0,255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           Start_Highlights_Menu21();
           UpdateWindow();
           break;
         case 6:
           printf("MENU 22 \n");       // Caption
           CurrentMenu=22;
-          BackgroundRGB(0,0,0,255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           Start_Highlights_Menu22();
           UpdateWindow();
           break;
         case 7:
           printf("MENU 23 \n");       // Audio
           CurrentMenu=23;
-          BackgroundRGB(0,0,0,255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           Start_Highlights_Menu23();
           UpdateWindow();
           break;
         case 8:
           printf("MENU 24 \n");       // Attenuator
           CurrentMenu=24;
-          BackgroundRGB(0,0,0,255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           Start_Highlights_Menu24();
           UpdateWindow();
           break;
         case 9:                          // Attenuator
           printf("Set Attenuator Level \n");
           SetAttenLevel();
-          BackgroundRGB(255,255,255,255);
+          setBackColour(255, 255, 255);
+          clearScreen();
+          setBackColour(0, 0, 0);
           Start_Highlights_Menu1();
           UpdateWindow();
           break;
@@ -13508,14 +12332,16 @@ rawY = 0;
           {
             printf("MENU 16 \n");        // Set Frequency
             CurrentMenu=16;
-            BackgroundRGB(0,0,0,255);
+            setBackColour(0, 0, 0);
+            clearScreen();
             Start_Highlights_Menu16();
           }
           else
           {
             printf("MENU 35 \n");        // Select Stream
             CurrentMenu=35;
-            BackgroundRGB(0,0,0,255);
+            setBackColour(0, 0, 0);
+            clearScreen();
             Start_Highlights_Menu35();
           }
           UpdateWindow();
@@ -13523,12 +12349,14 @@ rawY = 0;
         case 11:
           printf("MENU 17 \n");       // SR
           CurrentMenu=17;
-          BackgroundRGB(0,0,0,255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           Start_Highlights_Menu17();
           UpdateWindow();
           break;
         case 12:
-          BackgroundRGB(0,0,0,255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           if ((strcmp(CurrentTXMode, TabTXMode[0]) == 0) || (strcmp(CurrentTXMode, TabTXMode[1]) == 0)) // DVB-S
           {
             printf("MENU 18 \n");       // FEC
@@ -13546,49 +12374,56 @@ rawY = 0;
         case 13:                      // Transverter
           printf("MENU 19 \n");
           CurrentMenu=19;
-          BackgroundRGB(0,0,0,255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           Start_Highlights_Menu19();
           UpdateWindow();
           break;
         case 14:                         // Lime/Express Level
           printf("Set Device Output Level \n");
           SetDeviceLevel();
-          BackgroundRGB(255,255,255,255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           Start_Highlights_Menu1();
           UpdateWindow();
           break;
         case 15:
           printf("MENU 11 \n");        // Modulation
           CurrentMenu=11;
-          BackgroundRGB(0,0,0,255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           Start_Highlights_Menu11();
           UpdateWindow();
           break;
         case 16:
           printf("MENU 12 \n");        // Encoding
           CurrentMenu=12;
-          BackgroundRGB(0,0,0,255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           Start_Highlights_Menu12();
           UpdateWindow();
           break;
         case 17:
           printf("MENU 42 \n");        // Output Device
           CurrentMenu=42;
-          BackgroundRGB(0,0,0,255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           Start_Highlights_Menu42();
           UpdateWindow();
           break;
         case 18:
           printf("MENU 14 \n");        // Format
           CurrentMenu=14;
-          BackgroundRGB(0,0,0,255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           Start_Highlights_Menu14();
           UpdateWindow();
           break;
         case 19:
           printf("MENU 45 \n");        // Source
           CurrentMenu=45;
-          BackgroundRGB(0, 0, 0, 255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           Start_Highlights_Menu45();
           UpdateWindow();
           break;
@@ -13597,7 +12432,9 @@ rawY = 0;
           {
             printf("MENU 4 \n");        // Source
             CurrentMenu=4;
-            BackgroundRGB(63, 63, 127,255);
+            setBackColour(127, 127, 127);
+            clearScreen();
+            setBackColour(0, 0, 0);
             CompVidInitialise();
             Start_Highlights_Menu4();
             UpdateWindow();
@@ -13637,7 +12474,8 @@ rawY = 0;
           strcpy(LinuxCommand, "(sleep 1; sudo killall -9 fbi >/dev/null 2>/dev/null) &");
           system(LinuxCommand);
           CurrentMenu=8;
-          BackgroundRGB(0 ,0 ,0 ,255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           ReadLMRXPresets();
           Start_Highlights_Menu8();
           UpdateWindow();
@@ -13645,14 +12483,16 @@ rawY = 0;
         case 22:                      // Select Menu 2
           printf("MENU 2 \n");
           CurrentMenu=2;
-          BackgroundRGB(0,0,0,255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           Start_Highlights_Menu2();
           UpdateWindow();
           break;
         case 23:                      // Select Menu 3
           printf("MENU 3 \n");
           CurrentMenu=3;
-          BackgroundRGB(0,0,0,255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           Start_Highlights_Menu3();
           UpdateWindow();
           break;
@@ -13674,7 +12514,6 @@ rawY = 0;
           system("sudo rm /tmp/expctrl >/dev/null 2>/dev/null");
           sync();            // Prevents shutdown hang in Stretch
           usleep(1000000);
-          finish();
           cleanexit(160);    // Commands scheduler to initiate shutdown
           break;
         case 1:                               // Reboot
@@ -13683,17 +12522,15 @@ rawY = 0;
           system("sudo rm /tmp/expctrl >/dev/null 2>/dev/null");
           sync();            // Prevents shutdown hang in Stretch
           usleep(1000000);
-          finish();
           cleanexit(192);    // Commands scheduler to initiate reboot
           break;
         case 2:                               // Display Info Page
           InfoScreen();
-          BackgroundRGB(0,0,0,255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           UpdateWindow();
           break;
-        case 3:                              // Calibrate Touch
-          touchcal();
-          BackgroundRGB(0,0,0,255);
+        case 3:                               // Not used
           UpdateWindow();
           break;
         case 4:                               // Not used
@@ -13701,12 +12538,14 @@ rawY = 0;
           break;
         case 5:                               // Locator Bearings
           RangeBearing();
-          BackgroundRGB(0,0,0,255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           UpdateWindow();
           break;
         case 6:                               // Sites and Beacons Bearing
           BeaconBearing();
-          BackgroundRGB(0,0,0,255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           UpdateWindow();
           break;
         case 7:                               // Not used
@@ -13715,14 +12554,16 @@ rawY = 0;
         case 8:                               // More Functions Menu
           printf("MENU 7 \n");
           CurrentMenu = 7;
-          BackgroundRGB(0, 0, 0, 255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           Start_Highlights_Menu7();
           UpdateWindow();
           break;
         case 9:                              // Stream Viewer
           printf("MENU 20 \n");
           CurrentMenu = 20;
-          BackgroundRGB(0, 0, 0, 255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           Start_Highlights_Menu20();
           UpdateWindow();
           break;
@@ -13732,12 +12573,14 @@ rawY = 0;
         case 11:                              // Pi Cam Monitor
         case 12:                              // C920
           do_video_monitor(i);
-          BackgroundRGB(0, 0, 0, 255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           UpdateWindow();
           break;
         case 13:                               // IPTS Viewer
           DisplayIPStream();
-          BackgroundRGB(0, 0, 0, 255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           UpdateWindow();                     // Stay in Menu 2
           break;
         case 14:                              // Check Snaps
@@ -13748,7 +12591,8 @@ rawY = 0;
           SetButtonStatus(ButtonNumber(2, 15), 1);  // and highlight button
           UpdateWindow();                           // No need to set it back as exit from here
           do_Langstone();
-          BackgroundRGB(0,0,0,255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           UpdateWindow();
           break;
         case 16:                               // Start Sig Gen and Exit
@@ -13765,7 +12609,8 @@ rawY = 0;
             MsgBox("No RTL-SDR Connected");
             wait_touch();
           }
-          BackgroundRGB(0,0,0,255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           UpdateWindow();
           break;
         case 18:                              // RTL-FM Receiver
@@ -13781,33 +12626,20 @@ rawY = 0;
           }
           printf("MENU 6 \n");
           CurrentMenu=6;
-          BackgroundRGB(0,0,0,255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           Start_Highlights_Menu6();
           UpdateWindow();
           break;
-        case 19:                              // LeanDVB
-          if(CheckRTL()==0)
-          {
-            RTLdetected = 1;
-          }
-          else
-          {
-            RTLdetected = 0;
-            MsgBox2("No RTL-SDR Connected", "Connect RTL-SDR to enable RX");
-            wait_touch();
-          }
-          printf("MENU 5 \n");
-          CurrentMenu=5;
-          BackgroundRGB(0,0,0,255);
-          Start_Highlights_Menu5();
-          UpdateWindow();
+        case 19:                              // was LeanDVB
           break;
         case 20:                              // Not shown
           break;
         case 21:                              // Menu 1
           printf("MENU 1 \n");
           CurrentMenu=1;
-          BackgroundRGB(255,255,255,255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           Start_Highlights_Menu1();
           UpdateWindow();
           break;
@@ -13816,7 +12648,8 @@ rawY = 0;
         case 23:                              // Menu 3
           printf("MENU 3 \n");
           CurrentMenu=3;
-          BackgroundRGB(0,0,0,255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           Start_Highlights_Menu3();
           UpdateWindow();
           break;
@@ -13838,7 +12671,8 @@ rawY = 0;
           SetButtonStatus(ButtonNumber(3, 0), 0);
           printf("MENU 33 \n"); 
           CurrentMenu=33;
-          BackgroundRGB(0,0,0,255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           PrepSWUpdate();
           Start_Highlights_Menu33();
           UpdateWindow();
@@ -13846,14 +12680,16 @@ rawY = 0;
         case 1:                               // System Config
           printf("MENU 43 \n"); 
           CurrentMenu=43;
-          BackgroundRGB(0,0,0,255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           Start_Highlights_Menu43();
           UpdateWindow();
           break;
         case 2:                               // Wifi Config
           printf("MENU 36 \n"); 
           CurrentMenu=36;
-          BackgroundRGB(0,0,0,255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           Start_Highlights_Menu36();
           UpdateWindow();
           break;
@@ -13864,21 +12700,24 @@ rawY = 0;
         case 5:                              // Lime Config
           printf("MENU 37 \n"); 
           CurrentMenu=37;
-          BackgroundRGB(0, 0, 0, 255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           Start_Highlights_Menu37();
           UpdateWindow();
           break;
        case 6:                              // Jetson Config 
           printf("MENU 44 \n"); 
           CurrentMenu=44;
-          BackgroundRGB(0, 0, 0, 255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           Start_Highlights_Menu44();
           UpdateWindow();
           break;
         case 7:                              // Langstone Config
           printf("MENU 39 \n"); 
           CurrentMenu=39;
-          BackgroundRGB(0, 0, 0, 255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           Start_Highlights_Menu39();
           UpdateWindow();
           break;
@@ -13889,7 +12728,8 @@ rawY = 0;
         case 10:                               // Amend Sites/Beacons
           printf("MENU 31 \n"); 
           CurrentMenu=31;
-          BackgroundRGB(0,0,0,255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           Start_Highlights_Menu31();
           UpdateWindow();
           break;
@@ -13897,14 +12737,16 @@ rawY = 0;
           CallingMenu = 302;
           printf("MENU 26 \n"); 
           CurrentMenu=26;
-          BackgroundRGB(0,0,0,255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           Start_Highlights_Menu26();
           UpdateWindow();
           break;
         case 12:                               // Set Stream Outputs
           printf("MENU 35 \n"); 
           CurrentMenu=35;
-          BackgroundRGB(0,0,0,255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           Start_Highlights_Menu35();
           UpdateWindow();
           break;
@@ -13916,35 +12758,40 @@ rawY = 0;
           CallingMenu = 301;
           printf("MENU 26 \n"); 
           CurrentMenu=26;
-          BackgroundRGB(0,0,0,255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           Start_Highlights_Menu26();
           UpdateWindow();
           break;
         case 16:                              // Set Preset Frequencies
           printf("MENU 27 \n"); 
           CurrentMenu=27;
-          BackgroundRGB(0,0,0,255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           Start_Highlights_Menu27();
           UpdateWindow();
           break;
         case 17:                              // Set Preset SRs
           printf("MENU 28 \n"); 
           CurrentMenu=28;
-          BackgroundRGB(0,0,0,255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           Start_Highlights_Menu28();
           UpdateWindow();
           break;
         case 18:                              // Set Call, Loc and PIDs
           printf("MENU 29 \n"); 
           CurrentMenu=29;
-          BackgroundRGB(0,0,0,255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           Start_Highlights_Menu29();
           UpdateWindow();
           break;
         case 19:                               // Set ADF Reference Frequency
           printf("MENU 32 \n"); 
           CurrentMenu=32;
-          BackgroundRGB(0,0,0,255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           Start_Highlights_Menu32();
           UpdateWindow();
           break;
@@ -13953,14 +12800,17 @@ rawY = 0;
         case 21:                              // Menu 1
           printf("MENU 1 \n");
           CurrentMenu=1;
-          BackgroundRGB(255,255,255,255);
+          setBackColour(255, 255, 255);
+          clearScreen();
+          setBackColour(0, 0, 0);
           Start_Highlights_Menu1();
           UpdateWindow();
           break;
         case 22:                              // Menu 2
           printf("MENU 2 \n");
           CurrentMenu=2;
-          BackgroundRGB(0, 0, 0, 255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           Start_Highlights_Menu2();
           UpdateWindow();
           break;
@@ -13996,7 +12846,8 @@ rawY = 0;
         case 13:                             // Select Vid Band
           printf("MENU 30 \n");
           CurrentMenu=30;
-          BackgroundRGB(0, 0, 0,255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           Start_Highlights_Menu30();
           UpdateWindow();
           break;
@@ -14018,7 +12869,9 @@ rawY = 0;
           CompVidStop();
           printf("MENU 1 \n");
           CurrentMenu=1;
-          BackgroundRGB(255,255,255,255);
+          setBackColour(255, 255, 255);
+          clearScreen();
+          setBackColour(0, 0, 0);
           Start_Highlights_Menu1();
           UpdateWindow();
           break;
@@ -14033,174 +12886,47 @@ rawY = 0;
         printf("Button Event %d, Entering Menu 5 Case Statement\n",i);
         CallingMenu = 5;
 
-        // Clear RX Preset store trigger if not a preset
-        if ((i > 3) && (RXStoreTrigger == 1))
-        {
-          RXStoreTrigger = 0;
-          SetButtonStatus(ButtonNumber(CurrentMenu, 4), 0);
-          UpdateWindow();
-          continue;
-        }
         switch (i)
         {
         case 0:                              // Preset 1
         case 1:                              // Preset 2
         case 2:                              // Preset 3
         case 3:                              // Preset 4
-          if (RXStoreTrigger == 0)
-          {
-            RecallRXPreset(i);  // Recall preset
-          }
-          else
-          {
-            SaveRXPreset(i);  // Set preset
-            RXStoreTrigger = 0;
-            SetButtonStatus(ButtonNumber(CurrentMenu, 4), 0);
-            BackgroundRGB(0,0,0,255);
-          }
-          Start_Highlights_Menu5();    // Refresh button labels
-          UpdateWindow();
           break;
         case 4:                              // Store RX Preset
-          if (RXStoreTrigger == 0)
-          {
-            RXStoreTrigger = 1;
-            SetButtonStatus(ButtonNumber(CurrentMenu, 4),1);
-          }
-          else
-          {
-            RXStoreTrigger = 0;
-            SetButtonStatus(ButtonNumber(CurrentMenu, 4),0);
-          }
-          UpdateWindow();
           break;
-        case 5:                                            // Fastlock on/off
-          if (strcmp(RXfastlock[0], "ON") == 0)
-          {
-            strcpy(RXfastlock[0], "OFF");
-          }
-          else
-          {
-            strcpy(RXfastlock[0], "ON");
-          }
-          Start_Highlights_Menu5();    // Refresh button labels
-          UpdateWindow();
-          SetConfigParam(PATH_RXPRESETS, "rx0fastlock", RXfastlock[0]);
+        case 5:                              // Fastlock on/off
           break;
-        case 7:                                            // Audio on/off
-          if (strcmp(RXsound[0], "ON") == 0)
-          {
-            strcpy(RXsound[0], "OFF");
-          }
-          else
-          {
-            strcpy(RXsound[0], "ON");
-          }
-          Start_Highlights_Menu5();    // Refresh button labels
-          UpdateWindow();
-          SetConfigParam(PATH_RXPRESETS, "rx0sound", RXsound[0]);
+        case 7:                              // Audio on/off
           break;
-        case 9:                                            // SetRXLikeTX
-          SetButtonStatus(ButtonNumber(CurrentMenu, i), 1);
-          SetRXLikeTX();
-          Start_Highlights_Menu5();    // Refresh button labels
-          UpdateWindow();
-          usleep(500000);
-          SetButtonStatus(ButtonNumber(CurrentMenu, i), 0); 
-          UpdateWindow();
+        case 9:                              // SetRXLikeTX
           break;
         case 10:
-          printf("MENU 16 \n");        // Frequency
-          CurrentMenu=16;
-          BackgroundRGB(0,0,0,255);
-          Start_Highlights_Menu16();
-          UpdateWindow();
           break;
         case 11:
-          printf("MENU 17 \n");        // SR
-          CurrentMenu=17;
-          BackgroundRGB(0,0,0,255);
-          Start_Highlights_Menu17();
-          UpdateWindow();
           break;
         case 12:
-          printf("MENU 18 \n");        // FEC
-          CurrentMenu=18;
-          BackgroundRGB(0,0,0,255);
-          Start_Highlights_Menu18();
-          UpdateWindow();
           break;
         case 13:                       // Sample Rate
-          SetSampleRate();
-          BackgroundRGB(0,0,0,255);
-          Start_Highlights_Menu5();
-          UpdateWindow();
           break;
         case 14:                       // Gain
-          SetRXGain();
-          BackgroundRGB(0,0,0,255);
-          Start_Highlights_Menu5();
-          UpdateWindow();
           break;
         case 16:                       // Encoding
-          ToggleEncoding();
-          BackgroundRGB(0,0,0,255);
-          Start_Highlights_Menu5();
-          UpdateWindow();
           break;
         case 17:                       // SDR Selection
-          printf("MENU 39 \n");
-          CurrentMenu=39;
-          BackgroundRGB(0,0,0,255);
-          Start_Highlights_Menu39();
-          UpdateWindow();
           break;
         case 18:                                            // Constellation on/off
-          if (strcmp(RXgraphics[0], "ON") == 0)
-          {
-            strcpy(RXgraphics[0], "OFF");
-          }
-          else
-          {
-            strcpy(RXgraphics[0], "ON");
-          }
-          Start_Highlights_Menu5();    // Refresh button labels
-          UpdateWindow();
-          SetConfigParam(PATH_RXPRESETS, "rx0graphics", RXgraphics[0]);
           break;
         case 19:                                            // Parameters on/off
-          if (strcmp(RXparams[0], "ON") == 0)
-          {
-            strcpy(RXparams[0], "OFF");
-          }
-          else
-          {
-            strcpy(RXparams[0], "ON");
-          }
-          Start_Highlights_Menu5();    // Refresh button labels
-          UpdateWindow();
-          SetConfigParam(PATH_RXPRESETS, "rx0parameters", RXparams[0]);
           break;
         case 21:                       // RX
-          if(CheckRTL()==0)
-          {
-            BackgroundRGB(0,0,0,255);
-            Start(wscreen,hscreen);
-            ReceiveStart2();
-            break;
-          }
-          else
-          {
-            MsgBox("No RTL-SDR Connected");
-            wait_touch();
-            BackgroundRGB(0, 0, 0, 255);
-            UpdateWindow();
-          }
           break;
         case 22:                                          // Back to Menu 1
           printf("MENU 1 \n");
           CurrentMenu=1;
-          BackgroundRGB(255,255,255,255);
+          setBackColour(255, 255, 255);
+          clearScreen();
+          setBackColour(0, 0, 0);
           Start_Highlights_Menu1();
           UpdateWindow();
           break;
@@ -14256,7 +12982,8 @@ rawY = 0;
             SaveRTLPreset(i);  // Set preset
             RTLStoreTrigger = 0;
             SetButtonStatus(ButtonNumber(CurrentMenu, 4), 0);
-            BackgroundRGB(0,0,0,255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           }
           RTLstop();
           RTLstart();
@@ -14290,7 +13017,8 @@ rawY = 0;
             RTLstop();
             RTLstart();
           }
-          BackgroundRGB(0,0,0,255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           Start_Highlights_Menu6();          // Refresh button labels
           UpdateWindow();
           break;
@@ -14301,7 +13029,8 @@ rawY = 0;
             RTLstop();
             RTLstart();
           }
-          BackgroundRGB(0,0,0,255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           Start_Highlights_Menu6();          // Refresh button labels
           UpdateWindow();
           break;
@@ -14339,7 +13068,8 @@ rawY = 0;
             RTLstop();
             RTLstart();
           }
-          BackgroundRGB(0,0,0,255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           Start_Highlights_Menu6();          // Refresh button labels
           UpdateWindow();
           break;
@@ -14365,7 +13095,9 @@ rawY = 0;
           RTLactive = 0;
           printf("MENU 1 \n");
           CurrentMenu=1;
-          BackgroundRGB(255,255,255,255);
+          setBackColour(255, 255, 255);
+          clearScreen();
+          setBackColour(0, 0, 0);
           Start_Highlights_Menu1();
           UpdateWindow();
           break;
@@ -14415,7 +13147,9 @@ rawY = 0;
         case 22:                              // Menu 1
           printf("MENU 1 \n");
           CurrentMenu=1;
-          BackgroundRGB(255,255,255,255);
+          setBackColour(255, 255, 255);
+          clearScreen();
+          setBackColour(0, 0, 0);
           Start_Highlights_Menu1();
           break;
         default:
@@ -14436,20 +13170,22 @@ rawY = 0;
         case 1:                                           // OMXPlayer
         case 2:                                           // VLC
         case 3:                                           // UDP Output
-          BackgroundRGB(0, 0, 0, 255);
-          Start(wscreen,hscreen);
+          setBackColour(0, 0, 0);
+          clearScreen();
           LMRX(i);
-          BackgroundRGB(0, 0, 0, 255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           Start_Highlights_Menu8();
           UpdateWindow();
           break;
         case 4:                                           // Beacon MER
           if (strcmp(LMRXmode, "sat") == 0)
           {
-            BackgroundRGB(0,0,0,255);
-            Start(wscreen,hscreen);
+            setBackColour(0, 0, 0);
+            clearScreen();
             LMRX(i);
-            BackgroundRGB(0, 0, 0, 255);
+            setBackColour(0, 0, 0);
+            clearScreen();
             Start_Highlights_Menu8();
             UpdateWindow();
           }
@@ -14469,7 +13205,8 @@ rawY = 0;
           break;
        case 9:                                         // Change freq from keyboard
           ChangeLMPresetFreq(i);
-          BackgroundRGB(0, 0, 0, 255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           SelectLMFREQ(i);
           Start_Highlights_Menu8();
           UpdateWindow();
@@ -14507,14 +13244,17 @@ rawY = 0;
           strcpy(LinuxCommand, "(sleep 1; sudo killall -9 fbi >/dev/null 2>/dev/null) &");
           system(LinuxCommand);
           CurrentMenu=1;
-          BackgroundRGB(255,255,255,255);
+          setBackColour(255, 255, 255);
+          clearScreen();
+          setBackColour(0, 0, 0);
           Start_Highlights_Menu1();
           UpdateWindow();
           break;
         case 23:                                          // Config Menu 13
           printf("MENU 13\n");
           CurrentMenu=13;
-          BackgroundRGB(0,0,0,255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           Start_Highlights_Menu13();
           UpdateWindow();
           break;
@@ -14576,7 +13316,9 @@ rawY = 0;
         SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 0); // Reset cancel (even if not selected)
         printf("Returning to MENU 1 from Menu 11\n");
         CurrentMenu=1;
-        BackgroundRGB(255,255,255,255);
+        setBackColour(255, 255, 255);
+        clearScreen();
+        setBackColour(0, 0, 0);
         Start_Highlights_Menu1();
         UpdateWindow();
         continue;   // Completed Menu 11 action, go and wait for touch
@@ -14619,7 +13361,9 @@ rawY = 0;
         SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 0); // Reset cancel (even if not selected)
         printf("Returning to MENU 1 from Menu 12\n");
         CurrentMenu=1;
-        BackgroundRGB(255,255,255,255);
+        setBackColour(255, 255, 255);
+        clearScreen();
+        setBackColour(0, 0, 0);
         Start_Highlights_Menu1();
         UpdateWindow();
         continue;   // Completed Menu 12 action, go and wait for touch
@@ -14634,28 +13378,32 @@ rawY = 0;
         case 0:                                         // Output UDP IP
           ChangeLMRXIP();
           CurrentMenu=13;
-          BackgroundRGB(0,0,0,255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           Start_Highlights_Menu13();
           UpdateWindow();
           break;
         case 1:                                         // Output UDP port 
           ChangeLMRXPort();
           CurrentMenu=13;
-          BackgroundRGB(0,0,0,255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           Start_Highlights_Menu13();
           UpdateWindow();
           break;
         case 2:                                         // Change Receive Preset freqss
           printf("MENU 27 \n");
           CurrentMenu=27;
-          BackgroundRGB(0, 0, 0, 255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           Start_Highlights_Menu27();
           UpdateWindow();
           break;
         case 3:                                         // Change Receive Preset SRs 
           printf("MENU 28 \n");
           CurrentMenu=28;
-          BackgroundRGB(0, 0, 0, 255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           Start_Highlights_Menu28();
           UpdateWindow();
           break;
@@ -14668,14 +13416,16 @@ rawY = 0;
           SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 0); // Reset cancel (even if not selected)
           printf("Returning to MENU 8 from Menu 13\n");
           CurrentMenu=8;
-          BackgroundRGB(0,0,0,255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           Start_Highlights_Menu8();
           UpdateWindow();
           break;
         case 5:                                         // QO-100 Offset
           ChangeLMRXOffset();
           CurrentMenu=13;
-          BackgroundRGB(0, 0, 0, 255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           Start_Highlights_Menu13();
           UpdateWindow();
           break;
@@ -14685,7 +13435,8 @@ rawY = 0;
             AutosetLMRXOffset();
           }
           CurrentMenu=13;
-          BackgroundRGB(0, 0, 0, 255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           Start_Highlights_Menu13();
           UpdateWindow();
           break;
@@ -14766,7 +13517,9 @@ rawY = 0;
         SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 0); // Reset cancel (even if not selected)
         printf("Returning to MENU 1 from Menu 14\n");
         CurrentMenu=1;
-        BackgroundRGB(255,255,255,255);
+        setBackColour(255, 255, 255);
+        clearScreen();
+        setBackColour(0, 0, 0);
         Start_Highlights_Menu1();
         UpdateWindow();
         continue;   // Completed Menu 14 action, go and wait for touch
@@ -14789,7 +13542,9 @@ rawY = 0;
         SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 0); // Reset cancel (even if not selected)
         printf("Returning to MENU 1 from Menu 15\n");
         CurrentMenu=1;
-        BackgroundRGB(255,255,255,255);
+        setBackColour(255, 255, 255);
+        clearScreen();
+        setBackColour(0, 0, 0);
         Start_Highlights_Menu1();
         UpdateWindow();
         continue;   // Completed Menu 15 action, go and wait for touch
@@ -14833,14 +13588,17 @@ rawY = 0;
         {
           printf("Returning to MENU 1 from Menu 16\n");
           CurrentMenu=1;
-          BackgroundRGB(255,255,255,255);
+          setBackColour(255, 255, 255);
+          clearScreen();
+          setBackColour(0, 0, 0);
           Start_Highlights_Menu1();
         }
         else
         {
           printf("Returning to MENU 5 from Menu 16\n");
           CurrentMenu=5;
-          BackgroundRGB(0, 0, 0, 255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           Start_Highlights_Menu5();
         }
         UpdateWindow();
@@ -14898,20 +13656,12 @@ rawY = 0;
         UpdateWindow();
         usleep(500000);
         SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 0); // Reset cancel (even if not selected)
-        if (CallingMenu == 1)
-        {
-          printf("Returning to MENU 1 from Menu 17\n");
-          CurrentMenu=1;
-          BackgroundRGB(255,255,255,255);
-          Start_Highlights_Menu1();
-        }
-        else
-        {
-          printf("Returning to MENU 5 from Menu 17\n");
-          CurrentMenu=5;
-          BackgroundRGB(0, 0, 0, 255);
-          Start_Highlights_Menu5();
-        }
+        printf("Returning to MENU 1 from Menu 17\n");
+        CurrentMenu=1;
+        setBackColour(255, 255, 255);
+        clearScreen();
+        setBackColour(0, 0, 0);
+        Start_Highlights_Menu1();
         UpdateWindow();
         continue;   // Completed Menu 17 action, go and wait for touch
       }
@@ -14951,20 +13701,12 @@ rawY = 0;
         UpdateWindow();
         usleep(500000);
         SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 0); // Reset cancel (even if not selected)
-        if (CallingMenu == 1)
-        {
-          printf("Returning to MENU 1 from Menu 18\n");
-          CurrentMenu=1;
-          BackgroundRGB(255,255,255,255);
-          Start_Highlights_Menu1();
-        }
-        else
-        {
-          printf("Returning to MENU 5 from Menu 18\n");
-          CurrentMenu=5;
-          BackgroundRGB(0, 0, 0, 255);
-          Start_Highlights_Menu5();
-        }
+        printf("Returning to MENU 1 from Menu 18\n");
+        CurrentMenu=1;
+        setBackColour(255, 255, 255);
+        clearScreen();
+        setBackColour(0, 0, 0);
+        Start_Highlights_Menu1();
         UpdateWindow();
         continue;   // Completed Menu 18 action, go and wait for touch
       }
@@ -15005,7 +13747,9 @@ rawY = 0;
         SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 0); // Reset cancel (even if not selected)
         printf("Returning to MENU 1 from Menu 19\n");
         CurrentMenu=1;
-        BackgroundRGB(255,255,255,255);
+        setBackColour(255, 255, 255);
+        clearScreen();
+        setBackColour(0, 0, 0);
         Start_Highlights_Menu1();
         UpdateWindow();
         continue;   // Completed Menu 19 action, go and wait for touch
@@ -15025,7 +13769,9 @@ rawY = 0;
           SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 0); // Reset cancel (even if not selected)
           printf("Returning to MENU 1 from Menu 20\n");
           CurrentMenu=1;
-          BackgroundRGB(255,255,255,255);
+          setBackColour(255, 255, 255);
+          clearScreen();
+          setBackColour(0, 0, 0);
           Start_Highlights_Menu1();
           UpdateWindow();
           break;
@@ -15039,7 +13785,8 @@ rawY = 0;
           if (StreamStoreTrigger == 0)        // Normal
           {
             DisplayStream(i);
-            BackgroundRGB(0, 0, 0, 255);
+            setBackColour(0, 0, 0);
+            clearScreen();
           }
           else                                // Amend the Preset
           {
@@ -15055,7 +13802,8 @@ rawY = 0;
           StreamStoreTrigger = 0;
           SetButtonStatus(ButtonNumber(CurrentMenu, 9), 0);
           DisplayStream(i);
-          BackgroundRGB(0, 0, 0, 255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           UpdateWindow();                     // Stay in Menu 20
           break;
         case 9:                               // Amend Preset
@@ -15111,7 +13859,9 @@ rawY = 0;
         SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 0); // Reset cancel (even if not selected)
         printf("Returning to MENU 1 from Menu 21\n");
         CurrentMenu=1;
-        BackgroundRGB(255,255,255,255);
+        setBackColour(255, 255, 255);
+        clearScreen();
+        setBackColour(0, 0, 0);
         Start_Highlights_Menu1();
         UpdateWindow();
         continue;   // Completed Menu 21 action, go and wait for touch
@@ -15141,7 +13891,9 @@ rawY = 0;
         SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 0); // Reset cancel (even if not selected)
         printf("Returning to MENU 1 from Menu 22\n");
         CurrentMenu=1;
-        BackgroundRGB(255,255,255,255);
+        setBackColour(255, 255, 255);
+        clearScreen();
+        setBackColour(0, 0, 0);
         Start_Highlights_Menu1();
         UpdateWindow();
         continue;   // Completed Menu 22 action, go and wait for touch
@@ -15187,7 +13939,9 @@ rawY = 0;
         SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 0); // Reset cancel (even if not selected)
         printf("Returning to MENU 1 from Menu 23\n");
         CurrentMenu=1;
-        BackgroundRGB(255,255,255,255);
+        setBackColour(255, 255, 255);
+        clearScreen();
+        setBackColour(0, 0, 0);
         Start_Highlights_Menu1();
         UpdateWindow();
         continue;   // Completed Menu 23 action, go and wait for touch
@@ -15225,7 +13979,9 @@ rawY = 0;
         SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 0); // Reset cancel (even if not selected)
         printf("Returning to MENU 1 from Menu 24\n");
         CurrentMenu=1;
-        BackgroundRGB(255,255,255,255);
+        setBackColour(255, 255, 255);
+        clearScreen();
+        setBackColour(0, 0, 0);
         Start_Highlights_Menu1();
         UpdateWindow();
         continue;   // Completed Menu 24 action, go and wait for touch
@@ -15284,7 +14040,9 @@ rawY = 0;
         SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 0); // Reset cancel (even if not selected)
         printf("Returning to MENU 1 from Menu 25\n");
         CurrentMenu=1;
-        BackgroundRGB(255,255,255,255);
+        setBackColour(255, 255, 255);
+        clearScreen();
+        setBackColour(0, 0, 0);
         Start_Highlights_Menu1();
         UpdateWindow();
         continue;   // Completed Menu 25 action, go and wait for touch
@@ -15303,7 +14061,9 @@ rawY = 0;
           SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 0); // Reset cancel (even if not selected)
           printf("Returning to MENU 1 from Menu 26\n");
           CurrentMenu=1;
-          BackgroundRGB(255,255,255,255);
+          setBackColour(255, 255, 255);
+          clearScreen();
+          setBackColour(0, 0, 0);
           Start_Highlights_Menu1();
           UpdateWindow();
           break;
@@ -15321,7 +14081,8 @@ rawY = 0;
             printf("Changing Band Details %d\n", i);
             ChangeBandDetails(i);
             CurrentMenu=26;
-            BackgroundRGB(0,0,0,255);
+            setBackColour(0, 0, 0);
+            clearScreen();
             Start_Highlights_Menu26();
           }
           else  // 302, Set Receive LO
@@ -15330,7 +14091,9 @@ rawY = 0;
             ReceiveLOStart();         // Start the LO if it is required
             printf("Returning to MENU 1 from Menu 26\n");
             CurrentMenu=1;
-            BackgroundRGB(255,255,255,255);
+            setBackColour(255, 255, 255);
+            clearScreen();
+            setBackColour(0, 0, 0);
             Start_Highlights_Menu1();
           }
           UpdateWindow();
@@ -15356,14 +14119,17 @@ rawY = 0;
           {
             printf("Returning to MENU 1 from Menu 27\n");
             CurrentMenu=1;
-            BackgroundRGB(255,255,255,255);
+            setBackColour(255, 255, 255);
+            clearScreen();
+            setBackColour(0, 0, 0);
             Start_Highlights_Menu1();
           }
           else if (CallingMenu == 13) // RX presets
           {
             printf("Returning to MENU 8 from Menu 27\n");
             CurrentMenu=8;
-            BackgroundRGB(0 ,0 ,0 ,255);
+            setBackColour(0, 0, 0);
+            clearScreen();
             Start_Highlights_Menu8();
           }
           UpdateWindow();
@@ -15387,7 +14153,8 @@ rawY = 0;
             ChangeLMPresetFreq(i);
           }
           CurrentMenu=27;
-          BackgroundRGB(0, 0, 0, 255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           Start_Highlights_Menu27();
           UpdateWindow();
           break;
@@ -15412,14 +14179,17 @@ rawY = 0;
           {
             printf("Returning to MENU 1 from Menu 28\n");
             CurrentMenu=1;
-            BackgroundRGB(255,255,255,255);
+            setBackColour(255, 255, 255);
+            clearScreen();
+            setBackColour(0, 0, 0);
             Start_Highlights_Menu1();
           }
           else if (CallingMenu == 13) // RX presets
           {
             printf("Returning to MENU 8 from Menu 28\n");
             CurrentMenu=8;
-            BackgroundRGB(0 ,0 ,0 ,255);
+            setBackColour(0, 0, 0);
+            clearScreen();
             Start_Highlights_Menu8();
           }
           UpdateWindow();
@@ -15443,7 +14213,8 @@ rawY = 0;
             ChangeLMPresetSR(i);
           }
           CurrentMenu=28;
-          BackgroundRGB(0,0,0,255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           Start_Highlights_Menu28();
           UpdateWindow();
           break;
@@ -15466,7 +14237,9 @@ rawY = 0;
           SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 0); // Reset cancel (even if not selected)
           printf("Returning to MENU 1 from Menu 29\n");
           CurrentMenu=1;
-          BackgroundRGB(255,255,255,255);
+          setBackColour(255, 255, 255);
+          clearScreen();
+          setBackColour(0, 0, 0);
           Start_Highlights_Menu1();
           UpdateWindow();
           break;
@@ -15476,7 +14249,8 @@ rawY = 0;
           printf("Changing PID\n");
           ChangePID(i);
           CurrentMenu=29;
-          BackgroundRGB(0,0,0,255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           Start_Highlights_Menu29();
           UpdateWindow();
           break;
@@ -15486,7 +14260,8 @@ rawY = 0;
           printf("Changing Call\n");
           ChangeCall();
           CurrentMenu=29;
-          BackgroundRGB(0,0,0,255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           Start_Highlights_Menu29();
           UpdateWindow();
           break;
@@ -15494,7 +14269,8 @@ rawY = 0;
           printf("Changing Locator\n");
           ChangeLocator();
           CurrentMenu=29;
-          BackgroundRGB(0,0,0,255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           Start_Highlights_Menu29();
           UpdateWindow();
           break;
@@ -15518,7 +14294,9 @@ rawY = 0;
           SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 0); // Reset cancel (even if not selected)
           printf("Returning to MENU 4 from Menu 30\n");
           CurrentMenu=4;
-          BackgroundRGB(63, 63, 127, 255);
+          setBackColour(127, 127, 127);
+          clearScreen();
+          setBackColour(0, 0, 0);
           Start_Highlights_Menu4();
           UpdateWindow();
           break;
@@ -15534,7 +14312,9 @@ rawY = 0;
           printf("Changing Vid Band to Button %d\n", i);
           ChangeVidBand(i);
           CurrentMenu=4;
-          BackgroundRGB(63, 63, 127, 255);
+          setBackColour(127, 127, 127);
+          clearScreen();
+          setBackColour(0, 0, 0);
           Start_Highlights_Menu4();
           UpdateWindow();
           break;
@@ -15552,7 +14332,8 @@ rawY = 0;
         // No exit button, so go straight to menu 3
         printf("Completed band/site change, going to Menu 3 %d\n", i);
         CurrentMenu=3;
-        BackgroundRGB(0, 0, 0, 255);
+        setBackColour(0, 0, 0);
+        clearScreen();
         Start_Highlights_Menu3();
         UpdateWindow();
         continue;   // Completed Menu 31 action, go and wait for touch
@@ -15572,7 +14353,9 @@ rawY = 0;
           SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 0); // Reset cancel (even if not selected)
           printf("Returning to MENU 1 from Menu 32\n");
           CurrentMenu=1;
-          BackgroundRGB(255,255,255,255);
+          setBackColour(255, 255, 255);
+          clearScreen();
+          setBackColour(0, 0, 0);
           Start_Highlights_Menu1();
           UpdateWindow();
           break;
@@ -15586,13 +14369,15 @@ rawY = 0;
           printf("Changing ADFRef\n");
           ChangeADFRef(i);
           CurrentMenu=32;
-          BackgroundRGB(0,0,0,255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           Start_Highlights_Menu32();
           UpdateWindow();
           break;
         case 9:                               // Set RTL-SDR ppm offset
           ChangeRTLppm();
-          BackgroundRGB(0,0,0,255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           Start_Highlights_Menu32();          // Refresh button labels
           UpdateWindow();
           break;
@@ -15615,7 +14400,9 @@ rawY = 0;
           SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 0); // Reset cancel (even if not selected)
           printf("Returning to MENU 1 from Menu 33\n");
           CurrentMenu=1;
-          BackgroundRGB(255,255,255,255);
+          setBackColour(255, 255, 255);
+          clearScreen();
+          setBackColour(0, 0, 0);
           Start_Highlights_Menu1();
           UpdateWindow();
           break;
@@ -15625,7 +14412,8 @@ rawY = 0;
           printf("Checking for Update\n");
           ExecuteUpdate(i);
           CurrentMenu=33;
-          BackgroundRGB(0,0,0,255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           Start_Highlights_Menu33();
           UpdateWindow();
           break;
@@ -15649,7 +14437,9 @@ rawY = 0;
           SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 0); // Reset cancel (even if not selected)
           printf("Returning to MENU 1 from Menu 34\n");
           CurrentMenu=1;
-          BackgroundRGB(255,255,255,255);
+          setBackColour(255, 255, 255);
+          clearScreen();
+          setBackColour(0, 0, 0);
           Start_Highlights_Menu1();
           UpdateWindow();
           break;
@@ -15658,7 +14448,8 @@ rawY = 0;
         //case 7:                               // Boot to LimeTRX
           ChangeStartApp(i);
           wait_touch();
-          BackgroundRGB(0 ,0, 0, 255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           Start_Highlights_Menu34();
           UpdateWindow();
           break;
@@ -15683,7 +14474,9 @@ rawY = 0;
           SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 0); // Reset cancel (even if not selected)
           printf("Returning to MENU 1 from Menu 35\n");
           CurrentMenu=1;
-          BackgroundRGB(255,255,255,255);
+          setBackColour(255, 255, 255);
+          clearScreen();
+          setBackColour(0, 0, 0);
           Start_Highlights_Menu1();
           UpdateWindow();
           break;
@@ -15698,7 +14491,8 @@ rawY = 0;
           if (StreamerStoreTrigger == 0)      // Normal
           {
             SelectStreamer(i);
-            //BackgroundRGB(0, 0, 0, 255);
+            setBackColour(0, 0, 0);
+            clearScreen();
             Start_Highlights_Menu35();        // Refresh the button labels
           }
           else                                // Amend the Preset
@@ -15744,7 +14538,9 @@ rawY = 0;
           SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 0); // Reset cancel (even if not selected)
           printf("Returning to MENU 1 from Menu 36\n");
           CurrentMenu=1;
-          BackgroundRGB(255,255,255,255);
+          setBackColour(255, 255, 255);
+          clearScreen();
+          setBackColour(0, 0, 0);
           Start_Highlights_Menu1();
           UpdateWindow();
           break;
@@ -15766,7 +14562,8 @@ rawY = 0;
           printf("Lime Firmware Update %d\n", i);
           LimeFWUpdate(i);
           CurrentMenu=37;
-          BackgroundRGB(0, 0, 0, 255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           UpdateWindow();
           break;
         case 3:                               // Toggle LimeRFE
@@ -15782,26 +14579,31 @@ rawY = 0;
           SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 0); // Reset cancel (even if not selected)
           printf("Returning to MENU 1 from Menu 37\n");
           CurrentMenu = 1;
-          BackgroundRGB(255, 255, 255, 255);
+          setBackColour(255, 255, 255);
+          clearScreen();
+          setBackColour(0, 0, 0);
           Start_Highlights_Menu1();
           UpdateWindow();
           break;
         case 5:                               // Display LimeSuite Info Page
           LimeUtilInfo();
           wait_touch();
-          BackgroundRGB(0,0,0,255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           UpdateWindow();
           break;
         case 6:                               // Display Lime FW Info Page
           LimeInfo();
           wait_touch();
-          BackgroundRGB(0,0,0,255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           UpdateWindow();
           break;
         case 7:                               // Display Lime Report Page
           LimeMiniTest();
           wait_touch();
-          BackgroundRGB(0 ,0, 0, 255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           UpdateWindow();
           break;
         case 9:                               // Cycle through Lime Cal options
@@ -15838,7 +14640,8 @@ rawY = 0;
         {
         case 0:                               // Enter Pluto IP
           ChangePlutoIP();
-          BackgroundRGB(0, 0, 0, 255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           Start_Highlights_Menu39();
           UpdateWindow();
           break;
@@ -15847,7 +14650,8 @@ rawY = 0;
           SetButtonStatus(ButtonNumber(39, 1), 1);
           UpdateWindow();
           BackupLangstone();
-          BackgroundRGB(0, 0, 0, 255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           SetButtonStatus(ButtonNumber(39, 1), 0);
           Start_Highlights_Menu39();
           UpdateWindow();
@@ -15857,7 +14661,8 @@ rawY = 0;
           SetButtonStatus(ButtonNumber(39, 2), 1);
           UpdateWindow();
           UpdateLangstone();
-          BackgroundRGB(0, 0, 0, 255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           SetButtonStatus(ButtonNumber(39, 2), 0);
           Start_Highlights_Menu39();
           UpdateWindow();
@@ -15867,7 +14672,8 @@ rawY = 0;
           SetButtonStatus(ButtonNumber(39, 3), 1);
           UpdateWindow();
           RestoreLangstone();
-          BackgroundRGB(0, 0, 0, 255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           SetButtonStatus(ButtonNumber(39, 3), 0);
           Start_Highlights_Menu39();
           UpdateWindow();
@@ -15880,7 +14686,9 @@ rawY = 0;
           SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 0); // Reset cancel (even if not selected)
           printf("Returning to MENU 1 from Menu 39\n");
           CurrentMenu=1;
-          BackgroundRGB(255,255,255,255);
+          setBackColour(255, 255, 255);
+          clearScreen();
+          setBackColour(0, 0, 0);
           Start_Highlights_Menu1();
           UpdateWindow();
           break;
@@ -15952,7 +14760,9 @@ rawY = 0;
         SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 0); // Reset cancel (even if not selected)
         printf("Returning to MENU 1 from Menu 42\n");
         CurrentMenu=1;
-        BackgroundRGB(255,255,255,255);
+        setBackColour(255, 255, 255);
+        clearScreen();
+        setBackColour(0, 0, 0);
         Start_Highlights_Menu1();
         UpdateWindow();
         continue;   // Completed Menu 42 action, go and wait for touch
@@ -15971,7 +14781,9 @@ rawY = 0;
           SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 0); // Reset cancel (even if not selected)
           printf("Returning to MENU 1 from Menu 43\n");
           CurrentMenu=1;
-          BackgroundRGB(255,255,255,255);
+          setBackColour(255, 255, 255);
+          clearScreen();
+          setBackColour(0, 0, 0);
           Start_Highlights_Menu1();
           UpdateWindow();
           break;
@@ -15985,7 +14797,8 @@ rawY = 0;
           if (file_exist("/media/usb/portsdown_settings/portsdown_config.txt") == 1) // no file found
           {
             MsgBox4("Portsdown configuration files", "not found on USB drive.", "Please check the USB drive and", "try reconnecting it");
-            BackgroundRGB(0, 0, 0, 255);
+            setBackColour(0, 0, 0);
+            clearScreen();
             wait_touch();
           }
           else  // file exists
@@ -16000,7 +14813,8 @@ rawY = 0;
           if (file_exist("/boot/portsdown_settings/portsdown_config.txt") == 1) // no file found
           {
             MsgBox4("Portsdown configuration files", "not found in /boot folder.", " ", " ");
-            BackgroundRGB(0, 0, 0, 255);
+            setBackColour(0, 0, 0);
+            clearScreen();
             wait_touch();
           }
           else  // file exists
@@ -16018,7 +14832,8 @@ rawY = 0;
           system("pumount /media/usb");
           MsgBox2("USB drive unmounted", "USB drive can safely be removed");
           wait_touch();
-          BackgroundRGB(0, 0, 0, 255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           UpdateWindow();
           break;
         case 6:                               // Back-up to USB
@@ -16027,7 +14842,8 @@ rawY = 0;
           if (file_exist("/media/usb/portsdown_write_test.txt") == 0) // File still there
           {
             MsgBox4("USB Drive found, but", "Portsdown is unable to delete files from it", "Please check the USB drive", " ");
-            BackgroundRGB(0, 0, 0, 255);
+            setBackColour(0, 0, 0);
+            clearScreen();
             wait_touch();
           }
           else  // test file not present, so try creating it
@@ -16036,7 +14852,8 @@ rawY = 0;
             if (file_exist("/media/usb/portsdown_write_test.txt") == 1) // File not created
             {
               MsgBox4("Unable to write to USB drive", "Please check the USB drive", "and try reconnecting it", " ");
-              BackgroundRGB(0, 0, 0, 255);
+              setBackColour(0, 0, 0);
+              clearScreen();
               wait_touch();
             }
             else  // all good
@@ -16090,7 +14907,8 @@ rawY = 0;
         case 12:                               // Select Start-up App
           printf("MENU 34 \n"); 
           CurrentMenu=34;
-          BackgroundRGB(0, 0, 0, 255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           Start_Highlights_Menu34();
           UpdateWindow();
           break;
@@ -16133,7 +14951,9 @@ rawY = 0;
           SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 0); // Reset cancel (even if not selected)
           printf("Returning to MENU 1 from Menu 44\n");
           CurrentMenu=1;
-          BackgroundRGB(255,255,255,255);
+          setBackColour(255, 255, 255);
+          clearScreen();
+          setBackColour(0, 0, 0);
           Start_Highlights_Menu1();
           UpdateWindow();
           break;
@@ -16153,7 +14973,8 @@ rawY = 0;
           printf("Changing Jetson IP\n");
           ChangeJetsonIP();
           CurrentMenu=44;
-          BackgroundRGB(0,0,0,255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           Start_Highlights_Menu44();
           UpdateWindow();
           break;
@@ -16161,7 +14982,8 @@ rawY = 0;
           printf("Changing LKV373A UDP IP\n");
           ChangeLKVIP();
           CurrentMenu=44;
-          BackgroundRGB(0,0,0,255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           Start_Highlights_Menu44();
           UpdateWindow();
           break;
@@ -16169,7 +14991,8 @@ rawY = 0;
           printf("Changing Jetson User name\n");
           ChangeJetsonUser();
           CurrentMenu=44;
-          BackgroundRGB(0,0,0,255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           Start_Highlights_Menu44();
           UpdateWindow();
           break;
@@ -16177,7 +15000,8 @@ rawY = 0;
           printf("Changing Jetson passord\n");
           ChangeJetsonPW();
           CurrentMenu=44;
-          BackgroundRGB(0,0,0,255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           Start_Highlights_Menu44();
           UpdateWindow();
           break;
@@ -16185,7 +15009,8 @@ rawY = 0;
           printf("Changing Jetson root password\n");
           ChangeJetsonRPW();
           CurrentMenu=44;
-          BackgroundRGB(0,0,0,255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           Start_Highlights_Menu44();
           UpdateWindow();
           break;
@@ -16193,7 +15018,8 @@ rawY = 0;
           printf("Changing LKV373A UDP Port\n");
           ChangeLKVPort();
           CurrentMenu=44;
-          BackgroundRGB(0,0,0,255);
+          setBackColour(0, 0, 0);
+          clearScreen();
           Start_Highlights_Menu44();
           UpdateWindow();
           break;
@@ -16255,7 +15081,9 @@ rawY = 0;
         SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 0); // Reset cancel (even if not selected)
         printf("Returning to MENU 1 from Menu 45\n");
         CurrentMenu=1;
-        BackgroundRGB(255, 255, 255, 255);
+        setBackColour(255, 255, 255);
+        clearScreen();
+        setBackColour(0, 0, 0);
         Start_Highlights_Menu1();
         UpdateWindow();
         continue;   // Completed Menu 15 action, go and wait for touch
@@ -16272,7 +15100,7 @@ rawY = 0;
 void Define_Menu1()
 {
   int button = 0;
-  strcpy(MenuTitle[1], "BATC Portsdown Transmitter Main Menu"); 
+  strcpy(MenuTitle[1], "BATC Portsdown A27 DATV System Main Menu"); 
 
   // Frequency - Bottom Row, Menu 1
 
@@ -16782,9 +15610,9 @@ void Define_Menu2()
   AddButtonStatus(button, "Info^ ", &Blue);
   AddButtonStatus(button, " ", &Green);
 
-  button = CreateButton(2, 3);
-  AddButtonStatus(button, "Calibrate^Touch", &Blue);
-  AddButtonStatus(button, " ", &Green);
+  //button = CreateButton(2, 3);
+  //AddButtonStatus(button, " ", &Blue);
+  //AddButtonStatus(button, " ", &Green);
 
   //button = CreateButton(2, 4);
   //AddButtonStatus(button, " ", &Blue);
@@ -16843,9 +15671,9 @@ void Define_Menu2()
   AddButtonStatus(button, "RTL-FM^Receiver", &Blue);
   AddButtonStatus(button, "RTL-FM^Receiver", &Green);
 
-  button = CreateButton(2, 19);
-  AddButtonStatus(button, "LeanDVB^Receiver", &Blue);
-  AddButtonStatus(button, "LeanDVB^Receiver", &Green);
+  //button = CreateButton(2, 19);
+  //AddButtonStatus(button, " ", &Blue);
+  //AddButtonStatus(button, " ", &Green);
 
   // Top of Menu 2
 
@@ -17027,248 +15855,26 @@ void Start_Highlights_Menu4()
 
 void Define_Menu5()
 {
-  int button = 0;
+  // int button = 0;
 
-  strcpy(MenuTitle[5], "LeanDVB DATV Receiver Menu (5)"); 
+  strcpy(MenuTitle[5], "Menu (5)"); 
 
-  // Presets - Bottom Row, Menu 5
-
-  button = CreateButton(5, 0);
-  AddButtonStatus(button, " ", &Blue);
-  AddButtonStatus(button, " ", &Green);
-
-  button = CreateButton(5, 1);
-  AddButtonStatus(button, " ", &Blue);
-  AddButtonStatus(button, " ", &Green);
-
-  button = CreateButton(5, 2);
-  AddButtonStatus(button, " ", &Blue);
-  AddButtonStatus(button, " ", &Green);
-
-  button = CreateButton(5, 3);
-  AddButtonStatus(button, " ", &Blue);
-  AddButtonStatus(button, " ", &Green);
-
-  button = CreateButton(5, 4);
-  AddButtonStatus(button, "Store^Preset", &Blue);
-  AddButtonStatus(button, "Store^Preset", &Red);
+  // Menu 5
 
   // 2nd Row, Menu 5.  
 
-  button = CreateButton(5, 5);
-  AddButtonStatus(button, "FastLock^ON", &Blue);
-  AddButtonStatus(button, "FastLock^ON", &Green);
+  // 3rd line up Menu 5
 
-  //button = CreateButton(5, 6);
-  //AddButtonStatus(button, " ", &Blue);
-  //AddButtonStatus(button, " ", &Green);
-
-  button = CreateButton(5, 7);
-  AddButtonStatus(button, "Audio^OFF", &Blue);
-  AddButtonStatus(button, "Audio^OFF", &Green);
-
-  //button = CreateButton(5, 8);
-  //AddButtonStatus(button, " ", &Blue);
-  //AddButtonStatus(button, " ", &Green);
-
-  button = CreateButton(5, 9);
-  AddButtonStatus(button, "Set as^TX", &Blue);
-  AddButtonStatus(button, "Set as^TX", &Green);
-
-  // Freq, SR, FEC, Samp Rate, Gain - 3rd line up Menu 5
-
-  button = CreateButton(5, 10);                        // AM
-  AddButtonStatus(button, "Freq^not set", &Blue);
-  AddButtonStatus(button, "Freq^not set", &Green);
-
-  button = CreateButton(5, 11);                        // FM
-  AddButtonStatus(button, "Sym Rate^not set", &Blue);
-  AddButtonStatus(button, "Sym Rate^not set", &Green);
-
-  button = CreateButton(5, 12);                        // WBFM
-  AddButtonStatus(button, "FEC^not set", &Blue);
-  AddButtonStatus(button, "FEC^not set", &Green);
-
-  button = CreateButton(5, 13);                        // USB
-  AddButtonStatus(button,"Samp Rate^not set",&Blue);
-  AddButtonStatus(button,"Samp Rate^not set",&Green);
-
-  button = CreateButton(5, 14);                        // LSB
-  AddButtonStatus(button,"Gain^not set",&Blue);
-  AddButtonStatus(button,"Gain^not set",&Green);
 
   // 4th line up Menu 5
 
-  button = CreateButton(5, 15);
-  AddButtonStatus(button, "Modulation^not set", &Blue);
-  AddButtonStatus(button, "Modulation^not set", &Green);
 
-  button = CreateButton(5, 16);
-  AddButtonStatus(button, "Encoding^   ", &Blue);
-  AddButtonStatus(button, "Encoding^   ", &Green);
-  AddButtonStatus(button, "Encoding^   ", &Grey);
+  // Top of Menu 5
 
-  button = CreateButton(5, 17);
-  AddButtonStatus(button, "SDR^RTL-SDR", &Blue);
-  AddButtonStatus(button, "SDR^RTL-SDR", &Blue);
-
-  button = CreateButton(5, 18);
-  AddButtonStatus(button, "Constel'n^ON", &Blue);
-  AddButtonStatus(button, "Constel'n^ON", &Green);
-
-  button = CreateButton(5, 19);
-  AddButtonStatus(button, "Params^ON", &Blue);
-  AddButtonStatus(button, "Params^ON", &Green);
-
-  //RECEIVE and Exit - Top of Menu 5
-
-  button = CreateButton(5, 21);
-  AddButtonStatus(button," RX  ",&Blue);
-  AddButtonStatus(button,"RX ON",&Red);
-
-  button = CreateButton(5, 22);
-  AddButtonStatus(button,"EXIT",&Blue);
-  AddButtonStatus(button,"EXIT",&Green);
 }
 
 void Start_Highlights_Menu5()
 {
-  int index;
-  char RXBtext[31];
-  int NoButton;
-
-  // Buttons 0 to 3: Presets.  Set text here
-  for(index = 1; index < 5 ; index = index + 1)
-  {
-    // Define the button text
-    snprintf(RXBtext, 31, "%s^%s", RXlabel[index], RXfreq[index]);
-    NoButton = index - 1;
-    AmendButtonStatus(ButtonNumber(5, NoButton), 0, RXBtext, &Blue);
-    AmendButtonStatus(ButtonNumber(5, NoButton), 1, RXBtext, &Green);
-  }
-
-  // Now highlight current preset by comparing frequency, SR and encoding
-
-  // First set all presets off
-  SelectInGroupOnMenu(5, 0, 3, 0, 0);
-
-  for(index = 1; index < 5 ; index = index + 1)
-  {
-    NoButton = index - 1;
-    if ((strcmp(RXfreq[0], RXfreq[index]) == 0) 
-      && (RXsr[0] == RXsr[index]) 
-      && (strcmp(RXencoding[0], RXencoding[index]) == 0))
-    {
-      SelectInGroupOnMenu(5, 0, 3, NoButton, 1);
-    }
-  }
-
-  // Fastlock Button 5
-  strcpy(RXBtext, "FastLock^");
-  strcat(RXBtext, RXfastlock[0]);
-  AmendButtonStatus(ButtonNumber(5, 5), 0, RXBtext, &Blue);
-  AmendButtonStatus(ButtonNumber(5, 5), 1, RXBtext, &Green);
-
-  // Audio Button 7
-  strcpy(RXBtext, "Audio^");
-  strcat(RXBtext, RXsound[0]);
-  AmendButtonStatus(ButtonNumber(5, 7), 0, RXBtext, &Blue);
-  AmendButtonStatus(ButtonNumber(5, 7), 1, RXBtext, &Green);
-
-  // Frequency button 10
-  strcpy(RXBtext, "Freq^");
-  strcat(RXBtext, RXfreq[0]);
-  AmendButtonStatus(ButtonNumber(5, 10), 0, RXBtext, &Blue);
-  AmendButtonStatus(ButtonNumber(5, 10), 1, RXBtext, &Green);
-
-  // SR button 11
-  strcpy(RXBtext, "Sym Rate");
-  strcat(RXBtext, RXfreq[0]);
-  snprintf(RXBtext, 20, "Sym Rate^%d", RXsr[0]);
-  AmendButtonStatus(ButtonNumber(5, 11), 0, RXBtext, &Blue);
-  AmendButtonStatus(ButtonNumber(5, 11), 1, RXBtext, &Green);
-
-  // FEC Button 12
-  index = atoi(RXfec[0]);
-  switch(index)
-  {
-    case 1:strcpy(RXBtext, "  FEC  ^  1/2 ") ;break;
-    case 2:strcpy(RXBtext, "  FEC  ^  2/3 ") ;break;
-    case 3:strcpy(RXBtext, "  FEC  ^  3/4 ") ;break;
-    case 5:strcpy(RXBtext, "  FEC  ^  5/6 ") ;break;
-    case 7:strcpy(RXBtext, "  FEC  ^  7/8 ") ;break;
-    case 14:strcpy(RXBtext, "  FEC  ^  1/4 ") ;break;
-    case 13:strcpy(RXBtext, "  FEC  ^  1/3 ") ;break;
-    case 12:strcpy(RXBtext, "  FEC  ^  1/2 ") ;break;
-    case 35:strcpy(RXBtext, "  FEC  ^  3/5 ") ;break;
-    case 23:strcpy(RXBtext, "  FEC  ^  2/3 ") ;break;
-    case 34:strcpy(RXBtext, "  FEC  ^  3/4 ") ;break;
-    case 56:strcpy(RXBtext, "  FEC  ^  5/6 ") ;break;
-    case 89:strcpy(RXBtext, "  FEC  ^  8/9 ") ;break;
-    case 91:strcpy(RXBtext, "  FEC  ^  9/10 ") ;break;
-    default:strcpy(RXBtext, "  FEC  ^Error") ;break;
-  }
-  AmendButtonStatus(ButtonNumber(5, 12), 0, RXBtext, &Blue);
-  AmendButtonStatus(ButtonNumber(5, 12), 1, RXBtext, &Green);
-  AmendButtonStatus(ButtonNumber(5, 12), 2, RXBtext, &Grey);
-
-  // Sample Rate button 13
-  if(RXsamplerate[0] == 0)
-  {
-    strcpy(RXBtext, "Samp Rate^Auto");
-  }
-  else
-  {
-    snprintf(RXBtext, 20, "Samp Rate^%d", RXsamplerate[0]);
-  }
-  AmendButtonStatus(ButtonNumber(5, 13), 0, RXBtext, &Blue);
-  AmendButtonStatus(ButtonNumber(5, 13), 1, RXBtext, &Green);
-
-  // Gain button 14
-  if(RXgain[0] == 0)
-  {
-    strcpy(RXBtext, "Gain^Auto");
-  }
-  else
-  {
-    snprintf(RXBtext, 20, "Gain^%d", RXgain[0]);
-  }
-  AmendButtonStatus(ButtonNumber(5, 14), 0, RXBtext, &Blue);
-  AmendButtonStatus(ButtonNumber(5, 14), 1, RXBtext, &Green);
-
-  // Modulation button 15
-  strcpy(RXBtext, "Modulation^");
-  strcat(RXBtext, RXmodulation[0]);
-  AmendButtonStatus(ButtonNumber(5, 15), 0, RXBtext, &Blue);
-  AmendButtonStatus(ButtonNumber(5, 15), 1, RXBtext, &Green);
-
-  // Encoding button 16
-  strcpy(RXBtext, "Encoding^");
-  strcat(RXBtext, RXencoding[0]);
-  AmendButtonStatus(ButtonNumber(5, 16), 0, RXBtext, &Blue);
-  AmendButtonStatus(ButtonNumber(5, 16), 1, RXBtext, &Green);
-
-  // SDR Type button 17
-  strcpy(RXBtext, "SDR^");
-  strcat(RXBtext, RXsdr[0]);
-  AmendButtonStatus(ButtonNumber(5, 17), 0, RXBtext, &Blue);
-  AmendButtonStatus(ButtonNumber(5, 17), 1, RXBtext, &Green);
-
-  // Constellation on/off button 18
-  strcpy(RXBtext, "Constel'n^");
-  strcat(RXBtext, RXgraphics[0]);
-  AmendButtonStatus(ButtonNumber(5, 18), 0, RXBtext, &Blue);
-  AmendButtonStatus(ButtonNumber(5, 18), 1, RXBtext, &Green);
-
-  // Parameters on/off button 19
-  strcpy(RXBtext, "Params^");
-  strcat(RXBtext, RXparams[0]);
-  AmendButtonStatus(ButtonNumber(5, 19), 0, RXBtext, &Blue);
-  AmendButtonStatus(ButtonNumber(5, 19), 1, RXBtext, &Green);
-
-  // Make the RX button red if RX on
-  SetButtonStatus(ButtonNumber(5, 21), RTLactive); 
-
 }
 
 void Define_Menu6()
@@ -17527,8 +16133,8 @@ void Define_Menu8()
   // Bottom Row, Menu 8
 
   button = CreateButton(8, 0);
-  AddButtonStatus(button, "MPlayer", &Blue);
-  AddButtonStatus(button, "MPlayer", &Green);
+  AddButtonStatus(button, "MPlayer^ ", &Blue);
+  AddButtonStatus(button, "MPlayer^ ", &Green);
 
   button = CreateButton(8, 1);
   AddButtonStatus(button, "OMX^Player", &Blue);
@@ -18276,15 +16882,7 @@ void Start_Highlights_Menu16()
   int index;
   int NoButton;
 
-  if (CallingMenu == 1)
-  {
-    strcpy(MenuTitle[16], "Transmit Frequency Selection Menu (16)"); 
-  }
-  else if (CallingMenu == 5)
-  {
-    strcpy(MenuTitle[16], " Receive Frequency Selection Menu (16)"); 
-  }
-
+  strcpy(MenuTitle[16], "Transmit Frequency Selection Menu (16)"); 
 
   // Update info in memory
   ReadPresets();
@@ -18307,8 +16905,7 @@ void Start_Highlights_Menu16()
     AmendButtonStatus(ButtonNumber(16, NoButton), 1, FreqBtext, &Green);
 
     //Highlight the Current Button
-    if(((strcmp(Value, TabFreq[index]) == 0) && (CallingMenu == 1)) 
-      || ((strcmp(RXfreq[0], TabFreq[index]) == 0) && (CallingMenu == 5)))
+    if((strcmp(Value, TabFreq[index]) == 0) && (CallingMenu == 1))
     {
       SelectInGroupOnMenu(16, 5, 9, NoButton, 1);
       SelectInGroupOnMenu(16, 0, 3, NoButton, 1);
@@ -18372,109 +16969,56 @@ void Start_Highlights_Menu17()
   char Value[255];
   int SR;
 
-  if (CallingMenu == 1)
-  {
-    strcpy(MenuTitle[17], "Transmit Symbol Rate Selection Menu (17)"); 
-    strcpy(Param,"symbolrate");
-    GetConfigParam(PATH_PCONFIG,Param,Value);
-    SR=atoi(Value);
-    printf("Value=%s %s\n",Value,"SR");
+  strcpy(MenuTitle[17], "Transmit Symbol Rate Selection Menu (17)"); 
+  strcpy(Param,"symbolrate");
+  GetConfigParam(PATH_PCONFIG,Param,Value);
+  SR=atoi(Value);
+  printf("Value=%s %s\n",Value,"SR");
 
-    if ( SR == TabSR[0] )
-    {
-      SelectInGroupOnMenu(17, 0, 3, 5, 1);
-      SelectInGroupOnMenu(17, 5, 9, 5, 1);
-    }
-    else if ( SR == TabSR[1] )
-    {
-      SelectInGroupOnMenu(17, 0, 3, 6, 1);
-      SelectInGroupOnMenu(17, 5, 9, 6, 1);
-    }
-    else if ( SR == TabSR[2] )
-    {
-      SelectInGroupOnMenu(17, 0, 3, 7, 1);
-      SelectInGroupOnMenu(17, 5, 9, 7, 1);
-    }
-    else if ( SR == TabSR[3] )
-    {
-      SelectInGroupOnMenu(17, 0, 3, 8, 1);
-      SelectInGroupOnMenu(17, 5, 9, 8, 1);
-    }
-    else if ( SR == TabSR[4] )
-    {
-      SelectInGroupOnMenu(17, 0, 3, 9, 1);
-      SelectInGroupOnMenu(17, 5, 9, 9, 1);
-    }
-    else if ( SR == TabSR[5] )
-    {
-      SelectInGroupOnMenu(17, 0, 3, 0, 1);
-      SelectInGroupOnMenu(17, 5, 9, 0, 1);
-    }
-    else if ( SR == TabSR[6] )
-    {
-      SelectInGroupOnMenu(17, 0, 3, 1, 1);
-      SelectInGroupOnMenu(17, 5, 9, 1, 1);
-    }
-    else if ( SR == TabSR[7] )
-    {
-      SelectInGroupOnMenu(17, 0, 3, 2, 1);
-      SelectInGroupOnMenu(17, 5, 9, 2, 1);
-    }
-    else if ( SR == TabSR[8] )
-    {
-      SelectInGroupOnMenu(17, 0, 3, 3, 1);
-      SelectInGroupOnMenu(17, 5, 9, 3, 1);
-    }
+  if ( SR == TabSR[0] )
+  {
+    SelectInGroupOnMenu(17, 0, 3, 5, 1);
+    SelectInGroupOnMenu(17, 5, 9, 5, 1);
   }
-  else if (CallingMenu == 5)
+  else if ( SR == TabSR[1] )
   {
-    strcpy(MenuTitle[17], " Receive Symbol Rate Selection Menu (17)"); 
-
-    if ( RXsr[0] == TabSR[0] )
-    {
-      SelectInGroupOnMenu(17, 0, 3, 5, 1);
-      SelectInGroupOnMenu(17, 5, 9, 5, 1);
-    }
-    else if ( RXsr[0] == TabSR[1] )
-    {
-      SelectInGroupOnMenu(17, 0, 3, 6, 1);
-      SelectInGroupOnMenu(17, 5, 9, 6, 1);
-    }
-    else if ( RXsr[0] == TabSR[2] )
-    {
-      SelectInGroupOnMenu(17, 0, 3, 7, 1);
-      SelectInGroupOnMenu(17, 5, 9, 7, 1);
-    }
-    else if ( RXsr[0] == TabSR[3] )
-    {
-      SelectInGroupOnMenu(17, 0, 3, 8, 1);
-      SelectInGroupOnMenu(17, 5, 9, 8, 1);
-    }
-    else if ( RXsr[0] == TabSR[4] )
-    {
-      SelectInGroupOnMenu(17, 0, 3, 9, 1);
-      SelectInGroupOnMenu(17, 5, 9, 9, 1);
-    }
-    else if ( RXsr[0] == TabSR[5] )
-    {
-      SelectInGroupOnMenu(17, 0, 3, 0, 1);
-      SelectInGroupOnMenu(17, 5, 9, 0, 1);
-    }
-    else if ( RXsr[0] == TabSR[6] )
-    {
-      SelectInGroupOnMenu(17, 0, 3, 1, 1);
-      SelectInGroupOnMenu(17, 5, 9, 1, 1);
-    }
-    else if ( RXsr[0] == TabSR[7] )
-    {
-      SelectInGroupOnMenu(17, 0, 3, 2, 1);
-      SelectInGroupOnMenu(17, 5, 9, 2, 1);
-    }
-    else if ( RXsr[0] == TabSR[8] )
-    {
-      SelectInGroupOnMenu(17, 0, 3, 3, 1);
-      SelectInGroupOnMenu(17, 5, 9, 3, 1);
-    }
+    SelectInGroupOnMenu(17, 0, 3, 6, 1);
+    SelectInGroupOnMenu(17, 5, 9, 6, 1);
+  }
+  else if ( SR == TabSR[2] )
+  {
+    SelectInGroupOnMenu(17, 0, 3, 7, 1);
+    SelectInGroupOnMenu(17, 5, 9, 7, 1);
+  }
+  else if ( SR == TabSR[3] )
+  {
+    SelectInGroupOnMenu(17, 0, 3, 8, 1);
+    SelectInGroupOnMenu(17, 5, 9, 8, 1);
+  }
+  else if ( SR == TabSR[4] )
+  {
+    SelectInGroupOnMenu(17, 0, 3, 9, 1);
+    SelectInGroupOnMenu(17, 5, 9, 9, 1);
+  }
+  else if ( SR == TabSR[5] )
+  {
+    SelectInGroupOnMenu(17, 0, 3, 0, 1);
+    SelectInGroupOnMenu(17, 5, 9, 0, 1);
+  }
+  else if ( SR == TabSR[6] )
+  {
+    SelectInGroupOnMenu(17, 0, 3, 1, 1);
+    SelectInGroupOnMenu(17, 5, 9, 1, 1);
+  }
+  else if ( SR == TabSR[7] )
+  {
+    SelectInGroupOnMenu(17, 0, 3, 2, 1);
+    SelectInGroupOnMenu(17, 5, 9, 2, 1);
+  }
+  else if ( SR == TabSR[8] )
+  {
+    SelectInGroupOnMenu(17, 0, 3, 3, 1);
+    SelectInGroupOnMenu(17, 5, 9, 3, 1);
   }
 }
 
@@ -18517,20 +17061,14 @@ void Start_Highlights_Menu18()
   char Param[255];
   char Value[255];
   int fec;
-  if (CallingMenu == 1)
-  {
-    strcpy(MenuTitle[18], "Transmit FEC Selection Menu (18)"); 
-    strcpy(Param,"fec");
-    strcpy(Value,"");
-    GetConfigParam(PATH_PCONFIG,Param,Value);
-    printf("Value=%s %s\n",Value,"Fec");
-    fec=atoi(Value);
-  }
-  else
-  {
-    strcpy(MenuTitle[18], "Receive FEC Selection Menu (18)"); 
-    fec = atoi(RXfec[0]);
-  }
+
+  strcpy(MenuTitle[18], "Transmit FEC Selection Menu (18)"); 
+  strcpy(Param,"fec");
+  strcpy(Value,"");
+  GetConfigParam(PATH_PCONFIG,Param,Value);
+  printf("Value=%s %s\n",Value,"Fec");
+  fec=atoi(Value);
+
   switch(fec)
   {
     case 1:SelectInGroupOnMenu(18, 5, 9, 5, 1);
@@ -20591,13 +19129,14 @@ terminate(int dummy)
 
   strcpy(ModeInput, "DESKTOP"); // Set input so webcam reset script is not called
   TransmitStop();
-  ReceiveStop();
   RTLstop();
   system("sudo killall vlc >/dev/null 2>/dev/null");
   system("sudo killall lmudp.sh >/dev/null 2>/dev/null");
   system("sudo killall longmynd >/dev/null 2>/dev/null");
-  finish();
   printf("Terminate\n");
+  setBackColour(0, 0, 0);
+  clearScreen();
+  closeScreen();
   sprintf(Commnd,"sudo killall express_server >/dev/null 2>/dev/null");
   system(Commnd);
   sprintf(Commnd,"stty echo");
@@ -20614,11 +19153,8 @@ terminate(int dummy)
 int main(int argc, char **argv)
 {
   int NoDeviceEvent=0;
-  saveterm();
-  //init(&wscreen, &hscreen);
   wscreen = 800;
   hscreen = 480;
-  rawterm();
   int screenXmax, screenXmin;
   int screenYmax, screenYmin;
   int i;
@@ -20709,18 +19245,11 @@ int main(int argc, char **argv)
   wbuttonsize=(wscreen-25)/5;
   hbuttonsize=hscreen/6;
 
-  // Read in the touchscreen Calibration
-  ReadTouchCal();
-  
-  printf("Read in the presets from the Config file \n");
-  // Read in the presets from the Config file
+  // Read in the presets from the Config files
   ReadPresets();
   ReadModeInput(vcoding, vsource);
-  printf("About to ReadModeOutput(vcoding)\n");
   ReadModeOutput(vcoding);
-  printf("About to ReadModeEasyCap\n");
   ReadModeEasyCap();
-  printf("About to ReadCaptionState\n");
   ReadCaptionState();
   ReadAudioState();
   ReadAttenState();
@@ -20741,7 +19270,7 @@ int main(int argc, char **argv)
   Define_Menu2();
   Define_Menu3();
   Define_Menu4();
-  Define_Menu5();
+  //Define_Menu5();
   Define_Menu6();
   Define_Menu7();
   Define_Menu8();
@@ -20782,9 +19311,7 @@ int main(int argc, char **argv)
   Define_Menu44();
   Define_Menu45();
 
-  // Start the button Menu
-  //Start(wscreen,hscreen);
-
+  // Initialise direct access to the 7 inch screen
   initScreen();
 
   // Check if DATV Express Server required and, if so, start it
@@ -20802,6 +19329,10 @@ int main(int argc, char **argv)
   // Start the receive downconverter LO if required
   ReceiveLOStart();
 
+  // Clear the screen ready for Menu 1
+  setBackColour(255, 255, 255);          // White background
+  clearScreen();
+
   // Determine button highlights
   Start_Highlights_Menu1();
   printf("Entering Update Window\n");  
@@ -20813,7 +19344,5 @@ int main(int argc, char **argv)
 
   // Not sure that the program flow ever gets here
 
-  restoreterm();
-  finish();
   return 0;
 }

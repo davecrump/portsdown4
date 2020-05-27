@@ -1,3 +1,6 @@
+202006010
+Major Graphics Update
+
 202005310
 Initial A27 build for RPi 4 with langstone
 LongMynd Receiver only
