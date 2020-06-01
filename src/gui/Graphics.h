@@ -29,8 +29,10 @@ int backColourB=0;
 
 uint32_t font_width_string(const font_t *font_ptr, char *string);
 void displayChar2(const font_t *font_ptr, char*c);
+void displayLargeChar2(int sizeFactor, const font_t *font_ptr, char*c);
 void TextMid2 (int xpos, int ypos, char*s, const font_t *font_ptr);
 void Text2 (int xpos, int ypos, char*s, const font_t *font_ptr);
+void LargeText2 (int xpos, int ypos, int sizeFactor, char*s, const font_t *font_ptr);
 void rectangle(int xpos, int ypos, int xsize, int ysize, int r, int g, int b);
 void gotoXY(int x, int y);
 void setForeColour(int R,int G,int B);
@@ -98,6 +100,64 @@ void displayChar2(const font_t *font_ptr, char*c)
   currentX = currentX + font_ptr->characters[(uint8_t)c].render_width;
 }
 
+void displayLargeChar2(int sizeFactor, const font_t *font_ptr, char*c)
+{
+  // Draws the character based on currentX and currentY at the bottom line (descenders below)
+  // magnified by sizeFactor
+  int row;
+  int col;
+  int extrarow;
+  int extracol;
+  int pixelX;
+  int pixelY;
+
+  int32_t y_offset; // height of top of character from baseline
+
+  int32_t thisPixelR;  // Values for each pixel
+  int32_t thisPixelB;
+  int32_t thisPixelG;
+
+  // Calculate scale from background colour to foreground colour
+  const int32_t red_contrast = foreColourR - backColourR;
+  const int32_t green_contrast = foreColourG - backColourG;
+  const int32_t blue_contrast = foreColourB - backColourB;
+
+  // Calculate height from top of character to baseline
+  y_offset = font_ptr->ascent * sizeFactor;
+
+  // For each row
+  for(row = 0; row < font_ptr->characters[(uint8_t)c].height; row++)
+  {
+    // For each column in the row
+    for(col = 0; col < font_ptr->characters[(uint8_t)c].width; col++)
+    {
+      // For each pixel
+      thisPixelR = backColourR + ((red_contrast * (int32_t)font_ptr->characters[(uint8_t)c].map[col+(row*font_ptr->characters[(uint8_t)c].width)]) / 0xFF);
+      thisPixelG = backColourG + ((green_contrast * (int32_t)font_ptr->characters[(uint8_t)c].map[col+(row*font_ptr->characters[(uint8_t)c].width)]) / 0xFF);
+      thisPixelB = backColourB + ((blue_contrast * (int32_t)font_ptr->characters[(uint8_t)c].map[col+(row*font_ptr->characters[(uint8_t)c].width)]) / 0xFF);
+
+      for(extrarow = 0; extrarow < sizeFactor; extrarow++)
+      {
+        for(extracol = 0; extracol < sizeFactor; extracol++)
+        {
+          pixelX = currentX + (col * sizeFactor) + extracol;
+          pixelY = currentY + (row * sizeFactor) - y_offset + extrarow;
+          if ((pixelX < 800) && (pixelY < 480))
+          {
+             setPixel(pixelX, pixelY, thisPixelR, thisPixelG, thisPixelB);
+          }
+          else
+          {
+            printf("Error: Trying to write pixel outside screen bounds.\n");
+          }
+        }
+      }
+    }
+  }
+  // Move position on by the character width
+  currentX = currentX + (font_ptr->characters[(uint8_t)c].render_width * sizeFactor);
+}
+
 
 void TextMid2 (int xpos, int ypos, char*s, const font_t *font_ptr)
 {
@@ -136,6 +196,27 @@ void Text2 (int xpos, int ypos, char*s, const font_t *font_ptr)
   {
     char *c=s[p++];
     displayChar2(font_ptr, c);
+  }
+  while(s[p] != 0);  // While not end of string
+}
+
+void LargeText2 (int xpos, int ypos, int sizeFactor, char*s, const font_t *font_ptr)
+{
+  int p;    // Character Counter
+  p=0;
+
+  // Position string write position start
+
+  gotoXY(xpos, 480 - ypos);
+
+  //printf("TextMid x %d, y %d, %s\n", xpos, ypos, s);
+
+  // Display each character
+  do
+  {
+    char *c=s[p++];
+    //displayChar2(font_ptr, c);
+    displayLargeChar2(sizeFactor, font_ptr, c);
   }
   while(s[p] != 0);  // While not end of string
 }
