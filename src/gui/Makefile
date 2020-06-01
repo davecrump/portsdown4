@@ -18,6 +18,7 @@ rpidatvtouch4: rpidatvtouch4.c
 		font/dejavu_sans_28.c \
 		font/dejavu_sans_30.c \
 		font/dejavu_sans_32.c \
+		font/dejavu_sans_72.c \
 		rpidatvtouch4.c $(LIBFLAGS2) 
 
 install:
