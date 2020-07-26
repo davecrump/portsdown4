@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Updated by davecrump 20200516 for Buster
+# Updated by davecrump 20200726 for Portsdown 4
 
 DisplayUpdateMsg() {
   # Delete any old update message image
@@ -147,13 +147,13 @@ cp -f -r "$PATHSCRIPT"/user_button5.sh "$PATHUBACKUP"/user_button5.sh
 cp -f -r "$PATHSCRIPT"/TXstartextras.sh "$PATHUBACKUP"/TXstartextras.sh
 cp -f -r "$PATHSCRIPT"/TXstopextras.sh "$PATHUBACKUP"/TXstopextras.sh
 
-DisplayUpdateMsg "Step 4 of 10\nUpdating Software Packages\n\nXXXX------"
+DisplayUpdateMsg "Step 4 of 10\nUpdating Software Package List\n\nXXXX------"
 
 sudo dpkg --configure -a     # Make sure that all the packages are properly configured
 sudo apt-get clean           # Clean up the old archived packages
 sudo apt-get update          # Update the package list
 
-DisplayUpdateMsg "Step 4a of 10\nStill Updating Software Packages\n\nXXXX------"
+DisplayUpdateMsg "Step 5 of 10\nUpdating Software Packages\n\nXXXX------"
 
 # --------- Update Packages ------
 
@@ -161,43 +161,41 @@ sudo apt-get -y dist-upgrade # Upgrade all the installed packages to their lates
 
 # --------- Install new packages as Required ---------
 
-# Install these because of typo in first install file
-sudo apt-get -y install fbi netcat imagemagick omxplayer
 
 # ---------- Update rpidatv -----------
 
-DisplayUpdateMsg "Step 5 of 10\nDownloading Portsdown SW\n\nXXXXX-----"
+DisplayUpdateMsg "Step 6 of 10\nDownloading Portsdown SW\n\nXXXXX-----"
 
 cd /home/pi
 
 # Download selected source of rpidatv
-wget https://github.com/${GIT_SRC}/portsdown-a27/archive/master.zip -O master.zip
+wget https://github.com/${GIT_SRC}/portsdown4/archive/master.zip -O master.zip
 
 # Unzip and overwrite where we need to
 unzip -o master.zip
-cp -f -r portsdown-a27-master/bin rpidatv
-cp -f -r portsdown-a27-master/scripts rpidatv
-cp -f -r portsdown-a27-master/src rpidatv
+cp -f -r portsdown-4-master/bin rpidatv
+cp -f -r portsdown-4-master/scripts rpidatv
+cp -f -r portsdown-4-master/src rpidatv
 rm -f rpidatv/video/*.jpg
-cp -f -r portsdown-a27-master/video rpidatv
-cp -f -r portsdown-a27-master/version_history.txt rpidatv/version_history.txt
+cp -f -r portsdown-4-master/video rpidatv
+cp -f -r portsdown-4-master/version_history.txt rpidatv/version_history.txt
 rm master.zip
-rm -rf portsdown-a27-master
+rm -rf portsdown-4-master
 cd /home/pi
 
-DisplayUpdateMsg "Step 6 of 10\nCompiling Portsdown SW\n\nXXXXXX----"
+DisplayUpdateMsg "Step 7 of 10\nCompiling Portsdown SW\n\nXXXXXX----"
 
 # Compile rpidatv core
-sudo killall -9 rpidatv
-echo "Installing rpidatv"
-cd rpidatv/src
-touch rpidatv.c
-make clean
-make
-sudo make install
+#sudo killall -9 rpidatv
+#echo "Installing rpidatv"
+#cd rpidatv/src
+#touch rpidatv.c
+#make clean
+#make
+#sudo make install
 
 # Ensure that wrong dtblob.bin is disabled
-sudo mv /boot/dt-blob.bin /boot/dt-blob.bin.old
+#sudo mv /boot/dt-blob.bin /boot/dt-blob.bin.old
 
 # Compile rpidatv gui
 sudo killall -9 rpidatvgui
@@ -282,17 +280,12 @@ make
 cp /home/pi/rpidatv/src/atten/set_attenuator /home/pi/rpidatv/bin/set_attenuator
 cd /home/pi
 
-# May need to re-copy the other files in /bin here
-# Check after publishing!
-
-# There is no step 7!
 
 DisplayUpdateMsg "Step 8 of 10\nRestoring Config\n\nXXXXXXXX--"
 
 # Restore portsdown_config.txt and portsdown_presets.txt
 cp -f -r "$PATHUBACKUP"/portsdown_config.txt "$PATHSCRIPT"/portsdown_config.txt
 cp -f -r "$PATHUBACKUP"/portsdown_presets.txt "$PATHSCRIPT"/portsdown_presets.txt
-
 
 # Restore the user's original siggencal.txt
 cp -f -r "$PATHUBACKUP"/siggencal.txt /home/pi/rpidatv/src/siggen/siggencal.txt
@@ -321,17 +314,6 @@ cp -f -r "$PATHUBACKUP"/jetson_config.txt "$PATHSCRIPT"/jetson_config.txt
 # Restore the user's original LongMynd config
 cp -f -r "$PATHUBACKUP"/longmynd_config.txt "$PATHSCRIPT"/longmynd_config.txt
 
-# Add LNB Voltage if not included
-if ! grep -q lnbvolts "$PATHSCRIPT"/longmynd_config.txt; then
-  # File needs updating
-  printf "Adding lnbvolts entry to user's longmynd_config.txt\n"
-  # Delete any blank lines
-  sed -i -e '/^$/d' "$PATHSCRIPT"/longmynd_config.txt
-  # Add the new entry and a new line 
-  echo "lnbvolts=off" >> "$PATHSCRIPT"/longmynd_config.txt
-  echo "lnbvolts1=off" >> "$PATHSCRIPT"/longmynd_config.txt
-fi
-
 # Restore the user's original Lime Calibration frequency or status
 cp -f -r "$PATHUBACKUP"/limecalfreq.txt "$PATHSCRIPT"/limecalfreq.txt
 
@@ -349,10 +331,11 @@ cp -f -r "$PATHUBACKUP"/TXstopextras.sh "$PATHSCRIPT"/TXstopextras.sh
 DisplayUpdateMsg "Step 9 of 10\nFinishing Off\n\nXXXXXXXXX-"
 
 # Update the version number
-rm -rf /home/pi/rpidatv/scripts/installed_version.txt
+
+cp /home/pi/prev_installed_version.txt /home/pi/rpidatv/scripts/prev_installed_version.txt
+rm /home/pi/prev_installed_version.txt
+rm /home/pi/rpidatv/scripts/installed_version.txt
 cp /home/pi/rpidatv/scripts/latest_version.txt /home/pi/rpidatv/scripts/installed_version.txt
-cp -f -r /home/pi/prev_installed_version.txt /home/pi/rpidatv/scripts/prev_installed_version.txt
-rm -rf /home/pi/prev_installed_version.txt
 
 # Save (overwrite) the git source used
 echo "${GIT_SRC}" > /home/pi/${GIT_SRC_FILE}

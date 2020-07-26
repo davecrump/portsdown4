@@ -36,10 +36,12 @@ src/leansdr/
 src/libdvbmod/lib/libdvbmod.a
 src/libdvbmod/lib/libdvbmod.o
 src/limesdr_toolbox/CMakeFiles/
+src/limesdr_toolbox/libdvbmod/
 src/limesdr_toolbox/limesdr_dump
 src/limesdr_toolbox/limesdr_forward
 src/limesdr_toolbox/limesdr_send
 src/limesdr_toolbox/limesdr_stopchannel
+src/limesdr_toolbox/limesdr_dvb
 src/rpidatv
 src/siggen/DejaVuSans.inc
 src/siggen/DejaVuSansMono.inc

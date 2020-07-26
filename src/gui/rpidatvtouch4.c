@@ -15090,7 +15090,7 @@ rawY = 0;
 void Define_Menu1()
 {
   int button = 0;
-  strcpy(MenuTitle[1], "BATC Portsdown A27 DATV System Main Menu"); 
+  strcpy(MenuTitle[1], "BATC Portsdown 4 DATV System Main Menu"); 
 
   // Frequency - Bottom Row, Menu 1
 
