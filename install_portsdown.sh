@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Buster A27 Version by davecrump on 20200516
+# Portsdown 4 Install by davecrump on 20200726
 
 # Check current user
 whoami | grep -q pi
@@ -9,13 +9,7 @@ if [ $? != 0 ]; then
   exit
 fi
 
-# Check that Langstone software has been loaded first
-if [ -e /home/pi/Langstone/LangstoneGUI.c ]; then
-  echo "Langstone detected, continuing Portsdown install"
-else
-  echo "Langstone installation must be performed first"
-  exit
-fi
+
 
 # Check which source needs to be loaded
 GIT_SRC="BritishAmateurTelevisionClub"
@@ -24,9 +18,9 @@ GIT_SRC_FILE=".portsdown_gitsrc"
 if [ "$1" == "-d" ]; then
   GIT_SRC="davecrump";
   echo
-  echo "----------------------------------------------------------"
-  echo "----- Installing development version for Buster RPi 4-----"
-  echo "----------------------------------------------------------"
+  echo "---------------------------------------------------------"
+  echo "----- Installing development version of Portsdown 4-----"
+  echo "---------------------------------------------------------"
 elif [ "$1" == "-u" -a ! -z "$2" ]; then
   GIT_SRC="$2"
   echo
@@ -38,9 +32,9 @@ elif [ "$1" == "-u" -a ! -z "$2" ]; then
   echo "ok!";
 else
   echo
-  echo "-----------------------------------------------------------------"
-  echo "----- Installing BATC Production Portsdown for Buster RPi 4 -----"
-  echo "-----------------------------------------------------------------"
+  echo "-------------------------------------------------------------"
+  echo "----- Installing BATC Production version of Portsdown 4 -----"
+  echo "-------------------------------------------------------------"
 fi
 
 # Update the package manager
@@ -68,10 +62,7 @@ echo "-------------------------------"
 echo "----- Installing Packages -----"
 echo "-------------------------------"
 
-# Already installed by Langstone
-#sudo apt-get -y install git cmake libusb-1.0-0-dev wiringpi libfftw3-dev libxcb-shape0 
-
-# Required in addition for Portsdown
+sudo apt-get -y install git cmake libusb-1.0-0-dev wiringpi libfftw3-dev libxcb-shape0 
 sudo apt-get -y install libx11-dev buffer libjpeg-dev indent 
 sudo apt-get -y install ttf-dejavu-core bc usbmount libvncserver-dev
 sudo apt-get -y install fbi netcat imagemagick omxplayer
@@ -83,6 +74,28 @@ sudo apt-get -y install libasound2-dev sox # 201910230 for LongMynd tone and avc
 sudo apt-get -y install libavcodec-dev libavformat-dev libswscale-dev libavdevice-dev # Required for ffmpegsrc.cpp
 sudo apt-get -y install mplayer vlc # 202004300 Used for video monitor and LongMynd (not libpng12-dev)
 sudo apt-get -y install autoconf libtool # for fdk aac
+
+# Langstone packages not being installed:
+#sudo apt-get -y install libxml2 libxml2-dev bison flex libcdk5-dev
+#sudo apt-get -y install libaio-dev libserialport-dev libxml2-dev libavahi-client-dev 
+#sudo apt-get -y install gr-iio
+#sudo apt-get -y install gnuradio
+#sudo apt-get -y install raspi-gpio
+
+# Langstone Installs WiringPi:
+#cd /tmp
+#wget https://project-downloads.drogon.net/wiringpi-latest.deb
+#sudo dpkg -i wiringpi-latest.deb
+#cd ~
+
+# Langstone installs libiio
+#git clone https://github.com/analogdevicesinc/libiio.git
+#cd libiio
+#cmake ./
+#make all
+#sudo make install
+
+
 
 # Freqshow install no longer required:
 #sudo apt-get -y install python-pip pandoc python-numpy pandoc python-pygame gdebi-core # 20180101 FreqShow
@@ -99,6 +112,40 @@ if ! grep -q PrivateMounts=no systemd-udevd.service; then
 fi
 
 cd /home/pi
+
+# Set auto login to command line.
+sudo raspi-config nonint do_boot_behaviour B2
+
+# set the framebuffer to 32 bit depth by disabling dtoverlay=vc4-fkms-v3d
+echo
+echo "----------------------------------------------"
+echo "---- Setting Framebuffer to 32 bit depth -----"
+echo "----------------------------------------------"
+
+sudo sed -i "/^dtoverlay=vc4-fkms-v3d/c\#dtoverlay=vc4-fkms-v3d" /boot/config.txt
+
+# Enable camera
+echo
+echo "--------------------------------------------------"
+echo "---- Enabling the Pi Cam in /boot/config.txt -----"
+echo "--------------------------------------------------"
+sudo bash -c 'echo -e "\n##Enable Pi Camera" >> /boot/config.txt'
+sudo bash -c 'echo -e "\nstart_x=1\ngpu_mem=128\n" >> /boot/config.txt'
+cd /home/pi/
+
+# Download the previously selected version of Portsdown 4
+echo
+echo "--------------------------------------------"
+echo "----- Downloading Portsdown 4 Software -----"
+echo "--------------------------------------------"
+wget https://github.com/${GIT_SRC}/portsdown4/archive/master.zip
+
+# Unzip the rpidatv software and copy to the Pi
+unzip -o master.zip
+mv portsdown4-master rpidatv
+rm master.zip
+cd /home/pi
+
 
 # Install LimeSuite 20.01 as at 29 Jan 20
 # Commit c931854ead81307206bce750c17c2301810b5545
@@ -154,19 +201,6 @@ mkdir -p /home/pi/.local/share/LimeSuite/images/v0.3
 wget https://github.com/natsfr/LimeSDR_DVBSGateware/releases/download/v0.3/LimeSDR-Mini_lms7_trx_HW_1.2_auto.rpd -O \
  /home/pi/.local/share/LimeSuite/images/v0.3/LimeSDR-Mini_lms7_trx_HW_1.2_auto.rpd
 
-# Download the previously selected version of rpidatv
-echo
-echo "------------------------------------------"
-echo "----- Downloading Portsdown Software -----"
-echo "------------------------------------------"
-wget https://github.com/${GIT_SRC}/portsdown-a27/archive/master.zip
-
-# Unzip the rpidatv software and copy to the Pi
-unzip -o master.zip
-mv portsdown-a27-master rpidatv
-rm master.zip
-cd /home/pi
-
 echo
 echo "------------------------------------------------------------"
 echo "----- Downloading Portsdown version of avc2ts Software -----"
@@ -179,18 +213,6 @@ wget https://github.com/${GIT_SRC}/avc2ts/archive/master.zip
 unzip -o master.zip
 mv avc2ts-master avc2ts
 rm master.zip
-
-# Compile rpidatv core
-echo
-echo "-----------------------------"
-echo "----- Compiling rpidatv -----"
-echo "-----------------------------"
-cd /home/pi/rpidatv/src
-make
-sudo make install
-
-# Ensure that wrong dtblob.bin is disabled
-sudo mv /boot/dt-blob.bin /boot/dt-blob.bin.old
 
 # Compile rpidatv gui
 echo
@@ -278,37 +300,6 @@ cp adf4351 ../../bin/
 #cp leandvb ../../../../bin/
 #cd /home/pi
 
-# Get tstools
-#echo
-#echo "-----------------------------"
-#echo "----- Compiling tstools -----"
-#echo "-----------------------------"
-#cd /home/pi/rpidatv/src
-#wget https://github.com/F5OEO/tstools/archive/master.zip
-#unzip master.zip
-#mv tstools-master tstools
-#rm master.zip
-
-# Compile tstools
-#cd tstools
-#make
-#cp bin/ts2es ../../bin/
-#cd /home/pi/
-
-
-#echo
-#echo "----------------------------------------------------"
-#echo "----- Setting up 3.5 inch touchscreen overlays -----"
-#echo "----------------------------------------------------"
-# Install Waveshare 3.5A DTOVERLAY
-#cd /home/pi/rpidatv/scripts/
-#sudo cp ./waveshare35a.dtbo /boot/overlays/
-
-# Install Waveshare 3.5B DTOVERLAY
-#sudo cp ./waveshare35b.dtbo /boot/overlays/
-
-# Install the Waveshare 3.5A driver
-#sudo bash -c 'cat /home/pi/rpidatv/scripts/configs/waveshare_mkr.txt >> /boot/config.txt'
 
 # Download, compile and install DATV Express-server
 echo
@@ -366,14 +357,7 @@ cd longmynd
 make
 cd /home/pi
 
-# Enable camera
-echo
-echo "--------------------------------------------------"
-echo "---- Enabling the Pi Cam in /boot/config.txt -----"
-echo "--------------------------------------------------"
-sudo bash -c 'echo -e "\n##Enable Pi Camera" >> /boot/config.txt'
-sudo bash -c 'echo -e "\nstart_x=1\ngpu_mem=128\n" >> /boot/config.txt'
-cd /home/pi/
+
 
 # Download, compile and install the executable for hardware shutdown button
 echo
@@ -491,12 +475,29 @@ echo "--------------------------------------"
 echo "alias menu='/home/pi/rpidatv/scripts/menu.sh menu'" >> /home/pi/.bash_aliases
 echo "alias gui='/home/pi/rpidatv/scripts/utils/guir.sh'"  >> /home/pi/.bash_aliases
 echo "alias ugui='/home/pi/rpidatv/scripts/utils/uguir.sh'"  >> /home/pi/.bash_aliases
-echo "alias stopl='/home/pi/Langstone/stop'"  >> /home/pi/.bash_aliases
-echo "alias runl='/home/pi/Langstone/run'"  >> /home/pi/.bash_aliases
+#echo "alias stopl='/home/pi/Langstone/stop'"  >> /home/pi/.bash_aliases
+#echo "alias runl='/home/pi/Langstone/run'"  >> /home/pi/.bash_aliases
 
 # Modify .bashrc to run startup script on ssh logon
-cd /home/pi
-sed -i 's|/home/pi/Langstone/run|source /home/pi/rpidatv/scripts/startup.sh|' .bashrc
+#cd /home/pi
+#sed -i 's|/home/pi/Langstone/run|source /home/pi/rpidatv/scripts/startup.sh|' .bashrc
+
+echo if test -z \"\$SSH_CLIENT\" >> ~/.bashrc 
+echo then >> ~/.bashrc
+echo "source /home/pi/rpidatv/scripts/startup.sh" >> ~/.bashrc
+echo fi >> ~/.bashrc
+
+#Configure the boot parameters
+
+if !(grep lcd_rotate /boot/config.txt) then
+  sudo sh -c "echo lcd_rotate=2 >> /boot/config.txt"
+fi
+if !(grep disable_splash /boot/config.txt) then
+  sudo sh -c "echo disable_splash=1 >> /boot/config.txt"
+fi
+if !(grep global_cursor_default /boot/cmdline.txt) then
+  sudo sed -i '1s,$, vt.global_cursor_default=0,' /boot/cmdline.txt
+fi
 
 # Record Version Number
 cd /home/pi/rpidatv/scripts/
