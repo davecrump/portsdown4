@@ -46,4 +46,5 @@ format=4:3
 encoding=H264
 limerfe=disabled
 plutoip=192.168.2.1
+plutopwr=0
 

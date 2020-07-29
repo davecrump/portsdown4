@@ -1,3 +1,16 @@
+20200801
+Experimental support for Pluto in Test Card and WebCam H264 modes
+Add vlc with ffmpeg receive player
+Overlay of parameters on vlc ffmpeg
+Enabled MER display for DVB-S reception
+Large MER on UDP player page
+Receive freq entered and displayed in MHz
+Bugfix intermittent stream display fault
+Bugfix tuner power control
+Switch default audio output from Menu 3
+EasyCap Comp Video display with audio
+PTT pin set for LimeDVB TX modes when selected from console
+
 202008010
 First Portsdown 4 build
 

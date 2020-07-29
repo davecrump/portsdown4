@@ -34,6 +34,65 @@ INPUT_SEL=$(get_config_var input $RCONFIGFILE)
 INPUT_SEL_T=$(get_config_var input1 $RCONFIGFILE)
 LNBVOLTS=$(get_config_var lnbvolts $RCONFIGFILE)
 
+############ IDENTIFY RPi JACK AUDIO CARD NUMBER #############################
+
+# List the audio playback devices, select the line for the Headphones device:
+# card 0: Headphones [bcm2835 Headphones], device 0: bcm2835 Headphones [bcm2835 Headphones]
+# then take the 6th character
+
+# If headphones not found, look for bcm2835 ALSA:
+# card 0: ALSA [bcm2835 ALSA], device 0: bcm2835 ALSA [bcm2835 ALSA]
+# and take 6th character
+
+RPIJ_AUDIO_DEV="$(aplay -l 2> /dev/null | grep 'Headphones' | cut -c6-6)"
+
+if [ "$RPIJ_AUDIO_DEV" == '' ]; then
+  RPIJ_AUDIO_DEV="$(aplay -l 2> /dev/null | grep 'bcm2835 ALSA' | cut -c6-6)"
+  if [ "$RPIJ_AUDIO_DEV" == '' ]; then
+    printf "RPi Jack audio device was not found, setting to 0\n"
+    RPIJ_AUDIO_DEV="0"
+  fi
+fi
+
+# Take only the first character
+RPIJ_AUDIO_DEV="$(echo $RPIJ_AUDIO_DEV | cut -c1-1)"
+
+echo "The RPi Jack Audio Card number is -"$RPIJ_AUDIO_DEV"-"
+
+############ IDENTIFY USB DONGLE AUDIO CARD NUMBER #############################
+
+# List the audio playback devices, select the line for the audio dongle device:
+# card 1: Device [USB Audio Device], device 0: USB Audio [USB Audio]
+# then take the 6th character
+
+USBOUT_AUDIO_DEV="$(aplay -l 2> /dev/null | grep 'USB Audio' | cut -c6-6)"
+
+if [ "$USBOUT_AUDIO_DEV" == '' ]; then
+  printf "USB Dongle audio device was not found, setting to RPi Jack\n"
+  USBOUT_AUDIO_DEV=$RPIJ_AUDIO_DEV
+fi
+
+# Take only the first character
+USBOUT_AUDIO_DEV="$(echo $USBOUT_AUDIO_DEV | cut -c1-1)"
+
+echo "The USB Dongle Audio Card number is -"$USBOUT_AUDIO_DEV"-"
+
+############ CHOOSE THE AUDIO OUTPUT DEVICE #############################
+
+# Send audio to the correct port
+if [ "$AUDIO_OUT" == "rpi" ]; then
+  AUDIO_OUT_DEV=$RPIJ_AUDIO_DEV
+else
+  AUDIO_OUT_DEV=$USBOUT_AUDIO_DEV
+fi
+
+echo "The Selected Audio Card number is -"$AUDIO_OUT_DEV"-"
+
+
+###########################################################################
+
+
+
 # Correct for LNB LO Frequency if required
 if [ "$RX_MODE" == "sat" ]; then
   let FREQ_KHZ=$FREQ_KHZ-$Q_OFFSET
@@ -41,13 +100,6 @@ else
   FREQ_KHZ=$FREQ_KHZ_T
   SYMBOLRATEK=$SYMBOLRATEK_T
   INPUT_SEL=$INPUT_SEL_T
-fi
-
-# Send audio to the correct port
-if [ "$AUDIO_OUT" == "rpi" ]; then
-  AUDIO_MODE="local"
-else
-  AUDIO_MODE="alsa:plughw:1,0"
 fi
 
 # Select the correct tuner input
@@ -73,9 +125,8 @@ mkfifo longmynd_main_ts
 
 sudo /home/pi/longmynd/longmynd -s longmynd_status_fifo $VOLTS_CMD $INPUT_CMD $FREQ_KHZ $SYMBOLRATEK &
 
-omxplayer --adev $AUDIO_MODE --live --layer 0 longmynd_main_ts & ## works for touchscreens
-
-#omxplayer --adev $AUDIO_MODE --live --display 5 --layer 10 longmynd_main_ts &  ## for HDMI
+omxplayer --vol 600 --adev alsa:plughw:"$AUDIO_OUT_DEV",0 \
+  --live --layer 6 longmynd_main_ts & 
 
 exit
 

@@ -28,8 +28,8 @@ int backColourB=0;
 
 
 uint32_t font_width_string(const font_t *font_ptr, char *string);
-void displayChar2(const font_t *font_ptr, char*c);
-void displayLargeChar2(int sizeFactor, const font_t *font_ptr, char*c);
+void displayChar2(const font_t *font_ptr, char c);
+void displayLargeChar2(int sizeFactor, const font_t *font_ptr, char c);
 void TextMid2 (int xpos, int ypos, char*s, const font_t *font_ptr);
 void Text2 (int xpos, int ypos, char*s, const font_t *font_ptr);
 void LargeText2 (int xpos, int ypos, int sizeFactor, char*s, const font_t *font_ptr);
@@ -55,7 +55,7 @@ uint32_t font_width_string(const font_t *font_ptr, char *string)
     return total_width;
 }
 
-void displayChar2(const font_t *font_ptr, char*c)
+void displayChar2(const font_t *font_ptr, char c)
 {
   // Draws the character based on currentX and currentY at the bottom line (descenders below)
   int row;
@@ -100,7 +100,7 @@ void displayChar2(const font_t *font_ptr, char*c)
   currentX = currentX + font_ptr->characters[(uint8_t)c].render_width;
 }
 
-void displayLargeChar2(int sizeFactor, const font_t *font_ptr, char*c)
+void displayLargeChar2(int sizeFactor, const font_t *font_ptr, char c)
 {
   // Draws the character based on currentX and currentY at the bottom line (descenders below)
   // magnified by sizeFactor
@@ -174,7 +174,7 @@ void TextMid2 (int xpos, int ypos, char*s, const font_t *font_ptr)
   // Display each character
   do
   {
-    char *c=s[p++];
+    char c=s[p++];
     displayChar2(font_ptr, c);
   }
   while(s[p] != 0);  // While not end of string
@@ -194,7 +194,7 @@ void Text2 (int xpos, int ypos, char*s, const font_t *font_ptr)
   // Display each character
   do
   {
-    char *c=s[p++];
+    char c=s[p++];
     displayChar2(font_ptr, c);
   }
   while(s[p] != 0);  // While not end of string
@@ -214,7 +214,7 @@ void LargeText2 (int xpos, int ypos, int sizeFactor, char*s, const font_t *font_
   // Display each character
   do
   {
-    char *c=s[p++];
+    char c=s[p++];
     //displayChar2(font_ptr, c);
     displayLargeChar2(sizeFactor, font_ptr, c);
   }

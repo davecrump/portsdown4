@@ -237,17 +237,15 @@ make dvb
 cp limesdr_dvb /home/pi/rpidatv/bin/
 cd /home/pi
 
-# Update the previously selected version of LongMynd
+# Update LongMynd
 echo
-echo "--------------------------------------------"
-echo "----- Installing the LongMynd Receiver -----"
-echo "--------------------------------------------"
-wget https://github.com/${GIT_SRC}/longmynd/archive/master.zip
-unzip -o master.zip
-mv longmynd-master longmynd
-rm master.zip
+echo "------------------------------------------"
+echo "----- Updating the LongMynd Receiver -----"
+echo "------------------------------------------"
+cd /home/pi
+rm -rf longmynd
+cp -r /home/pi/rpidatv/src/longmynd/ /home/pi/
 cd longmynd
-touch main.c
 make
 cd /home/pi
 
