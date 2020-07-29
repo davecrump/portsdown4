@@ -71,18 +71,40 @@ if [ "$LNBVOLTS" == "v" ]; then
   VOLTS_CMD="-p v"
 fi
 
+# Create dummy marquee overlay file
+echo " " >/home/pi/tmp/vlc_overlay.txt
+
 sudo killall longmynd >/dev/null 2>/dev/null
 sudo killall vlc >/dev/null 2>/dev/null
 
+# Play a very short dummy file if this is a first start for VLC since boot
+# This makes sure the RX works on first selection after boot
+if [[ ! -f /home/pi/tmp/vlcprimed ]]; then
+  cvlc -I rc --rc-host 127.0.0.1:1111 -f --codec ffmpeg --video-title-timeout=100 \
+    --width 800 --height 480 \
+    --sub-filter marq --marq-x 25 --marq-file "/home/pi/tmp/vlc_overlay.txt" \
+    --gain 3 --alsa-audio-device $AUDIO_DEVICE \
+    /home/pi/rpidatv/video/blank.ts vlc:quit >/dev/null 2>/dev/null &
+  sleep 1
+  touch /home/pi/tmp/vlcprimed
+  echo shutdown | nc 127.0.0.1 1111
+fi
+
+# Create the ts fifo
 sudo rm longmynd_main_ts >/dev/null 2>/dev/null
 mkfifo longmynd_main_ts
 
+# Start LongMynd
 sudo /home/pi/longmynd/longmynd -s longmynd_status_fifo $VOLTS_CMD $INPUT_CMD $FREQ_KHZ $SYMBOLRATEK &
 
-cvlc -I rc --rc-host 127.0.0.1:1111 -f --no-video-title-show \
+# Start VLC
+#cvlc -I rc --rc-host 127.0.0.1:1111 -f --codec ffmpeg --video-title-timeout=100 \
+cvlc -I rc --rc-host 127.0.0.1:1111 --codec ffmpeg -f --video-title-timeout=100 \
   --width 800 --height 480 \
+  --sub-filter marq --marq-x 25 --marq-file "/home/pi/tmp/vlc_overlay.txt" \
   --gain 3 --alsa-audio-device $AUDIO_DEVICE \
   longmynd_main_ts >/dev/null 2>/dev/null &
 
 exit
+
 

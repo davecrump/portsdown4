@@ -1364,6 +1364,9 @@ do_transmit()
   if [ "$MODE_OUTPUT" == "LIMEMINI" ]; then
     /home/pi/rpidatv/scripts/lime_ptt.sh &
   fi
+  if [ "$MODE_OUTPUT" == "LIMEDVB" ]; then
+    /home/pi/rpidatv/scripts/lime_ptt.sh &
+  fi
   if [ "$MODE_OUTPUT" == "LIMEUSB" ]; then
     /home/pi/rpidatv/scripts/lime_ptt.sh &
   fi
@@ -1418,7 +1421,7 @@ do_stop_transmit()
   sudo killall -9 limesdr_dvb >/dev/null 2>/dev/null
   sudo killall -9 sox >/dev/null 2>/dev/null
 
-  # Make sure that the PTT is released (required for carrier and test modes)
+  # Make sure that the PTT is released (required for carrier, Lime and test modes)
   gpio mode $GPIO_PTT out
   gpio write $GPIO_PTT 0
 

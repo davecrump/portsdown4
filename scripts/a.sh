@@ -78,45 +78,54 @@ let SYMBOLRATE=SYMBOLRATEK*1000
 # Set the FEC
 FEC=$(get_config_var fec $PCONFIGFILE)
 case "$FEC" in
-  "1" | "2" | "3" | "5" | "7" )
-    let FECNUM=FEC
-    let FECDEN=FEC+1
+  "7" )
+    FECNUM="7"
+    FECDEN="8"
+    PFEC="78"
   ;;
   "14" )
     FECNUM="1"
     FECDEN="4"
+    PFEC="14"
   ;;
   "13" )
     FECNUM="1"
     FECDEN="3"
+    PFEC="13"
   ;;
-  "12" )
+  "1" | "12" )
     FECNUM="1"
     FECDEN="2"
+    PFEC="12"
   ;;
   "35" )
     FECNUM="3"
     FECDEN="5"
   ;;
-  "23" )
+  "2" | "23" )
     FECNUM="2"
     FECDEN="3"
+    PFEC="23"
   ;;
-  "34" )
+  "3" | "34" )
     FECNUM="3"
     FECDEN="4"
+    PFEC="34"
   ;;
-  "56" )
+  "5" | "56" )
     FECNUM="5"
     FECDEN="6"
+    PFEC="56"
   ;;
   "89" )
     FECNUM="8"
     FECDEN="9"
+    PFEC="89"
   ;;
   "91" )
     FECNUM="9"
     FECDEN="10"
+    PFEC="910"
   ;;
 esac
 
@@ -895,6 +904,31 @@ fi
   #============================================ ANALOG and WEBCAM H264 =============================================================
   "ANALOGCAM" | "WEBCAMH264")
 
+    # Experimental Pluto Code
+
+    if [ "$MODE_OUTPUT" == "PLUTO" ] && [ "$MODE_INPUT" == "WEBCAMH264" ]; then
+      rpidatv/bin/ffmpeg -thread_queue_size 2048 -f v4l2 -input_format h264 -video_size 800x600 -i $VID_WEBCAM \
+        -f alsa -thread_queue_size 2048 -ac $AUDIO_CHANNELS -ar $AUDIO_SAMPLE \
+        -i hw:$AUDIO_CARD_NUMBER,0 \
+        -c:v h264_omx -b:v $BITRATE_VIDEO -g 25 \
+        -ar 22050 -ac $AUDIO_CHANNELS -ab 64k \
+        -f flv \
+        rtmp://pluto.local:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,0,nocalib,800,32,/,$CALL, &
+      exit
+    fi
+
+    if [ "$MODE_OUTPUT" == "PLUTO" ] && [ "$MODE_INPUT" == "ANALOGCAM" ]; then
+      rpidatv/bin/ffmpeg -thread_queue_size 2048 -f v4l2 -video_size 720x576 -i $ANALOGCAMNAME \
+        -f alsa -thread_queue_size 2048 -ac $AUDIO_CHANNELS -ar $AUDIO_SAMPLE \
+        -i hw:$AUDIO_CARD_NUMBER,0 \
+        -c:v h264_omx -b:v $BITRATE_VIDEO -g 25 \
+        -ar 22050 -ac $AUDIO_CHANNELS -ab 64k \
+        -f flv \
+        rtmp://pluto.local:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,0,nocalib,800,32,/,$CALL, &
+      exit
+    fi
+
+
     # Allow for experimental widescreen
     FORMAT=$(get_config_var format $PCONFIGFILE)
     if [ "$FORMAT" == "16:9" ]; then
@@ -914,10 +948,10 @@ fi
         v4l2-ctl -d $ANALOGCAMNAME "--set-standard="$ANALOGCAMSTANDARD
       fi
     else
-      # Webcam in use
+      # Webcam in use, so set parameters depending on camera in use
       # Check audio first
       if [ "$AUDIO_PREF" == "auto" ] || [ "$AUDIO_PREF" == "webcam" ]; then  # Webcam audio
-        if [ $C920Present == 1 ]; then
+        if [ $C920Present == 1 ] || [ $C910Present=1 ]; then
           AUDIO_SAMPLE=32000
         fi
       fi
@@ -938,7 +972,26 @@ fi
           VIDEO_HEIGHT=240
           VIDEO_FPS=15
         fi
-     fi
+      fi
+
+      # If a new C910 put it in the right mode
+      # Anything over 800x448 does not work
+      if [ $C910Present=1 ]; then
+        if [ "$BITRATE_VIDEO" -gt 190000 ]; then  # 333KS FEC 1/2 or better
+          v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=800,height=448,pixelformat=0 --set-parm=15 \
+            --set-ctrl power_line_frequency=1
+          VIDEO_WIDTH=800
+          VIDEO_HEIGHT=448
+          VIDEO_FPS=15
+        else
+          v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=432,height=240,pixelformat=0 --set-parm=15 \
+            --set-ctrl power_line_frequency=1
+          VIDEO_WIDTH=416  # Camera modes are not 32 aligned
+          VIDEO_HEIGHT=240
+          VIDEO_FPS=15
+        fi
+      fi
+
      if [ $C170Present == 1 ]; then
         AUDIO_CARD=0   # Can't get sound to work at present
         if [ "$BITRATE_VIDEO" -gt 190000 ]; then  # 333KS FEC 1/2 or better
@@ -1021,6 +1074,38 @@ fi
 #============================================ DESKTOP MODES H264 =============================================================
 
   "DESKTOP" | "CONTEST" | "CARDH264")
+
+    # Experimental Pluto Code
+
+    if [ "$MODE_OUTPUT" == "PLUTO" ] && [ "$MODE_INPUT" == "CARDH264" ]; then
+
+      if [ "$CAPTIONON" == "on" ]; then
+        rm /home/pi/tmp/caption.png >/dev/null 2>/dev/null
+        rm /home/pi/tmp/tcf2.jpg >/dev/null 2>/dev/null
+        convert -size 720x80 xc:transparent -fill white -gravity Center -pointsize 40 -annotate 0 $CALL /home/pi/tmp/caption.png
+        convert /home/pi/rpidatv/scripts/images/tcf.jpg /home/pi/tmp/caption.png -geometry +0+475 -composite /home/pi/tmp/tcf2.jpg
+        IMAGEFILE="/home/pi/tmp/tcf2.jpg"
+        sudo fbi -T 1 -noverbose -a /home/pi/tmp/tcf2.jpg >/dev/null 2>/dev/null
+      else
+        IMAGEFILE="/home/pi/rpidatv/scripts/images/tcf.jpg"
+        sudo fbi -T 1 -noverbose -a /home/pi/rpidatv/scripts/images/tcf.jpg >/dev/null 2>/dev/null
+      fi
+      (sleep 1; sudo killall -9 fbi >/dev/null 2>/dev/null) &  ## kill fbi once it has done its work
+
+      # Turn the viewfinder off
+      v4l2-ctl --overlay=0
+
+
+         $PATHRPI"/ffmpeg" -loglevel $MODE_DEBUG -thread_queue_size 2048 \
+            -f image2 -loop 1 \
+            -i $IMAGEFILE \
+            -framerate 25 -video_size 720x576 -c:v h264_omx -b:v 576k \
+        -f flv \
+        rtmp://pluto.local:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,0,nocalib,800,32,/,$CALL, &
+      exit
+    fi
+
+############################################################
 
     if [ "$MODE_INPUT" == "CONTEST" ]; then
       # Delete the old numbers image

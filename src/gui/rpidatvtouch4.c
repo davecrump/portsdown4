@@ -36,11 +36,10 @@ Rewitten by Dave, G8GKQ
 #include <wiringPi.h>
 #include <sys/stat.h> 
 #include <sys/types.h> 
-
+#include <time.h>
 
 #include "font/font.h"
 #include "touch.h"
-//#include "Font.h"  // Colin's fonts
 #include "Graphics.h"
 
 #define KWHT  "\x1B[37m"
@@ -310,6 +309,7 @@ void Start_Highlights_Menu5();
 void Start_Highlights_Menu6();
 void Start_Highlights_Menu7();
 void Start_Highlights_Menu8();
+void Start_Highlights_Menu10();
 void Start_Highlights_Menu11();
 void Start_Highlights_Menu12();
 void Start_Highlights_Menu13();
@@ -344,9 +344,9 @@ void Start_Highlights_Menu43();
 void Start_Highlights_Menu44();
 void Start_Highlights_Menu45();
 
-void MsgBox(const char *);
-void MsgBox2(const char *, const char *);
-void MsgBox4(const char *, const char *, const char *, const char *);
+void MsgBox(char *);
+void MsgBox2(char *, char *);
+void MsgBox4(char *, char *, char *, char *);
 void wait_touch();
 void waituntil(int, int);
 void Keyboard(char *, char *, int);
@@ -580,6 +580,38 @@ void GetMicAudioCard(char mic[15])
   while (fgets(mic, 7, fp) != NULL)
   {
     sprintf(mic, "%d", atoi(mic));
+  }
+
+  /* close */
+  pclose(fp);
+}
+
+/***************************************************************************//**
+ * @brief Looks up the Pi Cam device name
+ *
+ * @param picamdev(str) Device name with no CR (/dev/videon)
+ *
+ * @return void
+*******************************************************************************/
+void GetPiCamDev(char picamdev[15])
+{
+  FILE *fp;
+  int linecount = 0;
+  char result[15];
+
+  /* Open the command for reading. */
+  fp = popen("v4l2-ctl --list-devices 2> /dev/null |sed -n '/mmal/,/dev/p' | grep 'dev' | tr -d '\t'", "r");
+  if (fp == NULL) {
+    printf("Failed to run command\n" );
+    exit(1);
+  }
+
+  /* Read the output a line at a time - output it. */
+  while ((fgets(result, 12, fp) != NULL) && (linecount == 0))
+  {
+    strcpy(picamdev, result);
+    //printf("%s\n", picamdev);
+    linecount = 1;
   }
 
   /* close */
@@ -1920,6 +1952,11 @@ void ReadModeOutput(char Moutput[256])
     strcpy(Moutput, "LimeSDR Mini with custom DVB FW");
     strcpy(CurrentModeOPtext, TabModeOPtext[12]);
   } 
+  else if (strcmp(ModeOutput, "PLUTO") == 0) 
+  {
+    strcpy(Moutput, "Pluto");
+    strcpy(CurrentModeOPtext, TabModeOPtext[13]);
+  } 
   else
   {
     strcpy(Moutput, "notset");
@@ -2927,6 +2964,39 @@ void ChangeRTLppm()
   SetConfigParam(PATH_RTLPRESETS, Param, Value);
 }
 
+/***************************************************************************//**
+ * @brief Detects if a LimeNET Micro is connected
+ *
+ * @param None
+ *
+ * @return 0 = LimeNET Micro not detected
+ *         1 = LimeNET Micro detected
+ *         2 = shell returned unexpected exit status
+*******************************************************************************/
+ 
+int DetectLimeNETMicro()
+{
+  int r;
+
+  r = WEXITSTATUS(system("cat /proc/device-tree/model | grep 'Raspberry Pi Compute Module 3'"));
+
+  if (r == 0)
+  {
+    printf("LimeNET Micro detected\n");
+    return 1;
+  }
+  else if (r == 1)
+  {
+    printf("LimeNET Micro not detected\n");
+    return 0;
+  } 
+  else 
+  {
+    printf("LimeNET Micro unexpected exit status %d\n", r);
+    return 2;
+  }
+}
+
 
 /***************************************************************************//**
  * @brief Reads the Presets from rtl-fm_config.txt and formats them for
@@ -3703,6 +3773,44 @@ int CheckLimeUSBConnect()
   /* close */
   pclose(fp);
   return responseint;
+}
+
+/***************************************************************************//**
+ * @brief Checks whether a Pluto is connected
+ *
+ * @param 
+ *
+ * @return 0 if present, 1 if absent
+*******************************************************************************/
+
+int CheckPlutoConnect()
+{
+  FILE *fp;
+  char response[127];
+
+  /* Open the command for reading. */
+  fp = popen("ping pluto.local -c1 | head -n 5 | tail -n 1 | grep -o \"1 received,\" | head -c 11", "r");
+  if (fp == NULL) {
+    printf("Failed to run command\n" );
+    exit(1);
+  }
+
+  /* Read the output a line at a time - output it. */
+  while (fgets(response, 12, fp) != NULL)
+  {
+    printf("%s", response);
+  }
+  //  printf("%s", response);
+  /* close */
+  pclose(fp);
+  if (strcmp (response, "1 received,") == 0)
+  {
+    return 0;
+  }
+  else
+  {
+    return 1;
+  }
 }
 
 
@@ -4686,7 +4794,7 @@ void DrawButton(int ButtonIndex)
   }
   else                                              // One line only
   {
-    if ((CurrentMenu <= 10) && (CurrentMenu != 4))
+    if ((CurrentMenu <= 9) && (CurrentMenu != 4))
     {
       TextMid2(Button->x+Button->w/2, Button->y+Button->h/2, label, &font_dejavu_sans_28);
     }
@@ -5553,6 +5661,7 @@ void GreyOutReset11()
   SetButtonStatus(ButtonNumber(CurrentMenu, 1), 0); // 8PSK
   SetButtonStatus(ButtonNumber(CurrentMenu, 2), 0); // 16 APSK
   SetButtonStatus(ButtonNumber(CurrentMenu, 3), 0); // 32APSK
+  SetButtonStatus(ButtonNumber(CurrentMenu, 6), 0); // carrier
 }
 
 void GreyOut11()
@@ -5560,6 +5669,7 @@ void GreyOut11()
   if ((strcmp(CurrentModeOP, "LIMEUSB") != 0)
    && (strcmp(CurrentModeOP, "LIMEMINI") != 0)
    && (strcmp(CurrentModeOP, "LIMEDVB") != 0)
+   && (strcmp(CurrentModeOP, "PLUTO") != 0)
    && (strcmp(CurrentModeOP, "STREAMER") != 0)
    && (strcmp(CurrentModeOP, "COMPVID") != 0)
    && (strcmp(CurrentModeOP, "IP") != 0)
@@ -5588,6 +5698,26 @@ void GreyOut11()
 
     // Until short/long frames working, grey out frames
     SetButtonStatus(ButtonNumber(CurrentMenu, 9), 2); // grey-out Frames long/short
+  }
+  // For Pluto
+  if (strcmp(CurrentModeOP, "PLUTO") == 0)
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 3), 2); // grey-out 32APSK
+    SetButtonStatus(ButtonNumber(CurrentMenu, 6), 2); // grey-out carrier
+    SetButtonStatus(ButtonNumber(CurrentMenu, 8), 2); // grey-out Pilots on/off
+    SetButtonStatus(ButtonNumber(CurrentMenu, 9), 2); // grey-out Frames long/short
+  }
+}
+
+void GreyOut12()
+{
+  if(strcmp(CurrentModeOP, "JLIME") == 0) // Jetson Selected
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 7), 0); // Show H265 button
+  }
+  else
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 7), 2); // Grey-out H265 Button
   }
 }
 
@@ -5660,7 +5790,10 @@ void GreyOut42()
     SetButtonStatus(ButtonNumber(CurrentMenu, 10), 2); // Jetson
   }
   // Always grey-out pluto for now
-  SetButtonStatus(ButtonNumber(CurrentMenu, 14), 2); // Pluto
+  if (CheckPlutoConnect() == 1)  // Pluto not connected, so GreyOut
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 14), 2); // Pluto
+  }
 }
 
 void GreyOutReset44()
@@ -5902,13 +6035,30 @@ void SelectFreq(int NoButton)  //Frequency
 {
   char freqtxt[255];
 
-  SelectInGroupOnMenu(CurrentMenu, 5, 9, NoButton, 1);
+  SelectInGroupOnMenu(CurrentMenu, 5, 19, NoButton, 1);
   SelectInGroupOnMenu(CurrentMenu, 0, 3, NoButton, 1);
   if (NoButton < 4)
   {
-    NoButton = NoButton + 10;
+    NoButton = NoButton + 5;
   }
-  strcpy(freqtxt, TabFreq[NoButton - 5]);
+  else if ((NoButton > 4) && (NoButton < 10))
+  {
+    NoButton = NoButton - 5;
+  }
+
+  printf("NoButton = %d\n", NoButton);
+
+  if (NoButton < 10) // Normal presets
+  {
+    strcpy(freqtxt, TabFreq[NoButton]);
+  }
+  else              // QO-100 freqs
+  {
+    strcpy(freqtxt, QOFreq[NoButton - 10]);
+  }
+  printf("CallingMenu = %d/n", CallingMenu);
+
+  printf ("freqtxt = %s\n", freqtxt);
 
   if (CallingMenu == 1)  // Transmit Frequency
   {
@@ -6829,19 +6979,34 @@ void CompVidStart()
   int TCDisplay = 1;
   int rawX, rawY, rawPressure;
   FILE *fp;
-  char SnapIndex[256];
+  char SnapIndex[255];
   int SnapNumber;
   int Snap;
+  char picamdev1[15];
+  char bashcmd[255];
 
   if (strcmp(CurrentVidSource, "Pi Cam") == 0)
   {
     system("sudo modprobe bcm2835_v4l2");
-    system("v4l2-ctl --set-fmt-overlay=left=0,top=0,width=656,height=512");
-    system("v4l2-ctl --overlay=1 >/dev/null 2>/dev/null");
-    //system("v4l2-ctl -p 25"); // Set framerate??
-    strcpy(ScreenState, "VideoOut");
-    wait_touch();
-    system("v4l2-ctl --overlay=0");
+    GetPiCamDev(picamdev1);         
+    if (strlen(picamdev1) > 1)
+    {
+      strcpy(bashcmd, "v4l2-ctl -d ");
+      strcat(bashcmd, picamdev1);
+      strcat(bashcmd, " --set-fmt-overlay=left=0,top=0,width=736,height=416 --overlay=1");
+      system(bashcmd);
+      strcpy(ScreenState, "VideoOut");
+      wait_touch();
+      strcpy(bashcmd, "v4l2-ctl -d ");  // Now turn the overlay off
+      strcat(bashcmd, picamdev1);
+      strcat(bashcmd, " --overlay=0");
+      system(bashcmd);
+    }
+    else
+    {
+      MsgBox("Pi Cam Not Connected");
+      wait_touch();
+    }
   }
 
   if (strcmp(CurrentVidSource, "TCAnim") == 0)
@@ -7037,6 +7202,13 @@ void TransmitStart()
   GetConfigParam(PATH_PCONFIG,Param,Value);
   strcpy(ModeInput,Value);
 
+  // If Pi Cam source, clear the screen
+  if (strcmp(CurrentSource, "Pi Cam") == 0)
+  {
+    setBackColour(0, 0, 0);
+    clearScreen();
+  }
+
   // Check if MPEG-2 camera mode selected, or streaming PiCam
   if ((strcmp(ModeInput, "CAMMPEG-2")==0)
     ||(strcmp(ModeInput, "CAM16MPEG-2")==0)
@@ -7115,8 +7287,10 @@ void TransmitStop()
   char Param[255];
   char Value[255];
   int WebcamPresent = 0;
+  char bashcmd[255];
+  char picamdev1[15];
 
-  printf("Transmit Stop\n");
+  printf("Stopping all transmit processes, even if they weren't running\n");
 
   // If transmit menu is displayed, blue-out the TX button here
   // code to be added
@@ -7171,8 +7345,15 @@ void TransmitStop()
     pinMode(GPIO_Tverter, OUTPUT);
   }
 
-  // Turn the Viewfinder off
-  system("v4l2-ctl --overlay=0 >/dev/null 2>/dev/null");
+  // Look up the Pi Cam device name and turn the Viewfinder off
+  GetPiCamDev(picamdev1);
+  if (strlen(picamdev1) > 1)
+  {
+    strcpy(bashcmd, "v4l2-ctl -d ");
+    strcat(bashcmd, picamdev1);
+    strcat(bashcmd, " --overlay=0 >/dev/null 2>/dev/null");
+    system(bashcmd);
+  }
 
   // Stop the audio relay in CompVid mode
   system("sudo killall arecord >/dev/null 2>/dev/null");
@@ -7387,7 +7568,7 @@ void *WaitButtonLMRX(void * arg)
         count_time_ms = count_time_ms + 1;
       }
       //printf("Shutting Down VLC\n");
-      system("/home/pi/rpidatv/scripts/lmvlcsd.sh");
+      system("/home/pi/rpidatv/scripts/lmvlcsd.sh &");
       count_time_ms = 0;
       while ((touch_response == 1) && (count_time_ms < 2500))
       {
@@ -7398,7 +7579,7 @@ void *WaitButtonLMRX(void * arg)
       if (touch_response == 1) // count_time has elapsed and still no reponse
       {
 
-        system("sudo killall -9 vlc");
+        system("/home/pi/rpidatv/scripts/lmvlcsd.sh &");
         setBackColour(0, 0, 0);
         clearScreen();
         exit(129);                 // Restart the GUI
@@ -7464,7 +7645,6 @@ void DisplayIPStream()
   char WaitMessage[63];
 
   strcpy(startCommand, "/home/pi/rpidatv/scripts/omx_udp.sh ");
-//  strcat(startCommand, "udp://:@:10000");
   strcat(startCommand, " &");
 
   strcpy(WaitMessage, "Waiting for IP Stream on port 10000");
@@ -7856,6 +8036,7 @@ void LMRX(int NoButton)
   #define PATH_SCRIPT_LMRXUDP "/home/pi/rpidatv/scripts/lmudp.sh 2>&1"
   #define PATH_SCRIPT_LMRXOMX "/home/pi/rpidatv/scripts/lmomx.sh 2>&1"
   #define PATH_SCRIPT_LMRXVLC "/home/pi/rpidatv/scripts/lmvlc.sh" // 2>&1"
+  #define PATH_SCRIPT_LMRXVLCFF "/home/pi/rpidatv/scripts/lmvlcff.sh" // 2>&1"
 
   //Local parameters:
 
@@ -7891,19 +8072,32 @@ void LMRX(int NoButton)
   char VidEncodingtext[63] = " ";
   char AudEncodingtext[63] = " ";
   char Encodingtext[63] = " ";
+  char vlctext[255];
   float MERThreshold = 0;
   int EncodingCode = 0;
   int MODCOD;
   int Parameters_currently_displayed = 1;  // 1 for displayed, 0 for blank
+  float previousMER = 0;
+  int FirstLock = 0;  // set to 1 on first lock, and 2 after parameter fade
+  clock_t LockTime;
 
   // Set globals
   FinishedButton = 1;
 
-          strcpy(LinuxCommand, "sudo fbi -T 1 -noverbose -a /home/pi/rpidatv/scripts/images/RX_Black.png ");
-          strcat(LinuxCommand, ">/dev/null 2>/dev/null");
-          system(LinuxCommand);
-          strcpy(LinuxCommand, "(sleep 1; sudo killall -9 fbi >/dev/null 2>/dev/null) &");
-          system(LinuxCommand);
+  // Display the correct background
+  if ((NoButton == 0) || (NoButton == 1) || (NoButton == 2) || (NoButton == 5))   // Picture and LNB autoset modes
+  {
+    strcpy(LinuxCommand, "sudo fbi -T 1 -noverbose -a /home/pi/rpidatv/scripts/images/RX_Black.png ");
+    strcat(LinuxCommand, ">/dev/null 2>/dev/null");
+    system(LinuxCommand);
+    strcpy(LinuxCommand, "(sleep 1; sudo killall -9 fbi >/dev/null 2>/dev/null) &");
+    system(LinuxCommand);
+  }
+  else // MER display modes
+  {
+    setBackColour(0, 0, 0);
+    clearScreen();
+  }
 
 
   // Initialise and calculate the text display
@@ -7924,10 +8118,10 @@ void LMRX(int NoButton)
   switch (NoButton)
   {
   case 0:
-    fp=popen(PATH_SCRIPT_LMRXMP, "r");
+    fp=popen(PATH_SCRIPT_LMRXVLCFF, "r");
     if(fp==NULL) printf("Process error\n");
 
-    printf("STARTING MPlayer RX\n");
+    printf("STARTING VLC with FFMPEG RX\n");
 
     /* Open status FIFO for read only  */
     ret = mkfifo("longmynd_status_fifo", 0666);
@@ -8022,27 +8216,27 @@ void LMRX(int NoButton)
               {
                 case 0:
                   strcpy(FECtext, "FEC 1/2");
-                  MERThreshold = 0; //
+                  MERThreshold = 1.7; //
                 break;
                 case 1:
                   strcpy(FECtext, "FEC 2/3");
-                  MERThreshold = 0; //
+                  MERThreshold = 3.3; //
                 break;
                 case 2:
                   strcpy(FECtext, "FEC 3/4");
-                  MERThreshold = 0; //
+                  MERThreshold = 4.2; //
                 break;
                 case 3:
                   strcpy(FECtext, "FEC 5/6");
-                  MERThreshold = 0; //
+                  MERThreshold = 5.1; //
                 break;
                 case 4:
                   strcpy(FECtext, "FEC 6/7");
-                  MERThreshold = 0; //
+                  MERThreshold = 5.5; //
                 break;
                 case 5:
                   strcpy(FECtext, "FEC 7/8");
-                  MERThreshold = 0; //
+                  MERThreshold = 5.8; //
                 break;
                 default:
                   strcpy(FECtext, "FEC -");
@@ -8233,8 +8427,14 @@ void LMRX(int NoButton)
 
           if ((stat_string[0] == '1') && (stat_string[1] == '2'))  // MER
           {
-            if (FinishedButton == 1)  // Parameters displayed
+            if (FinishedButton == 1)  // Parameters requested to be displayed
             {
+              // If they weren't displayed before, set the previousMER to 0 
+              // so they get displayed and don't have to wait for an MER change
+              if (Parameters_currently_displayed != 1)
+              {
+                previousMER = 0;
+              }
               Parameters_currently_displayed = 1;
               strcpy(MERtext, stat_string);
               chopN(MERtext, 3);
@@ -8283,8 +8483,66 @@ void LMRX(int NoButton)
               {
                 setForeColour(255, 63, 63); // Set foreground colour to red
               }
+              else  // Auto-hide the parameter display after 5 seconds
+              {
+                if (FirstLock == 0) // This is the first time MER has exceeded threshold
+                {
+                  FirstLock = 1;
+                  LockTime = clock();  // Set first lock time
+                }
+                if ((clock() > LockTime + 600000) && (FirstLock == 1))  // About 5s since first lock
+                {
+                  FinishedButton = 2; // Hide parameters
+                  FirstLock = 2;      // and stop it trying to hide them again
+                }
+              }
+
               rectangle(wscreen * 1 / 40, hscreen - 9 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
               Text2(wscreen * 1 / 40, hscreen - 9 * linepitch, MERtext, font_ptr);
+
+              // Only change VLC overlayfile if MER has changed
+              if (MER != previousMER)
+              {
+
+                // Strip trailing line feeds from text strings
+                ServiceProvidertext[strlen(ServiceProvidertext) - 1] = '\0';
+                Servicetext[strlen(Servicetext) - 1] = '\0';
+
+                // Build string for VLC
+                strcpy(vlctext, STATEtext);
+                strcat(vlctext, "%n");
+                strcat(vlctext, FREQtext);
+                strcat(vlctext, "%n");
+                strcat(vlctext, SRtext);
+                strcat(vlctext, "%n");
+                strcat(vlctext, Modulationtext);
+                strcat(vlctext, "%n");
+                strcat(vlctext, FECtext);
+                strcat(vlctext, "%n");
+                strcat(vlctext, SRtext);
+                strcat(vlctext, "%n");
+                strcat(vlctext, ServiceProvidertext);
+                strcat(vlctext, "%n");
+                strcat(vlctext, Servicetext);
+                strcat(vlctext, "%n");
+                strcat(vlctext, Encodingtext);
+                strcat(vlctext, "%n");
+                strcat(vlctext, MERtext);
+                strcat(vlctext, "%n.%nTouch Left to Hide Overlay%nTouch Right to Exit");
+
+                FILE *fw=fopen("/home/pi/tmp/vlc_temp_overlay.txt","w+");
+                if(fw!=0)
+                {
+                  fprintf(fw, "%s\n", vlctext);
+                }
+                fclose(fw);
+
+                // Copy temp file to file to be read by VLC to prevent file collisions
+                system("cp /home/pi/tmp/vlc_temp_overlay.txt /home/pi/tmp/vlc_overlay.txt");
+
+                previousMER = MER;
+              }
+
               setForeColour(255, 255, 255);  // Set foreground colour to white
               Text2(wscreen * 1 / 40, hscreen - 11 * linepitch, "Touch Right side to exit", font_ptr);
               Text2(wscreen * 1 / 40, hscreen - 12 * linepitch, "Touch Lower left for image capture", font_ptr);
@@ -8296,6 +8554,13 @@ void LMRX(int NoButton)
                 setBackColour(0, 0, 0);
                 clearScreen();
                 Parameters_currently_displayed = 0;
+
+                FILE *fw=fopen("/home/pi/tmp/vlc_overlay.txt","w+");
+                if(fw!=0)
+                {
+                  fprintf(fw, " ");
+                }
+                fclose(fw);
               }
             }
           }
@@ -8310,13 +8575,16 @@ void LMRX(int NoButton)
       {
         FinishedButton = 0;
       }
-    } 
+    }
+    // Shutdown VLC if it has not stolen the graphics
+    system("/home/pi/rpidatv/scripts/lmvlcsd.sh &");
+
     close(fd_status_fifo); 
     usleep(1000);
 
     printf("Stopping receive process\n");
     pclose(fp);
-    system("sudo killall lmmp.sh >/dev/null 2>/dev/null");
+    system("sudo killall lmvlcff.sh >/dev/null 2>/dev/null");
     touch_response = 0; 
     break;
 
@@ -8420,27 +8688,27 @@ void LMRX(int NoButton)
               {
                 case 0:
                   strcpy(FECtext, "FEC 1/2");
-                  MERThreshold = 0; //
+                  MERThreshold = 1.7; //
                 break;
                 case 1:
                   strcpy(FECtext, "FEC 2/3");
-                  MERThreshold = 0; //
+                  MERThreshold = 3.3; //
                 break;
                 case 2:
                   strcpy(FECtext, "FEC 3/4");
-                  MERThreshold = 0; //
+                  MERThreshold = 4.2; //
                 break;
                 case 3:
                   strcpy(FECtext, "FEC 5/6");
-                  MERThreshold = 0; //
+                  MERThreshold = 5.1; //
                 break;
                 case 4:
                   strcpy(FECtext, "FEC 6/7");
-                  MERThreshold = 0; //
+                  MERThreshold = 5.5; //
                 break;
                 case 5:
                   strcpy(FECtext, "FEC 7/8");
-                  MERThreshold = 0; //
+                  MERThreshold = 5.8; //
                 break;
                 default:
                   strcpy(FECtext, "FEC -");
@@ -8818,27 +9086,27 @@ void LMRX(int NoButton)
               {
                 case 0:
                   strcpy(FECtext, "FEC 1/2");
-                  MERThreshold = 0; //
+                  MERThreshold = 1.7; //
                 break;
                 case 1:
                   strcpy(FECtext, "FEC 2/3");
-                  MERThreshold = 0; //
+                  MERThreshold = 3.3; //
                 break;
                 case 2:
                   strcpy(FECtext, "FEC 3/4");
-                  MERThreshold = 0; //
+                  MERThreshold = 4.2; //
                 break;
                 case 3:
                   strcpy(FECtext, "FEC 5/6");
-                  MERThreshold = 0; //
+                  MERThreshold = 5.1; //
                 break;
                 case 4:
                   strcpy(FECtext, "FEC 6/7");
-                  MERThreshold = 0; //
+                  MERThreshold = 5.5; //
                 break;
                 case 5:
                   strcpy(FECtext, "FEC 7/8");
-                  MERThreshold = 0; //
+                  MERThreshold = 5.8; //
                 break;
                 default:
                   strcpy(FECtext, "FEC -");
@@ -9222,27 +9490,27 @@ void LMRX(int NoButton)
               {
                 case 0:
                   strcpy(FECtext, "FEC 1/2");
-                  MERThreshold = 0; //
+                  MERThreshold = 1.7; //
                 break;
                 case 1:
                   strcpy(FECtext, "FEC 2/3");
-                  MERThreshold = 0; //
+                  MERThreshold = 3.3; //
                 break;
                 case 2:
                   strcpy(FECtext, "FEC 3/4");
-                  MERThreshold = 0; //
+                  MERThreshold = 4.2; //
                 break;
                 case 3:
                   strcpy(FECtext, "FEC 5/6");
-                  MERThreshold = 0; //
+                  MERThreshold = 5.1; //
                 break;
                 case 4:
                   strcpy(FECtext, "FEC 6/7");
-                  MERThreshold = 0; //
+                  MERThreshold = 5.5; //
                 break;
                 case 5:
                   strcpy(FECtext, "FEC 7/8");
-                  MERThreshold = 0; //
+                  MERThreshold = 5.8; //
                 break;
                 default:
                   strcpy(FECtext, "FEC - ");
@@ -9836,7 +10104,8 @@ void wait_touch()
   printf("wait_touch exit\n");
 }
 
-void MsgBox(const char *message)
+
+void MsgBox(char *message)
 {
   // Display a one-line message and wait for touch
   setForeColour(255, 255, 255);    // White text
@@ -9850,7 +10119,8 @@ void MsgBox(const char *message)
   printf("MsgBox called and waiting for touch\n");
 }
 
-void MsgBox2(const char *message1, const char *message2)
+
+void MsgBox2(char *message1, char *message2)
 {
   // Display a 2-line message and wait for touch
   setForeColour(255, 255, 255);    // White text
@@ -9867,7 +10137,8 @@ void MsgBox2(const char *message1, const char *message2)
   printf("MsgBox2 called and waiting for touch\n");
 }
 
-void MsgBox4(const char *message1, const char *message2, const char *message3, const char *message4)
+
+void MsgBox4(char *message1, char *message2, char *message3, char *message4)
 {
   // Display a 4-line message
   setForeColour(255, 255, 255);    // White text
@@ -10934,19 +11205,25 @@ void do_video_monitor(int button)
 
 void MonitorStop()
 {
+  char bashcmd[255];
+  char picamdev1[15];
+
   // Kill the key processes as nicely as possible
-  system("sudo killall rpidatv >/dev/null 2>/dev/null");
   system("sudo killall ffmpeg >/dev/null 2>/dev/null");
   system("sudo killall tcanim1v16 >/dev/null 2>/dev/null");
   system("sudo killall avc2ts >/dev/null 2>/dev/null");
   system("sudo killall netcat >/dev/null 2>/dev/null");
-  system("sudo killall ts2es >/dev/null 2>/dev/null");
-  system("sudo killall hello_video2.bin >/dev/null 2>/dev/null");
   system("sudo killall mplayer >/dev/null 2>/dev/null");
 
   // Turn the Viewfinder off
-  system("v4l2-ctl -d /dev/video1 --overlay=0 >/dev/null 2>/dev/null");
-  system("v4l2-ctl -d /dev/video0 --overlay=0 >/dev/null 2>/dev/null");
+  GetPiCamDev(picamdev1);
+  if (strlen(picamdev1) > 1)
+  {
+    strcpy(bashcmd, "v4l2-ctl -d ");
+    strcat(bashcmd, picamdev1);
+    strcat(bashcmd, " --overlay=0 >/dev/null 2>/dev/null");
+    system(bashcmd);
+  }
 
   // Stop the audio relay in CompVid mode
   system("sudo killall arecord >/dev/null 2>/dev/null");
@@ -11399,13 +11676,17 @@ void ChangePresetFreq(int NoButton)
 
 void ChangeLMPresetFreq(int NoButton)
 {
-  char RequestText[64];
-  char InitText[64];
+  char RequestText[63];
+  char InitText[63] = " ";
   char PresetNo[3];
   char Param[63];
+  div_t div_10;
+  div_t div_100;
+  div_t div_1000;
   int FreqIndex;
   int CheckValue = 0;
   int Offset_to_Apply = 0;
+  char FreqkHz[63];
 
   // Convert button number to frequency array index
   if (CallingMenu == 8)  // Called from receive Menu
@@ -11435,36 +11716,74 @@ void ChangeLMPresetFreq(int NoButton)
   }
 
   // Define request string
-  strcpy(RequestText, "Enter new receive frequency in kHz");
+  strcpy(RequestText, "Enter new receive frequency in MHz");
 
-  // Define initial value
-  snprintf(InitText, 10, "%d", LMRXfreq[FreqIndex]);
+  // Define initial value and convert to MHz
+
+  if(LMRXfreq[FreqIndex] < 143000)  // below 143 MHz, so set to 146.5
+  {
+    strcpy(InitText, "146.5");
+  }
+  else
+  {
+    div_10 = div(LMRXfreq[FreqIndex], 10);
+    div_1000 = div(LMRXfreq[FreqIndex], 1000);
+
+    if(div_10.rem != 0)  // last character not zero, so make answer of form xxx.xxx
+    {
+      snprintf(InitText, 10, "%d.%03d", div_1000.quot, div_1000.rem);
+    }
+    else
+    {
+      div_100 = div(LMRXfreq[FreqIndex], 100);
+
+      if(div_100.rem != 0)  // last but one character not zero, so make answer of form xxx.xx
+      {
+        snprintf(InitText, 10, "%d.%02d", div_1000.quot, div_1000.rem / 10);
+      }
+      else
+      {
+        if(div_1000.rem != 0)  // last but two character not zero, so make answer of form xxx.x
+        {
+          snprintf(InitText, 10, "%d.%d", div_1000.quot, div_1000.rem / 100);
+        }
+        else  // integer MHz, so just xxx (no dp)
+        {
+          snprintf(InitText, 10, "%d", div_1000.quot);
+        }
+      }
+    }
+  }
 
   // Ask for new value
   while ((CheckValue - Offset_to_Apply < 143000) || (CheckValue - Offset_to_Apply > 2600000))
   {
     Keyboard(RequestText, InitText, 10);
-    CheckValue = atoi(KeyboardReturn);
+    CheckValue = (int)(1000 * atof(KeyboardReturn));
     printf("CheckValue = %d Offset = %d\n", CheckValue, Offset_to_Apply);
   }
 
   // Write freq to memory
   LMRXfreq[FreqIndex] = CheckValue;
 
+  // Convert to string in kHz
+  snprintf(FreqkHz, 10, "%d", CheckValue);
+
+  // Write to Presets File as in-use frequency
   if (strcmp(LMRXmode, "terr") == 0) // Terrestrial
   {
-    SetConfigParam(PATH_LMCONFIG, "freq1", KeyboardReturn); // Set in-use freq
+    SetConfigParam(PATH_LMCONFIG, "freq1", FreqkHz);        // Set in-use freq
     FreqIndex = FreqIndex - 10;                             // subtract index for terrestrial freqs
   }
   else                               // Sat
   {
-    SetConfigParam(PATH_LMCONFIG, "freq0", KeyboardReturn); // Set in-use freq
+    SetConfigParam(PATH_LMCONFIG, "freq0", FreqkHz);        // Set in-use freq
   }
 
-  // write freq to Presets file
+  // write freq to Stored Presets file
   snprintf(PresetNo, 3, "%d", FreqIndex);
   strcat(Param, PresetNo); 
-  SetConfigParam(PATH_LMCONFIG, Param, KeyboardReturn);
+  SetConfigParam(PATH_LMCONFIG, Param, FreqkHz);
 }
 
 
@@ -11677,8 +11996,11 @@ void ChangeStartApp(int NoButton)
     strcpy(StartApp, "Display_boot");
     break;
   case 6:
-    SetConfigParam(PATH_PCONFIG, "startup", "Langstone_boot");
-    strcpy(StartApp, "Langstone_boot");
+    if (file_exist("/home/pi/Langstone/LangstoneGUI.c") == 0)
+    {
+      SetConfigParam(PATH_PCONFIG, "startup", "Langstone_boot");
+      strcpy(StartApp, "Langstone_boot");
+    }
     break;
   case 7:
     SetConfigParam(PATH_PCONFIG, "startup", "Limetrx_boot");
@@ -12340,11 +12662,11 @@ rawY = 0;
         case 10:
           if (strcmp(CurrentModeOP, TabModeOP[4]) != 0)  // not Streaming
           {
-            printf("MENU 16 \n");        // Set Frequency
-            CurrentMenu=16;
+            printf("MENU 10 \n");        // Set Frequency
+            CurrentMenu=10;
             setBackColour(0, 0, 0);
             clearScreen();
-            Start_Highlights_Menu16();
+            Start_Highlights_Menu10();
           }
           else
           {
@@ -12597,13 +12919,25 @@ rawY = 0;
           do_snapcheck();
           UpdateWindow();
           break;
-        case 15:                                     // Select Langstone
-          SetButtonStatus(ButtonNumber(2, 15), 1);  // and highlight button
-          UpdateWindow();                           // No need to set it back as exit from here
-          do_Langstone();
-          setBackColour(0, 0, 0);
-          clearScreen();
-          UpdateWindow();
+        case 15:                                     // Select Langstone (Or Install)
+          if (file_exist("/home/pi/Langstone/LangstoneGUI.c") == 0)
+          {
+            SetButtonStatus(ButtonNumber(2, 15), 1);  // and highlight button
+            UpdateWindow();                           // No need to set it back as exit from here
+            do_Langstone();
+            setBackColour(0, 0, 0);
+            clearScreen();
+            UpdateWindow();
+          }
+          else                                        // if not installed, present Menu 39 with install option
+          {
+            printf("MENU 39 \n");
+            CurrentMenu=39;
+            setBackColour(0, 0, 0);
+            clearScreen();
+            Start_Highlights_Menu39();
+            UpdateWindow();
+          }
           break;
         case 16:                               // Start Sig Gen and Exit
           DisplayLogo();
@@ -12760,7 +13094,18 @@ rawY = 0;
           Start_Highlights_Menu35();
           UpdateWindow();
           break;
-        case 13:                               // Blank
+        case 13:                               // Set Audio output
+          if (strcmp(LMRXaudio, "rpi") == 0)
+          {
+            strcpy(LMRXaudio, "usb");
+          }
+          else
+          {
+            strcpy(LMRXaudio, "rpi");
+          }
+          SetConfigParam(PATH_LMCONFIG, "audio", LMRXaudio);
+          Start_Highlights_Menu3();
+          UpdateWindow();
           break;
         case 14:                               // Blank
           break;
@@ -13176,7 +13521,7 @@ rawY = 0;
         CallingMenu = 8;
         switch (i)
         {
-        case 0:                                           // MPlayer
+        case 0:                                           // VLC with ffmpeg
         case 1:                                           // OMXPlayer
         case 2:                                           // VLC
         case 3:                                           // UDP Output
@@ -13274,6 +13619,72 @@ rawY = 0;
         continue;   // Completed Menu 8 action, go and wait for touch
       }
 
+      if (CurrentMenu == 10)  // Menu 10 New TX Frequency
+      {
+        printf("Button Event %d, Entering Menu 10 Case Statement\n",i);
+        switch (i)
+        {
+        case 4:                               // Cancel
+          SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 1);
+          printf("SR Cancel\n");
+          break;
+        case 0:                               // Freq 6
+        case 1:                               // Freq 7
+        case 2:                               // Freq 8
+        case 5:                               // Freq 1
+        case 6:                               // Freq 2
+        case 7:                               // Freq 3
+        case 8:                               // Freq 4
+        case 9:                               // Freq 5
+        case 10:                              // Preset Freq 6
+        case 11:                              // Preset Freq 7
+        case 12:                              // Preset Freq 8
+        case 13:                              // Preset Freq 9
+        case 14:                              // Preset Freq 10
+        case 15:                              // Preset Freq 1
+        case 16:                              // Preset Freq 2
+        case 17:                              // Preset Freq 3
+        case 18:                              // Preset Freq 4
+        case 19:                              // Preset Freq 5
+          SelectFreq(i);
+          printf("Frequency Button %d\n", i);
+          break;
+        case 3:                               // Freq 9 Direct Entry
+          ChangePresetFreq(i);
+          SelectFreq(i);
+          printf("Frequency Button %d\n", i);
+          break;
+        default:
+          printf("Menu 10 Error\n");
+        }
+        if(i != 3)  // Don't pause if frequency has been set on keyboard
+        {
+          UpdateWindow();
+          usleep(500000);
+        }
+        SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 0); // Reset cancel (even if not selected)
+        if (CallingMenu == 1)
+        {
+          printf("Returning to MENU 1 from Menu 10\n");
+          CurrentMenu=1;
+          setBackColour(255, 255, 255);
+          clearScreen();
+          setBackColour(0, 0, 0);
+          Start_Highlights_Menu1();
+          UpdateWindow();
+        }
+        else
+        {
+          printf("Returning to MENU 5 from Menu 10\n");
+          printf("This should not happen!\n");
+          CurrentMenu=5;
+          clearScreen();
+          setBackColour(0, 0, 0);
+          Start_Highlights_Menu5();
+        }
+        UpdateWindow();
+        continue;   // Completed Menu 10 action, go and wait for touch
+      }
 
       if (CurrentMenu == 11)  // Menu 11 TX RF Output Mode
       {
@@ -14656,37 +15067,56 @@ rawY = 0;
           UpdateWindow();
           break;
         case 1:                               // Backup Config
-          printf("Backing up Langstone Config\n");
-          SetButtonStatus(ButtonNumber(39, 1), 1);
-          UpdateWindow();
-          BackupLangstone();
-          setBackColour(0, 0, 0);
-          clearScreen();
-          SetButtonStatus(ButtonNumber(39, 1), 0);
+          if (file_exist("/home/pi/Langstone/LangstoneGUI.c") == 0)  // Langstone installed
+          {
+            printf("Backing up Langstone Config\n");
+            SetButtonStatus(ButtonNumber(39, 1), 1);
+            UpdateWindow();
+            BackupLangstone();
+            setBackColour(0, 0, 0);
+            clearScreen();
+            SetButtonStatus(ButtonNumber(39, 1), 0);
+          }
           Start_Highlights_Menu39();
           UpdateWindow();
           break;
         case 2:                               // Update Langstone
-          printf("Updating the Langstone\n");
-          SetButtonStatus(ButtonNumber(39, 2), 1);
-          UpdateWindow();
-          UpdateLangstone();
-          setBackColour(0, 0, 0);
-          clearScreen();
-          SetButtonStatus(ButtonNumber(39, 2), 0);
+          if (file_exist("/home/pi/Langstone/LangstoneGUI.c") == 0)  // Langstone installed
+          {
+            printf("Updating the Langstone\n");
+            SetButtonStatus(ButtonNumber(39, 2), 1);
+            UpdateWindow();
+            UpdateLangstone();
+            setBackColour(0, 0, 0);
+            clearScreen();
+            SetButtonStatus(ButtonNumber(39, 2), 0);
+          }
           Start_Highlights_Menu39();
           UpdateWindow();
           break;
         case 3:                               // Restore Config
-          printf("Restoring Langstone Config\n");
-          SetButtonStatus(ButtonNumber(39, 3), 1);
-          UpdateWindow();
-          RestoreLangstone();
-          setBackColour(0, 0, 0);
-          clearScreen();
-          SetButtonStatus(ButtonNumber(39, 3), 0);
+          if (file_exist("/home/pi/Langstone/LangstoneGUI.c") == 0)  // Langstone installed
+          {
+            printf("Restoring Langstone Config\n");
+            SetButtonStatus(ButtonNumber(39, 3), 1);
+            UpdateWindow();
+            RestoreLangstone();
+            setBackColour(0, 0, 0);
+            clearScreen();
+            SetButtonStatus(ButtonNumber(39, 3), 0);
+          }
           Start_Highlights_Menu39();
           UpdateWindow();
+          break;
+        case 5:                               // Install Langsstone
+          if (file_exist("/home/pi/Langstone/LangstoneGUI.c") != 0)  // Langstone not installed
+          {
+            printf("Installing Langstone\n");
+            SetButtonStatus(ButtonNumber(39, 5), 1);
+            UpdateWindow();
+            system("/home/pi/rpidatv/add_langstone.sh &");
+            MsgBox4("Installing Langstone Software", " ", " ", "Please wait for Reboot");
+          }
           break;
         case 4:                               // Exit
           SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 1);
@@ -15035,10 +15465,10 @@ rawY = 0;
           SelectSource(i);
           printf("CompVid\n");
           break;
-        case 7:                               // TCAnim
-          SelectSource(i);
-          printf("TCAnim\n");
-          break;
+        // case 7:                               // TCAnim No tcanim on RPi 4
+          // SelectSource(i);
+          // printf("TCAnim\n");
+          // break;
         case 8:                               // TestCard
           SelectSource(i);
           printf("TestCard\n");
@@ -15055,10 +15485,10 @@ rawY = 0;
           SelectSource(i);
           printf("Webcam\n");
           break;
-        case 2:                               // C920
-          SelectSource(i);
-          printf("C920\n");
-          break;
+        // case 2:                               // Raw C920 not used
+          // SelectSource(i);
+          // printf("C920\n");
+          // break;
         case 3:                               // HDMI
           SelectSource(i);
           printf("HDMI\n");
@@ -15366,27 +15796,42 @@ void Start_Highlights_Menu1()
   char streamname_[31];
   char key_[15];
   float TvtrFreq;
-  if (strcmp(CurrentModeOPtext, "BATC^Stream") != 0)
+  float RealFreq;
+  float DLFreq;
+
+  if (strcmp(CurrentModeOPtext, "BATC^Stream") != 0)             // Not a stream
   {
     // Not Streaming, so display Frequency
     strcpy(Param,"freqoutput");
     GetConfigParam(PATH_PCONFIG, Param, Value);
-    if ((TabBandLO[CurrentBand] < 0.1) && (TabBandLO[CurrentBand] > -0.1))
+    if ((TabBandLO[CurrentBand] < 0.1) && (TabBandLO[CurrentBand] > -0.1))  // Direct
     {
-      if (strlen(Value) > 5)
+      // Check if QO-100
+      RealFreq = atof(Value);
+      if ((RealFreq > 2400) && (RealFreq < 2410))  // is QO-100
       {
-        strcpy(Freqtext, "Freq^");
+        DLFreq = RealFreq + 8089.50;
+        strcpy(Freqtext, "QO-100^");
+        snprintf(Value, 10, "%.2f", DLFreq);
         strcat(Freqtext, Value);
-        strcat(Freqtext, " M");
       }
-      else
+      else                                          // Not QO-100
       {
-        strcpy(Freqtext, "Freq^");
-        strcat(Freqtext, Value);
-        strcat(Freqtext, " MHz");
+        if (strlen(Value) > 5)
+        {
+          strcpy(Freqtext, "Freq^");
+          strcat(Freqtext, Value);
+          strcat(Freqtext, " M");
+        }
+        else
+        {
+          strcpy(Freqtext, "Freq^");
+          strcat(Freqtext, Value);
+          strcat(Freqtext, " MHz");
+        }
       }
     }
-    else
+    else                                                   // Transverter
     {
       strcpy(Freqtext, "F: ");
       strcat(Freqtext, Value);
@@ -15678,6 +16123,17 @@ void Define_Menu2()
 
 void Start_Highlights_Menu2()
 {
+  //Check Langstone status
+  if (file_exist("/home/pi/Langstone/LangstoneGUI.c") == 0)
+  {
+    AmendButtonStatus(ButtonNumber(2, 15), 0, "Switch to^Langstone", &Blue);
+    AmendButtonStatus(ButtonNumber(2, 15), 1, "Switch to^Langstone", &Green);
+  }
+  else
+  {
+    AmendButtonStatus(ButtonNumber(2, 15), 0, "Install^Langstone", &Blue);
+    AmendButtonStatus(ButtonNumber(2, 15), 1, "Install^Langstone", &Green);
+  }
 }
 
 void Define_Menu3()
@@ -15722,6 +16178,9 @@ void Define_Menu3()
   AddButtonStatus(button, "Set Stream^Outputs", &Blue);
   AddButtonStatus(button, "Set Stream^Outputs", &Green);
 
+  button = CreateButton(3, 13);
+  AddButtonStatus(button, "Audio out^RPi Jack", &Blue);
+
   // 4th line up Menu 3: Band Details, Preset Freqs, Preset SRs, Call and ADFRef
 
   button = CreateButton(3, 15);
@@ -15755,7 +16214,14 @@ void Define_Menu3()
 
 void Start_Highlights_Menu3()
 {
-  ;
+  if (strcmp(LMRXaudio, "rpi") == 0)
+  {
+    AmendButtonStatus(ButtonNumber(3, 13), 0, "Audio out^RPi Jack", &Blue);
+  }
+  else
+  {
+    AmendButtonStatus(ButtonNumber(3, 13), 0, "Audio out^USB dongle", &Blue);
+  }
 }
 
 void Define_Menu4()
@@ -16123,20 +16589,20 @@ void Define_Menu8()
   // Bottom Row, Menu 8
 
   button = CreateButton(8, 0);
-  AddButtonStatus(button, "MPlayer^ ", &Blue);
-  AddButtonStatus(button, "MPlayer^ ", &Green);
+  AddButtonStatus(button, "Play with^ffmpeg VLC", &Blue);
+  AddButtonStatus(button, "Play with^ffmpeg VLC", &Green);
 
   button = CreateButton(8, 1);
-  AddButtonStatus(button, "OMX^Player", &Blue);
-  AddButtonStatus(button, "OMX^Player", &Green);
+  AddButtonStatus(button, "Play with^OMX Player", &Blue);
+  AddButtonStatus(button, "Play with^OMX Player", &Green);
 
   button = CreateButton(8, 2);
-  AddButtonStatus(button, "VLC^Player", &Blue);
-  AddButtonStatus(button, "VLC^Player", &Green);
+  AddButtonStatus(button, "Play with^VLC", &Blue);
+  AddButtonStatus(button, "Play with^VLC", &Green);
 
   button = CreateButton(8, 3);
-  AddButtonStatus(button, "UDP^Output", &Blue);
-  AddButtonStatus(button, "UDP^Output", &Green);
+  AddButtonStatus(button, "Play to^UDP Stream", &Blue);
+  AddButtonStatus(button, "Play to^UDP Stream", &Green);
 
   button = CreateButton(8, 4);
   AddButtonStatus(button, "Beacon^MER", &Blue);
@@ -16228,10 +16694,17 @@ void Define_Menu8()
   AddButtonStatus(button, "Config", &Green);
 }
 
+
 void Start_Highlights_Menu8()
 {
   int indexoffset = 0;
-  char LMBtext[21];
+  char LMBtext[11][21];
+  char LMBStext[21];
+  int i;
+  int FreqIndex;
+  div_t div_10;
+  div_t div_100;
+  div_t div_1000;
 
   // Freq buttons
 
@@ -16245,46 +16718,83 @@ void Start_Highlights_Menu8()
     SetButtonStatus(ButtonNumber(CurrentMenu, 4), 0);
   }
 
-  snprintf(LMBtext, 15, "FREQ^%d", LMRXfreq[6 + indexoffset]);
-  AmendButtonStatus(ButtonNumber(8, 5), 0, LMBtext, &Blue);
-  AmendButtonStatus(ButtonNumber(8, 5), 1, LMBtext, &Green);
+  for(i = 1; i <= 10; i = i + 1)
+  {
+    if (i <= 5)
+    {
+      FreqIndex = i + 5 + indexoffset;
+    }
+    else
+    {
+      FreqIndex = i + indexoffset - 5;    
+    }
+    div_10 = div(LMRXfreq[FreqIndex], 10);
+    div_1000 = div(LMRXfreq[FreqIndex], 1000);
+
+    if(div_10.rem != 0)  // last character not zero, so make answer of form xxx.xxx
+    {
+      snprintf(LMBtext[i], 15, "%d.%03d", div_1000.quot, div_1000.rem);
+    }
+    else
+    {
+      div_100 = div(LMRXfreq[FreqIndex], 100);
+
+      if(div_100.rem != 0)  // last but one character not zero, so make answer of form xxx.xx
+      {
+        snprintf(LMBtext[i], 15, "%d.%02d", div_1000.quot, div_1000.rem / 10);
+      }
+      else
+      {
+        if(div_1000.rem != 0)  // last but two character not zero, so make answer of form xxx.x
+        {
+          snprintf(LMBtext[i], 15, "%d.%d", div_1000.quot, div_1000.rem / 100);
+        }
+        else  // integer MHz, so just xxx.0
+        {
+          snprintf(LMBtext[i], 15, "%d.0", div_1000.quot);
+        }
+      }
+    }
+    if (i == 5)
+    {
+      strcat(LMBtext[i], "^Keyboard");
+    }
+    else
+    {
+      strcat(LMBtext[i], "^MHz");
+    }
+  }
+
+  AmendButtonStatus(ButtonNumber(8, 5), 0, LMBtext[1], &Blue);
+  AmendButtonStatus(ButtonNumber(8, 5), 1, LMBtext[1], &Green);
   
-  snprintf(LMBtext, 15, "FREQ^%d", LMRXfreq[7 + indexoffset]);
-  AmendButtonStatus(ButtonNumber(8, 6), 0, LMBtext, &Blue);
-  AmendButtonStatus(ButtonNumber(8, 6), 1, LMBtext, &Green);
+  AmendButtonStatus(ButtonNumber(8, 6), 0, LMBtext[2], &Blue);
+  AmendButtonStatus(ButtonNumber(8, 6), 1, LMBtext[2], &Green);
   
-  snprintf(LMBtext, 15, "FREQ^%d", LMRXfreq[8 + indexoffset]);
-  AmendButtonStatus(ButtonNumber(8, 7), 0, LMBtext, &Blue);
-  AmendButtonStatus(ButtonNumber(8, 7), 1, LMBtext, &Green);
+  AmendButtonStatus(ButtonNumber(8, 7), 0, LMBtext[3], &Blue);
+  AmendButtonStatus(ButtonNumber(8, 7), 1, LMBtext[3], &Green);
   
-  snprintf(LMBtext, 15, "FREQ^%d", LMRXfreq[9 + indexoffset]);
-  AmendButtonStatus(ButtonNumber(8, 8), 0, LMBtext, &Blue);
-  AmendButtonStatus(ButtonNumber(8, 8), 1, LMBtext, &Green);
+  AmendButtonStatus(ButtonNumber(8, 8), 0, LMBtext[4], &Blue);
+  AmendButtonStatus(ButtonNumber(8, 8), 1, LMBtext[4], &Green);
   
-  snprintf(LMBtext, 20, "Keyboard^%d", LMRXfreq[10 + indexoffset]);
-  AmendButtonStatus(ButtonNumber(8, 9), 0, LMBtext, &Blue);
-  AmendButtonStatus(ButtonNumber(8, 9), 1, LMBtext, &Green);
+  AmendButtonStatus(ButtonNumber(8, 9), 0, LMBtext[5], &Blue);
+  AmendButtonStatus(ButtonNumber(8, 9), 1, LMBtext[5], &Green);
   
-  snprintf(LMBtext, 15, "FREQ^%d", LMRXfreq[1 + indexoffset]);
-  AmendButtonStatus(ButtonNumber(8, 10), 0, LMBtext, &Blue);
-  AmendButtonStatus(ButtonNumber(8, 10), 1, LMBtext, &Green);
+  AmendButtonStatus(ButtonNumber(8, 10), 0, LMBtext[6], &Blue);
+  AmendButtonStatus(ButtonNumber(8, 10), 1, LMBtext[6], &Green);
   
-  snprintf(LMBtext, 15, "FREQ^%d", LMRXfreq[2 + indexoffset]);
-  AmendButtonStatus(ButtonNumber(8, 11), 0, LMBtext, &Blue);
-  AmendButtonStatus(ButtonNumber(8, 11), 1, LMBtext, &Green);
+  AmendButtonStatus(ButtonNumber(8, 11), 0, LMBtext[7], &Blue);
+  AmendButtonStatus(ButtonNumber(8, 11), 1, LMBtext[7], &Green);
   
-  snprintf(LMBtext, 15, "FREQ^%d", LMRXfreq[3 + indexoffset]);
-  AmendButtonStatus(ButtonNumber(8, 12), 0, LMBtext, &Blue);
-  AmendButtonStatus(ButtonNumber(8, 12), 1, LMBtext, &Green);
+  AmendButtonStatus(ButtonNumber(8, 12), 0, LMBtext[8], &Blue);
+  AmendButtonStatus(ButtonNumber(8, 12), 1, LMBtext[8], &Green);
   
-  snprintf(LMBtext, 15, "FREQ^%d", LMRXfreq[4 + indexoffset]);
-  AmendButtonStatus(ButtonNumber(8, 13), 0, LMBtext, &Blue);
-  AmendButtonStatus(ButtonNumber(8, 13), 1, LMBtext, &Green);
+  AmendButtonStatus(ButtonNumber(8, 13), 0, LMBtext[9], &Blue);
+  AmendButtonStatus(ButtonNumber(8, 13), 1, LMBtext[9], &Green);
   
-  snprintf(LMBtext, 15, "FREQ^%d", LMRXfreq[5 + indexoffset]);
-  AmendButtonStatus(ButtonNumber(8, 14), 0, LMBtext, &Blue);
-  AmendButtonStatus(ButtonNumber(8, 14), 1, LMBtext, &Green);
-  
+  AmendButtonStatus(ButtonNumber(8, 14), 0, LMBtext[10], &Blue);
+  AmendButtonStatus(ButtonNumber(8, 14), 1, LMBtext[10], &Green);
+
   if ( LMRXfreq[0] == LMRXfreq[6 + indexoffset] )
   {
     SelectInGroupOnMenu(8, 5, 14, 5, 1);
@@ -16333,29 +16843,29 @@ void Start_Highlights_Menu8()
     indexoffset = 6;
   }
 
-  snprintf(LMBtext, 15, "SR^%d", LMRXsr[1 + indexoffset]);
-  AmendButtonStatus(ButtonNumber(8, 15), 0, LMBtext, &Blue);
-  AmendButtonStatus(ButtonNumber(8, 15), 1, LMBtext, &Green);
+  snprintf(LMBStext, 15, "SR^%d", LMRXsr[1 + indexoffset]);
+  AmendButtonStatus(ButtonNumber(8, 15), 0, LMBStext, &Blue);
+  AmendButtonStatus(ButtonNumber(8, 15), 1, LMBStext, &Green);
   
-  snprintf(LMBtext, 15, "SR^%d", LMRXsr[2 + indexoffset]);
-  AmendButtonStatus(ButtonNumber(8, 16), 0, LMBtext, &Blue);
-  AmendButtonStatus(ButtonNumber(8, 16), 1, LMBtext, &Green);
+  snprintf(LMBStext, 15, "SR^%d", LMRXsr[2 + indexoffset]);
+  AmendButtonStatus(ButtonNumber(8, 16), 0, LMBStext, &Blue);
+  AmendButtonStatus(ButtonNumber(8, 16), 1, LMBStext, &Green);
   
-  snprintf(LMBtext, 15, "SR^%d", LMRXsr[3 + indexoffset]);
-  AmendButtonStatus(ButtonNumber(8, 17), 0, LMBtext, &Blue);
-  AmendButtonStatus(ButtonNumber(8, 17), 1, LMBtext, &Green);
+  snprintf(LMBStext, 15, "SR^%d", LMRXsr[3 + indexoffset]);
+  AmendButtonStatus(ButtonNumber(8, 17), 0, LMBStext, &Blue);
+  AmendButtonStatus(ButtonNumber(8, 17), 1, LMBStext, &Green);
   
-  snprintf(LMBtext, 15, "SR^%d", LMRXsr[4 + indexoffset]);
-  AmendButtonStatus(ButtonNumber(8, 18), 0, LMBtext, &Blue);
-  AmendButtonStatus(ButtonNumber(8, 18), 1, LMBtext, &Green);
+  snprintf(LMBStext, 15, "SR^%d", LMRXsr[4 + indexoffset]);
+  AmendButtonStatus(ButtonNumber(8, 18), 0, LMBStext, &Blue);
+  AmendButtonStatus(ButtonNumber(8, 18), 1, LMBStext, &Green);
   
-  snprintf(LMBtext, 15, "SR^%d", LMRXsr[5 + indexoffset]);
-  AmendButtonStatus(ButtonNumber(8, 19), 0, LMBtext, &Blue);
-  AmendButtonStatus(ButtonNumber(8, 19), 1, LMBtext, &Green);
+  snprintf(LMBStext, 15, "SR^%d", LMRXsr[5 + indexoffset]);
+  AmendButtonStatus(ButtonNumber(8, 19), 0, LMBStext, &Blue);
+  AmendButtonStatus(ButtonNumber(8, 19), 1, LMBStext, &Green);
   
-  snprintf(LMBtext, 15, "SR^%d", LMRXsr[6 + indexoffset]);
-  AmendButtonStatus(ButtonNumber(8, 20), 0, LMBtext, &Blue);
-  AmendButtonStatus(ButtonNumber(8, 20), 1, LMBtext, &Green);
+  snprintf(LMBStext, 15, "SR^%d", LMRXsr[6 + indexoffset]);
+  AmendButtonStatus(ButtonNumber(8, 20), 0, LMBStext, &Blue);
+  AmendButtonStatus(ButtonNumber(8, 20), 1, LMBStext, &Green);
 
   if ( LMRXsr[0] == LMRXsr[1 + indexoffset] )
   {
@@ -16384,17 +16894,177 @@ void Start_Highlights_Menu8()
 
   if (strcmp(LMRXmode, "sat") == 0)
   {
-    strcpy(LMBtext, "QO-100 (");
-    strcat(LMBtext, LMRXinput);
-    strcat(LMBtext, ")^ ");
-    AmendButtonStatus(ButtonNumber(8, 21), 0, LMBtext, &Blue);
+    strcpy(LMBStext, "QO-100 (");
+    strcat(LMBStext, LMRXinput);
+    strcat(LMBStext, ")^ ");
+    AmendButtonStatus(ButtonNumber(8, 21), 0, LMBStext, &Blue);
   }
   else
   {
-    strcpy(LMBtext, " ^Terrestrial (");
-    strcat(LMBtext, LMRXinput);
-    strcat(LMBtext, ")");
-    AmendButtonStatus(ButtonNumber(8, 21), 0, LMBtext, &Blue);
+    strcpy(LMBStext, " ^Terrestrial (");
+    strcat(LMBStext, LMRXinput);
+    strcat(LMBStext, ")");
+    AmendButtonStatus(ButtonNumber(8, 21), 0, LMBStext, &Blue);
+  }
+}
+
+void Define_Menu10()
+{
+  int button;
+
+  float TvtrFreq;
+  char Freqtext[31];
+  char Value[31];
+
+  strcpy(MenuTitle[10], "Transmit Frequency Selection Menu (10)"); 
+
+  // Bottom Row, Menu 10
+
+  if ((TabBandLO[5] < 0.1) && (TabBandLO[5] > -0.1))
+  {
+    strcpy(Freqtext, FreqLabel[5]);
+  }
+  else
+  {
+    strcpy(Freqtext, "F: ");
+    strcat(Freqtext, TabFreq[5]);
+    strcat(Freqtext, "^T:");
+    TvtrFreq = atof(TabFreq[5]) + TabBandLO[CurrentBand];
+    if (TvtrFreq < 0)
+    {
+      TvtrFreq = TvtrFreq * -1;
+    }
+    snprintf(Value, 10, "%.2f", TvtrFreq);
+    strcat(Freqtext, Value);
+  }
+
+  button = CreateButton(10, 0);
+  AddButtonStatus(button, FreqLabel[5], &Blue);
+  AddButtonStatus(button, FreqLabel[5], &Green);
+
+  button = CreateButton(10, 1);
+  AddButtonStatus(button, FreqLabel[6], &Blue);
+  AddButtonStatus(button, FreqLabel[6], &Green);
+
+  button = CreateButton(10, 2);
+  AddButtonStatus(button, FreqLabel[7], &Blue);
+  AddButtonStatus(button, FreqLabel[7], &Green);
+
+  button = CreateButton(10, 3);
+  AddButtonStatus(button, FreqLabel[8], &Blue);
+  AddButtonStatus(button, FreqLabel[8], &Green);
+
+  button = CreateButton(10, 4);
+  AddButtonStatus(button, "Cancel", &DBlue);
+  AddButtonStatus(button, "Cancel", &LBlue);
+
+  // 2nd Row, Menu 16
+
+  button = CreateButton(10, 5);
+  AddButtonStatus(button, FreqLabel[0], &Blue);
+  AddButtonStatus(button, FreqLabel[0], &Green);
+
+  button = CreateButton(10, 6);
+  AddButtonStatus(button, FreqLabel[1], &Blue);
+  AddButtonStatus(button, FreqLabel[1], &Green);
+
+  button = CreateButton(10, 7);
+  AddButtonStatus(button, FreqLabel[2], &Blue);
+  AddButtonStatus(button, FreqLabel[2], &Green);
+
+  button = CreateButton(10, 8);
+  AddButtonStatus(button, FreqLabel[3], &Blue);
+  AddButtonStatus(button, FreqLabel[3], &Green);
+
+  button = CreateButton(10, 9);
+  AddButtonStatus(button, FreqLabel[4], &Blue);
+  AddButtonStatus(button, FreqLabel[4], &Green);
+
+  button = CreateButton(10, 10);
+  AddButtonStatus(button, QOFreqButts[0], &Blue);
+  AddButtonStatus(button, QOFreqButts[0], &Green);
+
+  button = CreateButton(10, 11);
+  AddButtonStatus(button, QOFreqButts[1], &Blue);
+  AddButtonStatus(button, QOFreqButts[1], &Green);
+
+  button = CreateButton(10, 12);
+  AddButtonStatus(button, QOFreqButts[2], &Blue);
+  AddButtonStatus(button, QOFreqButts[2], &Green);
+
+  button = CreateButton(10, 13);
+  AddButtonStatus(button, QOFreqButts[3], &Blue);
+  AddButtonStatus(button, QOFreqButts[3], &Green);
+
+  button = CreateButton(10, 14);
+  AddButtonStatus(button, QOFreqButts[4], &Blue);
+  AddButtonStatus(button, QOFreqButts[4], &Green);
+
+  button = CreateButton(10, 15);
+  AddButtonStatus(button, QOFreqButts[5], &Blue);
+  AddButtonStatus(button, QOFreqButts[5], &Green);
+
+  button = CreateButton(10, 16);
+  AddButtonStatus(button, QOFreqButts[6], &Blue);
+  AddButtonStatus(button, QOFreqButts[6], &Green);
+
+  button = CreateButton(10, 17);
+  AddButtonStatus(button, QOFreqButts[7], &Blue);
+  AddButtonStatus(button, QOFreqButts[7], &Green);
+
+  button = CreateButton(10, 18);
+  AddButtonStatus(button, QOFreqButts[8], &Blue);
+  AddButtonStatus(button, QOFreqButts[8], &Green);
+
+  button = CreateButton(10, 19);
+  AddButtonStatus(button, QOFreqButts[9], &Blue);
+  AddButtonStatus(button, QOFreqButts[9], &Green);
+}
+
+void Start_Highlights_Menu10()
+{
+  // Frequency
+  char Param[255];
+  char Value[255];
+  int index;
+  int NoButton;
+
+  // Update info in memory
+  ReadPresets();
+
+  // Look up current transmit frequency for highlighting
+  strcpy(Param,"freqoutput");
+  GetConfigParam(PATH_PCONFIG, Param, Value);
+
+  for(index = 0; index <= 8 ; index = index + 1)  // 9 would be cancel button
+  {
+    // Define the button text
+    MakeFreqText(index);
+    NoButton = index + 5; // Valid for bottom row
+    if (index > 4)          // Overwrite for top row
+    {
+      NoButton = index - 5;
+    }
+
+    AmendButtonStatus(ButtonNumber(10, NoButton), 0, FreqBtext, &Blue);
+    AmendButtonStatus(ButtonNumber(10, NoButton), 1, FreqBtext, &Green);
+
+    //Highlight the Current Button
+    if(strcmp(Value, TabFreq[index]) == 0)
+    {
+      SelectInGroupOnMenu(10, 5, 9, NoButton, 1);
+      SelectInGroupOnMenu(10, 0, 3, NoButton, 1);
+    }
+  }
+
+  for(index = 10; index <= 19 ; index = index + 1)
+  {
+    //Highlight the Current Button
+    if (strcmp(Value, QOFreq[index - 10]) == 0)
+    {
+      SelectInGroupOnMenu(10, 0, 3, index, 1);
+      SelectInGroupOnMenu(10, 5, 19, index, 1);
+    }
   }
 }
 
@@ -16439,6 +17109,7 @@ void Define_Menu11()
   button = CreateButton(11, 6);
   AddButtonStatus(button, "Carrier", &Blue);
   AddButtonStatus(button, "Carrier", &Green);
+  AddButtonStatus(button, "Carrier", &Grey);
 
   button = CreateButton(11, 8);
   AddButtonStatus(button, "Pilots^Off", &LBlue);
@@ -16537,6 +17208,7 @@ void Define_Menu12()
   button = CreateButton(12, 7);
   AddButtonStatus(button, TabEncoding[2], &Blue);
   AddButtonStatus(button, TabEncoding[2], &Green);
+  AddButtonStatus(button, TabEncoding[2], &Grey);
 
   button = CreateButton(12, 8);
   AddButtonStatus(button, TabEncoding[3], &Blue);
@@ -16573,6 +17245,7 @@ void Start_Highlights_Menu12()
   {
     SelectInGroupOnMenu(12, 5, 9, 9, 1);
   }
+  GreyOut12();  // Grey out H265 if not available
 }
 
 void Define_Menu13()
@@ -17698,8 +18371,12 @@ void Start_Highlights_Menu27()
 {
   // Preset Frequency Change 
   int index;
+  int FreqIndex;
   int NoButton;
   char FreqLabel[31];
+  div_t div_10;
+  div_t div_100;
+  div_t div_1000;
 
   if (CallingMenu == 3)      // TX Presets
   {
@@ -17727,11 +18404,39 @@ void Start_Highlights_Menu27()
       }
       if(strcmp(LMRXmode, "sat") == 0)
       {
-        snprintf(FreqLabel, 30, "%i", LMRXfreq[index]);
+        FreqIndex = index;
       }
       else
       {
-        snprintf(FreqLabel, 30, "%i", LMRXfreq[index + 10]);
+        FreqIndex = index + 10;
+      }
+
+      div_10 = div(LMRXfreq[FreqIndex], 10);
+      div_1000 = div(LMRXfreq[FreqIndex], 1000);
+
+      if(div_10.rem != 0)  // last character not zero, so make answer of form xxx.xxx
+      {
+        snprintf(FreqLabel, 15, "%d.%03d", div_1000.quot, div_1000.rem);
+      }
+      else
+      {
+        div_100 = div(LMRXfreq[FreqIndex], 100);
+
+        if(div_100.rem != 0)  // last but one character not zero, so make answer of form xxx.xx
+        {
+          snprintf(FreqLabel, 15, "%d.%02d", div_1000.quot, div_1000.rem / 10);
+        }
+        else
+        {
+          if(div_1000.rem != 0)  // last but two character not zero, so make answer of form xxx.x
+          {
+            snprintf(FreqLabel, 15, "%d.%d", div_1000.quot, div_1000.rem / 100);
+          }
+          else  // integer MHz, so just xxx.0
+          {
+            snprintf(FreqLabel, 15, "%d.0", div_1000.quot);
+          }
+        }
       }
       AmendButtonStatus(ButtonNumber(27, NoButton), 0, FreqLabel, &Blue);
       AmendButtonStatus(ButtonNumber(27, NoButton), 1, FreqLabel, &Green);
@@ -18155,12 +18860,14 @@ void Define_Menu34()
   button = CreateButton(34, 6);
   AddButtonStatus(button, "Boot to^Langstone", &Blue);
   AddButtonStatus(button, "Boot to^Langstone", &Green);
+  AddButtonStatus(button, "Boot to^Langstone", &Grey);
 
 //  button = CreateButton(34, 7);
 //  AddButtonStatus(button, "Boot to^Lime TRX", &Blue);
 //  AddButtonStatus(button, "Boot to^Lime TRX", &Green);
 
 }
+
 
 void Start_Highlights_Menu34()
 {
@@ -18182,7 +18889,12 @@ void Start_Highlights_Menu34()
     SetButtonStatus(ButtonNumber(CurrentMenu, 6), 0);
     //SetButtonStatus(ButtonNumber(CurrentMenu, 7), 1);
   }
-  printf("start=%s-\n",StartApp);
+
+  // Over-ride if Langstone not installed (set to Grey)
+  if (file_exist("/home/pi/Langstone/LangstoneGUI.c") != 0)
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 6), 2);
+  }
 }
 
 // Menu 35 Stream output Selector
@@ -18405,22 +19117,41 @@ void Define_Menu39()
   button = CreateButton(39, 1);
   AddButtonStatus(button,"Back-up^Langstone",&Blue);
   AddButtonStatus(button,"Back-up^Langstone",&Green);
+  AddButtonStatus(button,"Back-up^Langstone",&Grey);
 
   button = CreateButton(39, 2);
   AddButtonStatus(button,"Update^Langstone",&Blue);
   AddButtonStatus(button,"Update^Langstone",&Green);
+  AddButtonStatus(button,"Update^Langstone",&Grey);
 
   button = CreateButton(39, 3);
   AddButtonStatus(button,"Restore^Langstone",&Blue);
   AddButtonStatus(button,"Restore^Langstone",&Green);
+  AddButtonStatus(button,"Restore^Langstone",&Grey);
 
   button = CreateButton(39, 4);
   AddButtonStatus(button, "Exit", &DBlue);
   AddButtonStatus(button, "Exit", &LBlue);
+
+  button = CreateButton(39, 5);
+  AddButtonStatus(button,"Install^Langstone",&Blue);
+  AddButtonStatus(button,"Install^Langstone",&Green);
+  AddButtonStatus(button,"Install^Langstone",&Grey);
 }
 
 void Start_Highlights_Menu39()
 {
+  //Check Langstone status
+  if (file_exist("/home/pi/Langstone/LangstoneGUI.c") == 0)
+  {
+    SetButtonStatus(ButtonNumber(39, 5), 2);
+  }
+  else
+  {
+    SetButtonStatus(ButtonNumber(39, 1), 2);
+    SetButtonStatus(ButtonNumber(39, 2), 2);
+    SetButtonStatus(ButtonNumber(39, 3), 2);
+  }
 }
 
 void Define_Menu42()
@@ -18742,10 +19473,10 @@ void Define_Menu45()
   AddButtonStatus(button, "Webcam^inc C920", &Green);
   AddButtonStatus(button, "Webcam^inc C920", &Grey);
 
-  button = CreateButton(45, 2);                     // Raw C920
-  AddButtonStatus(button, "Raw C920^2 Mbps", &Blue);
-  AddButtonStatus(button, "Raw C920^2 Mbps", &Green);
-  AddButtonStatus(button, "Raw C920^2 Mbps", &Grey);
+  //button = CreateButton(45, 2);                     // Raw C920 not used
+  //AddButtonStatus(button, "Raw C920^2 Mbps", &Blue);
+  //AddButtonStatus(button, "Raw C920^2 Mbps", &Green);
+  //AddButtonStatus(button, "Raw C920^2 Mbps", &Grey);
 
   button = CreateButton(45, 3);                     // HDMI
   AddButtonStatus(button, TabSource[8], &Blue);
@@ -18768,10 +19499,10 @@ void Define_Menu45()
   AddButtonStatus(button, TabSource[1], &Green);
   AddButtonStatus(button, TabSource[1], &Grey);
 
-  button = CreateButton(45, 7);                     // TCAnim
-  AddButtonStatus(button, TabSource[2], &Blue);
-  AddButtonStatus(button, TabSource[2], &Green);
-  AddButtonStatus(button, TabSource[2], &Grey);
+  // button = CreateButton(45, 7);                     // TCAnim not avilable on RPi 4
+  // AddButtonStatus(button, TabSource[2], &Blue);
+  // AddButtonStatus(button, TabSource[2], &Green);
+  // AddButtonStatus(button, TabSource[2], &Grey);
 
   button = CreateButton(45, 8);                     // TestCard
   AddButtonStatus(button, TabSource[3], &Blue);
@@ -19201,7 +19932,7 @@ int main(int argc, char **argv)
     exit(1);
   }
 
-  // Replace BATC Logo with IP address with BATC Logo alone
+  // Show Portsdown Logo
   system("sudo fbi -T 1 -noverbose -a \"/home/pi/rpidatv/scripts/images/BATC_Black.png\" >/dev/null 2>/dev/null");
   system("(sleep 1; sudo killall -9 fbi >/dev/null 2>/dev/null) &");
 
@@ -19235,6 +19966,7 @@ int main(int argc, char **argv)
   ReadRTLPresets();
   ReadRXPresets();
   ReadStreamPresets();
+  ReadLMRXPresets();
   ReadLangstone();
 
   // Initialise all the button Status Indexes to 0
@@ -19250,6 +19982,7 @@ int main(int argc, char **argv)
   Define_Menu7();
   Define_Menu8();
 
+  Define_Menu10();
   Define_Menu11();
   Define_Menu12();
   Define_Menu13();
@@ -19291,6 +20024,12 @@ int main(int argc, char **argv)
 
   // Check if DATV Express Server required and, if so, start it
   CheckExpress();
+
+  // Check Lime connected if selected
+  CheckLimeReady();	  CheckLimeReady();
+
+  // Check for LimeNET Micro
+  LimeNETMicroDet = DetectLimeNETMicro();
 
   // Set the Band (and filter) Switching
   // Must be done after (not before) starting DATV Express Server
