@@ -75,27 +75,6 @@ sudo apt-get -y install libavcodec-dev libavformat-dev libswscale-dev libavdevic
 sudo apt-get -y install mplayer vlc # 202004300 Used for video monitor and LongMynd (not libpng12-dev)
 sudo apt-get -y install autoconf libtool # for fdk aac
 
-# Langstone packages not being installed:
-#sudo apt-get -y install libxml2 libxml2-dev bison flex libcdk5-dev
-#sudo apt-get -y install libaio-dev libserialport-dev libxml2-dev libavahi-client-dev 
-#sudo apt-get -y install gr-iio
-#sudo apt-get -y install gnuradio
-#sudo apt-get -y install raspi-gpio
-
-# Langstone Installs WiringPi:
-#cd /tmp
-#wget https://project-downloads.drogon.net/wiringpi-latest.deb
-#sudo dpkg -i wiringpi-latest.deb
-#cd ~
-
-# Langstone installs libiio
-#git clone https://github.com/analogdevicesinc/libiio.git
-#cd libiio
-#cmake ./
-#make all
-#sudo make install
-
-
 
 # Freqshow install no longer required:
 #sudo apt-get -y install python-pip pandoc python-numpy pandoc python-pygame gdebi-core # 20180101 FreqShow
@@ -213,6 +192,9 @@ wget https://github.com/${GIT_SRC}/avc2ts/archive/master.zip
 unzip -o master.zip
 mv avc2ts-master avc2ts
 rm master.zip
+
+# Change the Provider ID
+sed -i 's/Portsdown/Portsdown 4/g' /home/pi/avc2ts/avc2ts.cpp
 
 # Compile rpidatv gui
 echo
@@ -343,21 +325,16 @@ make dvb
 cp limesdr_dvb /home/pi/rpidatv/bin/
 cd /home/pi
 
-# Download the previously selected version of LongMynd
+# Install LongMynd
 echo
 echo "--------------------------------------------"
 echo "----- Installing the LongMynd Receiver -----"
 echo "--------------------------------------------"
-wget https://github.com/${GIT_SRC}/longmynd/archive/master.zip
-unzip -o master.zip
-mv longmynd-master longmynd
-rm master.zip
-
+cd /home/pi
+cp -r /home/pi/rpidatv/src/longmynd/ /home/pi/
 cd longmynd
 make
 cd /home/pi
-
-
 
 # Download, compile and install the executable for hardware shutdown button
 echo
@@ -475,8 +452,6 @@ echo "--------------------------------------"
 echo "alias menu='/home/pi/rpidatv/scripts/menu.sh menu'" >> /home/pi/.bash_aliases
 echo "alias gui='/home/pi/rpidatv/scripts/utils/guir.sh'"  >> /home/pi/.bash_aliases
 echo "alias ugui='/home/pi/rpidatv/scripts/utils/uguir.sh'"  >> /home/pi/.bash_aliases
-#echo "alias stopl='/home/pi/Langstone/stop'"  >> /home/pi/.bash_aliases
-#echo "alias runl='/home/pi/Langstone/run'"  >> /home/pi/.bash_aliases
 
 # Modify .bashrc to run startup script on ssh logon
 #cd /home/pi
