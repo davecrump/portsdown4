@@ -992,18 +992,7 @@ void PrepSWUpdate()
 
   // Download new latest version file
   strcpy(LinuxCommand, "wget -4 --timeout=2 https://raw.githubusercontent.com/BritishAmateurTelevisionClub/");
-  if (GetLinuxVer() == 8)                        // Jessie, so rpidatv repo
-  {
-    strcat(LinuxCommand, "rpidatv/master/scripts/latest_version.txt ");
-  }
-  else if (GetLinuxVer() == 9)                   // Stretch, so portsdown repo
-  {
-    strcat(LinuxCommand, "portsdown/master/scripts/latest_version.txt ");
-  }
-  else                                           // Buster, so portsdown-a27 repo
-  {
-    strcat(LinuxCommand, "portsdown-a27/master/scripts/latest_version.txt ");
-  }
+  strcat(LinuxCommand, "portsdown4/master/scripts/latest_version.txt ");
   strcat(LinuxCommand, "-O /home/pi/rpidatv/scripts/latest_version.txt  >/dev/null 2>/dev/null");
   system(LinuxCommand);
 
@@ -1091,15 +1080,13 @@ void ExecuteUpdate(int NoButton)
       strcpy(LinuxCommand, "rm /home/pi/update.sh >/dev/null 2>/dev/null");
       system(LinuxCommand);
 
-      // This is only for Buster A27, so
-
-      printf("Downloading Normal Update Buster A27 Version\n");
-      strcpy(LinuxCommand, "wget https://raw.githubusercontent.com/BritishAmateurTelevisionClub/portsdown-a27/master/update.sh");
+      printf("Downloading Normal Update Portsdown 4 Version\n");
+      strcpy(LinuxCommand, "wget https://raw.githubusercontent.com/BritishAmateurTelevisionClub/portsdown4/master/update.sh");
       strcat(LinuxCommand, " -O /home/pi/update.sh");
       system(LinuxCommand);
 
       strcpy(Step, "Step 2 of 10\\nLoading Update Script\\n\\nXX--------");
-      DisplayUpdateMsg("Latest Buster A27", Step);
+      DisplayUpdateMsg("Latest Portsdown 4", Step);
 
       strcpy(LinuxCommand, "chmod +x /home/pi/update.sh");   
       system(LinuxCommand);
@@ -1125,15 +1112,13 @@ void ExecuteUpdate(int NoButton)
       strcpy(LinuxCommand, "rm /home/pi/update.sh >/dev/null 2>/dev/null");
       system(LinuxCommand);
 
-      // This is only for Buster A27, so
-
-      printf("Downloading Development Update Buster A27 Version\n");
-      strcpy(LinuxCommand, "wget https://raw.githubusercontent.com/davecrump/portsdown-a27/master/update.sh");
+      printf("Downloading Development Update Portsdown 4 Version\n");
+      strcpy(LinuxCommand, "wget https://raw.githubusercontent.com/davecrump/portsdown4/master/update.sh");
       strcat(LinuxCommand, " -O /home/pi/update.sh");
       system(LinuxCommand);
 
       strcpy(Step, "Step 2 of 10\\nLoading Update Script\\n\\nXX--------");
-      DisplayUpdateMsg("Latest Development Buster A27", Step);
+      DisplayUpdateMsg("Latest Development Portsdown 4", Step);
 
       strcpy(LinuxCommand, "chmod +x /home/pi/update.sh");   
       system(LinuxCommand);
@@ -1156,7 +1141,7 @@ void ExecuteUpdate(int NoButton)
 
 void LimeFWUpdate(int button)
 {
-  // Buster A27 and selectable FW.  0 = 1.29. 1 = 1.30, 2 = Custom
+  // Portsdown 4 and selectable FW.  0 = 1.29. 1 = 1.30, 2 = Custom
   if (CheckLimeUSBConnect() == 0)
   {
     MsgBox4("Upgrading Lime USB", "To latest standard", "Using LimeUtil 19.04", "Please Wait");
@@ -10327,7 +10312,7 @@ void InfoScreen()
   }
   else if (GetLinuxVer() == 10)
   {
-    strcat(swversion, "Buster A27 ");
+    strcat(swversion, "Buster ");
   }
   GetSWVers(result);
   strcat(swversion, result);
