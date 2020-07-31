@@ -1,3 +1,6 @@
+202008012
+Correct Update Scripts
+
 20200801
 Experimental support for Pluto in Test Card and WebCam H264 modes
 Add vlc with ffmpeg receive player
