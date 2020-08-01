@@ -192,7 +192,7 @@ DisplayUpdateMsg "Step 7 of 10\nCompiling Portsdown SW\n\nXXXXXX----"
 # Compile rpidatv gui
 sudo killall -9 rpidatvgui
 echo "Installing rpidatvgui"
-cd gui
+cd /home/pi/rpidatv/src/gui
 #make clean
 make
 sudo make install
