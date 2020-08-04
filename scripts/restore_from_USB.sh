@@ -24,10 +24,6 @@ cp -f /media/usb/portsdown_settings/siggencal.txt /home/pi/rpidatv/src/siggen/si
 cp -f /home/pi/rpidatv/src/siggen/siggenconfig.txt /home/pi/rpidatv/src/siggen/siggenconfig.txt.bak
 cp -f /media/usb/portsdown_settings/siggenconfig.txt /home/pi/rpidatv/src/siggen/siggenconfig.txt
 
-# touchcal.txt
-cp -f $PATHSCRIPT"/touchcal.txt" $PATHSCRIPT"/touchcal.txt.bak"
-cp -f /media/usb/portsdown_settings/touchcal.txt $PATHSCRIPT"/touchcal.txt"
-
 # rtl-fm_presets.txt
 cp -f $PATHSCRIPT"/rtl-fm_presets.txt" $PATHSCRIPT"/rtl-fm_presets.txt.bak"
 cp -f /media/usb/portsdown_settings/rtl-fm_presets.txt $PATHSCRIPT"/rtl-fm_presets.txt"

@@ -112,9 +112,6 @@ cp -f -r /home/pi/rpidatv/src/siggen/siggencal.txt "$PATHUBACKUP"/siggencal.txt
 # Make a safe copy of siggenconfig.txt
 cp -f -r /home/pi/rpidatv/src/siggen/siggenconfig.txt "$PATHUBACKUP"/siggenconfig.txt
 
-# Make a safe copy of touchcal.txt
-cp -f -r /home/pi/rpidatv/scripts/touchcal.txt "$PATHUBACKUP"/touchcal.txt >/dev/null 2>/dev/null
-
 # Make a safe copy of rtl-fm_presets.txt
 cp -f -r "$PATHSCRIPT"/rtl-fm_presets.txt "$PATHUBACKUP"/rtl-fm_presets.txt
 
@@ -282,9 +279,6 @@ cp -f -r "$PATHUBACKUP"/siggencal.txt /home/pi/rpidatv/src/siggen/siggencal.txt
 
 # Restore the user's original siggenconfig.txt
 cp -f -r "$PATHUBACKUP"/siggenconfig.txt /home/pi/rpidatv/src/siggen/siggenconfig.txt
-
-# Restore the user's original touchcal.txt
-cp -f -r "$PATHUBACKUP"/touchcal.txt /home/pi/rpidatv/scripts/touchcal.txt >/dev/null 2>/dev/null
 
 # Restore the user's rtl-fm_presets.txt
 cp -f -r "$PATHUBACKUP"/rtl-fm_presets.txt "$PATHSCRIPT"/rtl-fm_presets.txt

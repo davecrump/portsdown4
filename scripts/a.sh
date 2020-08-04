@@ -25,7 +25,6 @@ source /home/pi/rpidatv/scripts/a_functions.sh
 sudo killall -9 ffmpeg >/dev/null 2>/dev/null
 sudo killall rpidatv >/dev/null 2>/dev/null
 sudo killall -9 avc2ts >/dev/null 2>/dev/null
-sudo killall tcanim1v16 >/dev/null 2>/dev/null
 # Kill netcat that night have been started for Express Server
 sudo killall netcat >/dev/null 2>/dev/null
 sudo killall -9 netcat >/dev/null 2>/dev/null
@@ -51,6 +50,7 @@ PIDPMT=$(get_config_var pidpmt $PCONFIGFILE)
 PIDSTART=$(get_config_var pidstart $PCONFIGFILE)
 SERVICEID=$(get_config_var serviceid $PCONFIGFILE)
 LOCATOR=$(get_config_var locator $PCONFIGFILE)
+FORMAT=$(get_config_var format $PCONFIGFILE)
 
 PIN_I=$(get_config_var gpio_i $PCONFIGFILE)
 PIN_Q=$(get_config_var gpio_q $PCONFIGFILE)
@@ -561,6 +561,33 @@ case "$MODE_INPUT" in
       exit
     fi
 
+    # Experimental Pluto Code
+
+    if [ "$MODE_OUTPUT" == "PLUTO" ] && [ "$MODE_INPUT" == "CAMH264" ]; then
+      if [ "$FORMAT" == "16:9" ]; then
+        VIDEO_WIDTH=800
+        VIDEO_HEIGHT=448
+      else
+        VIDEO_WIDTH=768
+        VIDEO_HEIGHT=576
+      fi
+      # 1280/720 and 1920/1020 also work, but like 800x448 need changes in rpidatvtouch4.c before they can be selected
+
+    # Size the viewfinder
+    v4l2-ctl -d $VID_PICAM --set-fmt-overlay=left=0,top=0,width=736,height=416 --overlay 1 # For 800x480 framebuffer
+    v4l2-ctl -d $VID_PICAM -p $VIDEO_FPS
+
+      rpidatv/bin/ffmpeg -thread_queue_size 2048 -f v4l2 -input_format h264 -video_size "$VIDEO_WIDTH"x"$VIDEO_HEIGHT" -i $VID_PICAM \
+        -f alsa -thread_queue_size 2048 -ac $AUDIO_CHANNELS -ar $AUDIO_SAMPLE \
+        -i hw:$AUDIO_CARD_NUMBER,0 \
+        -c:v h264_omx -b:v $BITRATE_VIDEO -g 25 \
+        -ar 22050 -ac $AUDIO_CHANNELS -ab 64k \
+        -f flv \
+        rtmp://pluto.local:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,0,nocalib,800,32,/,$CALL, &
+      exit
+    fi
+
+
     # Free up Pi Camera for direct OMX Coding by removing driver
     sudo modprobe -r bcm2835_v4l2
 
@@ -643,11 +670,7 @@ x=w/10:y=(h/4-text_h)/2"
 fi
 
     # Size the viewfinder
-    if [ "$DISPLAY" == "Element14_7" ]; then
-      v4l2-ctl -d $VID_PICAM --set-fmt-overlay=left=0,top=0,width=736,height=416 --overlay 1 # For 800x480 framebuffer
-    else
-      v4l2-ctl -d $VID_PICAM --set-fmt-overlay=left=0,top=0,width=656,height=512 --overlay 1 # For 720x576 framebuffer
-    fi
+    v4l2-ctl -d $VID_PICAM --set-fmt-overlay=left=0,top=0,width=736,height=416 --overlay 1 # For 800x480 framebuffer
     v4l2-ctl -d $VID_PICAM -p $VIDEO_FPS
 
     # If sound arrives first, decrease the numeric number to delay it
@@ -775,76 +798,6 @@ fi
     esac
   ;;
 
-#============================================ H264 TCANIM =============================================================
-
-  "PATERNAUDIO")
-
-    # If PiCam is present unload driver   
-    vcgencmd get_camera | grep 'detected=1' >/dev/null 2>/dev/null
-    RESULT="$?"
-    if [ "$RESULT" -eq 0 ]; then
-      sudo modprobe -r bcm2835_v4l2
-    fi    
-
-    # Set up means to transport of stream out of unit
-    case "$MODE_OUTPUT" in
-      "IP")
-        OUTPUT_FILE=""
-      ;;
-      "DATVEXPRESS")
-        echo "set ptt tx" >> /tmp/expctrl
-        sudo nice -n -30 netcat -u -4 127.0.0.1 1314 < videots &
-      ;;
-      "COMPVID")
-        OUTPUT_FILE="/dev/null" #Send avc2ts output to /dev/null
-      ;;
-      "LIMEMINI" | "LIMEUSB" | "LIMEDVB")
-        $PATHRPI"/limesdr_dvb" -i videots -s "$SYMBOLRATE_K"000 -f $FECNUM/$FECDEN -r $UPSAMPLE -m $MODTYPE -c $CONSTLN $PILOTS $FRAMES \
-          -t "$FREQ_OUTPUT"e6 -g $LIME_GAINF -q $CAL $CUSTOM_FPGA -D $DIGITAL_GAIN -e $BAND_GPIO $LIMETYPE &
-      ;;
-      *)
-        sudo  $PATHRPI"/rpidatv" -i videots -s $SYMBOLRATE_K -c $FECNUM"/"$FECDEN -f $FREQUENCY_OUT -p $GAIN -m $MODE -x $PIN_I -y $PIN_Q &
-      ;;
-    esac
-
-    # Stop fbcp, because it conficts with avc2ts desktop
-    killall fbcp
-
-    # Start the animated test card and resize for different displays
-    if [ "$DISPLAY" == "Element14_7" ]; then
-      $PATHRPI"/tcanim1v16" $PATERNFILE"/7inch/*10" "800" "480" "59" "72" \
-        "CQ" "CQ CQ CQ DE "$CALL" IN $LOCATOR - $MODULATION $SYMBOLRATEK KS FEC "$FECNUM"/"$FECDEN &
-    else
-      $PATHRPI"/tcanim1v16" $PATERNFILE"/*10" "720" "576" "48" "72" \
-        "CQ" "CQ CQ CQ DE "$CALL" IN $LOCATOR - $MODULATION $SYMBOLRATEK KS FEC "$FECNUM"/"$FECDEN &
-    fi
-
-    # Generate the stream
-
-    if [ "$AUDIO_CARD" == 0 ]; then
-      # ******************************* H264 TCANIM, NO AUDIO ************************************
-
-      sudo $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -d 300 -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
-        -f $VIDEO_FPS -i $IDRPERIOD $OUTPUT_FILE -t 3 -e $ANALOGCAMNAME -p $PIDPMT -s $CALL $OUTPUT_IP \
-         > /dev/null &
-
-    else
-      # ******************************* H264 TCANIM WITH AUDIO ************************************
-
-      if [ $AUDIO_SAMPLE != 48000 ]; then
-        arecord -f S16_LE -r $AUDIO_SAMPLE -c 2 -B $ARECORD_BUF -D plughw:$AUDIO_CARD_NUMBER,0 \
-          | sox --buffer 1024 -t wav - audioin.wav rate 48000 &
-      else
-        arecord -f S16_LE -r $AUDIO_SAMPLE -c 2 -B $ARECORD_BUF -D plughw:$AUDIO_CARD_NUMBER,0 > audioin.wav &
-      fi
-   
-      sudo $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -d 300 -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
-        -f $VIDEO_FPS -i $IDRPERIOD $OUTPUT_FILE -t 3 -e $ANALOGCAMNAME -p $PIDPMT -s $CALL $OUTPUT_IP \
-        -a audioin.wav -z $BITRATE_AUDIO > /dev/null &
-
-    fi
-  ;;
-
 #============================================ VNC =============================================================
 
   "VNC")
@@ -904,10 +857,22 @@ fi
   #============================================ ANALOG and WEBCAM H264 =============================================================
   "ANALOGCAM" | "WEBCAMH264")
 
+    # Turn off the viewfinder (which would show Pi Cam)
+    v4l2-ctl --overlay=0
+
     # Experimental Pluto Code
 
     if [ "$MODE_OUTPUT" == "PLUTO" ] && [ "$MODE_INPUT" == "WEBCAMH264" ]; then
-      rpidatv/bin/ffmpeg -thread_queue_size 2048 -f v4l2 -input_format h264 -video_size 800x600 -i $VID_WEBCAM \
+      if [ "$FORMAT" == "16:9" ]; then
+        VIDEO_WIDTH=800
+        VIDEO_HEIGHT=448
+      else
+        VIDEO_WIDTH=800
+        VIDEO_HEIGHT=600
+      fi
+      # 1280/720 and 1920/1020 also work, but like 800x448 need changes in rpidatvtouch4.c before they can be selected
+
+      rpidatv/bin/ffmpeg -thread_queue_size 2048 -f v4l2 -input_format h264 -video_size "$VIDEO_WIDTH"x"$VIDEO_HEIGHT" -i $VID_WEBCAM \
         -f alsa -thread_queue_size 2048 -ac $AUDIO_CHANNELS -ar $AUDIO_SAMPLE \
         -i hw:$AUDIO_CARD_NUMBER,0 \
         -c:v h264_omx -b:v $BITRATE_VIDEO -g 25 \
@@ -916,28 +881,13 @@ fi
         rtmp://pluto.local:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,0,nocalib,800,32,/,$CALL, &
       exit
     fi
-
-    if [ "$MODE_OUTPUT" == "PLUTO" ] && [ "$MODE_INPUT" == "ANALOGCAM" ]; then
-      rpidatv/bin/ffmpeg -thread_queue_size 2048 -f v4l2 -video_size 720x576 -i $ANALOGCAMNAME \
-        -f alsa -thread_queue_size 2048 -ac $AUDIO_CHANNELS -ar $AUDIO_SAMPLE \
-        -i hw:$AUDIO_CARD_NUMBER,0 \
-        -c:v h264_omx -b:v $BITRATE_VIDEO -g 25 \
-        -ar 22050 -ac $AUDIO_CHANNELS -ab 64k \
-        -f flv \
-        rtmp://pluto.local:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,0,nocalib,800,32,/,$CALL, &
-      exit
-    fi
-
 
     # Allow for experimental widescreen
-    FORMAT=$(get_config_var format $PCONFIGFILE)
+
     if [ "$FORMAT" == "16:9" ]; then
       VIDEO_WIDTH=768
       VIDEO_HEIGHT=400
     fi
-
-    # Turn off the viewfinder (which would show Pi Cam)
-    v4l2-ctl --overlay=0
 
     if [ "$MODE_INPUT" == "ANALOGCAM" ]; then
       # Set the EasyCap input and video standard
@@ -947,6 +897,19 @@ fi
       if [ "$ANALOGCAMSTANDARD" != "-" ]; then
         v4l2-ctl -d $ANALOGCAMNAME "--set-standard="$ANALOGCAMSTANDARD
       fi
+
+      # Experimental Pluto H264 EasyCap
+      if [ "$MODE_OUTPUT" == "PLUTO" ] && [ "$MODE_INPUT" == "ANALOGCAM" ]; then
+        rpidatv/bin/ffmpeg -thread_queue_size 2048 -f v4l2 -video_size 720x576 -i $ANALOGCAMNAME \
+          -f alsa -thread_queue_size 2048 -ac $AUDIO_CHANNELS -ar $AUDIO_SAMPLE \
+          -i hw:$AUDIO_CARD_NUMBER,0 \
+          -c:v h264_omx -b:v $BITRATE_VIDEO -g 25 \
+          -ar 22050 -ac $AUDIO_CHANNELS -ab 64k \
+          -f flv \
+          rtmp://pluto.local:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,0,nocalib,800,32,/,$CALL, &
+      exit
+    fi
+
     else
       # Webcam in use, so set parameters depending on camera in use
       # Check audio first
@@ -1298,9 +1261,10 @@ fi
       SCALE="scale=512:288,"
     ;;
     WEBCAMMPEG-2)
-      if [ $C920Present == 1 ]; then
+      if [ $C920Present == 1 ] || [ $C910Present == 1 ]; then
         v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=640,height=480,pixelformat=0 \
           --set-ctrl power_line_frequency=1
+        AUDIO_SAMPLE=32000
       fi
       if [ $C270Present == 1 ]; then
         ITS_OFFSET="-00:00:1.8"
@@ -1313,9 +1277,10 @@ fi
       VIDEO_FPS=$WC_VIDEO_FPS
     ;;
     WEBCAM16MPEG-2)
-      if [ $C920Present == 1 ]; then
+      if [ $C920Present == 1 ] || [ $C910Present == 1 ]; then
         v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=1280,height=720,pixelformat=0 \
           --set-ctrl power_line_frequency=1
+        AUDIO_SAMPLE=32000
       fi
       if [ $C270Present == 1 ]; then
         ITS_OFFSET="-00:00:1.8"
@@ -1329,9 +1294,10 @@ fi
       SCALE="scale=1024:576,"
     ;;
     WEBCAMHDMPEG-2)
-      if [ $C920Present == 1 ]; then
+      if [ $C920Present == 1 ] || [ $C910Present == 1 ]; then
         v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=1280,height=720,pixelformat=0 \
           --set-ctrl power_line_frequency=1
+        AUDIO_SAMPLE=32000
       fi
       if [ $C270Present == 1 ]; then
         ITS_OFFSET="-00:00:2.0"

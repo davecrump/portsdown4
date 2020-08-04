@@ -482,6 +482,9 @@ cd /home/pi
 # Save git source used
 echo "${GIT_SRC}" > /home/pi/${GIT_SRC_FILE}
 
+echo "SD Card Serial:"
+cat /sys/block/mmcblk0/device/cid
+
 # Reboot
 echo
 echo "--------------------------------"
