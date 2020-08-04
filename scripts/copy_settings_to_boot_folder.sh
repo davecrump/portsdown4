@@ -25,9 +25,6 @@ sudo cp -f /home/pi/rpidatv/src/siggen/siggencal.txt /boot/portsdown_settings/si
 # siggenconfig.txt
 sudo cp -f /home/pi/rpidatv/src/siggen/siggenconfig.txt /boot/portsdown_settings/siggenconfig.txt
 
-# touchcal.txt
-sudo cp -f $PATHSCRIPT"/touchcal.txt" /boot/portsdown_settings/touchcal.txt.
-
 # rtl-fm_presets.txt
 sudo cp -f $PATHSCRIPT"/rtl-fm_presets.txt" /boot/portsdown_settings/rtl-fm_presets.txt
 
@@ -44,4 +41,4 @@ sudo cp -f $PATHSCRIPT"/stream_presets.txt" /boot/portsdown_settings/stream_pres
 sudo cp -f $PATHSCRIPT"/jetson_config.txt" /boot/portsdown_settings/jetson_config.txt
 
 
-# 10 files
+# 9 files
