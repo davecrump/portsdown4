@@ -1196,181 +1196,6 @@ void LimeFWUpdate(int button)
 
 
 /***************************************************************************//**
- * @brief Checks if valid MPEG-2 decoder license is loaded
- *
- * @param nil
- *
- * @return 0 if not enabled, 1 if enabled
-*******************************************************************************/
-
-int CheckMPEG2()
-{
-  FILE *fp;
-  int check = 0;
-  char response[63];
-
-  /* Open the command for reading. */
-  fp = popen("vcgencmd codec_enabled MPG2", "r");
-  if (fp == NULL) {
-    printf("Failed to run command\n" );
-    exit(1);
-  }
-
-  /* Read the output a line at a time - output it. */
-  while ((fgets(response, 16, fp) != NULL) && (check == 0))
-  {
-    //printf("%s\n", response);
-    if(strcmp(response, "MPG2=enabled\n") == 0)
-    {
-      check = 1;
-    }
-  }
-
-  /* close */
-  pclose(fp);
-  return check;
-}
-
-/***************************************************************************//**
- * @brief Gets the RPi Serial number for the MPEG-2 Key
- *
- * @param SerialString (str) RPi Serial Number
- *
- * @return void
-*******************************************************************************/
-
-void GetRPiSerial(char* SerialString)
-{
-  FILE *fp;
-  int check = 0;
-  char response[63];
-  char cutresponse[31];
-
-  /* Open the command for reading. */
-  fp = popen("cat /proc/cpuinfo", "r");
-  if (fp == NULL) {
-    printf("Failed to run command\n" );
-    exit(1);
-  }
-
-  /* Read the output a line at a time - output it. */
-  while ((fgets(response, 32, fp) != NULL) && (check == 0))
-  {
-    //printf("%s\n", response);
-    strcpy(cutresponse, response);
-    cutresponse[6]='\0';
-    //printf("%s\n", cutresponse);
-    if(strcmp(cutresponse, "Serial") == 0)
-    {
-      strcpy(SerialString, response);
-      check = 1;
-    }
-  }
-
-  /* close */
-  pclose(fp);
-}
-
-/***************************************************************************//**
- * @brief Gets the MPEG-2 Key if loaded.  If not, 0x.
- *
- * @param KeyString (str) MPEG-2 Key
- *
- * @return void
-*******************************************************************************/
-
-void GetMPEGKey(char* KeyString)
-{
-  FILE *fp;
-  int check = 0;
-  char response[63];
-  char cutresponse[31];
-  strcpy(KeyString, "0x");
-
-  /* Open the command for reading. */
-  fp = popen("cat /boot/config.txt", "r");
-  if (fp == NULL) {
-    printf("Failed to run command\n" );
-    exit(1);
-  }
-
-  /* Read the output a line at a time - output it. */
-  while ((fgets(response, 32, fp) != NULL) && (check == 0))
-  {
-    //printf("%s\n", response);
-    strcpy(cutresponse, response);
-    cutresponse[12]='\0';
-    //printf("%s\n", cutresponse);
-    if(strcmp(cutresponse, "decode_MPG2=") == 0)
-    {
-      strcpy(KeyString, &response[12]); // Remove first 12 characters of the string
-      KeyString[10] = '\0';             // remove trailing <cr>
-      check = 1;
-    }
-  }
-
-  /* close */
-  pclose(fp);
-}
-
-/***************************************************************************//**
- * @brief If key line exists in /boot/config.txt, overwrite with new entry
- *        If key line does not exist, add it
- *
- * @param KeyString (str) 10 character MPEG-2 Key
- *
- * @return void
-*******************************************************************************/
-
-void NewMPEGKey(char* KeyString)
-{
-  FILE *fp;
-  int check = 0;
-  char response[63];
-  char cutresponse[31];
-  char CommandString[127];
-
-  /* Open the command for reading. */
-  fp = popen("cat /boot/config.txt", "r");
-  if (fp == NULL) {
-    printf("Failed to run command\n" );
-    exit(1);
-  }
-
-  /* Read the output a line at a time - output it. */
-  while ((fgets(response, 32, fp) != NULL) && (check == 0))
-  {
-    strcpy(cutresponse, response);
-    cutresponse[12]='\0';
-    if(strcmp(cutresponse, "decode_MPG2=") == 0)
-    {
-      check = 1;
-    }
-  }
-
-  if (check == 1) // key line already exists
-  {
-    snprintf(CommandString, 100, "sudo sh -c \"sed -i.bak \'/decode_MPG2/d\' /boot/config.txt\"");
-    //printf("%s\n", CommandString);
-    system(CommandString);
-  }
-  else  // Add the title
-  {
-    snprintf(CommandString, 100, "sudo sh -c \"echo \\\"# MPEG-2 Decoder Key\\\" >> /boot/config.txt\"");
-    //printf("%s\n", CommandString);
-    system(CommandString);
-  }
-
-  // Now add the new key
-  snprintf(CommandString, 100, "sudo sh -c \"echo \\\"decode_MPG2=%s\\\" >> /boot/config.txt\"", KeyString);
-  //printf("%s\n", CommandString);
-  system(CommandString);
-
-  /* close */
-  pclose(fp);
-}
-
-/***************************************************************************//**
  * @brief Looks up the force_pwm_open status
  *
  * @param nil
@@ -1496,6 +1321,39 @@ void GetThrottled(char Throttled[256])
   /* close */
   pclose(fp);
 }
+
+/***************************************************************************//**
+ * @brief Sets the System Audio Levels
+ *
+ * @param None yet, but there will be in future
+ *
+ * @return void
+*******************************************************************************/
+
+void SetAudioLevels()
+{
+  char MicGain[15];
+  char aMixerCmd[127];
+  int MicLevel;
+
+  // Read the mic gain (may not be defined)
+  GetConfigParam(PATH_PCONFIG,"micgain", MicGain);
+  //printf("Mic Gain responds as -%s-\n", MicGain);
+  MicLevel = atoi(MicGain);
+  //printf("atoi returns %d\n", MicLevel);
+
+  // Error check the Mic Gain
+  if ((MicLevel <= 0) || (MicLevel > 30))
+  {
+    MicLevel = 26;
+  }
+  snprintf(aMixerCmd, 126, "amixer -c 1 -- sset Mic Capture %d > /dev/null 2>&1", MicLevel);
+  //printf("-%s-\n", aMixerCmd);
+
+  // Apply
+  system(aMixerCmd);
+}
+
 
 /***************************************************************************//**
  * @brief Reads the input source from portsdown_config.txt
@@ -19935,6 +19793,8 @@ int main(int argc, char **argv)
   ReadStreamPresets();
   ReadLMRXPresets();
   ReadLangstone();
+  SetAudioLevels();
+
 
   // Initialise all the button Status Indexes to 0
   InitialiseButtons();
