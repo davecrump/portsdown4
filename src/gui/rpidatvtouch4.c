@@ -292,7 +292,6 @@ int FinishedButton = 0;       // Used to indicate screentouch during TX or RX
 int touch_response = 0;       // set to 1 on touch and used to reboot display if it locks up
 
 // Threads for Touchscreen monitoring
-//pthread_t thfft, thbutton, thview, thwait3;
 pthread_t thfft;        //
 pthread_t thbutton;     //
 pthread_t thview;       //
@@ -1197,181 +1196,6 @@ void LimeFWUpdate(int button)
 
 
 /***************************************************************************//**
- * @brief Checks if valid MPEG-2 decoder license is loaded
- *
- * @param nil
- *
- * @return 0 if not enabled, 1 if enabled
-*******************************************************************************/
-
-int CheckMPEG2()
-{
-  FILE *fp;
-  int check = 0;
-  char response[63];
-
-  /* Open the command for reading. */
-  fp = popen("vcgencmd codec_enabled MPG2", "r");
-  if (fp == NULL) {
-    printf("Failed to run command\n" );
-    exit(1);
-  }
-
-  /* Read the output a line at a time - output it. */
-  while ((fgets(response, 16, fp) != NULL) && (check == 0))
-  {
-    //printf("%s\n", response);
-    if(strcmp(response, "MPG2=enabled\n") == 0)
-    {
-      check = 1;
-    }
-  }
-
-  /* close */
-  pclose(fp);
-  return check;
-}
-
-/***************************************************************************//**
- * @brief Gets the RPi Serial number for the MPEG-2 Key
- *
- * @param SerialString (str) RPi Serial Number
- *
- * @return void
-*******************************************************************************/
-
-void GetRPiSerial(char* SerialString)
-{
-  FILE *fp;
-  int check = 0;
-  char response[63];
-  char cutresponse[31];
-
-  /* Open the command for reading. */
-  fp = popen("cat /proc/cpuinfo", "r");
-  if (fp == NULL) {
-    printf("Failed to run command\n" );
-    exit(1);
-  }
-
-  /* Read the output a line at a time - output it. */
-  while ((fgets(response, 32, fp) != NULL) && (check == 0))
-  {
-    //printf("%s\n", response);
-    strcpy(cutresponse, response);
-    cutresponse[6]='\0';
-    //printf("%s\n", cutresponse);
-    if(strcmp(cutresponse, "Serial") == 0)
-    {
-      strcpy(SerialString, response);
-      check = 1;
-    }
-  }
-
-  /* close */
-  pclose(fp);
-}
-
-/***************************************************************************//**
- * @brief Gets the MPEG-2 Key if loaded.  If not, 0x.
- *
- * @param KeyString (str) MPEG-2 Key
- *
- * @return void
-*******************************************************************************/
-
-void GetMPEGKey(char* KeyString)
-{
-  FILE *fp;
-  int check = 0;
-  char response[63];
-  char cutresponse[31];
-  strcpy(KeyString, "0x");
-
-  /* Open the command for reading. */
-  fp = popen("cat /boot/config.txt", "r");
-  if (fp == NULL) {
-    printf("Failed to run command\n" );
-    exit(1);
-  }
-
-  /* Read the output a line at a time - output it. */
-  while ((fgets(response, 32, fp) != NULL) && (check == 0))
-  {
-    //printf("%s\n", response);
-    strcpy(cutresponse, response);
-    cutresponse[12]='\0';
-    //printf("%s\n", cutresponse);
-    if(strcmp(cutresponse, "decode_MPG2=") == 0)
-    {
-      strcpy(KeyString, &response[12]); // Remove first 12 characters of the string
-      KeyString[10] = '\0';             // remove trailing <cr>
-      check = 1;
-    }
-  }
-
-  /* close */
-  pclose(fp);
-}
-
-/***************************************************************************//**
- * @brief If key line exists in /boot/config.txt, overwrite with new entry
- *        If key line does not exist, add it
- *
- * @param KeyString (str) 10 character MPEG-2 Key
- *
- * @return void
-*******************************************************************************/
-
-void NewMPEGKey(char* KeyString)
-{
-  FILE *fp;
-  int check = 0;
-  char response[63];
-  char cutresponse[31];
-  char CommandString[127];
-
-  /* Open the command for reading. */
-  fp = popen("cat /boot/config.txt", "r");
-  if (fp == NULL) {
-    printf("Failed to run command\n" );
-    exit(1);
-  }
-
-  /* Read the output a line at a time - output it. */
-  while ((fgets(response, 32, fp) != NULL) && (check == 0))
-  {
-    strcpy(cutresponse, response);
-    cutresponse[12]='\0';
-    if(strcmp(cutresponse, "decode_MPG2=") == 0)
-    {
-      check = 1;
-    }
-  }
-
-  if (check == 1) // key line already exists
-  {
-    snprintf(CommandString, 100, "sudo sh -c \"sed -i.bak \'/decode_MPG2/d\' /boot/config.txt\"");
-    //printf("%s\n", CommandString);
-    system(CommandString);
-  }
-  else  // Add the title
-  {
-    snprintf(CommandString, 100, "sudo sh -c \"echo \\\"# MPEG-2 Decoder Key\\\" >> /boot/config.txt\"");
-    //printf("%s\n", CommandString);
-    system(CommandString);
-  }
-
-  // Now add the new key
-  snprintf(CommandString, 100, "sudo sh -c \"echo \\\"decode_MPG2=%s\\\" >> /boot/config.txt\"", KeyString);
-  //printf("%s\n", CommandString);
-  system(CommandString);
-
-  /* close */
-  pclose(fp);
-}
-
-/***************************************************************************//**
  * @brief Looks up the force_pwm_open status
  *
  * @param nil
@@ -1499,6 +1323,39 @@ void GetThrottled(char Throttled[256])
 }
 
 /***************************************************************************//**
+ * @brief Sets the System Audio Levels
+ *
+ * @param None yet, but there will be in future
+ *
+ * @return void
+*******************************************************************************/
+
+void SetAudioLevels()
+{
+  char MicGain[15];
+  char aMixerCmd[127];
+  int MicLevel;
+
+  // Read the mic gain (may not be defined)
+  GetConfigParam(PATH_PCONFIG,"micgain", MicGain);
+  //printf("Mic Gain responds as -%s-\n", MicGain);
+  MicLevel = atoi(MicGain);
+  //printf("atoi returns %d\n", MicLevel);
+
+  // Error check the Mic Gain
+  if ((MicLevel <= 0) || (MicLevel > 30))
+  {
+    MicLevel = 26;
+  }
+  snprintf(aMixerCmd, 126, "amixer -c 1 -- sset Mic Capture %d > /dev/null 2>&1", MicLevel);
+  //printf("-%s-\n", aMixerCmd);
+
+  // Apply
+  system(aMixerCmd);
+}
+
+
+/***************************************************************************//**
  * @brief Reads the input source from portsdown_config.txt
  *        and determines coding and video source
  * @param sets strings: coding, source
@@ -1548,7 +1405,7 @@ void ReadModeInput(char coding[256], char vsource[256])
   printf ("Mode Output in ReadModeInput() is %s\n", ModeOutput);
   if ((strcmp(ModeOutput, "JLIME") != 0) && (strcmp(ModeOutput, "JEXPRESS") != 0))
   {
-    // If H265 encoding sflected, set Encoding to H264
+    // If H265 encoding selected, set Encoding to H264
     if (strcmp(CurrentEncoding, "H265") == 0)
     {
       strcpy(CurrentEncoding, "H264");
@@ -3669,6 +3526,43 @@ int StartExpressServer()
 }
 
 /***************************************************************************//**
+ * @brief Detects if a USB Audio device is connected
+ *
+ * @param None
+ *
+ * @return 0 = USB Audio detected
+ *         1 = USB Audio not detected
+ *         2 = shell returned unexpected exit status
+*******************************************************************************/
+ 
+int DetectUSBAudio()
+{
+  char shell_command[255];
+  // Pattern for USB Audio Dongle; others can be added with |xxxx
+  char DMESG_PATTERN[63] = "USB Audio";
+  FILE * shell;
+  sprintf(shell_command, "aplay -l | grep -E -q \"%s\"", DMESG_PATTERN);
+  shell = popen(shell_command, "r");
+  int r = pclose(shell);
+  if (WEXITSTATUS(r) == 0)
+  {
+    //printf("USB Audio detected\n");
+    return 0;
+  }
+  else if (WEXITSTATUS(r) == 1)
+  {
+    //printf("USB Audio not detected\n");
+    return 1;
+  } 
+  else 
+  {
+    //printf("USB Audio: unexpected exit status %d\n", WEXITSTATUS(r));
+    return 2;
+  }
+}
+
+
+/***************************************************************************//**
  * @brief Called on GUI start to check if the DATV Express Server needs to be started
  *
  * @param nil
@@ -3774,7 +3668,7 @@ int CheckPlutoConnect()
   char response[127];
 
   /* Open the command for reading. */
-  fp = popen("ping pluto.local -c1 | head -n 5 | tail -n 1 | grep -o \"1 received,\" | head -c 11", "r");
+  fp = popen("timeout 0.2 ping pluto.local -c1 | head -n 5 | tail -n 1 | grep -o \"1 received,\" | head -c 11", "r");
   if (fp == NULL) {
     printf("Failed to run command\n" );
     exit(1);
@@ -5703,6 +5597,14 @@ void GreyOut12()
   else
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 7), 2); // Grey-out H265 Button
+  }
+  if(strcmp(CurrentModeOP, "PLUTO") == 0) // Pluto Selected
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 5), 2); // Grey-out MPEG-2 button
+  }
+  else
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 5), 0); // Show MPEG-2 Button
   }
 }
 
@@ -8430,24 +8332,6 @@ void LMRX(int NoButton)
               }
               snprintf(MERtext, 24, "MER %.1f (%.1f needed)", MER, MERThreshold);
 
-              // Delete line feed at end of service provider and service text fields
-              if (strlen(ServiceProvidertext) > 1)
-              {
-                ServiceProvidertext[strlen(ServiceProvidertext) - 1] = '\0';
-              }
-              else
-              {
-                strcpy(ServiceProvidertext, " ");
-              }
-              if (strlen(Servicetext) > 1)
-              {
-                Servicetext[strlen(Servicetext) - 1] = '\0';
-              }
-              else
-              {
-                strcpy(Servicetext, " ");
-              }
-
               rectangle(wscreen * 1 / 40, hscreen - 1 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
               Text2(wscreen * 1 / 40, hscreen - 1 * linepitch, STATEtext, font_ptr);
               rectangle(wscreen * 1 / 40, hscreen - 2 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
@@ -8896,24 +8780,6 @@ void LMRX(int NoButton)
               }
               snprintf(MERtext, 24, "MER %.1f (%.1f needed)", MER, MERThreshold);
 
-              // Delete line feed at end of service provider and service text fields
-              if (strlen(ServiceProvidertext) > 1)
-              {
-                ServiceProvidertext[strlen(ServiceProvidertext) - 1] = '\0';
-              }
-              else
-              {
-                strcpy(ServiceProvidertext, " ");
-              }
-              if (strlen(Servicetext) > 1)
-              {
-                Servicetext[strlen(Servicetext) - 1] = '\0';
-              }
-              else
-              {
-                strcpy(Servicetext, " ");
-              }
-
               rectangle(wscreen * 1 / 40, hscreen - 1 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
               Text2(wscreen * 1 / 40, hscreen - 1 * linepitch, STATEtext, font_ptr);
               rectangle(wscreen * 1 / 40, hscreen - 2 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
@@ -9293,24 +9159,6 @@ void LMRX(int NoButton)
                 MER = 0;
               }
               snprintf(MERtext, 24, "MER %.1f (%.1f needed)", MER, MERThreshold);
-
-              // Delete line feed at end of service provider and service text fields
-              if (strlen(ServiceProvidertext) > 1)
-              {
-                ServiceProvidertext[strlen(ServiceProvidertext) - 1] = '\0';
-              }
-              else
-              {
-                strcpy(ServiceProvidertext, " ");
-              }
-              if (strlen(Servicetext) > 1)
-              {
-                Servicetext[strlen(Servicetext) - 1] = '\0';
-              }
-              else
-              {
-                strcpy(Servicetext, " ");
-              }
 
               rectangle(wscreen * 1 / 40, hscreen - 1 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
               Text2(wscreen * 1 / 40, hscreen - 1 * linepitch, STATEtext, font_ptr);
@@ -9703,56 +9551,37 @@ void LMRX(int NoButton)
             {
               snprintf(MERNtext, 10, "%.1f  ", MER);
             }
-
             snprintf(MERtext, 24, "MER %.1f (%.1f needed)", MER, MERThreshold);
 
-              // Delete line feed at end of service provider and service text fields
-              if (strlen(ServiceProvidertext) > 1)
-              {
-                ServiceProvidertext[strlen(ServiceProvidertext) - 1] = '\0';
-              }
-              else
-              {
-                strcpy(ServiceProvidertext, " ");
-              }
-              if (strlen(Servicetext) > 1)
-              {
-                Servicetext[strlen(Servicetext) - 1] = '\0';
-              }
-              else
-              {
-                strcpy(Servicetext, " ");
-              }
-
-              rectangle(wscreen * 1 / 40, hscreen - 1 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
-              Text2(wscreen * 1 / 40, hscreen - 1 * linepitch, STATEtext, font_ptr);
-              rectangle(wscreen * 1 / 40, hscreen - 2 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
-              Text2(wscreen * 1 / 40, hscreen - 2 * linepitch, FREQtext, font_ptr);
-              rectangle(wscreen * 1 / 40, hscreen - 3 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
-              Text2(wscreen * 1 / 40, hscreen - 3 * linepitch, SRtext, font_ptr);
-              rectangle(wscreen * 1 / 40, hscreen - 4 * linepitch - txtdesc, wscreen * 17 / 40, txttot, 0, 0, 0);
-              Text2(wscreen * 1 / 40, hscreen - 4 * linepitch, Modulationtext, font_ptr);
-              rectangle(wscreen * 1 / 40, hscreen - 5 * linepitch - txtdesc, wscreen * 17 / 40, txttot, 0, 0, 0);
-              Text2(wscreen * 1 / 40, hscreen - 5 * linepitch, FECtext, font_ptr);
-              rectangle(wscreen * 1 / 40, hscreen - 6 * linepitch - txtdesc, wscreen * 17 / 40, txttot, 0, 0, 0);
-              Text2(wscreen * 1 / 40, hscreen - 6 * linepitch, ServiceProvidertext, font_ptr);
-              rectangle(wscreen * 1 / 40, hscreen - 7 * linepitch - txtdesc, wscreen * 17 / 40, txttot, 0, 0, 0);
-              Text2(wscreen * 1 / 40, hscreen - 7 * linepitch, Servicetext, font_ptr);
-              rectangle(wscreen * 1 / 40, hscreen - 8 * linepitch - txtdesc, wscreen * 17 / 40, txttot, 0, 0, 0);
-              Text2(wscreen * 1 / 40, hscreen - 8 * linepitch, Encodingtext, font_ptr);
-              if (MER < MERThreshold)
-              {
-                setForeColour(255, 63, 63); // Set foreground colour to red
-              }
-              rectangle(wscreen * 1 / 40, hscreen - 9 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
-              Text2(wscreen * 1 / 40, hscreen - 9 * linepitch, MERtext, font_ptr);
-              setForeColour(255, 255, 255);  // Set foreground colour to white
-              Text2(wscreen * 1 / 40, hscreen - 11 * linepitch, "UDP Output", font_ptr);
-              Text2(wscreen * 1 / 40, hscreen - 12 * linepitch, "Touch Right Side to Exit", font_ptr);
-
-              // Display large MER number
-              LargeText2(wscreen * 18 / 40, hscreen * 19 / 48, 5, MERNtext, &font_dejavu_sans_32);
+            rectangle(wscreen * 1 / 40, hscreen - 1 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
+            Text2(wscreen * 1 / 40, hscreen - 1 * linepitch, STATEtext, font_ptr);
+            rectangle(wscreen * 1 / 40, hscreen - 2 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
+            Text2(wscreen * 1 / 40, hscreen - 2 * linepitch, FREQtext, font_ptr);
+            rectangle(wscreen * 1 / 40, hscreen - 3 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
+            Text2(wscreen * 1 / 40, hscreen - 3 * linepitch, SRtext, font_ptr);
+            rectangle(wscreen * 1 / 40, hscreen - 4 * linepitch - txtdesc, wscreen * 17 / 40, txttot, 0, 0, 0);
+            Text2(wscreen * 1 / 40, hscreen - 4 * linepitch, Modulationtext, font_ptr);
+            rectangle(wscreen * 1 / 40, hscreen - 5 * linepitch - txtdesc, wscreen * 17 / 40, txttot, 0, 0, 0);
+            Text2(wscreen * 1 / 40, hscreen - 5 * linepitch, FECtext, font_ptr);
+            rectangle(wscreen * 1 / 40, hscreen - 6 * linepitch - txtdesc, wscreen * 17 / 40, txttot, 0, 0, 0);
+            Text2(wscreen * 1 / 40, hscreen - 6 * linepitch, ServiceProvidertext, font_ptr);
+            rectangle(wscreen * 1 / 40, hscreen - 7 * linepitch - txtdesc, wscreen * 17 / 40, txttot, 0, 0, 0);
+            Text2(wscreen * 1 / 40, hscreen - 7 * linepitch, Servicetext, font_ptr);
+            rectangle(wscreen * 1 / 40, hscreen - 8 * linepitch - txtdesc, wscreen * 17 / 40, txttot, 0, 0, 0);
+            Text2(wscreen * 1 / 40, hscreen - 8 * linepitch, Encodingtext, font_ptr);
+            if (MER < MERThreshold)
+            {
+              setForeColour(255, 63, 63); // Set foreground colour to red
             }
+            rectangle(wscreen * 1 / 40, hscreen - 9 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
+            Text2(wscreen * 1 / 40, hscreen - 9 * linepitch, MERtext, font_ptr);
+            setForeColour(255, 255, 255);  // Set foreground colour to white
+            Text2(wscreen * 1 / 40, hscreen - 11 * linepitch, "UDP Output", font_ptr);
+            Text2(wscreen * 1 / 40, hscreen - 12 * linepitch, "Touch Right Side to Exit", font_ptr);
+
+            // Display large MER number
+            LargeText2(wscreen * 18 / 40, hscreen * 19 / 48, 5, MERNtext, &font_dejavu_sans_32);
+          }
           stat_string[0] = '\0';
         }
         else
@@ -11140,7 +10969,16 @@ void do_freqshow()
 
 void do_Langstone()
 {
-  cleanexit(135);
+  // Check that audio dongle exists before exit, otherwise display error message
+  if (DetectUSBAudio() == 0)
+  {
+    cleanexit(135);
+  }
+  else
+  {
+    MsgBox2("No USB Audio Dongle Detected", "Connect one before selecting Langstone");
+    wait_touch();
+  }
 }
 
 
@@ -12908,8 +12746,9 @@ rawY = 0;
           if (file_exist("/home/pi/Langstone/LangstoneGUI.c") == 0)
           {
             SetButtonStatus(ButtonNumber(2, 15), 1);  // and highlight button
-            UpdateWindow();                           // No need to set it back as exit from here
+            UpdateWindow();                           
             do_Langstone();
+            SetButtonStatus(ButtonNumber(2, 15), 0);  // unhighlight button
             setBackColour(0, 0, 0);
             clearScreen();
             UpdateWindow();
@@ -12924,10 +12763,10 @@ rawY = 0;
             UpdateWindow();
           }
           break;
-        case 16:                               // Start Sig Gen and Exit
-          DisplayLogo();
-          cleanexit(130);
-          break;
+        //case 16:                               // Start Sig Gen and Exit
+          //DisplayLogo();
+          //cleanexit(130);
+          //break;
         case 17:                               // Start RTL-TCP server
           if(CheckRTL()==0)
           {
@@ -16079,8 +15918,8 @@ void Define_Menu2()
   AddButtonStatus(button, "Switch to^Langstone", &Blue);
   AddButtonStatus(button, "Switch to^Langstone", &Green);
 
-  button = CreateButton(2, 16);
-  AddButtonStatus(button, "Sig Gen^ ", &Blue);
+  //button = CreateButton(2, 16);
+  //AddButtonStatus(button, "Sig Gen^ ", &Blue);
   //AddButtonStatus(button, " ", &Green);
 
   button = CreateButton(2, 17);
@@ -16116,8 +15955,8 @@ void Start_Highlights_Menu2()
   }
   else
   {
-    AmendButtonStatus(ButtonNumber(2, 15), 0, "Install^Langstone", &Blue);
-    AmendButtonStatus(ButtonNumber(2, 15), 1, "Install^Langstone", &Green);
+    AmendButtonStatus(ButtonNumber(2, 15), 0, "Langstone^Menu", &Blue);
+    AmendButtonStatus(ButtonNumber(2, 15), 1, "Langstone^Menu", &Green);
   }
 }
 
@@ -17185,6 +17024,7 @@ void Define_Menu12()
   button = CreateButton(12, 5);
   AddButtonStatus(button, TabEncoding[0], &Blue);
   AddButtonStatus(button, TabEncoding[0], &Green);
+  AddButtonStatus(button, TabEncoding[0], &Grey);
 
   button = CreateButton(12, 6);
   AddButtonStatus(button, TabEncoding[1], &Blue);
@@ -19904,14 +19744,14 @@ int main(int argc, char **argv)
   }
 
   // Check for presence of touchscreen
-  for(NoDeviceEvent=0; NoDeviceEvent < 5; NoDeviceEvent++)
+  for(NoDeviceEvent = 0; NoDeviceEvent < 7; NoDeviceEvent++)
   {
     if (openTouchScreen(NoDeviceEvent) == 1)
     {
       if(getTouchScreenDetails(&screenXmin,&screenXmax,&screenYmin,&screenYmax)==1) break;
     }
   }
-  if(NoDeviceEvent==5) 
+  if(NoDeviceEvent == 7) 
   {
     perror("No Touchscreen found");
     exit(1);
@@ -19953,6 +19793,8 @@ int main(int argc, char **argv)
   ReadStreamPresets();
   ReadLMRXPresets();
   ReadLangstone();
+  SetAudioLevels();
+
 
   // Initialise all the button Status Indexes to 0
   InitialiseButtons();
@@ -20011,7 +19853,7 @@ int main(int argc, char **argv)
   CheckExpress();
 
   // Check Lime connected if selected
-  CheckLimeReady();	  CheckLimeReady();
+  CheckLimeReady();
 
   // Check for LimeNET Micro
   LimeNETMicroDet = DetectLimeNETMicro();

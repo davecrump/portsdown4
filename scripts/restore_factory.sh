@@ -22,10 +22,6 @@ cp -f /home/pi/rpidatv/src/siggen/siggencal.txt.factory /home/pi/rpidatv/src/sig
 cp -f /home/pi/rpidatv/src/siggen/siggenconfig.txt /home/pi/rpidatv/src/siggen/siggenconfig.txt.bak
 cp -f /home/pi/rpidatv/src/siggen/siggenconfig.txt.factory /home/pi/rpidatv/src/siggen/siggenconfig.txt
 
-# touchcal.txt
-cp -f $PATHSCRIPT"/touchcal.txt" $PATHSCRIPT"/touchcal.txt.bak"
-cp -f $PATHSCRIPT"/configs/touchcal.txt.factory" $PATHSCRIPT"/touchcal.txt"
-
 # rtl-fm_presets.txt
 cp -f $PATHSCRIPT"/rtl-fm_presets.txt" $PATHSCRIPT"/rtl-fm_presets.txt.bak"
 cp -f $PATHSCRIPT"/configs/rtl-fm_presets.txt.factory" $PATHSCRIPT"/rtl-fm_presets.txt"

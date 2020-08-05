@@ -1,3 +1,8 @@
+202008050
+Minor Bugfixes and Tidying up
+Add PiCam and Comp Vid inputs for Pluto
+Set Mic gain to 87% at gui start up
+
 202008013
 Correct Update Scripts
 
