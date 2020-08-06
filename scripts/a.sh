@@ -1062,11 +1062,44 @@ fi
          $PATHRPI"/ffmpeg" -loglevel $MODE_DEBUG -thread_queue_size 2048 \
             -f image2 -loop 1 \
             -i $IMAGEFILE \
-            -framerate 25 -video_size 720x576 -c:v h264_omx -b:v 576k \
+            -framerate 25 -video_size 720x576 -c:v h264_omx -b:v $BITRATE_VIDEO \
         -f flv \
         rtmp://pluto.local:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,0,nocalib,800,32,/,$CALL, &
       exit
     fi
+
+    if [ "$MODE_OUTPUT" == "PLUTO" ] && [ "$MODE_INPUT" == "CONTEST" ]; then
+
+      # Delete the old numbers image
+      rm /home/pi/tmp/contest.jpg >/dev/null 2>/dev/null
+
+      # Set size of contest numbers image up front to save resizing afterwards
+      CNGEOMETRY="720x576"
+
+      # Create the numbers image in the tempfs folder
+      convert -size "${CNGEOMETRY}" xc:white \
+        -gravity North -pointsize 125 -annotate 0,0,0,20 "$CALL" \
+        -gravity Center -pointsize 225 -annotate 0,0,0,20 "$NUMBERS" \
+        -gravity South -pointsize 75 -annotate 0,0,0,20 "$LOCATOR   ""$BAND_LABEL" \
+        /home/pi/tmp/contest.jpg
+      IMAGEFILE="/home/pi/tmp/contest.jpg"
+
+      # Display the numbers on the desktop
+      sudo fbi -T 1 -noverbose -a /home/pi/tmp/contest.jpg >/dev/null 2>/dev/null
+      (sleep 1; sudo killall -9 fbi >/dev/null 2>/dev/null) &  ## kill fbi once it has done its work
+
+      # Turn the viewfinder off
+      v4l2-ctl --overlay=0
+
+         $PATHRPI"/ffmpeg" -loglevel $MODE_DEBUG -thread_queue_size 2048 \
+            -f image2 -loop 1 \
+            -i $IMAGEFILE \
+            -framerate 25 -video_size 720x576 -c:v h264_omx -b:v $BITRATE_VIDEO \
+        -f flv \
+        rtmp://pluto.local:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,0,nocalib,800,32,/,$CALL, &
+      exit
+    fi
+
 
 ############################################################
 

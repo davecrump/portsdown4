@@ -1,6 +1,6 @@
-202008050
+202008051
 Minor Bugfixes and Tidying up
-Add PiCam and Comp Vid inputs for Pluto
+Add PiCam, Comp Vid and Contest Number inputs for Pluto
 Set Mic gain to 87% at gui start up
 
 202008013
