@@ -29,7 +29,7 @@ sudo killall -9 avc2ts >/dev/null 2>/dev/null
 sudo killall netcat >/dev/null 2>/dev/null
 sudo killall -9 netcat >/dev/null 2>/dev/null
 
-############ READ FROM rpidatvconfig.txt and Set PARAMETERS #######################
+############ READ FROM portsdown_config.txt and Set PARAMETERS #######################
 
 MODE_INPUT=$(get_config_var modeinput $PCONFIGFILE)
 TSVIDEOFILE=$(get_config_var tsvideofile $PCONFIGFILE)
@@ -194,20 +194,6 @@ fi
 
 case "$MODE_OUTPUT" in
 
-  IQ)
-    FREQUENCY_OUT=0
-    OUTPUT=videots
-    MODE=IQ
-    $PATHSCRIPT"/ctlfilter.sh"
-    $PATHSCRIPT"/ctlvco.sh"
-  ;;
-
-  QPSKRF)
-    FREQUENCY_OUT=$FREQ_OUTPUT
-    OUTPUT=videots
-    MODE=RF
-  ;;
-
   STREAMER)
     # Set Output string "-f flv "$STREAM_URL"/"$STREAM_KEY
     OUTPUT=$OUTPUT_STREAM
@@ -229,20 +215,8 @@ case "$MODE_OUTPUT" in
     fi
   ;;
 
-  DIGITHIN)
-    FREQUENCY_OUT=0
-    OUTPUT=videots
-    DIGITHIN_MODE=1
-    MODE=DIGITHIN
-    $PATHSCRIPT"/ctlfilter.sh"
-    $PATHSCRIPT"/ctlvco.sh"
-  ;;
-
-  DTX1)
-    MODE=PARALLEL
-    FREQUENCY_OUT=2
-    OUTPUT=videots
-    DIGITHIN_MODE=0
+  PLUTO)
+    PLUTOPWR=$(get_config_var plutopwr $PCONFIGFILE);
   ;;
 
   DATVEXPRESS)
@@ -573,21 +547,45 @@ case "$MODE_INPUT" in
       fi
       # 1280/720 and 1920/1020 also work, but like 800x448 need changes in rpidatvtouch4.c before they can be selected
 
-    # Size the viewfinder
-    v4l2-ctl -d $VID_PICAM --set-fmt-overlay=left=0,top=0,width=736,height=416 --overlay 1 # For 800x480 framebuffer
-    v4l2-ctl -d $VID_PICAM -p $VIDEO_FPS
+      # Size the viewfinder
+      v4l2-ctl -d $VID_PICAM --set-fmt-overlay=left=0,top=0,width=736,height=416 --overlay 1 # For 800x480 framebuffer
+      v4l2-ctl -d $VID_PICAM -p $VIDEO_FPS
 
-      rpidatv/bin/ffmpeg -thread_queue_size 2048 -f v4l2 -input_format h264 -video_size "$VIDEO_WIDTH"x"$VIDEO_HEIGHT" -i $VID_PICAM \
-        -f alsa -thread_queue_size 2048 -ac $AUDIO_CHANNELS -ar $AUDIO_SAMPLE \
-        -i hw:$AUDIO_CARD_NUMBER,0 \
-        -c:v h264_omx -b:v $BITRATE_VIDEO -g 25 \
-        -ar 22050 -ac $AUDIO_CHANNELS -ab 64k \
-        -f flv \
-        rtmp://pluto.local:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,0,nocalib,800,32,/,$CALL, &
+      if [ "$AUDIO_CARD" == "0" ] && [ "$AUDIO_CHANNELS" == "0" ]; then
+
+        ############### Pi Cam Pluto No Audio ######################
+
+        rpidatv/bin/ffmpeg -thread_queue_size 2048 \
+          -f v4l2 -input_format h264 -video_size "$VIDEO_WIDTH"x"$VIDEO_HEIGHT" \
+          -i $VID_PICAM \
+          -c:v h264_omx -b:v $BITRATE_VIDEO -g 25 \
+          -f flv \
+          rtmp://pluto.local:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,-$PLUTOPWR,nocalib,800,32,/,$CALL, &
+
+      else
+
+        ############### Pi Cam Pluto With Audio ######################
+
+        rpidatv/bin/ffmpeg -thread_queue_size 2048 \
+          -f v4l2 -input_format h264 -video_size "$VIDEO_WIDTH"x"$VIDEO_HEIGHT" \
+          -i $VID_PICAM \
+          -f alsa -thread_queue_size 2048 -ac $AUDIO_CHANNELS -ar $AUDIO_SAMPLE \
+          -i hw:$AUDIO_CARD_NUMBER,0 \
+          -c:v h264_omx -b:v $BITRATE_VIDEO -g 25 \
+          -ar 22050 -ac $AUDIO_CHANNELS -ab 64k \
+          -f flv \
+          rtmp://pluto.local:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,-$PLUTOPWR,nocalib,800,32,/,$CALL, &
+      fi
       exit
     fi
 
-
+    if [ "$FORMAT" == "16:9" ]; then
+      VIDEO_WIDTH=1024
+      VIDEO_HEIGHT=576
+    else
+      VIDEO_WIDTH=704
+      VIDEO_HEIGHT=576
+    fi
     # Free up Pi Camera for direct OMX Coding by removing driver
     sudo modprobe -r bcm2835_v4l2
 
@@ -863,26 +861,56 @@ fi
     # Experimental Pluto Code
 
     if [ "$MODE_OUTPUT" == "PLUTO" ] && [ "$MODE_INPUT" == "WEBCAMH264" ]; then
-      if [ "$FORMAT" == "16:9" ]; then
-        VIDEO_WIDTH=800
-        VIDEO_HEIGHT=448
-      else
-        VIDEO_WIDTH=800
-        VIDEO_HEIGHT=600
+
+      if [ "$C920Present" == "1" ]; then  # Old C920
+        INPUT_FORMAT="h264"
+        AUDIO_SAMPLE=32000
+        if [ "$FORMAT" == "16:9" ]; then
+          VIDEO_WIDTH=800
+          VIDEO_HEIGHT=448
+        else
+          VIDEO_WIDTH=800
+          VIDEO_HEIGHT=600
+        fi
       fi
       # 1280/720 and 1920/1020 also work, but like 800x448 need changes in rpidatvtouch4.c before they can be selected
 
-      rpidatv/bin/ffmpeg -thread_queue_size 2048 -f v4l2 -input_format h264 -video_size "$VIDEO_WIDTH"x"$VIDEO_HEIGHT" -i $VID_WEBCAM \
+      if [ "$NEWC920Present" == "1" ]; then  # Overwrite old C920 settings
+        INPUT_FORMAT="yuyv422"
+        AUDIO_SAMPLE=32000
+        if [ "$FORMAT" == "16:9" ]; then
+          VIDEO_WIDTH=800
+          VIDEO_HEIGHT=448
+        else
+          VIDEO_WIDTH=800
+          VIDEO_HEIGHT=600
+        fi
+      fi
+
+      if [ "$C170Present" == "1" ]; then
+        INPUT_FORMAT="yuyv422"
+        if [ "$FORMAT" == "16:9" ]; then
+          VIDEO_WIDTH=640
+          VIDEO_HEIGHT=360
+        else
+          VIDEO_WIDTH=640
+          VIDEO_HEIGHT=480
+        fi
+      fi
+
+      rpidatv/bin/ffmpeg -thread_queue_size 2048 \
+        -f v4l2 -input_format $INPUT_FORMAT -video_size "$VIDEO_WIDTH"x"$VIDEO_HEIGHT" \
+        -i $VID_WEBCAM \
         -f alsa -thread_queue_size 2048 -ac $AUDIO_CHANNELS -ar $AUDIO_SAMPLE \
         -i hw:$AUDIO_CARD_NUMBER,0 \
         -c:v h264_omx -b:v $BITRATE_VIDEO -g 25 \
         -ar 22050 -ac $AUDIO_CHANNELS -ab 64k \
         -f flv \
-        rtmp://pluto.local:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,0,nocalib,800,32,/,$CALL, &
+        rtmp://pluto.local:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,-$PLUTOPWR,nocalib,800,32,/,$CALL, &
       exit
     fi
 
-    # Allow for experimental widescreen
+    # Allow for experimental widescreen 
 
     if [ "$FORMAT" == "16:9" ]; then
       VIDEO_WIDTH=768
@@ -900,13 +928,16 @@ fi
 
       # Experimental Pluto H264 EasyCap
       if [ "$MODE_OUTPUT" == "PLUTO" ] && [ "$MODE_INPUT" == "ANALOGCAM" ]; then
-        rpidatv/bin/ffmpeg -thread_queue_size 2048 -f v4l2 -video_size 720x576 -i $ANALOGCAMNAME \
-          -f alsa -thread_queue_size 2048 -ac $AUDIO_CHANNELS -ar $AUDIO_SAMPLE \
+        INPUT_FORMAT="yuyv422"
+        rpidatv/bin/ffmpeg -thread_queue_size 2048 \
+          -f v4l2 -input_format $INPUT_FORMAT -video_size 720x576 \
+          -i $ANALOGCAMNAME \
+          -f alsa -thread_queue_size 2048 -ac $AUDIO_CHANNELS  \
           -i hw:$AUDIO_CARD_NUMBER,0 \
           -c:v h264_omx -b:v $BITRATE_VIDEO -g 25 \
           -ar 22050 -ac $AUDIO_CHANNELS -ab 64k \
           -f flv \
-          rtmp://pluto.local:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,0,nocalib,800,32,/,$CALL, &
+          rtmp://pluto.local:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,-$PLUTOPWR,nocalib,800,32,/,$CALL, &
       exit
     fi
 
@@ -1042,29 +1073,47 @@ fi
 
     if [ "$MODE_OUTPUT" == "PLUTO" ] && [ "$MODE_INPUT" == "CARDH264" ]; then
 
-      if [ "$CAPTIONON" == "on" ]; then
-        rm /home/pi/tmp/caption.png >/dev/null 2>/dev/null
-        rm /home/pi/tmp/tcf2.jpg >/dev/null 2>/dev/null
-        convert -size 720x80 xc:transparent -fill white -gravity Center -pointsize 40 -annotate 0 $CALL /home/pi/tmp/caption.png
-        convert /home/pi/rpidatv/scripts/images/tcf.jpg /home/pi/tmp/caption.png -geometry +0+475 -composite /home/pi/tmp/tcf2.jpg
-        IMAGEFILE="/home/pi/tmp/tcf2.jpg"
-        sudo fbi -T 1 -noverbose -a /home/pi/tmp/tcf2.jpg >/dev/null 2>/dev/null
+      if [ "$FORMAT" == "16:9" ]; then
+        VIDEO_WIDTH=1024
+        VIDEO_HEIGHT=576
+        if [ "$CAPTIONON" == "on" ]; then
+          rm /home/pi/tmp/caption.png >/dev/null 2>/dev/null
+          rm /home/pi/tmp/tcfw162.jpg >/dev/null 2>/dev/null
+          convert -size 1024x80 xc:transparent -fill white -gravity Center -pointsize 50 -annotate 0 $CALL /home/pi/tmp/caption.png
+          convert /home/pi/rpidatv/scripts/images/tcfw16.jpg /home/pi/tmp/caption.png -geometry +0+478 -composite /home/pi/tmp/tcfw162.jpg
+          IMAGEFILE="/home/pi/tmp/tcfw162.jpg"
+          sudo fbi -T 1 -noverbose -a /home/pi/tmp/tcfw162.jpg >/dev/null 2>/dev/null
+        else
+          IMAGEFILE="/home/pi/rpidatv/scripts/images/tcfw16.jpg"
+          sudo fbi -T 1 -noverbose -a /home/pi/rpidatv/scripts/images/tcfw16.jpg >/dev/null 2>/dev/null
+        fi
       else
-        IMAGEFILE="/home/pi/rpidatv/scripts/images/tcf.jpg"
-        sudo fbi -T 1 -noverbose -a /home/pi/rpidatv/scripts/images/tcf.jpg >/dev/null 2>/dev/null
+        VIDEO_WIDTH=720
+        VIDEO_HEIGHT=576
+        if [ "$CAPTIONON" == "on" ]; then
+          rm /home/pi/tmp/caption.png >/dev/null 2>/dev/null
+          rm /home/pi/tmp/tcf2.jpg >/dev/null 2>/dev/null
+          convert -size 720x80 xc:transparent -fill white -gravity Center -pointsize 40 -annotate 0 $CALL /home/pi/tmp/caption.png
+          convert /home/pi/rpidatv/scripts/images/tcf.jpg /home/pi/tmp/caption.png -geometry +0+475 -composite /home/pi/tmp/tcf2.jpg
+          IMAGEFILE="/home/pi/tmp/tcf2.jpg"
+          sudo fbi -T 1 -noverbose -a /home/pi/tmp/tcf2.jpg >/dev/null 2>/dev/null
+        else
+          IMAGEFILE="/home/pi/rpidatv/scripts/images/tcf.jpg"
+          sudo fbi -T 1 -noverbose -a /home/pi/rpidatv/scripts/images/tcf.jpg >/dev/null 2>/dev/null
+        fi
       fi
+
       (sleep 1; sudo killall -9 fbi >/dev/null 2>/dev/null) &  ## kill fbi once it has done its work
 
       # Turn the viewfinder off
       v4l2-ctl --overlay=0
 
-
-         $PATHRPI"/ffmpeg" -loglevel $MODE_DEBUG -thread_queue_size 2048 \
-            -f image2 -loop 1 \
-            -i $IMAGEFILE \
-            -framerate 25 -video_size 720x576 -c:v h264_omx -b:v $BITRATE_VIDEO \
+      $PATHRPI"/ffmpeg" -loglevel $MODE_DEBUG -thread_queue_size 2048 \
+        -f image2 -loop 1 \
+        -i $IMAGEFILE -framerate 1 -video_size "$VIDEO_WIDTH"x"$VIDEO_HEIGHT" \
+        -c:v h264_omx -b:v $BITRATE_VIDEO \
         -f flv \
-        rtmp://pluto.local:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,0,nocalib,800,32,/,$CALL, &
+        rtmp://pluto.local:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,-$PLUTOPWR,nocalib,800,32,/,$CALL, &
       exit
     fi
 
@@ -1096,7 +1145,26 @@ fi
             -i $IMAGEFILE \
             -framerate 25 -video_size 720x576 -c:v h264_omx -b:v $BITRATE_VIDEO \
         -f flv \
-        rtmp://pluto.local:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,0,nocalib,800,32,/,$CALL, &
+        rtmp://pluto.local:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,-$PLUTOPWR,nocalib,800,32,/,$CALL, &
+      exit
+    fi
+
+    if [ "$MODE_OUTPUT" == "PLUTO" ] && [ "$MODE_INPUT" == "DESKTOP" ]; then
+
+      # Grab an image of the desktop
+      rm /home/pi/tmp/desktop.jpg >/dev/null 2>/dev/null
+      $PATHRPI"/ffmpeg" -f fbdev -i /dev/fb0 -qscale:v 2 -vframes 1 /home/pi/tmp/desktop.jpg
+      IMAGEFILE="/home/pi/tmp/desktop.jpg"
+
+      # Turn the viewfinder off
+      v4l2-ctl --overlay=0
+
+         $PATHRPI"/ffmpeg" -loglevel $MODE_DEBUG -thread_queue_size 2048 \
+            -f image2 -loop 1 \
+            -i $IMAGEFILE \
+            -framerate 25 -video_size 800x480 -c:v h264_omx -b:v $BITRATE_VIDEO \
+        -f flv \
+        rtmp://pluto.local:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,-$PLUTOPWR,nocalib,800,32,/,$CALL, &
       exit
     fi
 

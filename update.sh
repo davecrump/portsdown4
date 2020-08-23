@@ -312,6 +312,16 @@ cp -f -r "$PATHUBACKUP"/user_button5.sh "$PATHSCRIPT"/user_button5.sh
 cp -f -r "$PATHUBACKUP"/TXstartextras.sh "$PATHSCRIPT"/TXstartextras.sh
 cp -f -r "$PATHUBACKUP"/TXstopextras.sh "$PATHSCRIPT"/TXstopextras.sh
 
+# Add Mic Gain parameter to config file if not included
+if ! grep -q micgain "$PATHSCRIPT"/portsdown_config.txt; then
+  # File needs updating
+  # Delete any blank lines first
+  sed -i -e '/^$/d' "$PATHSCRIPT"/portsdown_config.txt
+  # Add the new entry and a new line 
+  echo "micgain=26" >> "$PATHSCRIPT"/portsdown_config.txt
+fi
+
+
 DisplayUpdateMsg "Step 9 of 10\nFinishing Off\n\nXXXXXXXXX-"
 
 # Update the version number
