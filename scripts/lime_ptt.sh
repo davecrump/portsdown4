@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# Called by rpidatvtouch to delay the PTT 7 seconds to allow lime calibration off-air before transmitting
+# Called by rpidatvtouch to delay the PTT 12 seconds to allow lime calibration off-air before transmitting
 
 ############### PIN AND TIMING DEFINITIONS ###########
 
 # DELAY_TIME in seconds
-DELAY_TIME=7
+DELAY_TIME=12
 
 # PTT_BIT: 0 for Receive, 1 for (delayed) transmit = BCM 21 / Header pin 40
 PTT_BIT=21
