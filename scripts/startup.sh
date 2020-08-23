@@ -122,9 +122,6 @@ fi
 # So continue assuming that this could be a first-start
 # or it could be a second ssh session.
 
-# Check user-requested display type
-DISPLAY=$(get_config_var display $PCONFIGFILE)
-
 # Read the desired start-up behaviour
 MODE_STARTUP=$(get_config_var startup $PCONFIGFILE)
 

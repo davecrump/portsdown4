@@ -361,7 +361,7 @@ detect_video()
 
   if [ "${#VID_WEBCAM}" -lt "10" ]; then # $VID_WEBCAM currently empty
 
-    # List the video devices, select the 2 lines for a new C910 device, then
+    # List the video devices, select the 2 lines for a new C910 (B910) device, then
     # select the line with the device details and delete the leading tab
     VID_WEBCAM="$(v4l2-ctl --list-devices 2> /dev/null | \
       sed -n '/046d:0823/,/dev/p' | grep 'dev' | tr -d '\t')"
@@ -420,4 +420,12 @@ detect_video()
   printf "The PI-CAM device string is $VID_PICAM\n"
   printf "The USB device string is $VID_USB\n"
   printf "The Webcam device string is $VID_WEBCAM\n"
+
+  # Check for the presence of a new C920 without H264 encoder
+  NEWC920Present=0
+  lsusb | grep -q "046d:0892"
+  if [ $? == 0 ]; then   ## New C920 connected
+    NEWC920Present=1
+  fi
+  # Note that C920 present will also be set to 1
 }

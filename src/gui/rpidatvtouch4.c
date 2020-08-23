@@ -45,7 +45,6 @@ Rewitten by Dave, G8GKQ
 #define KWHT  "\x1B[37m"
 #define KYEL  "\x1B[33m"
 
-#define PATH_CONFIG "/home/pi/rpidatv/scripts/rpidatvconfig.txt"
 #define PATH_PCONFIG "/home/pi/rpidatv/scripts/portsdown_config.txt"
 #define PATH_PPRESETS "/home/pi/rpidatv/scripts/portsdown_presets.txt"
 #define PATH_SGCONFIG "/home/pi/rpidatv/src/siggen/siggenconfig.txt"
@@ -142,6 +141,7 @@ int GPIO_Band_MSB = 24;
 int GPIO_Tverter = 7;
 int GPIO_SD_LED = 2;
 int debug_level = 0; // 0 minimum, 1 medium, 2 max
+int MicLevel = 26;   // 1 to 30.  default 26
 
 char ScreenState[255] = "NormalMenu";  // NormalMenu SpecialMenu TXwithMenu TXwithImage RXwithImage VideoOut SnapView VideoView Snap SigGen
 char MenuTitle[50][127];
@@ -154,6 +154,7 @@ char TabPresetLabel[4][15]={"-", "-", "-", "-"};
 float TabBandAttenLevel[9]={-10, -10, -10, -10, -10, -10, -10, -10, -10};
 int TabBandExpLevel[9]={30, 30, 30, 30, 30, 30, 30, 30, 30};
 int TabBandLimeGain[9]={90, 90, 90, 90, 90, 90, 90, 90, 90};
+int TabBandPlutoLevel[9]={0, 0, 0, 0, 0, 0, 0, 0, 0};
 int TabBandExpPorts[9]={2, 2, 2, 2, 2, 2, 2, 2, 2};
 float TabBandLO[9]={0, 0, 0, 0, 0, 3024, 5328, 9936, 23616};
 char TabBandNumbers[9][10]={"1111", "2222", "3333", "4444", "5555", "6666", "7777", "8888", "9999"};
@@ -1196,46 +1197,6 @@ void LimeFWUpdate(int button)
 
 
 /***************************************************************************//**
- * @brief Looks up the force_pwm_open status
- *
- * @param nil
- *
- * @return int 0 or 1 (1 is normal, 0 pops, but allows tx after audio use)
-*******************************************************************************/
-
-int Getforce_pwm_open()
-{
-  FILE *fp;
-  char test_string[63];
-  char response[63];
-  int pwm_int = 9;
-
-  /* Open the command for reading. */
-  fp = popen("vcgencmd get_config force_pwm_open", "r");
-  if (fp == NULL) {
-    printf("Failed to run command\n" );
-    exit(1);
-  }
-
-  /* Read the output a line at a time - output it. */
-  while (fgets(response, 63, fp) != NULL)
-  {
-    strcpy(test_string, response);
-    test_string[15] = '\0';
-    if (strcmp(test_string, "force_pwm_open=") == 0)
-    {
-      strncpy(test_string, &response[15], strlen(response));
-      test_string[strlen(response)-16] = '\0';
-      pwm_int = atoi(test_string);
-    }
-  }
-
-  /* close */
-  pclose(fp);
-  return pwm_int;
-}
-
-/***************************************************************************//**
  * @brief Looks up the GPU Temp
  *
  * @param GPUTemp (str) GPU Temp to be passed as a string max 20 char
@@ -1334,7 +1295,6 @@ void SetAudioLevels()
 {
   char MicGain[15];
   char aMixerCmd[127];
-  int MicLevel;
 
   // Read the mic gain (may not be defined)
   GetConfigParam(PATH_PCONFIG,"micgain", MicGain);
@@ -1457,7 +1417,10 @@ void ReadModeInput(char coding[256], char vsource[256])
     strcpy(coding, "H264");
     strcpy(vsource, "RPi Camera");
     strcpy(CurrentEncoding, "H264");
-    strcpy(CurrentFormat, "4:3");
+    if(strcmp(CurrentFormat, "16:9") !=0)  // Allow 16:9
+    {
+      strcpy(CurrentFormat, "4:3");
+    }
     strcpy(CurrentSource, TabSource[0]); // Pi Cam
   } 
   else if (strcmp(ModeInput, "ANALOGCAM") == 0)
@@ -1465,7 +1428,7 @@ void ReadModeInput(char coding[256], char vsource[256])
     strcpy(coding, "H264");
     strcpy(vsource, "Ext Video Input");
     strcpy(CurrentEncoding, "H264");
-    if(strcmp(CurrentFormat, "16:9") !=0)
+    if(strcmp(CurrentFormat, "16:9") !=0)  // Allow 16:9
     {
       strcpy(CurrentFormat, "4:3");
     }
@@ -1476,7 +1439,10 @@ void ReadModeInput(char coding[256], char vsource[256])
     strcpy(coding, "H264");
     strcpy(vsource, "Webcam");
     strcpy(CurrentEncoding, "H264");
-    strcpy(CurrentFormat, "4:3");
+    if(strcmp(CurrentFormat, "16:9") !=0)  // Allow 16:9
+    {
+      strcpy(CurrentFormat, "4:3");
+    }
     strcpy(CurrentSource, TabSource[6]); // Webcam
   }
   else if (strcmp(ModeInput, "CARDH264") == 0)
@@ -1484,7 +1450,10 @@ void ReadModeInput(char coding[256], char vsource[256])
     strcpy(coding, "H264");
     strcpy(vsource, "Static Test Card F");
     strcpy(CurrentEncoding, "H264");
-    strcpy(CurrentFormat, "4:3");
+    if(strcmp(CurrentFormat, "16:9") !=0)  // Allow 16:9
+    {
+      strcpy(CurrentFormat, "4:3");
+    }
     strcpy(CurrentSource, TabSource[3]); // TestCard
   }
   else if (strcmp(ModeInput, "PATERNAUDIO") == 0)
@@ -2021,6 +1990,11 @@ void ReadBandDetails()
     TabBandExpPorts[i] = atoi(Value);
 
     strcpy(Param, TabBand[i]);
+    strcat(Param, "plutopwr");
+    GetConfigParam(PATH_PPRESETS, Param, Value);
+    TabBandPlutoLevel[i] = -1 * atoi(Value);  // Pluto level is saved as 0 - 71 but used as 0 to -71
+
+    strcpy(Param, TabBand[i]);
     strcat(Param, "lo");
     GetConfigParam(PATH_PPRESETS, Param, Value);
     TabBandLO[i] = atof(Value);
@@ -2389,12 +2363,11 @@ int CheckC920()
   {
     if (strlen(response_line) > 1)
     {
+      pclose(fp);
       return 1;
     }
-
   }
   pclose(fp);
-
   return 0;
 }
 
@@ -2586,6 +2559,38 @@ int CheckFTDI()
   pclose(fp);
   return(ftdistat);
 }
+
+/***************************************************************************//**
+ * @brief Uses keyboard to ask for a new Mic Gain setting
+ *        
+ * @param none
+ *
+ * @return void.  Sets global int RTLgain[0] in range 0 - 50
+*******************************************************************************/
+
+void ChangeMicGain()
+{
+  char RequestText[64];
+  char InitText[64];
+
+  //Define request string 
+  strcpy(RequestText, "Enter new Mic gain setting 1 (min) to 30 (max):");
+  snprintf(InitText, 3, "%d", MicLevel);
+
+  // Ask for response and check validity
+  strcpy(KeyboardReturn, "31");
+  while ((atoi(KeyboardReturn) < 1) || (atoi(KeyboardReturn) > 30))
+  {
+    Keyboard(RequestText, InitText, 3);
+  }
+
+  // Store Response
+  MicLevel = atoi(KeyboardReturn);
+
+  // Write response to file
+  SetConfigParam(PATH_PCONFIG, "micgain", KeyboardReturn);
+}
+
 
 /***************************************************************************//**
  * @brief Saves RTL-FM Freq, Mode, squelch and label
@@ -3691,6 +3696,51 @@ int CheckPlutoConnect()
     return 1;
   }
 }
+
+/***************************************************************************//**
+ * @brief Checks whether a Pluto is connected on the IP address in the Config File
+ *
+ * @param 
+ *
+ * @return 0 if present, 1 if absent
+*******************************************************************************/
+
+int CheckPlutoIPConnect()
+{
+  FILE *fp;
+  char response[127];
+  char plutoping[127];
+
+  strcpy(plutoping, "timeout 0.2 ping ");
+  strcat(plutoping, PlutoIP);
+  strcat(plutoping, " -c1 | head -n 5 | tail -n 1 | grep -o \"1 received,\" | head -c 11");
+
+  /* Open the command for reading. */
+  // fp = popen("timeout 0.2 ping pluto.local -c1 | head -n 5 | tail -n 1 | grep -o \"1 received,\" | head -c 11", "r");
+  fp = popen(plutoping, "r");
+  if (fp == NULL) {
+    printf("Failed to run command\n" );
+    exit(1);
+  }
+
+  /* Read the output a line at a time - output it. */
+  while (fgets(response, 12, fp) != NULL)
+  {
+    //printf("%s", response);
+  }
+
+  /* close */
+  pclose(fp);
+  if (strcmp (response, "1 received,") == 0)
+  {
+    return 0;
+  }
+  else
+  {
+    return 1;
+  }
+}
+
 
 
 /***************************************************************************//**
@@ -4981,7 +5031,7 @@ void ApplyTXConfig()
       strcpy(ModeInput, "JCARD");
     }
   }
-  else
+  else  // For all modes except Carrier and Jetson
   {
     if (strcmp(CurrentEncoding, "IPTS in") == 0)
     {
@@ -5023,24 +5073,26 @@ void ApplyTXConfig()
       }
       if (strcmp(CurrentFormat, "16:9") == 0)
       {
-        if (CheckC920() == 1)
+        if (strcmp(CurrentSource, "CompVid") == 0)
         {
-          if (strcmp(CurrentSource, "C920") == 0)
-          {
-            MsgBox2("16:9 not available with C920"
-              , "Selecting C920 720p");
-            strcpy(ModeInput, "C920HDH264");
-            wait_touch();
-          }
-          else if (strcmp(CurrentSource, "CompVid") == 0)
-          {
-            strcpy(CurrentFormat, "16:9");
-          }
-          else
-          {
-            strcpy(CurrentFormat, "4:3");
-          }
+          strcpy(ModeInput, "ANALOGCAM");
         }
+        else if (strcmp(CurrentSource, "Webcam") == 0)
+        {
+          strcpy(ModeInput, "WEBCAMH264");
+        }
+        else if (strcmp(CurrentSource, "TestCard") == 0)
+        {
+          strcpy(ModeInput, "CARDH264");
+        }
+        else if (strcmp(CurrentSource, "Pi Cam") == 0)
+        {
+          strcpy(ModeInput, "CAMH264");
+        }
+        else
+        {
+          strcpy(CurrentFormat, "4:3");
+        }        
       }
       if (strcmp(CurrentFormat, "4:3") == 0)
       {
@@ -5084,166 +5136,166 @@ void ApplyTXConfig()
     }
     else  // MPEG-2.  Check for C920 first
     {
-    if ((strcmp(CurrentSource, "C920") == 0) && (CheckC920() == 1))
-    {
-      if (strcmp(CurrentFormat, "1080p") == 0)
+      if ((strcmp(CurrentSource, "C920") == 0) && (CheckC920() == 1))
       {
-        strcpy(ModeInput, "C920FHDH264");
-      }
-      else if (strcmp(CurrentFormat, "720p") == 0)
-      {
-        strcpy(ModeInput, "C920HDH264");
-      }
-      else
-      {
+        if (strcmp(CurrentFormat, "1080p") == 0)
+        {
+          strcpy(ModeInput, "C920FHDH264");
+        }
+        else if (strcmp(CurrentFormat, "720p") == 0)
+        {
+          strcpy(ModeInput, "C920HDH264");
+        }
+        else
+        {
           strcpy(ModeInput, "C920H264");
+        }
       }
-    }
-    else  // Not C920
-    {
-      if (strcmp(CurrentFormat, "1080p") == 0)
+      else  // Not C920
       {
-        MsgBox2("1080p only available with C920 Webcam"
-          , "Please select another mode");
-        wait_touch();
-      }
-      if (strcmp(CurrentFormat, "720p") == 0)
-      {
-        if (strcmp(CurrentSource, "Pi Cam") == 0)
+        if (strcmp(CurrentFormat, "1080p") == 0)
         {
-          strcpy(ModeInput, "CAMHDMPEG-2");
-        }
-        else if (strcmp(CurrentSource, "CompVid") == 0)
-        {
-          MsgBox2("720p not available with Comp Vid", "Selecting the test card");
+          MsgBox2("1080p only available with C920 Webcam"
+            , "Please select another mode");
           wait_touch();
-          strcpy(ModeInput, "CARDHDMPEG-2");
         }
-        else if (strcmp(CurrentSource, "TCAnim") == 0)
+        if (strcmp(CurrentFormat, "720p") == 0)
         {
-          MsgBox2("720p not available with TCAnim", "Selecting the test card");
-          wait_touch();
-          strcpy(ModeInput, "CARDHDMPEG-2");
+          if (strcmp(CurrentSource, "Pi Cam") == 0)
+          {
+            strcpy(ModeInput, "CAMHDMPEG-2");
+          }
+          else if (strcmp(CurrentSource, "CompVid") == 0)
+          {
+            MsgBox2("720p not available with Comp Vid", "Selecting the test card");
+            wait_touch();
+            strcpy(ModeInput, "CARDHDMPEG-2");
+          }
+          else if (strcmp(CurrentSource, "TCAnim") == 0)
+          {
+            MsgBox2("720p not available with TCAnim", "Selecting the test card");
+            wait_touch();
+            strcpy(ModeInput, "CARDHDMPEG-2");
+          }
+          else if (strcmp(CurrentSource, "TestCard") == 0)
+          {
+            strcpy(ModeInput, "CARDHDMPEG-2");
+          }
+          else if (strcmp(CurrentSource, "PiScreen") == 0)
+          {
+            MsgBox2("720p not available with PiScreen", "Selecting the test card");
+            wait_touch();
+            strcpy(ModeInput, "CARDHDMPEG-2");
+          }
+          else if (strcmp(CurrentSource, "Contest") == 0)
+          {
+            MsgBox2("720p not available with Contest", "Selecting the test card");
+            wait_touch();
+            strcpy(ModeInput, "CARDHDMPEG-2");
+          }
+          else if (strcmp(CurrentSource, "Webcam") == 0)
+          {
+            strcpy(ModeInput, "WEBCAMHDMPEG-2");
+          }
+          else if (strcmp(CurrentSource, "C920") == 0)
+          {
+            strcpy(ModeInput, "WEBCAMHDMPEG-2");
+          }
+          else  // shouldn't happen
+          {
+            strcpy(ModeInput, "CARDHDMPEG-2");
+          }
         }
-        else if (strcmp(CurrentSource, "TestCard") == 0)
-        {
-          strcpy(ModeInput, "CARDHDMPEG-2");
-        }
-        else if (strcmp(CurrentSource, "PiScreen") == 0)
-        {
-          MsgBox2("720p not available with PiScreen", "Selecting the test card");
-          wait_touch();
-          strcpy(ModeInput, "CARDHDMPEG-2");
-        }
-        else if (strcmp(CurrentSource, "Contest") == 0)
-        {
-          MsgBox2("720p not available with Contest", "Selecting the test card");
-          wait_touch();
-          strcpy(ModeInput, "CARDHDMPEG-2");
-        }
-        else if (strcmp(CurrentSource, "Webcam") == 0)
-        {
-          strcpy(ModeInput, "WEBCAMHDMPEG-2");
-        }
-        else if (strcmp(CurrentSource, "C920") == 0)
-        {
-          strcpy(ModeInput, "WEBCAMHDMPEG-2");
-        }
-        else  // shouldn't happen
-        {
-          strcpy(ModeInput, "CARDHDMPEG-2");
-        }
-      }
 
-      if (strcmp(CurrentFormat, "16:9") == 0)
-      {
-        if (strcmp(CurrentSource, "Pi Cam") == 0)
+        if (strcmp(CurrentFormat, "16:9") == 0)
         {
-          strcpy(ModeInput, "CAM16MPEG-2");
+          if (strcmp(CurrentSource, "Pi Cam") == 0)
+          {
+            strcpy(ModeInput, "CAM16MPEG-2");
+          }
+          else if (strcmp(CurrentSource, "CompVid") == 0)
+          {
+            strcpy(ModeInput, "ANALOG16MPEG-2");
+          }
+          else if (strcmp(CurrentSource, "TCAnim") == 0)
+          {
+            MsgBox2("TCAnim not available with MPEG-2", "Selecting the test card");
+            wait_touch();
+            strcpy(ModeInput, "CARD16MPEG-2");
+          }
+          else if (strcmp(CurrentSource, "TestCard") == 0)
+          {
+            strcpy(ModeInput, "CARD16MPEG-2");
+          }
+          else if (strcmp(CurrentSource, "PiScreen") == 0)
+          {
+            MsgBox2("16:9 not available with PiScreen", "Selecting the test card");
+            wait_touch();
+            strcpy(ModeInput, "CARD16MPEG-2");
+          }
+          else if (strcmp(CurrentSource, "Contest") == 0)
+          {
+            MsgBox2("16:9 not available with Contest", "Selecting 4:3");
+            wait_touch();
+            strcpy(ModeInput, "CONTESTMPEG-2");
+          }
+          else if (strcmp(CurrentSource, "Webcam") == 0)
+          {
+            strcpy(ModeInput, "WEBCAM16MPEG-2");
+          }
+          else if (strcmp(CurrentSource, "C920") == 0)
+          {
+            strcpy(ModeInput, "WEBCAM16MPEG-2");
+          }
+          else  // shouldn't happen
+          {
+            strcpy(ModeInput, "CARD16MPEG-2");
+          }
         }
-        else if (strcmp(CurrentSource, "CompVid") == 0)
-        {
-          strcpy(ModeInput, "ANALOG16MPEG-2");
-        }
-        else if (strcmp(CurrentSource, "TCAnim") == 0)
-        {
-          MsgBox2("TCAnim not available with MPEG-2", "Selecting the test card");
-          wait_touch();
-          strcpy(ModeInput, "CARD16MPEG-2");
-        }
-        else if (strcmp(CurrentSource, "TestCard") == 0)
-        {
-          strcpy(ModeInput, "CARD16MPEG-2");
-        }
-        else if (strcmp(CurrentSource, "PiScreen") == 0)
-        {
-          MsgBox2("16:9 not available with PiScreen", "Selecting the test card");
-          wait_touch();
-          strcpy(ModeInput, "CARD16MPEG-2");
-        }
-        else if (strcmp(CurrentSource, "Contest") == 0)
-        {
-          MsgBox2("16:9 not available with Contest", "Selecting 4:3");
-          wait_touch();
-          strcpy(ModeInput, "CONTESTMPEG-2");
-        }
-        else if (strcmp(CurrentSource, "Webcam") == 0)
-        {
-          strcpy(ModeInput, "WEBCAM16MPEG-2");
-        }
-        else if (strcmp(CurrentSource, "C920") == 0)
-        {
-          strcpy(ModeInput, "WEBCAM16MPEG-2");
-        }
-        else  // shouldn't happen
-        {
-          strcpy(ModeInput, "CARD16MPEG-2");
-        }
-      }
 
-      if (strcmp(CurrentFormat, "4:3") == 0)
-      {
-        if (strcmp(CurrentSource, "Pi Cam") == 0)
+        if (strcmp(CurrentFormat, "4:3") == 0)
         {
-          strcpy(ModeInput, "CAMMPEG-2");
+          if (strcmp(CurrentSource, "Pi Cam") == 0)
+          {
+            strcpy(ModeInput, "CAMMPEG-2");
+          }
+          else if (strcmp(CurrentSource, "CompVid") == 0)
+          {
+            strcpy(ModeInput, "ANALOGMPEG-2");
+          }
+          else if (strcmp(CurrentSource, "TCAnim") == 0)
+          {
+            strcpy(ModeInput, "CARDMPEG-2");
+            MsgBox2("TCAnim not available with MPEG-2", "Selecting Test Card F instead");
+            wait_touch();
+          }
+          else if (strcmp(CurrentSource, "TestCard") == 0)
+          {
+            strcpy(ModeInput, "CARDMPEG-2");
+          }
+          else if (strcmp(CurrentSource, "PiScreen") == 0)
+          {
+            strcpy(ModeInput, "CARDMPEG-2");
+            MsgBox2("PiScreen not available with MPEG-2", "Selecting Test Card F instead");
+            wait_touch();
+          }
+          else if (strcmp(CurrentSource, "Contest") == 0)
+          {
+            strcpy(ModeInput, "CONTESTMPEG-2");
+          }
+          else if (strcmp(CurrentSource, "Webcam") == 0)
+          {
+            strcpy(ModeInput, "WEBCAMMPEG-2");
+          }
+          else if (strcmp(CurrentSource, "C920") == 0)
+          {
+            strcpy(ModeInput, "WEBCAMMPEG-2");
+          }
+          else  // Shouldn't happen but give them Test Card F
+          {
+            strcpy(ModeInput, "CARDMPEG-2");
+          }
         }
-        else if (strcmp(CurrentSource, "CompVid") == 0)
-        {
-          strcpy(ModeInput, "ANALOGMPEG-2");
-        }
-        else if (strcmp(CurrentSource, "TCAnim") == 0)
-        {
-          strcpy(ModeInput, "CARDMPEG-2");
-          MsgBox2("TCAnim not available with MPEG-2", "Selecting Test Card F instead");
-          wait_touch();
-        }
-        else if (strcmp(CurrentSource, "TestCard") == 0)
-        {
-          strcpy(ModeInput, "CARDMPEG-2");
-        }
-        else if (strcmp(CurrentSource, "PiScreen") == 0)
-        {
-          strcpy(ModeInput, "CARDMPEG-2");
-          MsgBox2("PiScreen not available with MPEG-2", "Selecting Test Card F instead");
-          wait_touch();
-        }
-        else if (strcmp(CurrentSource, "Contest") == 0)
-        {
-          strcpy(ModeInput, "CONTESTMPEG-2");
-        }
-        else if (strcmp(CurrentSource, "Webcam") == 0)
-        {
-          strcpy(ModeInput, "WEBCAMMPEG-2");
-        }
-        else if (strcmp(CurrentSource, "C920") == 0)
-        {
-          strcpy(ModeInput, "WEBCAMMPEG-2");
-        }
-        else  // Shouldn't happen but give them Test Card F
-        {
-          strcpy(ModeInput, "CARDMPEG-2");
-        }
-      }
       }
     }
   }
@@ -5269,6 +5321,7 @@ void ApplyTXConfig()
   system("(sleep 1; sudo killall -9 fbi >/dev/null 2>/dev/null) &");
 }
 
+
 void EnforceValidTXMode()
 {
   char Param[15]="modulation";
@@ -5281,7 +5334,7 @@ void EnforceValidTXMode()
        && (strcmp(CurrentModeOP, "IP") != 0)
        && (strcmp(CurrentModeOP, "JLIME") != 0)
        && (strcmp(CurrentModeOP, "JEXPRESS") != 0)
-       && (strcmp(CurrentModeOP, "PLUTO") != 0)) // not DVB-S2-capable
+       && (strcmp(CurrentModeOP, "PLUTO") != 0)) // If not any of these, then not DVB-S2-capable
   {
     if ((strcmp(CurrentTXMode, TabTXMode[0]) != 0) && (strcmp(CurrentTXMode, TabTXMode[1]) != 0))  // Not DVB-S and not Carrier
     {
@@ -5517,8 +5570,9 @@ void GreyOut1()
         SetButtonStatus(ButtonNumber(CurrentMenu, 9), 2); // Attenuator Level
       }
 
-      // If not DATV Express or Lime or JLIME then Grey out Device Level
+      // If not DATV Express, Lime, JLIME or Pluto then Grey out Device Level
       if ((strcmp(CurrentModeOP, "DATVEXPRESS") != 0) 
+        && (strcmp(CurrentModeOP, "PLUTO") != 0) 
         && (strcmp(CurrentModeOP, TabModeOP[3]) != 0) 
         && (strcmp(CurrentModeOP, TabModeOP[8]) != 0) 
         && (strcmp(CurrentModeOP, TabModeOP[9]) != 0)
@@ -5915,7 +5969,10 @@ void SelectSource(int NoButton)  // Video Source
     NoButton = NoButton + 10;
   }
   strcpy(CurrentSource, TabSource[NoButton - 5]);
+  printf("Current Source before ApplyTXConfig in SelectSource is %s\n",  CurrentSource);
   ApplyTXConfig();
+  printf("Current Source afer ApplyTXConfig in SelectSource is %s\n",  CurrentSource);
+
 }
 
 void SelectFreq(int NoButton)  //Frequency
@@ -6152,9 +6209,11 @@ void ChangeBandDetails(int NoButton)
   int ExpLevel = -1;
   int ExpPorts = -1;
   int LimeGain = -1;
+  int PlutoLevel = 1;
   float LO = 1000001;
   char Numbers[10] ="";
   //char PromptBand[15];
+  char ActualValue[31];
   int band;
 
   // Convert button number to band number
@@ -6224,6 +6283,22 @@ void ChangeBandDetails(int NoButton)
   }
   TabBandLimeGain[band] = LimeGain;
   SetConfigParam(PATH_PPRESETS ,Param, KeyboardReturn);
+
+  // Pluto Power
+  strcpy(Param, TabBand[band]);
+  strcat(Param, "plutopwr");
+  GetConfigParam(PATH_PPRESETS, Param, Value);
+  strcpy(ActualValue, "-");
+  strcat(ActualValue, Value);
+  while ((PlutoLevel < -71) || (PlutoLevel > 0))
+  {
+    snprintf(Prompt, 63, "Set the Pluto Power for the %s Band (0 to -71):", TabBandLabel[band]);
+    Keyboard(Prompt, ActualValue, 3);
+    PlutoLevel = atoi(KeyboardReturn);
+  }
+  TabBandPlutoLevel[band] = PlutoLevel;
+  snprintf(Value, 3, "%d", -1 * PlutoLevel);
+  SetConfigParam(PATH_PPRESETS, Param, Value);
 
   // LO frequency
   strcpy(Param, TabBand[band]);
@@ -6365,6 +6440,14 @@ void DoFreqChange()
   TabBandLimeGain[CurrentBand] = atoi(Value);
 
   strcpy(Param, "limegain");
+  SetConfigParam(PATH_PCONFIG ,Param, Value);
+
+  // Pluto Level
+  strcpy(Param, TabBand[CurrentBand]);
+  strcat(Param, "plutopwr");
+  GetConfigParam(PATH_PPRESETS, Param, Value);
+  TabBandPlutoLevel[CurrentBand] = -1 * atoi(Value);
+  strcpy(Param, "plutopwr");
   SetConfigParam(PATH_PCONFIG ,Param, Value);
 
   // LO frequency
@@ -6550,6 +6633,7 @@ void SetDeviceLevel()
   char Param[15];
   int ExpLevel = -1;
   int LimeGain = -1;
+  int PlutoLevel = 1; // valid range -71 to 0, bit stored as 71 to 0 in config file
 
   if (strcmp(CurrentModeOP, TabModeOP[2]) == 0)  // DATV Express
   {
@@ -6585,6 +6669,24 @@ void SetDeviceLevel()
     strcpy(Param, "limegain");
     SetConfigParam(PATH_PCONFIG, Param, KeyboardReturn);
   }
+  else if (strcmp(CurrentModeOP, "PLUTO") == 0)  // Pluto
+  {
+    while ((PlutoLevel < -71) || (PlutoLevel > 0))
+    {
+      snprintf(Prompt, 62, "Set the Pluto Power for the %s Band (0 to -71):", TabBandLabel[CurrentBand]);
+      snprintf(Value, 5, "%d", TabBandPlutoLevel[CurrentBand]);
+      Keyboard(Prompt, Value, 3);
+      PlutoLevel = atoi(KeyboardReturn);
+    }
+    TabBandPlutoLevel[CurrentBand] = PlutoLevel;
+    snprintf(Value, 3, "%d", -1 * PlutoLevel);
+    strcpy(Param, TabBand[CurrentBand]);
+    strcat(Param, "plutopwr");
+    SetConfigParam(PATH_PPRESETS, Param, Value);
+    strcpy(Param, "plutopwr");
+    SetConfigParam(PATH_PCONFIG, Param, Value);
+  }
+
   else
   {
   // Do nothing
@@ -7995,9 +8097,12 @@ void LMRX(int NoButton)
   int txttot =  font_ptr->height;
   int txtdesc = font_ptr->height - font_ptr->ascent;
   int linepitch = (14 * txtht) / 10;
- 
-  // Display Text
-  clearScreen();
+
+  // Initialise the MER display
+  int bar_height;
+  int bar_centre = hscreen * 0.30;
+  int ls = wscreen * 38 / 40;
+  int wdth = (wscreen * 2 / 40) - 1;
 
   // Create Wait Button thread
   pthread_create (&thbutton, NULL, &WaitButtonLMRX, NULL);
@@ -8316,6 +8421,7 @@ void LMRX(int NoButton)
           {
             if (FinishedButton == 1)  // Parameters requested to be displayed
             {
+
               // If they weren't displayed before, set the previousMER to 0 
               // so they get displayed and don't have to wait for an MER change
               if (Parameters_currently_displayed != 1)
@@ -8348,7 +8454,8 @@ void LMRX(int NoButton)
               Text2(wscreen * 1 / 40, hscreen - 7 * linepitch, Servicetext, font_ptr);
               rectangle(wscreen * 1 / 40, hscreen - 8 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
               Text2(wscreen * 1 / 40, hscreen - 8 * linepitch, Encodingtext, font_ptr);
-              if (MER < MERThreshold)
+
+              if (MER < MERThreshold + 0.1)
               {
                 setForeColour(255, 63, 63); // Set foreground colour to red
               }
@@ -8796,7 +8903,7 @@ void LMRX(int NoButton)
               Text2(wscreen * 1 / 40, hscreen - 7 * linepitch, Servicetext, font_ptr);
               rectangle(wscreen * 1 / 40, hscreen - 8 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
               Text2(wscreen * 1 / 40, hscreen - 8 * linepitch, Encodingtext, font_ptr);
-              if (MER < MERThreshold)
+              if (MER < MERThreshold + 0.1)
               {
                 setForeColour(255, 63, 63); // Set foreground colour to red
               }
@@ -9176,7 +9283,7 @@ void LMRX(int NoButton)
               Text2(wscreen * 1 / 40, hscreen - 7 * linepitch, Servicetext, font_ptr);
               rectangle(wscreen * 1 / 40, hscreen - 8 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
               Text2(wscreen * 1 / 40, hscreen - 8 * linepitch, Encodingtext, font_ptr);
-              if (MER < MERThreshold)
+              if (MER < MERThreshold + 0.1)
               {
                 setForeColour(255, 63, 63); // Set foreground colour to red
               }
@@ -9569,7 +9676,7 @@ void LMRX(int NoButton)
             Text2(wscreen * 1 / 40, hscreen - 7 * linepitch, Servicetext, font_ptr);
             rectangle(wscreen * 1 / 40, hscreen - 8 * linepitch - txtdesc, wscreen * 17 / 40, txttot, 0, 0, 0);
             Text2(wscreen * 1 / 40, hscreen - 8 * linepitch, Encodingtext, font_ptr);
-            if (MER < MERThreshold)
+            if (MER < MERThreshold + 0.1)
             {
               setForeColour(255, 63, 63); // Set foreground colour to red
             }
@@ -9697,15 +9804,29 @@ void LMRX(int NoButton)
 
             if (MERcount == 10)
             {
+              bar_height = hscreen * (MER - refMER) / 8; // zero is reference
+              // valid pixels are 1 to wscreen (800) and 1 to hscreen (480)
+
+              rectangle(ls - wdth, bar_centre -1, wdth, 2, 255, 255, 255); // White Reference line
               if (MER > refMER)  // Green rectangle
               {
-                rectangle(wscreen * 38 / 40, hscreen * 0.30, wscreen * 2 / 40, (hscreen * (MER - refMER) / 8), 0, 255, 0);
-                rectangle(wscreen * 38 / 40, (hscreen * 0.30) + (hscreen * (MER - refMER) / 8), wscreen * 2 / 40, 120, 0, 0, 0);
+                if ((bar_centre + bar_height ) > hscreen)  // off the top
+                {
+                  bar_height = hscreen - bar_centre;
+                }
+                rectangle(ls, bar_centre, wdth, bar_height, 0, 255, 0); // Green bar
+                rectangle(ls, bar_centre + bar_height, wdth, hscreen - bar_centre - bar_height, 0, 0, 0); // Black above green
+                rectangle(ls, 1, wdth, bar_centre, 0, 0, 0); // Black below centre
               }
-              else
+              else              // Red rectangle
               {
-                rectangle(wscreen * 38 / 40, hscreen * 0.30 + (hscreen * (MER - refMER) / 8), wscreen * 2 / 40, (hscreen * (refMER - MER) / 8), 255, 0, 0);
-                //rectangle(wscreen * 38 / 40, 1, wscreen * 2 / 40, hscreen * 0.30 + (hscreen * (MER - refMER) / 8), 0, 0, 0);
+                if ((bar_centre + bar_height ) < 1)  // off the bottom
+                {
+                  bar_height = 1 - bar_centre;
+                }
+                rectangle(ls, bar_centre + bar_height, wdth, 0 - bar_height, 255, 0, 0); // Red bar
+                rectangle(ls, 1, wdth, bar_centre + bar_height, 0, 0, 0);  // Black below red
+                rectangle(ls, bar_centre, wdth, hscreen - bar_centre, 0, 0, 0); // Black above centre
               }
             }
           }
@@ -9962,12 +10083,12 @@ void MsgBox4(char *message1, char *message2, char *message3, char *message4)
   int linepitch = (14 * txtht) / 10;
 
   clearScreen();
-  TextMid2(wscreen / 2, hscreen / 2 + (linepitch * 3) / 2, message1, font_ptr);
-  TextMid2(wscreen / 2, hscreen / 2 + (linepitch * 3) / 4, message2, font_ptr);
-  TextMid2(wscreen / 2, hscreen / 2 - (linepitch * 3) / 4, message3, font_ptr);
-  TextMid2(wscreen / 2, hscreen / 2 - (linepitch * 3) / 2, message4, font_ptr);
+  TextMid2(wscreen / 2, hscreen - (linepitch * 2), message1, font_ptr);
+  TextMid2(wscreen / 2, hscreen - 2 * (linepitch * 2), message2, font_ptr);
+  TextMid2(wscreen / 2, hscreen - 3 * (linepitch * 2), message3, font_ptr);
+  TextMid2(wscreen / 2, hscreen - 4 * (linepitch * 2), message4, font_ptr);
 
-  printf("MsgBox4 called\n");
+  // printf("MsgBox4 called\n");
 }
 
 void YesNo(int i)  // i == 6 Yes, i == 8 No
@@ -10821,57 +10942,6 @@ void do_snap()
   }
 }
 
-void do_videoview()
-{
-  printf("videoview called\n");
-  char USBVidDevice[255];
-  char ffmpegCMD[255];
-
-  GetUSBVidDev(USBVidDevice);
-  if (strlen(USBVidDevice) != 12)  // /dev/video* with a new line
-  {
-    MsgBox("No EasyCap Found");
-    wait_touch();
-    UpdateWindow();
-    setBackColour(0, 0, 0);
-    clearScreen();
-  }
-  else
-  {
-    // Create a thread to listen for display touches
-    pthread_create (&thview,NULL, &WaitButtonEvent,NULL);
-
-    // Write directly to the touchscreen framebuffer for 7 inch displays
-    USBVidDevice[strcspn(USBVidDevice, "\n")] = 0;  //remove the newline
-    strcpy(ffmpegCMD, "/home/pi/rpidatv/bin/ffmpeg -hide_banner -loglevel panic -f v4l2 -i ");
-    strcat(ffmpegCMD, USBVidDevice);
-    strcat(ffmpegCMD, " -vf \"yadif=0:1:0,scale=800:480\" -f rawvideo -pix_fmt rgb32 -vframes 2 /home/pi/tmp/frame.raw");
-
-    // Refresh image until display touched
-    while ( FinishedButton == 0 )
-    {
-      system("sudo rm /home/pi/tmp/* >/dev/null 2>/dev/null");
-      system(ffmpegCMD);
-      system("split -b 1536000 -d -a 1 /home/pi/tmp/frame.raw /home/pi/tmp/frame");
-      system("cat /home/pi/tmp/frame1>/dev/fb0");
-    }
-    // Screen has been touched so stop and tidy up
-    system("sudo rm /home/pi/tmp/* >/dev/null 2>/dev/null");
-
-    // Screen has been touched
-    printf("videoview exit\n");
-
-    // Tidy up and display touch menu
-    FinishedButton = 0;
-    system("sudo killall fbi >/dev/null 2>/dev/null");  // kill any previous images
-    system("sudo fbi -T 1 -noverbose -a /home/pi/rpidatv/scripts/images/BATC_Black.png  >/dev/null 2>/dev/null");  // Add logo image
-
-    setBackColour(0, 0, 0);
-    clearScreen();
-    UpdateWindow();
-    system("sudo killall fbi >/dev/null 2>/dev/null");  // kill fbi now
-  }
-}
 
 void do_snapcheck()
 {
@@ -10972,7 +11042,16 @@ void do_Langstone()
   // Check that audio dongle exists before exit, otherwise display error message
   if (DetectUSBAudio() == 0)
   {
-    cleanexit(135);
+    // Check that Pluto IP is set correctly otherwise display error message
+    if (CheckPlutoIPConnect() == 0)
+    {
+      cleanexit(135);  // Start Langstone
+    }
+    else
+    {
+      MsgBox2("Pluto IP not set in Pluto Config", "Please set correctly for Langstone");
+      wait_touch();
+    } 
   }
   else
   {
@@ -11860,6 +11939,36 @@ void ChangePlutoIP()
   strcpy(PlutoIP, KeyboardReturn);
 }
 
+void RebootPluto()
+{
+  int test = 1;
+  int count = 0;
+  // int rawX, rawY, rawPressure;
+
+  system("/home/pi/rpidatv/scripts/reboot_pluto.sh");
+  MsgBox4("Pluto Rebooting", "Wait for reconnection", " ", " ");
+
+  while(test == 1)
+  {
+    //if (getTouchSample(&rawX, &rawY, &rawPressure) != 0)
+    //{
+    //  return;
+    //}
+    usleep(1000000);
+    test = CheckPlutoConnect();
+    count = count + 1;
+    if (count > 29)
+    {
+      MsgBox4("Failed to Reconnect","to Pluto", " ", "Touch Screen to Continue");
+      wait_touch();
+      return;
+    }
+  }
+  MsgBox4("Pluto Rebooted"," ", " ", "Touch Screen to Continue");
+  wait_touch();
+}
+
+
 void UpdateLangstone()
 {
   if (CheckGoogle() == 0)  // First check internet conection
@@ -12534,7 +12643,7 @@ rawY = 0;
           Start_Highlights_Menu19();
           UpdateWindow();
           break;
-        case 14:                         // Lime/Express Level
+        case 14:                         // Lime/Express/Pluto Level
           printf("Set Device Output Level \n");
           SetDeviceLevel();
           setBackColour(0, 0, 0);
@@ -12597,22 +12706,13 @@ rawY = 0;
           }
           else     // Transmit, but not if audio has been used and would not work 
           {
-            if (!((IQAvailable == 0) && (Getforce_pwm_open() == 1) && ((strcmp(CurrentModeOP, "QPSKRF") == 0) || (strcmp(CurrentModeOP, "IQ") == 0))))
-            {
-              if ((strcmp(CurrentModeOP, "LIMEMINI") == 0) || (strcmp(CurrentModeOP, "LIMEUSB") == 0) || (strcmp(CurrentModeOP, "LIMEDVB") == 0))
-              {  
-                system("/home/pi/rpidatv/scripts/lime_ptt.sh &");
-              }
-              SelectPTT(i,1);
-              UpdateWindow();
-              TransmitStart();
+            if ((strcmp(CurrentModeOP, "LIMEMINI") == 0) || (strcmp(CurrentModeOP, "LIMEUSB") == 0) || (strcmp(CurrentModeOP, "LIMEDVB") == 0))
+            {  
+              system("/home/pi/rpidatv/scripts/lime_ptt.sh &");
             }
-            else
-            {
-              MsgBox4("Transmit unavailable, as the", "audio output has been used.", "Please re-boot to reset.", "Touch screen to continue");
-              wait_touch();
-              UpdateWindow();
-            }
+            SelectPTT(i, 1);
+            UpdateWindow();
+            TransmitStart();
           }
           break;
         case 21:                       // LongMynd RX
@@ -12889,7 +12989,13 @@ rawY = 0;
           Start_Highlights_Menu39();
           UpdateWindow();
           break;
-        case 8:                              // 
+        case 8:                              // Pluto Config
+          printf("MENU 15 \n"); 
+          CurrentMenu=15;
+          setBackColour(0, 0, 0);
+          clearScreen();
+          Start_Highlights_Menu15();
+          UpdateWindow();
           break;
         case 9:                              // 
           break;
@@ -12931,7 +13037,11 @@ rawY = 0;
           Start_Highlights_Menu3();
           UpdateWindow();
           break;
-        case 14:                               // Blank
+        case 14:                               // Set Mic Gain
+          ChangeMicGain();
+          SetAudioLevels();
+          Start_Highlights_Menu3();
+          UpdateWindow();
           break;
         case 15:                              // Set Band Details
           CallingMenu = 301;
@@ -13775,6 +13885,20 @@ rawY = 0;
         printf("Button Event %d, Entering Menu 15 Case Statement\n",i);
         switch (i)
         {
+        case 0:                               // Enter Pluto IP
+          ChangePlutoIP();
+          setBackColour(0, 0, 0);
+          clearScreen();
+          Start_Highlights_Menu15();
+          UpdateWindow();
+          break;
+        case 1:                               // Reboot Pluto
+          RebootPluto();
+          setBackColour(0, 0, 0);
+          clearScreen();
+          Start_Highlights_Menu15();
+          UpdateWindow();
+          break;
         case 4:                               // Cancel
           SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 1);
           printf("Menu 15 Cancel\n");
@@ -15167,7 +15291,7 @@ rawY = 0;
           Start_Highlights_Menu34();
           UpdateWindow();
           break;
-        case 13:                               // Toggle Force PWM Open
+        case 13:                               // 
           break;
         case 14:                               // Invert 7 Inch
           CallingMenu = 4314;
@@ -15290,9 +15414,6 @@ rawY = 0;
           printf("CompVid\n");
           break;
         // case 7:                               // TCAnim No tcanim on RPi 4
-          // SelectSource(i);
-          // printf("TCAnim\n");
-          // break;
         case 8:                               // TestCard
           SelectSource(i);
           printf("TestCard\n");
@@ -15310,9 +15431,6 @@ rawY = 0;
           printf("Webcam\n");
           break;
         // case 2:                               // Raw C920 not used
-          // SelectSource(i);
-          // printf("C920\n");
-          // break;
         case 3:                               // HDMI
           SelectSource(i);
           printf("HDMI\n");
@@ -15781,6 +15899,10 @@ void Start_Highlights_Menu1()
   {
     snprintf(Leveltext, 20, "Lime Gain^%d", TabBandLimeGain[CurrentBand]);
   }
+  else if (strcmp(CurrentModeOP, "PLUTO") == 0)  // Pluto
+  {
+    snprintf(Leveltext, 20, "Pluto Pwr^%d", TabBandPlutoLevel[CurrentBand]);
+  }
   else
   {
     snprintf(Leveltext, 20, "OP Level^Fixed");
@@ -15989,6 +16111,9 @@ void Define_Menu3()
   button = CreateButton(3, 7);
   AddButtonStatus(button, "Langstone^Config", &Blue);
 
+  button = CreateButton(3, 8);
+  AddButtonStatus(button, "Pluto^Config", &Blue);
+
   // 3rd line up Menu 3: Amend Sites/Beacons, Set Receive LOs and set Stream Outputs 
 
   button = CreateButton(3, 10);
@@ -16004,6 +16129,9 @@ void Define_Menu3()
 
   button = CreateButton(3, 13);
   AddButtonStatus(button, "Audio out^RPi Jack", &Blue);
+
+  button = CreateButton(3, 14);
+  AddButtonStatus(button, "Set USB^Mic Gain", &Blue);
 
   // 4th line up Menu 3: Band Details, Preset Freqs, Preset SRs, Call and ADFRef
 
@@ -17227,9 +17355,15 @@ void Define_Menu15()
 {
   int button;
 
-  strcpy(MenuTitle[15], "Menu (15)"); 
+  strcpy(MenuTitle[15], "Pluto Configuration Menu (15)"); 
 
   // Bottom Row, Menu 15
+
+  button = CreateButton(15, 0);
+  AddButtonStatus(button, "Enter^Pluto IP", &Blue);
+
+  button = CreateButton(15, 1);
+  AddButtonStatus(button, "Reboot^Pluto", &Blue);
 
   button = CreateButton(15, 4);
   AddButtonStatus(button, "Cancel", &DBlue);
@@ -19182,10 +19316,8 @@ void Define_Menu43()
   AddButtonStatus(button, "Start-up^App", &Blue);
 
   //button = CreateButton(43, 13);
-  //AddButtonStatus(button, "force pwm^open = 0", &Blue);
-  //AddButtonStatus(button, "force pwm^open = 0", &Green);
-  //AddButtonStatus(button, "force pwm^open = 1", &Blue);
-  //AddButtonStatus(button, "force pwm^open = 1", &Green);
+  //AddButtonStatus(button, " ", &Blue);
+  //AddButtonStatus(button, " ", &Green);
 
   button = CreateButton(43, 14);
   AddButtonStatus(button, "Invert^7 inch", &Blue);
@@ -19256,23 +19388,13 @@ void Define_Menu44()
   // 3rd Row, Menu 44
 
 //  button = CreateButton(44, 10);
-//  AddButtonStatus(button, "", &Blue);
-//  AddButtonStatus(button, "", &Green);
 
 //  button = CreateButton(44, 11);
-//  AddButtonStatus(button, "", &Blue);
-//  AddButtonStatus(button, "", &Green);
 
 //  button = CreateButton(44, 13);
-//  AddButtonStatus(button, "force pwm^open = 0", &Blue);
-//  AddButtonStatus(button, "force pwm^open = 0", &Green);
-//  AddButtonStatus(button, "force pwm^open = 1", &Blue);
-//  AddButtonStatus(button, "force pwm^open = 1", &Green);
 
 //  button = CreateButton(44, 14);
-//  AddButtonStatus(button, "Invert^7 inch", &Blue);
-//  AddButtonStatus(button, "Invert^7 inch", &Green);
-//  AddButtonStatus(button, "Invert^7 inch", &Grey);
+
 }
 
 void Start_Highlights_Menu44()

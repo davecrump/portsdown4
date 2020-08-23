@@ -1,6 +1,16 @@
-202008050
+20200823
+Prevent reboot hang if Pluto not connected
+Add Pluto Contest and Desktop modes
+Add Mic Gain setting on Menu 3
+Correct Receiver parameter display behaviour
+Add Pluto Config Menu
+Increase Lime Transmit delay to 12 seconds
+Add Pluto support for newer C920 and very old C170 Webcams
+Add H264 16:9 modes
+
+202008051
 Minor Bugfixes and Tidying up
-Add PiCam and Comp Vid inputs for Pluto
+Add PiCam, Comp Vid and Contest Number inputs for Pluto
 Set Mic gain to 87% at gui start up
 
 202008013
