@@ -1,4 +1,4 @@
-20200823
+202008231
 Prevent reboot hang if Pluto not connected
 Add Pluto Contest and Desktop modes
 Add Mic Gain setting on Menu 3
