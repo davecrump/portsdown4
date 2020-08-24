@@ -79,6 +79,7 @@ sudo apt-get -y install autoconf libtool # for fdk aac
 cd /tmp
 wget https://project-downloads.drogon.net/wiringpi-latest.deb
 sudo dpkg -i wiringpi-latest.deb
+cd /home/pi
 
 # Freqshow install no longer required:
 #sudo apt-get -y install python-pip pandoc python-numpy pandoc python-pygame gdebi-core # 20180101 FreqShow
