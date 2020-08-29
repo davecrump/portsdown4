@@ -12704,11 +12704,15 @@ rawY = 0;
             UpdateWindow();
             //CompVidStart();
           }
-          else     // Transmit, but not if audio has been used and would not work 
+          else     // Transmit 
           {
             if ((strcmp(CurrentModeOP, "LIMEMINI") == 0) || (strcmp(CurrentModeOP, "LIMEUSB") == 0) || (strcmp(CurrentModeOP, "LIMEDVB") == 0))
             {  
               system("/home/pi/rpidatv/scripts/lime_ptt.sh &");
+            }
+            if (strcmp(CurrentModeOP, "PLUTO") == 0)
+            {  
+              system("/home/pi/rpidatv/scripts/pluto_ptt.sh &");
             }
             SelectPTT(i, 1);
             UpdateWindow();
