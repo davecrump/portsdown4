@@ -1,3 +1,7 @@
+202009010
+Correct Pluto PTT
+Add Jetson Nano build
+
 202008231
 Prevent reboot hang if Pluto not connected
 Add Pluto Contest and Desktop modes
