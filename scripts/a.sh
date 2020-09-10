@@ -70,6 +70,10 @@ NUMBERS=$(get_config_var numbers $PCONFIGFILE)
 
 MODE_STARTUP=$(get_config_var startup $PCONFIGFILE)
 
+LKVUDP=$(get_config_var lkvudp $JCONFIGFILE)
+LKVPORT=$(get_config_var lkvport $JCONFIGFILE)
+
+
 OUTPUT_IP=""
 LIMETYPE=""
 
@@ -535,17 +539,21 @@ case "$MODE_INPUT" in
       exit
     fi
 
-    # Experimental Pluto Code
+    ################# Pluto Code
 
     if [ "$MODE_OUTPUT" == "PLUTO" ] && [ "$MODE_INPUT" == "CAMH264" ]; then
+      sudo modprobe bcm2835_v4l2  # Make sure that Pi Cam driver is loaded
+
       if [ "$FORMAT" == "16:9" ]; then
-        VIDEO_WIDTH=800
-        VIDEO_HEIGHT=448
+        VIDEO_WIDTH=1024
+        VIDEO_HEIGHT=576
+      elif [ "$FORMAT" == "720p" ] || [ "$FORMAT" == "1080p" ]; then
+        VIDEO_WIDTH=1280
+        VIDEO_HEIGHT=720
       else
         VIDEO_WIDTH=768
         VIDEO_HEIGHT=576
       fi
-      # 1280/720 and 1920/1020 also work, but like 800x448 need changes in rpidatvtouch4.c before they can be selected
 
       # Size the viewfinder
       v4l2-ctl -d $VID_PICAM --set-fmt-overlay=left=0,top=0,width=736,height=416 --overlay 1 # For 800x480 framebuffer
@@ -579,21 +587,34 @@ case "$MODE_INPUT" in
       exit
     fi
 
+    ################# Lime and DATV Express Code #################################
+
     if [ "$FORMAT" == "16:9" ]; then
       VIDEO_WIDTH=1024
       VIDEO_HEIGHT=576
+    elif [ "$FORMAT" == "720p" ] || [ "$FORMAT" == "1080p" ]; then
+      VIDEO_WIDTH=1280
+      VIDEO_HEIGHT=720
     else
-      VIDEO_WIDTH=704
-      VIDEO_HEIGHT=576
+      # Set the image size depending on bitrate (except for widescreen)
+      if [ "$BITRATE_VIDEO" -gt 190000 ]; then  # 333KS FEC 1/2 or better
+        VIDEO_WIDTH=768
+        VIDEO_HEIGHT=576
+      else
+        VIDEO_WIDTH=384
+        VIDEO_HEIGHT=288
+      fi
+      if [ "$BITRATE_VIDEO" -lt 100000 ]; then
+        VIDEO_WIDTH=160
+        VIDEO_HEIGHT=112
+      fi
     fi
+
     # Free up Pi Camera for direct OMX Coding by removing driver
     sudo modprobe -r bcm2835_v4l2
 
     # Set up the means to transport the stream out of the unit
     case "$MODE_OUTPUT" in
-      "STREAMER")
-        : # Do nothing - this option should never be called (see MPEG-2)
-      ;;
       "IP")
         OUTPUT_FILE=""
       ;;
@@ -858,22 +879,24 @@ fi
     # Turn off the viewfinder (which would show Pi Cam)
     v4l2-ctl --overlay=0
 
-    # Experimental Pluto Code
+    ##################### Pluto Code ##############################
 
     if [ "$MODE_OUTPUT" == "PLUTO" ] && [ "$MODE_INPUT" == "WEBCAMH264" ]; then
 
-      if [ "$C920Present" == "1" ]; then  # Old C920
+      if [ "$C920Present" == "1" ]; then  # Old C920 with internal H264 encoder
         INPUT_FORMAT="h264"
         AUDIO_SAMPLE=32000
         if [ "$FORMAT" == "16:9" ]; then
           VIDEO_WIDTH=800
           VIDEO_HEIGHT=448
+        elif [ "$FORMAT" == "720p" ] || [ "$FORMAT" == "1080p" ]; then
+          VIDEO_WIDTH=1280
+          VIDEO_HEIGHT=720
         else
           VIDEO_WIDTH=800
           VIDEO_HEIGHT=600
         fi
       fi
-      # 1280/720 and 1920/1020 also work, but like 800x448 need changes in rpidatvtouch4.c before they can be selected
 
       if [ "$NEWC920Present" == "1" ]; then  # Overwrite old C920 settings
         INPUT_FORMAT="yuyv422"
@@ -910,6 +933,8 @@ fi
       exit
     fi
 
+    ##################### Pluto H264 EasyCap Code ##############################
+
     # Allow for experimental widescreen 
 
     if [ "$FORMAT" == "16:9" ]; then
@@ -940,6 +965,8 @@ fi
           rtmp://pluto.local:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,-$PLUTOPWR,nocalib,800,32,/,$CALL, &
       exit
     fi
+
+    ##################### Lime and DATV Express Code ##############################
 
     else
       # Webcam in use, so set parameters depending on camera in use
@@ -1012,9 +1039,6 @@ fi
 
     # Set up means to transport of stream out of unit
     case "$MODE_OUTPUT" in
-      "STREAMER")
-        : # Do nothing.  All done below
-      ;;
       "IP")
         OUTPUT_FILE=""
       ;;
@@ -1045,6 +1069,8 @@ fi
     else
       # ******************************* H264 VIDEO WITH AUDIO ************************************
 
+
+
       # Resample the audio (was 32k or 48k which overruns, so this is reduced to 46500)
       arecord -f S16_LE -r $AUDIO_SAMPLE -c 2 -B $ARECORD_BUF -D plughw:$AUDIO_CARD_NUMBER,0 \
         | sox -c $AUDIO_CHANNELS --buffer 1024 -t wav - audioin.wav rate 46500 &  
@@ -1069,11 +1095,11 @@ fi
 
   "DESKTOP" | "CONTEST" | "CARDH264")
 
-    # Experimental Pluto Code
+    ############ Pluto CardH264 ##################################
 
     if [ "$MODE_OUTPUT" == "PLUTO" ] && [ "$MODE_INPUT" == "CARDH264" ]; then
 
-      if [ "$FORMAT" == "16:9" ]; then
+      if [ "$FORMAT" == "16:9" ] || [ "$FORMAT" == "720p" ] || [ "$FORMAT" == "1080p" ]; then
         VIDEO_WIDTH=1024
         VIDEO_HEIGHT=576
         if [ "$CAPTIONON" == "on" ]; then
@@ -1117,6 +1143,8 @@ fi
       exit
     fi
 
+    ############ Pluto Contest ##################################
+
     if [ "$MODE_OUTPUT" == "PLUTO" ] && [ "$MODE_INPUT" == "CONTEST" ]; then
 
       # Delete the old numbers image
@@ -1141,13 +1169,17 @@ fi
       v4l2-ctl --overlay=0
 
          $PATHRPI"/ffmpeg" -loglevel $MODE_DEBUG -thread_queue_size 2048 \
-            -f image2 -loop 1 \
-            -i $IMAGEFILE \
-            -framerate 25 -video_size 720x576 -c:v h264_omx -b:v $BITRATE_VIDEO \
-        -f flv \
-        rtmp://pluto.local:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,-$PLUTOPWR,nocalib,800,32,/,$CALL, &
+          -f image2 -loop 1 \
+          -i $IMAGEFILE \
+          -framerate 25 -video_size "$VIDEO_WIDTH"x"$VIDEO_HEIGHT" \
+          -c:v h264_omx -b:v $BITRATE_VIDEO \
+          -f flv \
+          rtmp://pluto.local:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,-$PLUTOPWR,nocalib,800,32,/,$CALL, &
       exit
     fi
+
+    ############ Pluto Desktop ##################################
+
 
     if [ "$MODE_OUTPUT" == "PLUTO" ] && [ "$MODE_INPUT" == "DESKTOP" ]; then
 
@@ -1169,17 +1201,27 @@ fi
     fi
 
 
-############################################################
+    ############## Lime and DATV Express Contest and Card ##############################################
+
+    # Set the image size depending on bitrate (except for widescreen)
+    if [ "$BITRATE_VIDEO" -gt 190000 ]; then  # 333KS FEC 1/2 or better
+      VIDEO_WIDTH=768
+      VIDEO_HEIGHT=576
+    else
+      VIDEO_WIDTH=384
+      VIDEO_HEIGHT=288
+    fi
+    if [ "$BITRATE_VIDEO" -lt 100000 ]; then
+      VIDEO_WIDTH=160
+      VIDEO_HEIGHT=112
+    fi
 
     if [ "$MODE_INPUT" == "CONTEST" ]; then
       # Delete the old numbers image
       rm /home/pi/tmp/contest.jpg >/dev/null 2>/dev/null
 
       # Set size of contest numbers image up front to save resizing afterwards.
-      CNGEOMETRY="720x576"
-      if [ "$DISPLAY" == "Element14_7" ]; then
-        CNGEOMETRY="800x480"
-      fi
+      CNGEOMETRY="800x480"
 
       # Create the numbers image in the tempfs folder
       convert -size "${CNGEOMETRY}" xc:white \
@@ -1193,23 +1235,34 @@ fi
       (sleep 1; sudo killall -9 fbi >/dev/null 2>/dev/null) &  ## kill fbi once it has done its work
 
     elif [ "$MODE_INPUT" == "CARDH264" ]; then
-      rm /home/pi/tmp/caption.png >/dev/null 2>/dev/null
-      rm /home/pi/tmp/tcf2.jpg >/dev/null 2>/dev/null
-      if [ "$CAPTIONON" == "on" ]; then
-        convert -size 720x80 xc:transparent -fill white -gravity Center -pointsize 40 -annotate 0 $CALL /home/pi/tmp/caption.png
-        convert /home/pi/rpidatv/scripts/images/tcf.jpg /home/pi/tmp/caption.png -geometry +0+475 -composite /home/pi/tmp/tcf2.jpg
+      if [ "$FORMAT" == "16:9" ] || [ "$FORMAT" == "720p" ] || [ "$FORMAT" == "1080p" ]; then
+        VIDEO_WIDTH=800
+        VIDEO_HEIGHT=448
+        rm /home/pi/tmp/tcfw162.jpg >/dev/null 2>/dev/null
+        if [ "$CAPTIONON" == "on" ]; then
+          rm /home/pi/tmp/caption.png >/dev/null 2>/dev/null
+          convert -size 1024x80 xc:transparent -fill white -gravity Center -pointsize 50 -annotate 0 $CALL /home/pi/tmp/caption.png
+          convert /home/pi/rpidatv/scripts/images/tcfw16.jpg /home/pi/tmp/caption.png -geometry +0+478 -composite /home/pi/tmp/tcfw162.jpg
+        else
+          cp /home/pi/rpidatv/scripts/images/tcfw16.jpg /home/pi/tmp/tcfw162.jpg
+        fi
+        convert /home/pi/tmp/tcfw162.jpg -resize '800x480!' /home/pi/tmp/tcfw162.jpg
+        sudo fbi -T 1 -noverbose -a /home/pi/tmp/tcfw162.jpg >/dev/null 2>/dev/null
       else
-        cp /home/pi/rpidatv/scripts/images/tcf.jpg /home/pi/tmp/tcf2.jpg >/dev/null 2>/dev/null
-      fi
-
-      # Modify size to fill 7 inch screen if required
-      if [ "$DISPLAY" == "Element14_7" ]; then
+        rm /home/pi/tmp/tcf2.jpg >/dev/null 2>/dev/null
+        if [ "$CAPTIONON" == "on" ]; then
+          rm /home/pi/tmp/caption.png >/dev/null 2>/dev/null
+          convert -size 720x80 xc:transparent -fill white -gravity Center -pointsize 40 -annotate 0 $CALL /home/pi/tmp/caption.png
+          convert /home/pi/rpidatv/scripts/images/tcf.jpg /home/pi/tmp/caption.png -geometry +0+475 -composite /home/pi/tmp/tcf2.jpg
+        else
+          cp /home/pi/rpidatv/scripts/images/tcf.jpg /home/pi/tmp/tcf2.jpg
+        fi
         convert /home/pi/tmp/tcf2.jpg -resize '800x480!' /home/pi/tmp/tcf2.jpg
+        sudo fbi -T 1 -noverbose -a /home/pi/tmp/tcf2.jpg >/dev/null 2>/dev/null
       fi
-
-      sudo fbi -T 1 -noverbose -a /home/pi/tmp/tcf2.jpg >/dev/null 2>/dev/null
       (sleep 1; sudo killall -9 fbi >/dev/null 2>/dev/null) &  ## kill fbi once it has done its work
-    else
+
+    else  # DESKTOP
       sudo fbi -T 1 -noverbose -a /home/pi/rpidatv/scripts/images/BATC_Black.png >/dev/null 2>/dev/null
       (sleep 1; sudo killall -9 fbi >/dev/null 2>/dev/null) &  ## kill fbi once it has done its work
     fi
@@ -1244,10 +1297,7 @@ fi
     esac
 
     # Pause to allow test card to be displayed
-    sleep 1
-
-    #  Before fbcp is stopped because it conflicts with avc2ts
-    killall fbcp
+#    sleep 1
 
     # Now generate the stream
 
@@ -1759,64 +1809,27 @@ fi
       ;;
     esac
   ;;
-# ============================================ H264 FROM C920 =============================
 
-  "C920H264" | "C920HDH264" | "C920FHDH264")
-
-    # Turn off the viewfinder (which would show Pi Cam)
-    v4l2-ctl --overlay=0
-
-    # Set up the means to transport the stream out of the unit
-    # Not compatible with COMPVID or STREAMER output modes
+  #==================================== HDMI INPUT MODE FOR PLUTO OR STREAMING ==========================
+  "HDMI")
     case "$MODE_OUTPUT" in
-      "IP")
-        : # Do nothing
+      "STREAMER")
+        rpidatv/bin/ffmpeg -thread_queue_size 2048 -fifo_size 229376 \
+          -i udp://"$LKVUDP":"$LKVPORT" \
+          -c:v h264_omx -b:v 1024k \
+          -codec:a aac -b:a 128k \
+          -f flv $STREAM_URL/$STREAM_KEY &
       ;;
-      "DATVEXPRESS")
-        echo "set ptt tx" >> /tmp/expctrl
-        # ffmpeg sends the stream directly to DATVEXPRESS
-      ;;
-      "LIMEMINI" | "LIMEUSB" | "LIMEDVB")
-        $PATHRPI"/limesdr_dvb" -i videots -s "$SYMBOLRATE_K"000 -f $FECNUM/$FECDEN -r $UPSAMPLE -m $MODTYPE -c $CONSTLN $PILOTS $FRAMES \
-        -t "$FREQ_OUTPUT"e6 -g $LIME_GAINF -q $CAL $CUSTOM_FPGA -D $DIGITAL_GAIN -e $BAND_GPIO $LIMETYPE &
-      ;;
-      *)
-        # For IQ, QPSKRF, DIGITHIN and DTX1 rpidatv generates the IQ (and RF for QPSKRF)
-        sudo $PATHRPI"/rpidatv" -i videots -s $SYMBOLRATE_K -c $FECNUM"/"$FECDEN -f $FREQUENCY_OUT -p $GAIN -m $MODE -x $PIN_I -y $PIN_Q &
+
+      "PLUTO")
+        rpidatv/bin/ffmpeg -thread_queue_size 2048 -fifo_size 229376 \
+          -i udp://"$LKVUDP":"$LKVPORT" \
+          -c:v h264_omx -b:v $BITRATE_VIDEO -g 25 \
+          -ar 22050 -ac 2 -ab 64k \
+          -f flv \
+          rtmp://pluto.local:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,-$PLUTOPWR,nocalib,800,32,/,$CALL, &
       ;;
     esac
-
-    # Now set the camera resolution and H264 output
-    case "$MODE_INPUT" in
-      C920H264)
-        v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=640,height=480,pixelformat=1 \
-          --set-ctrl power_line_frequency=1
-      ;;
-      C920HDH264)
-        v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=1280,height=720,pixelformat=1 \
-          --set-ctrl power_line_frequency=1
-      ;;
-      C920FHDH264)
-        v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=1920,height=1080,pixelformat=1 \
-          --set-ctrl power_line_frequency=1
-      ;;
-    esac
-
-    # And send the camera stream with audio to the fifo
-
-    sudo nice -n -30 $PATHRPI"/ffmpeg" \
-      -f v4l2 -vcodec h264 \
-      -i "$VID_WEBCAM" \
-      -f alsa -ac $AUDIO_CHANNELS -ar $AUDIO_SAMPLE \
-      -i hw:$AUDIO_CARD_NUMBER,0 \
-      -vcodec copy \
-      -f mpegts -blocksize 1880 -acodec mp2 -b:a 64K -ar 44100 -ac $AUDIO_CHANNELS\
-      -mpegts_original_network_id 1 -mpegts_transport_stream_id 1 \
-      -mpegts_service_id $SERVICEID \
-      -mpegts_pmt_start_pid $PIDPMT -streamid 0:"$PIDVIDEO" -streamid 1:"$PIDAUDIO" \
-      -metadata service_provider=$CHANNEL -metadata service_name=$CALL \
-      -muxrate $BITRATE_TS -y $OUTPUT &
-
   ;;
 esac
 
@@ -1828,9 +1841,6 @@ case "$MODE_OUTPUT" in
   JETSONIP=$(get_config_var jetsonip $JCONFIGFILE)
   JETSONUSER=$(get_config_var jetsonuser $JCONFIGFILE)
   JETSONPW=$(get_config_var jetsonpw $JCONFIGFILE)
-  LKVUDP=$(get_config_var lkvudp $JCONFIGFILE)
-  LKVPORT=$(get_config_var lkvport $JCONFIGFILE)
-  FORMAT=$(get_config_var format $PCONFIGFILE)
   ENCODING=$(get_config_var encoding $PCONFIGFILE)
   CMDFILE="/home/pi/tmp/jetson_command.txt"
 
@@ -2120,4 +2130,4 @@ esac
 # ============================================ END =============================================================
 
 # flow exits from a.sh leaving ffmpeg or avc2ts and rpidatv running
-# these processes are killed by menu.sh, rpidatvgui or b.sh on selection of "stop transmit"
+# these processes are killed by menu.sh, rpidatvgui4 or b.sh on selection of "stop transmit"
