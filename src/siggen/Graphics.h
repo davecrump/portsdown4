@@ -225,34 +225,15 @@ void LargeText2 (int xpos, int ypos, int sizeFactor, char*s, const font_t *font_
 
 void rectangle(int xpos, int ypos, int xsize, int ysize, int r, int g, int b)
 {
-  // xpos and y pos are 0 to screensize (479 799).  (0, 0) is bottom left
-  // xsize and ysize are 1 to 800 (x) or 480 (y)
   int x;     // pixel count
   int y;     // pixel count
-  int p;     // Pixel Memory offset
 
-  // Check rectangle bounds to save checking each pixel
-
-  if (((xpos < 0) || (xpos > screenXsize))
-    || ((xpos + xsize < 0) || (xpos + xsize > screenXsize))
-    || ((ypos < 0) || (ypos > screenYsize))
-    || ((ypos + ysize < 0) || (ypos + ysize > screenYsize)))
+  for(x = 0; x < xsize; x++)  // for each vertical slice along the x
   {
-    printf("Rectangle xpos %d xsize %d ypos %d ysize %d tried to write off-screen\n", xpos, xsize, ypos, ysize);
-  }
-  else
-  {
-    for(x = 0; x < xsize; x++)  // for each vertical slice along the x
+    for(y = 0; y < ysize; y++)  // Draw a vertical line
     {
-      for(y = 0; y < ysize; y++)  // Draw a vertical line
-      {
-        p = (xpos + x + screenXsize * (479 - (ypos + y))) * 4;
-
-        memset(p + fbp,     b, 1);     // Blue
-        memset(p + fbp + 1, g, 1);     // Green
-        memset(p + fbp + 2, r, 1);     // Red
-        memset(p + fbp + 3, 0x80, 1);  // A
-      }
+      //printf("set pixel x %d y %d\n", xpos + x, 480 - (ypos + y));
+      setPixel(xpos + x, 480 - (ypos + y), r, g, b);
     }
   }
 }
@@ -280,20 +261,11 @@ void setBackColour(int R,int G,int B)
 
 void clearScreen()
 {
-  int p;  // Pixel Memory offset
-  int x;  // x pixel count, 0 - 799
-  int y;  // y pixel count, 0 - 479
-
-  for(y=0; y < screenYsize; y++)
+  for(int y=0;y<screenYsize;y++)
   {
-    for(x=0; x < screenXsize; x++)
+    for(int x=0;x<screenXsize;x++)
     {
-      p=(x + screenXsize * y) * 4;
-
-      memset(fbp + p,     backColourB, 1);     // Blue
-      memset(fbp + p + 1, backColourG, 1);     // Green
-      memset(fbp + p + 2, backColourR, 1);     // Red
-      memset(fbp + p + 3, 0x80,        1);     // A
+      setPixel(x,y,backColourR,backColourG,backColourB);
     }
   }
 }
