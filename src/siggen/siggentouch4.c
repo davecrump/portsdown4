@@ -1407,10 +1407,10 @@ void ReadModeInput(char coding[256], char vsource[256])
     strcpy(coding, "H264");
     strcpy(vsource, "RPi Camera");
     strcpy(CurrentEncoding, "H264");
-//    if(strcmp(CurrentFormat, "16:9") !=0)  // Allow 16:9
-//    {
-//      strcpy(CurrentFormat, "4:3");
-//    }
+    if(strcmp(CurrentFormat, "16:9") !=0)  // Allow 16:9
+    {
+      strcpy(CurrentFormat, "4:3");
+    }
     strcpy(CurrentSource, TabSource[0]); // Pi Cam
   } 
   else if (strcmp(ModeInput, "ANALOGCAM") == 0)
@@ -1429,10 +1429,10 @@ void ReadModeInput(char coding[256], char vsource[256])
     strcpy(coding, "H264");
     strcpy(vsource, "Webcam");
     strcpy(CurrentEncoding, "H264");
-//    if(strcmp(CurrentFormat, "16:9") !=0)  // Allow 16:9
-//    {
-//      strcpy(CurrentFormat, "4:3");
-//    }
+    if(strcmp(CurrentFormat, "16:9") !=0)  // Allow 16:9
+    {
+      strcpy(CurrentFormat, "4:3");
+    }
     strcpy(CurrentSource, TabSource[6]); // Webcam
   }
   else if (strcmp(ModeInput, "CARDH264") == 0)
@@ -1588,6 +1588,30 @@ void ReadModeInput(char coding[256], char vsource[256])
     strcpy(CurrentEncoding, "MPEG-2");
     strcpy(CurrentFormat, "720p");
     strcpy(CurrentSource, TabSource[3]); // TestCard
+  }
+  else if (strcmp(ModeInput, "C920H264") == 0)
+  {
+    strcpy(coding, "H264");
+    strcpy(vsource, "C920 Webcam");
+    strcpy(CurrentEncoding, "H264");
+    strcpy(CurrentFormat, "4:3");
+    strcpy(CurrentSource, TabSource[7]); // C920
+  }
+  else if (strcmp(ModeInput, "C920HDH264") == 0)
+  {
+    strcpy(coding, "H264");
+    strcpy(vsource, "C920 Webcam");
+    strcpy(CurrentEncoding, "H264");
+    strcpy(CurrentFormat, "720p");
+    strcpy(CurrentSource, TabSource[7]); // C920
+  }
+  else if (strcmp(ModeInput, "C920FHDH264") == 0)
+  {
+    strcpy(coding, "H264");
+    strcpy(vsource, "C920 Webcam");
+    strcpy(CurrentEncoding, "H264");
+    strcpy(CurrentFormat, "1080p");
+    strcpy(CurrentSource, TabSource[7]); // C920
   }
   else if (strcmp(ModeInput, "HDMI") == 0)
   {
@@ -4907,7 +4931,7 @@ void UpdateWindow()
     setBackColour(0, 0, 0);
   }
   
-  if ((CurrentMenu != 38) && (CurrentMenu != 41)) // If not yes/no or the keyboard
+  if (CurrentMenu != 41)  // If not the keyboard
   {
     clearScreen();
   }
@@ -5054,26 +5078,36 @@ void ApplyTXConfig()
     {
       strcpy(ModeInput, "FILETS");
     }
-    else if (strcmp(CurrentEncoding, "H264") == 0)   // H264, so define definition by format (max 720p)
+    else if (strcmp(CurrentEncoding, "H264") == 0)
     {
-//      if (strcmp(CurrentFormat, "1080p") == 0)
-//      {
-//        strcpy(CurrentFormat, "720p");
-//      }
-//      if (strcmp(CurrentFormat, "720p") == 0)
-//      {
-//        if (CheckC920() == 1)
-//        {
-//          if (strcmp(CurrentSource, "C920") == 0)
-//          {
-//            strcpy(ModeInput, "C920HDH264");
-//          }
-//          else
-//          {
-//            strcpy(CurrentFormat, "16:9");
-//          }
-//        }
-//      }
+      if (strcmp(CurrentFormat, "1080p") == 0)
+      {
+        if (CheckC920() == 1)
+        {
+          if (strcmp(CurrentSource, "C920") == 0)
+          {
+            strcpy(ModeInput, "C920FHDH264");
+          }
+          else
+          {
+            strcpy(CurrentFormat, "720p");
+          }
+        }
+      }
+      if (strcmp(CurrentFormat, "720p") == 0)
+      {
+        if (CheckC920() == 1)
+        {
+          if (strcmp(CurrentSource, "C920") == 0)
+          {
+            strcpy(ModeInput, "C920HDH264");
+          }
+          else
+          {
+            strcpy(CurrentFormat, "16:9");
+          }
+        }
+      }
       if (strcmp(CurrentFormat, "16:9") == 0)
       {
         if (strcmp(CurrentSource, "CompVid") == 0)
@@ -5094,10 +5128,10 @@ void ApplyTXConfig()
         }
         else
         {
-//          strcpy(CurrentFormat, "4:3");
+          strcpy(CurrentFormat, "4:3");
         }        
       }
-//      if (strcmp(CurrentFormat, "4:3") == 0)
+      if (strcmp(CurrentFormat, "4:3") == 0)
       {
         if (strcmp(CurrentSource, "Pi Cam") == 0)
         {
@@ -5106,6 +5140,10 @@ void ApplyTXConfig()
         else if (strcmp(CurrentSource, "CompVid") == 0)
         {
           strcpy(ModeInput, "ANALOGCAM");
+        }
+        else if (strcmp(CurrentSource, "TCAnim") == 0)
+        {
+          strcpy(ModeInput, "PATERNAUDIO");
         }
         else if (strcmp(CurrentSource, "TestCard") == 0)
         {
@@ -5122,6 +5160,10 @@ void ApplyTXConfig()
         else if (strcmp(CurrentSource, "Webcam") == 0)
         {
           strcpy(ModeInput, "WEBCAMH264");
+        }
+        else if (strcmp(CurrentSource, "C920") == 0)
+        {
+          strcpy(ModeInput, "C920H264");
         }
         else // Shouldn't happen
         {
@@ -5530,10 +5572,8 @@ void GreyOut1()
       {
         SetButtonStatus(ButtonNumber(CurrentMenu, 7), 2); // Grey Audio
       }
-      // Grey out Caption Button if not MPEG-2 or Streamer or test card
-      if ((strcmp(CurrentEncoding, "MPEG-2") != 0) 
-        && (strcmp(CurrentModeOP, "STREAMER") != 0)
-        && (strcmp(CurrentSource, "TestCard") != 0))
+      // Grey out Caption Button if not MPEG-2 or Streamer
+      if ((strcmp(CurrentEncoding, "MPEG-2") != 0) && (strcmp(CurrentModeOP, "STREAMER") != 0))
       {
         SetButtonStatus(ButtonNumber(CurrentMenu, 6), 2); // Caption
       }
@@ -6168,12 +6208,12 @@ void SelectCaption(int NoButton)  // Caption on or off
   if(NoButton == 5)
   {
     strcpy(CurrentCaptionState, "off");
-    SetConfigParam(PATH_PCONFIG, Param, "off");
+    SetConfigParam(PATH_PCONFIG,Param,"off");
   }
   if(NoButton == 6)
   {
     strcpy(CurrentCaptionState, "on");
-    SetConfigParam(PATH_PCONFIG, Param, "on");
+    SetConfigParam(PATH_PCONFIG,Param,"on");
   }
   SelectInGroupOnMenu(CurrentMenu, 5, 6, NoButton, 1);
 }
@@ -11121,9 +11161,6 @@ void Keyboard(char RequestText[64], char InitText[64], int MaxLength)
       setBackColour(0, 0, 0);          // on Black
       Text2(10, 420 , RequestText, font_ptr);
 
-      // Blank out the text line to erase the previous text and cursor
-      rectangle(10, 320, 780, 40, 0, 0, 0);
-
       // Display Text for Editing
       for (i = 1; i <= strlen(EditText); i = i + 1)
       {
@@ -11140,9 +11177,20 @@ void Keyboard(char RequestText[64], char InitText[64], int MaxLength)
         TextMid2(i * charPitch, 330, thischar, font_ptr);
       }
 
-      // Draw the cursor
-      rectangle(12 + charPitch * CursorPos, 320, 2, 40, 255, 255, 255);
+      // Cover deleted text with background colour
+      setBackColour(0, 0, 0);          // on Black
+      for (i = strlen(EditText); i <= 25; i = i + 1)
+      {
+        rectangle(charPitch * i + (charPitch / 2), 320, charPitch, 40, 0, 0, 0);
+      }
 
+      // Draw the cursor and erase cursors either side
+      rectangle(12 + charPitch * CursorPos, 320, 2, 40, 255, 255, 255);
+      rectangle(12 + charPitch * (CursorPos + 1), 320, 2, 40, 0, 0, 0);
+      if (CursorPos >= 1)
+      {
+        rectangle(12 + charPitch * (CursorPos - 1), 320, 2, 40, 0, 0, 0);
+      }
       refreshed = true;
     }
 
@@ -11156,13 +11204,13 @@ void Keyboard(char RequestText[64], char InitText[64], int MaxLength)
     // Highlight special keys when touched
     if ((token == 5) || (token == 8) || (token == 9) || (token == 2) || (token == 3)) // Clear, Enter, backspace, L and R arrows
     {
-      SetButtonStatus(ButtonNumber(41, token), 1);
-      DrawButton(ButtonNumber(41, token));
-      UpdateWindow();
-      usleep(300000);
-      SetButtonStatus(ButtonNumber(41, token), 0);
-      DrawButton(ButtonNumber(41, token));
-      UpdateWindow();
+        SetButtonStatus(ButtonNumber(41, token), 1);
+        DrawButton(ButtonNumber(41, token));
+        UpdateWindow();
+        usleep(300000);
+        SetButtonStatus(ButtonNumber(41, token), 0);
+        DrawButton(ButtonNumber(41, token));
+        UpdateWindow();
     }
 
     if (token == 8)  // Enter pressed
@@ -15568,8 +15616,8 @@ void Start_Highlights_Menu1()
 
   char Captiontext[255];
   strcpy(Param,"caption");
-  GetConfigParam(PATH_PCONFIG, Param, Value);
-  printf("Value=%s %s\n", Value, " Caption State");
+  GetConfigParam(PATH_PCONFIG,Param,Value);
+  printf("Value=%s %s\n",Value," Caption State");
   strcpy(Captiontext, "Caption^");
   if (strcmp(Value, "off") == 0)
   {
@@ -16010,7 +16058,7 @@ void Define_Menu3()
   AddButtonStatus(button, "Lime^Config", &Blue);
 
   button = CreateButton(3, 6);
-  AddButtonStatus(button, "Jetson/LKV^Config", &Blue);
+  AddButtonStatus(button, "Jetson^Config", &Blue);
 
   button = CreateButton(3, 7);
   AddButtonStatus(button, "Langstone^Config", &Blue);

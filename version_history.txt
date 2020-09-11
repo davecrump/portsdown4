@@ -1,3 +1,8 @@
+202009020
+Add LKV373A HDMI input for Pluto and streaming outputs
+Add LKV373A HDMI monitor
+Change IPTS monitor to use VLC 
+
 202009010
 Correct Pluto PTT
 Add Jetson Nano build
