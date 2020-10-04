@@ -54,8 +54,10 @@ filter_bit1=26
 #filter_bit0 MSB of filter control word = BCM 20 / Header 38
 filter_bit2=20
 
-#band_bit_0 LSB of band switching word = BCM 1 / Header 28
-band_bit0=1
+#band_bit_0 LSB of band switching word = BCM 1 / Header 28  Changed for RPi 4
+#band_bit0=1
+#band_bit_0 LSB of band switching word = BCM 1 / Header 32  Changed for RPi 4
+band_bit0=12
 
 #band_bit_1 MSB of band switching word = BCM 19 / Header 35
 band_bit1=19

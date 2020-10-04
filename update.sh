@@ -238,14 +238,25 @@ cd longmynd
 make
 cd /home/pi
 
-#install adf4351
-echo "Installing adf4351"
+# Compile the Signal Generator
+echo
+echo "------------------------------------------"
+echo "----- Compiling the Signal Generator -----"
+echo "------------------------------------------"
+cd /home/pi/rpidatv/src/siggen
+make
+sudo make install
+cd /home/pi
+
+# Compile adf4351
+echo
+echo "----------------------------------------"
+echo "----- Compiling the ADF4351 driver -----"
+echo "----------------------------------------"
 cd /home/pi/rpidatv/src/adf4351
-touch adf4351.c
 make
 cp adf4351 ../../bin/
 cd /home/pi
-
 
 # Compile and install the executable for GPIO-switched transmission (201710080)
 echo "Installing keyedtx"
@@ -275,10 +286,10 @@ cp -f -r "$PATHUBACKUP"/portsdown_config.txt "$PATHSCRIPT"/portsdown_config.txt
 cp -f -r "$PATHUBACKUP"/portsdown_presets.txt "$PATHSCRIPT"/portsdown_presets.txt
 
 # Restore the user's original siggencal.txt
-cp -f -r "$PATHUBACKUP"/siggencal.txt /home/pi/rpidatv/src/siggen/siggencal.txt
+#cp -f -r "$PATHUBACKUP"/siggencal.txt /home/pi/rpidatv/src/siggen/siggencal.txt
 
 # Restore the user's original siggenconfig.txt
-cp -f -r "$PATHUBACKUP"/siggenconfig.txt /home/pi/rpidatv/src/siggen/siggenconfig.txt
+#cp -f -r "$PATHUBACKUP"/siggenconfig.txt /home/pi/rpidatv/src/siggen/siggenconfig.txt
 
 # Restore the user's rtl-fm_presets.txt
 cp -f -r "$PATHUBACKUP"/rtl-fm_presets.txt "$PATHSCRIPT"/rtl-fm_presets.txt

@@ -126,16 +126,21 @@ char ADF5355Ref[15];
 char DisplayType[31];
 char LinuxCommand[511];
 int  scaledX, scaledY;
+
+// GPIO numbers are Wiring Pi Numbers
 int GPIO_PTT = 29;
 int GPIO_SPI_CLK = 21;
 int GPIO_SPI_DATA = 22;
-int GPIO_4351_LE = 30;
+// int GPIO_4351_LE = 30;  Changed to prevent confict with RPi Hat EEPROM
+int GPIO_4351_LE = 23;
 int GPIO_Atten_LE = 16;
 int GPIO_5355_LE = 15;
-int GPIO_Band_LSB = 31;
+// int GPIO_Band_LSB = 31;   Changed to prevent confict with RPi Hat EEPROM
+int GPIO_Band_LSB = 26;
 int GPIO_Band_MSB = 24;
 int GPIO_Tverter = 7;
 int GPIO_SD_LED = 2;
+
 int debug_level = 0; // 0 minimum, 1 medium, 2 max
 int MicLevel = 26;   // 1 to 30.  default 26
 
@@ -12768,10 +12773,10 @@ rawY = 0;
             UpdateWindow();
           }
           break;
-        //case 16:                               // Start Sig Gen and Exit
-          //DisplayLogo();
-          //cleanexit(130);
-          //break;
+        case 16:                               // Start Sig Gen and Exit
+          DisplayLogo();
+          cleanexit(130);
+          break;
         case 17:                               // Start RTL-TCP server
           if(CheckRTL()==0)
           {
@@ -14614,7 +14619,7 @@ rawY = 0;
       }
 
  
-      if (CurrentMenu == 32)  // Menu 32 Select and Change ADF Reference Frequency
+      if (CurrentMenu == 32)  // Menu 32 Select and Change RTL Reference Frequency
       {
         printf("Button Event %d, Entering Menu 32 Case Statement\n",i);
         switch (i)
@@ -14633,13 +14638,13 @@ rawY = 0;
           Start_Highlights_Menu1();
           UpdateWindow();
           break;
-        case 0:                               // Use ADF4351 Ref 1
-        case 1:                               // Use ADF4351 Ref 2
-        case 2:                               // Use ADF4351 Ref 3
-        case 3:                               // Set ADF5355 Ref
-        case 5:                               // Set ADF4351 Ref 1
-        case 6:                               // Set ADF4351 Ref 2
-        case 7:                               // Set ADF4351 Ref 3
+        //case 0:                               // Use ADF4351 Ref 1
+        //case 1:                               // Use ADF4351 Ref 2
+        //case 2:                               // Use ADF4351 Ref 3
+        //case 3:                               // Set ADF5355 Ref
+        //case 5:                               // Set ADF4351 Ref 1
+        //case 6:                               // Set ADF4351 Ref 2
+        //case 7:                               // Set ADF4351 Ref 3
           printf("Changing ADFRef\n");
           ChangeADFRef(i);
           CurrentMenu=32;
@@ -15944,9 +15949,9 @@ void Define_Menu2()
   AddButtonStatus(button, "Switch to^Langstone", &Blue);
   AddButtonStatus(button, "Switch to^Langstone", &Green);
 
-  //button = CreateButton(2, 16);
-  //AddButtonStatus(button, "Sig Gen^ ", &Blue);
-  //AddButtonStatus(button, " ", &Green);
+  button = CreateButton(2, 16);
+  AddButtonStatus(button, "Sig Gen^ ", &Blue);
+  AddButtonStatus(button, " ", &Green);
 
   button = CreateButton(2, 17);
   AddButtonStatus(button, "RTL-TCP^Server", &Blue);
@@ -18556,17 +18561,17 @@ void Define_Menu32()
 
   // Bottom Row, Menu 32
 
-  button = CreateButton(32, 0);
-  AddButtonStatus(button, "Set Ref 1", &Blue);
+  //button = CreateButton(32, 0);
+  //AddButtonStatus(button, "Set Ref 1", &Blue);
 
-  button = CreateButton(32, 1);
-  AddButtonStatus(button, "Set Ref 2", &Blue);
+  //button = CreateButton(32, 1);
+  //AddButtonStatus(button, "Set Ref 2", &Blue);
 
-  button = CreateButton(32, 2);
-  AddButtonStatus(button, "Set Ref 3", &Blue);
+  //button = CreateButton(32, 2);
+  //AddButtonStatus(button, "Set Ref 3", &Blue);
 
-  button = CreateButton(32, 3);
-  AddButtonStatus(button, "Set 5355", &Blue);
+  //button = CreateButton(32, 3);
+  //AddButtonStatus(button, "Set 5355", &Blue);
 
   button = CreateButton(32, 4);
   AddButtonStatus(button, "Exit", &DBlue);
@@ -18574,17 +18579,17 @@ void Define_Menu32()
 
   // 2nd Row, Menu 32
 
-  button = CreateButton(32, 5);
-  AddButtonStatus(button, "Use Ref 1", &Blue);
-  AddButtonStatus(button, "Use Ref 1", &Green);
+  //button = CreateButton(32, 5);
+  //AddButtonStatus(button, "Use Ref 1", &Blue);
+  //AddButtonStatus(button, "Use Ref 1", &Green);
 
-  button = CreateButton(32, 6);
-  AddButtonStatus(button, "Use Ref 2", &Blue);
-  AddButtonStatus(button, "Use Ref 2", &Green);
+  //button = CreateButton(32, 6);
+  //AddButtonStatus(button, "Use Ref 2", &Blue);
+  //AddButtonStatus(button, "Use Ref 2", &Green);
 
-  button = CreateButton(32, 7);
-  AddButtonStatus(button, "Use Ref 3", &Blue);
-  AddButtonStatus(button, "Use Ref 3", &Green);
+  //button = CreateButton(32, 7);
+  //AddButtonStatus(button, "Use Ref 3", &Blue);
+  //AddButtonStatus(button, "Use Ref 3", &Green);
 
   button = CreateButton(32, 9);
   AddButtonStatus(button, "RTL ppm", &Blue);
@@ -18596,46 +18601,46 @@ void Start_Highlights_Menu32()
 
   char Buttext[31];
 
-  snprintf(Buttext, 26, "Use Ref 1^%s", ADFRef[0]);
-  AmendButtonStatus(ButtonNumber(32, 5), 0, Buttext, &Blue);
-  AmendButtonStatus(ButtonNumber(32, 5), 1, Buttext, &Green);
+  //snprintf(Buttext, 26, "Use Ref 1^%s", ADFRef[0]);
+  //AmendButtonStatus(ButtonNumber(32, 5), 0, Buttext, &Blue);
+  //AmendButtonStatus(ButtonNumber(32, 5), 1, Buttext, &Green);
 
-  snprintf(Buttext, 26, "Use Ref 2^%s", ADFRef[1]);
-  AmendButtonStatus(ButtonNumber(32, 6), 0, Buttext, &Blue);
-  AmendButtonStatus(ButtonNumber(32, 6), 1, Buttext, &Green);
+  //snprintf(Buttext, 26, "Use Ref 2^%s", ADFRef[1]);
+  //AmendButtonStatus(ButtonNumber(32, 6), 0, Buttext, &Blue);
+  //AmendButtonStatus(ButtonNumber(32, 6), 1, Buttext, &Green);
 
-  snprintf(Buttext, 26, "Use Ref 3^%s", ADFRef[2]);
-  AmendButtonStatus(ButtonNumber(32, 7), 0, Buttext, &Blue);
-  AmendButtonStatus(ButtonNumber(32, 7), 1, Buttext, &Green);
+  //snprintf(Buttext, 26, "Use Ref 3^%s", ADFRef[2]);
+  //AmendButtonStatus(ButtonNumber(32, 7), 0, Buttext, &Blue);
+  //AmendButtonStatus(ButtonNumber(32, 7), 1, Buttext, &Green);
 
-  if (strcmp(ADFRef[0], CurrentADFRef) == 0)
-  {
-    SelectInGroupOnMenu(CurrentMenu, 5, 7, 5, 1);
-  }
-  else if (strcmp(ADFRef[1], CurrentADFRef) == 0)
-  {
-    SelectInGroupOnMenu(CurrentMenu, 5, 7, 6, 1);
-  }
-  else if (strcmp(ADFRef[2], CurrentADFRef) == 0)
-  {
-    SelectInGroupOnMenu(CurrentMenu, 5, 7, 7, 1);
-  }
-  else
-  {
-    SelectInGroupOnMenu(CurrentMenu, 5, 7, 7, 0);
-  }
+  //if (strcmp(ADFRef[0], CurrentADFRef) == 0)
+  //{
+  //  SelectInGroupOnMenu(CurrentMenu, 5, 7, 5, 1);
+  //}
+  //else if (strcmp(ADFRef[1], CurrentADFRef) == 0)
+  //{
+  //  SelectInGroupOnMenu(CurrentMenu, 5, 7, 6, 1);
+  //}
+  //else if (strcmp(ADFRef[2], CurrentADFRef) == 0)
+  //{
+  //  SelectInGroupOnMenu(CurrentMenu, 5, 7, 7, 1);
+  //}
+  //else
+  //{
+  //  SelectInGroupOnMenu(CurrentMenu, 5, 7, 7, 0);
+  //}
   
-  snprintf(Buttext, 26, "Set Ref 1^%s", ADFRef[0]);
-  AmendButtonStatus(ButtonNumber(32, 0), 0, Buttext, &Blue);
+  //snprintf(Buttext, 26, "Set Ref 1^%s", ADFRef[0]);
+  //AmendButtonStatus(ButtonNumber(32, 0), 0, Buttext, &Blue);
 
-  snprintf(Buttext, 26, "Set Ref 2^%s", ADFRef[1]);
-  AmendButtonStatus(ButtonNumber(32, 1), 0, Buttext, &Blue);
+  //snprintf(Buttext, 26, "Set Ref 2^%s", ADFRef[1]);
+  //AmendButtonStatus(ButtonNumber(32, 1), 0, Buttext, &Blue);
 
-  snprintf(Buttext, 26, "Set Ref 3^%s", ADFRef[2]);
-  AmendButtonStatus(ButtonNumber(32, 2), 0, Buttext, &Blue);
+  //snprintf(Buttext, 26, "Set Ref 3^%s", ADFRef[2]);
+  //AmendButtonStatus(ButtonNumber(32, 2), 0, Buttext, &Blue);
 
-  snprintf(Buttext, 26, "Set 5355^%s", ADF5355Ref);
-  AmendButtonStatus(ButtonNumber(32, 3), 0, Buttext, &Blue);
+  //snprintf(Buttext, 26, "Set 5355^%s", ADF5355Ref);
+  //AmendButtonStatus(ButtonNumber(32, 3), 0, Buttext, &Blue);
 
   snprintf(Buttext, 26, "RTL ppm^%d", RTLppm);
   AmendButtonStatus(ButtonNumber(32, 9), 0, Buttext, &Blue);
