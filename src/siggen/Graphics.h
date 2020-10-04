@@ -55,7 +55,7 @@ uint32_t font_width_string(const font_t *font_ptr, char *string)
     return total_width;
 }
 
-void displayChar2(const font_t *font_ptr, char c)
+void displayChar2(const font_t *font_ptr, char c)  // Displays a single character on a square background
 {
   // Draws the character based on currentX and currentY at the bottom line (descenders below)
   int row;
@@ -99,6 +99,55 @@ void displayChar2(const font_t *font_ptr, char c)
   // Move position on by the character width
   currentX = currentX + font_ptr->characters[(uint8_t)c].render_width;
 }
+
+void displayChar3(const font_t *font_ptr, char c)  // Displays a single character without a background
+{
+  // Draws the character based on currentX and currentY at the bottom line (descenders below)
+  int row;
+  int col;
+
+  int32_t y_offset; // height of top of character from baseline
+
+  int32_t thisPixelR;  // Values for each pixel
+  int32_t thisPixelB;
+  int32_t thisPixelG;
+
+  // Calculate scale from background clour to foreground colour
+  const int32_t red_contrast = foreColourR - backColourR;
+  const int32_t green_contrast = foreColourG - backColourG;
+  const int32_t blue_contrast = foreColourB - backColourB;
+
+  // Calculate height from top of character to baseline
+  y_offset = font_ptr->ascent;
+
+  // For each row
+  for(row = 0; row < font_ptr->characters[(uint8_t)c].height; row++)
+  {
+    // For each column in the row
+    for(col = 0; col < font_ptr->characters[(uint8_t)c].width; col++)
+    {
+      // For each pixel
+      if ((int32_t)font_ptr->characters[(uint8_t)c].map[col+(row*font_ptr->characters[(uint8_t)c].width)] > 0)  // leave bcackground unchanged
+      {
+        thisPixelR = backColourR + ((red_contrast * (int32_t)font_ptr->characters[(uint8_t)c].map[col+(row*font_ptr->characters[(uint8_t)c].width)]) / 0xFF);
+        thisPixelG = backColourG + ((green_contrast * (int32_t)font_ptr->characters[(uint8_t)c].map[col+(row*font_ptr->characters[(uint8_t)c].width)]) / 0xFF);
+        thisPixelB = backColourB + ((blue_contrast * (int32_t)font_ptr->characters[(uint8_t)c].map[col+(row*font_ptr->characters[(uint8_t)c].width)]) / 0xFF);
+
+        if ((currentX + col < 800) && (currentY + row - y_offset < 480))
+        {
+          setPixel(currentX + col, currentY + row - y_offset, thisPixelR, thisPixelG, thisPixelB);
+        }
+        else
+        {
+          printf("Error: Trying to write pixel outside screen bounds.\n");
+        }
+      }
+    }
+  }
+  // Move position on by the character width
+  currentX = currentX + font_ptr->characters[(uint8_t)c].render_width;
+}
+
 
 void displayLargeChar2(int sizeFactor, const font_t *font_ptr, char c)
 {
@@ -200,6 +249,28 @@ void Text2 (int xpos, int ypos, char*s, const font_t *font_ptr)
   while(s[p] != 0);  // While not end of string
 }
 
+void Text3 (int xpos, int ypos, char*s, const font_t *font_ptr) // display text but do not overwrite with background
+{
+  int p;    // Character Counter
+  p=0;
+
+  // Position string write position start
+
+  gotoXY(xpos, 480 - ypos);
+
+  //printf("TextMid x %d, y %d, %s\n", xpos, ypos, s);
+
+  // Display each character
+  do
+  {
+    char c=s[p++];
+    displayChar3(font_ptr, c);
+  }
+  while(s[p] != 0);  // While not end of string
+}
+
+
+
 void LargeText2 (int xpos, int ypos, int sizeFactor, char*s, const font_t *font_ptr)
 {
   int p;    // Character Counter
@@ -225,15 +296,34 @@ void LargeText2 (int xpos, int ypos, int sizeFactor, char*s, const font_t *font_
 
 void rectangle(int xpos, int ypos, int xsize, int ysize, int r, int g, int b)
 {
+  // xpos and y pos are 0 to screensize (479 799).  (0, 0) is bottom left
+  // xsize and ysize are 1 to 800 (x) or 480 (y)
   int x;     // pixel count
   int y;     // pixel count
+  int p;     // Pixel Memory offset
 
-  for(x = 0; x < xsize; x++)  // for each vertical slice along the x
+  // Check rectangle bounds to save checking each pixel
+
+  if (((xpos < 0) || (xpos > screenXsize))
+    || ((xpos + xsize < 0) || (xpos + xsize > screenXsize))
+    || ((ypos < 0) || (ypos > screenYsize))
+    || ((ypos + ysize < 0) || (ypos + ysize > screenYsize)))
   {
-    for(y = 0; y < ysize; y++)  // Draw a vertical line
+    printf("Rectangle xpos %d xsize %d ypos %d ysize %d tried to write off-screen\n", xpos, xsize, ypos, ysize);
+  }
+  else
+  {
+    for(x = 0; x < xsize; x++)  // for each vertical slice along the x
     {
-      //printf("set pixel x %d y %d\n", xpos + x, 480 - (ypos + y));
-      setPixel(xpos + x, 480 - (ypos + y), r, g, b);
+      for(y = 0; y < ysize; y++)  // Draw a vertical line
+      {
+        p = (xpos + x + screenXsize * (479 - (ypos + y))) * 4;
+
+        memset(p + fbp,     b, 1);     // Blue
+        memset(p + fbp + 1, g, 1);     // Green
+        memset(p + fbp + 2, r, 1);     // Red
+        memset(p + fbp + 3, 0x80, 1);  // A
+      }
     }
   }
 }
@@ -261,11 +351,20 @@ void setBackColour(int R,int G,int B)
 
 void clearScreen()
 {
-  for(int y=0;y<screenYsize;y++)
+  int p;  // Pixel Memory offset
+  int x;  // x pixel count, 0 - 799
+  int y;  // y pixel count, 0 - 479
+
+  for(y=0; y < screenYsize; y++)
   {
-    for(int x=0;x<screenXsize;x++)
+    for(x=0; x < screenXsize; x++)
     {
-      setPixel(x,y,backColourR,backColourG,backColourB);
+      p=(x + screenXsize * y) * 4;
+
+      memset(fbp + p,     backColourB, 1);     // Blue
+      memset(fbp + p + 1, backColourG, 1);     // Green
+      memset(fbp + p + 2, backColourR, 1);     // Red
+      memset(fbp + p + 3, 0x80,        1);     // A
     }
   }
 }
