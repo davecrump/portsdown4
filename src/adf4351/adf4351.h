@@ -148,7 +148,7 @@ typedef struct
 {
 	uint32_t	clkin;
 	uint32_t	channel_spacing;
-	uint32_t	power_up_frequency;
+	uint64_t	power_up_frequency;
 	uint32_t	reference_div_factor;
 	uint8_t		reference_doubler_enable;
 	uint8_t		reference_div2_enable;

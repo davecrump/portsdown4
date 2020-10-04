@@ -34,7 +34,7 @@ int main(int argc, char *argv[])
   if (wiringPiSetup() == -1);
 
   // set parameter defaults
-  uint32_t adf4350_requested_frequency = 1255000000;
+  uint64_t adf4350_requested_frequency = 1255000000;
   uint32_t adf4350_requested_ref_freq = 25000000;
   uint16_t adf4350_requested_power = 0;
 

@@ -1,4 +1,11 @@
-202009020
+202010040
+Modify Band LSB and ADF4351 LE GPIOs
+Add Initial ADF4351 Sig Gen Capability
+Reduce dhcp timout for new builds
+Blink display on successful snap
+Use Raspios Buster Lite 2020-08-20 for new builds
+
+202009130
 Add LKV373A HDMI input for Pluto and streaming outputs
 Add LKV373A HDMI monitor
 Change IPTS monitor to use VLC 

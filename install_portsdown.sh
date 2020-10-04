@@ -115,6 +115,15 @@ echo "---- Enabling the Pi Cam in /boot/config.txt -----"
 echo "--------------------------------------------------"
 sudo bash -c 'echo -e "\n##Enable Pi Camera" >> /boot/config.txt'
 sudo bash -c 'echo -e "\nstart_x=1\ngpu_mem=128\n" >> /boot/config.txt'
+
+
+# Reduce the dhcp client timeout to speed off-network startup
+echo
+echo "-------------------------------------------"
+echo "---- Reducing the dhcp client timeout -----"
+echo "-------------------------------------------"
+sudo bash -c 'echo -e "\n# Shorten dhcpcd timeout from 30 to 5 secs" >> /etc/dhcpcd.conf'
+sudo bash -c 'echo -e "timeout 5\n" >> /etc/dhcpcd.conf'
 cd /home/pi/
 
 # Download the previously selected version of Portsdown 4
@@ -245,16 +254,7 @@ cd ../
 cd /home/pi/avc2ts
 make
 cp avc2ts ../rpidatv/bin/
-cd ..
-
-# Compile adf4351
-echo
-echo "----------------------------------------"
-echo "----- Compiling the ADF4351 driver -----"
-echo "----------------------------------------"
-cd /home/pi/rpidatv/src/adf4351
-make
-cp adf4351 ../../bin/
+cd /home/pi
 
 # Get rtl_sdr
 #echo
@@ -370,6 +370,26 @@ sudo rm /etc/wpa_supplicant/wpa_supplicant.conf
 sudo cp /home/pi/rpidatv/scripts/configs/wpa_supplicant.conf /etc/wpa_supplicant/wpa_supplicant.conf
 sudo chown root /etc/wpa_supplicant/wpa_supplicant.conf
 
+# Compile the Signal Generator
+echo
+echo "------------------------------------------"
+echo "----- Compiling the Signal Generator -----"
+echo "------------------------------------------"
+cd /home/pi/rpidatv/src/siggen
+make
+sudo make install
+cd /home/pi
+
+# Compile adf4351
+echo
+echo "----------------------------------------"
+echo "----- Compiling the ADF4351 driver -----"
+echo "----------------------------------------"
+cd /home/pi/rpidatv/src/adf4351
+make
+cp adf4351 ../../bin/
+cd /home/pi
+
 #echo
 #echo "-----------------------------------------"
 #echo "----- Compiling Ancilliary programs -----"
@@ -388,12 +408,6 @@ make
 mv keyedtxtouch /home/pi/rpidatv/bin/
 cd /home/pi
 
-# Compile the Signal Generator (201710280)
-#cd /home/pi/rpidatv/src/siggen
-#make clean
-#make
-#sudo make install
-#cd /home/pi
 
 # Compile the Attenuator Driver (201801060)
 cd /home/pi/rpidatv/src/atten
@@ -487,6 +501,7 @@ cd /home/pi
 # Save git source used
 echo "${GIT_SRC}" > /home/pi/${GIT_SRC_FILE}
 
+echo
 echo "SD Card Serial:"
 cat /sys/block/mmcblk0/device/cid
 

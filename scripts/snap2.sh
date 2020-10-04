@@ -32,3 +32,9 @@ cp /home/pi/tmp/frame.jpg /home/pi/snaps/snap"$SNAP_SERIAL".jpg
 let SNAP_SERIAL=$SNAP_SERIAL+1
 rm  /home/pi/snaps/snap_index.txt
 echo $SNAP_SERIAL  >  /home/pi/snaps/snap_index.txt
+
+# Blink the display to indicate a successful snap
+/home/pi/rpidatv/scripts/blink.sh &
+
+exit
+
