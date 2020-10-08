@@ -15,7 +15,7 @@ wget https://project-downloads.drogon.net/wiringpi-latest.deb
 sudo dpkg -i wiringpi-latest.deb
 
 echo
-// Install libiio if required (may already be there for Pluto SigGen)
+# Install libiio if required (may already be there for Pluto SigGen)
 if [ ! -d  /home/pi/libiio ]; then
   echo "Installing libiio"
   echo

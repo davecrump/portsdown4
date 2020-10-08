@@ -159,7 +159,7 @@ sudo apt-get -y dist-upgrade # Upgrade all the installed packages to their lates
 # --------- Install new packages as Required ---------
 
 echo
-// Install libiio if required (used for Pluto SigGen)
+# Install libiio if required (used for Pluto SigGen)
 if [ ! -d  /home/pi/libiio ]; then
   echo "Installing libiio"
   echo
