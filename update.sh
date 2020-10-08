@@ -158,7 +158,22 @@ sudo apt-get -y dist-upgrade # Upgrade all the installed packages to their lates
 
 # --------- Install new packages as Required ---------
 
-# None yet
+echo
+// Install libiio if required (used for Pluto SigGen)
+if [ ! -d  /home/pi/libiio ]; then
+  echo "Installing libiio"
+  echo
+  cd /home/pi
+  git clone https://github.com/analogdevicesinc/libiio.git
+  cd libiio
+  cmake ./
+  make all
+  sudo make install
+  cd /home/pi
+else
+  echo "Found libiio installed"
+  echo
+fi
 
 # ---------- Update rpidatv -----------
 

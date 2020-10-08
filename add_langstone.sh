@@ -14,14 +14,22 @@ cd /tmp
 wget https://project-downloads.drogon.net/wiringpi-latest.deb
 sudo dpkg -i wiringpi-latest.deb
 
-
-# Install libiio
-cd /home/pi
-git clone https://github.com/analogdevicesinc/libiio.git
-cd libiio
-cmake ./
-make all
-sudo make install
+echo
+// Install libiio if required (may already be there for Pluto SigGen)
+if [ ! -d  /home/pi/libiio ]; then
+  echo "Installing libiio"
+  echo
+  cd /home/pi
+  git clone https://github.com/analogdevicesinc/libiio.git
+  cd libiio
+  cmake ./
+  make all
+  sudo make install
+  cd /home/pi
+else
+  echo "Found libiio installed"
+  echo
+fi
 
 echo "#################################"
 echo "##     Installing Langstone    ##"

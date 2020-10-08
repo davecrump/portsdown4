@@ -85,6 +85,15 @@ cd /home/pi
 #sudo apt-get -y install python-pip pandoc python-numpy pandoc python-pygame gdebi-core # 20180101 FreqShow
 #sudo pip install pyrtlsdr  #20180101 FreqShow
 
+# Install libiio for Pluto SigGen (and Langstone)
+cd /home/pi
+git clone https://github.com/analogdevicesinc/libiio.git
+cd libiio
+cmake ./
+make all
+sudo make install
+cd /home/pi
+
 # Enable USB Storage automount in Buster
 echo
 echo "----------------------------------"
