@@ -2737,7 +2737,8 @@ int PlutoOff()
 
   if(ctx==NULL)
   {
-    stderrandexit("Connection failed", 0, __LINE__);
+    // stderrandexit("Connection failed", 0, __LINE__);
+    return 1;  // Don't throw an error otherwise it obstructs system exit
   }
 
   if((value = iio_context_get_attr_value(ctx, "ad9361-phy,model"))!=NULL)
@@ -4130,6 +4131,7 @@ void waituntil(int w, int h)
         case 0:   // Pluto
         case 1:   // DATV Express
         case 2:   // Elcom
+        // case 3:  // LimeSDR Mini
         case 5:   // ADF4351
         //case 6:   // ADF5355
           SelectOsc(i); 
@@ -4465,7 +4467,37 @@ void Define_Menu2()
 
 void Start_Highlights_Menu2()
 {
-
+  // Highlight the current output Device
+  if (strcmp(osc, "pluto") == 0)
+  {
+    SelectInGroupOnMenu(2, 0, 3, 0, 1);
+    SelectInGroupOnMenu(2, 5, 6, 0, 1);
+  }
+  if (strcmp(osc, "express") == 0)
+  {
+    SelectInGroupOnMenu(2, 0, 3, 1, 1);
+    SelectInGroupOnMenu(2, 5, 6, 1, 1);
+  }
+  if (strcmp(osc, "elcom") == 0)
+  {
+    SelectInGroupOnMenu(2, 0, 3, 2, 1);
+    SelectInGroupOnMenu(2, 5, 6, 2, 1);
+  }
+  if (strcmp(osc, "lime") == 0)
+  {
+    SelectInGroupOnMenu(2, 0, 3, 2, 1);
+    SelectInGroupOnMenu(2, 5, 6, 2, 1);
+  }
+  if (strcmp(osc, "adf4351") == 0)
+  {
+    SelectInGroupOnMenu(2, 0, 3, 5, 1);
+    SelectInGroupOnMenu(2, 5, 6, 5, 1);
+  }
+  if (strcmp(osc, "adf5355") == 0)
+  {
+    SelectInGroupOnMenu(2, 0, 3, 6, 1);
+    SelectInGroupOnMenu(2, 5, 6, 6, 1);
+  }
 }
 
 
