@@ -1,3 +1,6 @@
+202010080
+Add Basic Pluto SigGen (and Express and Elcom)
+
 202010040
 Modify Band LSB and ADF4351 LE GPIOs
 Add Initial ADF4351 Sig Gen Capability

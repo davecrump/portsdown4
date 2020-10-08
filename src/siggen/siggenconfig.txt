@@ -1,6 +1,6 @@
-osc=adf4351
+osc=pluto
 freq=437000000
-level=2
+level=0
 attenlev=0
 attenuator=NONE
 adf4351ref=25000000
