@@ -3689,6 +3689,103 @@ int CheckPlutoIPConnect()
 }
 
 
+/***************************************************************************//**
+ * @brief Looks up the current xo_correction on the Pluto
+ *
+ * @param nil
+ *
+ * @return int which is value read from Pluto (typically 40000000)
+*******************************************************************************/
+
+int GetPlutoXO()
+{
+  FILE *fp;
+  char response[127];
+  char XOtext[63];
+  int XO = 40000000;
+
+  /* Open the command for reading. */
+  fp = popen("/home/pi/rpidatv/scripts/pluto_get_ref.sh", "r");
+  if (fp == NULL) {
+    printf("Failed to run command\n" );
+    pclose(fp);
+    
+    exit(1);
+  }
+
+  /* Read the output a line at a time - output it. */
+  while (fgets(response, 63, fp) != NULL)
+  {
+    strcpyn(XOtext, response, 13);
+    if (strcmp(XOtext, "xo_correction") == 0)
+    {
+      size_t len = strlen(response);
+      if (len > 14)
+      {
+        memmove(response, response + 14, len - 14 + 1);
+        XO = atoi(response);
+      }
+      else // This means that it has not been set, so return 40 MHz.
+      {
+        XO = 40000000; 
+      }
+    }
+  }
+
+  /* close */
+  pclose(fp);
+  return XO;
+}
+
+
+/***************************************************************************//**
+ * @brief Looks up the current frequency expansion state on the Pluto
+ *
+ * @param nil
+ *
+ * @return int 9364 if expanded
+*******************************************************************************/
+
+int GetPlutoAD()
+{
+  FILE *fp;
+  char response[127];
+  char ADtext[63];
+  int AD = 0;
+
+  /* Open the command for reading. */
+  fp = popen("/home/pi/rpidatv/scripts/pluto_get_ad.sh", "r");
+  if (fp == NULL) {
+    printf("Failed to run command\n" );
+    pclose(fp);
+    
+    exit(1);
+  }
+
+  /* Read the output a line at a time - output it. */
+  while (fgets(response, 63, fp) != NULL)
+  {
+    strcpyn(ADtext, response, 8);
+    if (strcmp(ADtext, "attr_val") == 0)
+    {
+      size_t len = strlen(response);
+      if (len > 11)
+      {
+        memmove(response, response + 11, len - 11 + 1);
+        AD = atoi(response);
+      }
+      else // This means that it has not been set, so return 40 MHz.
+      {
+        AD = 0; 
+      }
+    }
+  }
+
+  /* close */
+  pclose(fp);
+  return AD;
+}
+
 
 /***************************************************************************//**
  * @brief Checks whether a Lime Mini or Lime USB is connected if selected
@@ -11860,21 +11957,91 @@ void ChangePlutoIP()
   strcpy(PlutoIP, KeyboardReturn);
 }
 
+void ChangePlutoXO()
+{
+  char RequestText[63];
+  char InitText[63];
+  char cmdText[63];
+  char msgText[63];
+  int Spaces = 1;
+  int j;
+  int newXO = 0;
+  int oldXO;
+  int checkXO;
+
+  oldXO = GetPlutoXO();
+
+  snprintf(InitText, 10, "%d", oldXO);
+  snprintf(RequestText, 45, "Enter new Pluto Reference Frequency in Hz");
+
+  while ((Spaces >= 1) || (newXO < 9000000) || (newXO > 110000000))
+  {
+    Keyboard(RequestText, InitText, 9);
+  
+    // Check that there are no spaces or other characters
+    Spaces = 0;
+    for (j = 0; j < strlen(KeyboardReturn); j = j + 1)
+    {
+      if ( !(isdigit(KeyboardReturn[j])) )
+      {
+        Spaces = Spaces + 1;
+      }
+    }
+    newXO = atoi(KeyboardReturn);
+  }
+  
+  if (oldXO != newXO)
+  {
+    snprintf(cmdText, 62, "/home/pi/rpidatv/scripts/pluto_set_ref.sh %d", newXO);
+    system(cmdText);
+    printf("Pluto Ref set to: %d\n", newXO);
+
+    checkXO = GetPlutoXO();
+    snprintf(msgText, 62, "Pluto Ref Freq Changed to %d", checkXO);
+    MsgBox(msgText);
+  }
+  else
+  {
+    snprintf(msgText, 62, "Pluto Ref Freq unchanged at %d", oldXO);
+    MsgBox(msgText);
+  }
+  wait_touch();
+}
+
+
+void ChangePlutoAD()
+{
+  // Checks Whether Pluto has been expanded to AD9364 status and does it if required
+  int oldAD;
+
+  oldAD = GetPlutoAD();
+
+  if (oldAD == 9364)
+  {
+    MsgBox("Pluto range is expanded to AD 9364 status");
+    wait_touch();
+  }
+  else
+  {
+    MsgBox2("Pluto range is not expanded to AD 9364 status", "Expand from next Menu if required");
+    wait_touch();
+    // Set the status of the button to 1
+    SetButtonStatus(ButtonNumber(15, 8), 1);
+  }
+}
+
+
 void RebootPluto()
 {
   int test = 1;
   int count = 0;
-  // int rawX, rawY, rawPressure;
+  char timetext[63];
 
   system("/home/pi/rpidatv/scripts/reboot_pluto.sh");
-  MsgBox4("Pluto Rebooting", "Wait for reconnection", " ", " ");
-
   while(test == 1)
   {
-    //if (getTouchSample(&rawX, &rawY, &rawPressure) != 0)
-    //{
-    //  return;
-    //}
+    snprintf(timetext, 62, "Timeout in %d seconds", 29 - count);
+    MsgBox4("Pluto Rebooting", "Wait for reconnection", " ", timetext);
     usleep(1000000);
     test = CheckPlutoConnect();
     count = count + 1;
@@ -13809,22 +13976,49 @@ rawY = 0;
           Start_Highlights_Menu15();
           UpdateWindow();
           break;
+        case 2:                               // Set Pluto Ref
+          printf("Changing Pluto XO\n");
+          ChangePlutoXO();
+          Start_Highlights_Menu15();
+          UpdateWindow();
+          break;
+        case 3:                               // Check Pluto Expansion
+          ChangePlutoAD();
+          Start_Highlights_Menu15();
+          UpdateWindow();
+          break;
         case 4:                               // Cancel
           SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 1);
           printf("Menu 15 Cancel\n");
+          UpdateWindow();
+          usleep(500000);
+          break;
+        case 8:                               // Perform Pluto Expansion
+          if (GetButtonStatus(ButtonNumber(15, 8)) == 1)
+          {
+            system("/home/pi/rpidatv/scripts/pluto_set_ad.sh");
+            MsgBox2("Pluto expanded to AD9364 status", "You must reboot the Pluto now");
+            wait_touch();
+            SetButtonStatus(ButtonNumber(15, 8), 0);
+          }
+          UpdateWindow();
           break;
         default:
           printf("Menu 15 Error\n");
         }
-        UpdateWindow();
-        usleep(500000);
         SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 0); // Reset cancel (even if not selected)
-        printf("Returning to MENU 1 from Menu 15\n");
-        CurrentMenu=1;
-        setBackColour(255, 255, 255);
-        clearScreen();
-        setBackColour(0, 0, 0);
-        Start_Highlights_Menu1();
+        if ((GetButtonStatus(ButtonNumber(15, 8)) == 1) && (i == 3))  // Update frequency range offered
+        {
+          printf("Staying in Menu 15\n");
+          CurrentMenu=15;
+          Start_Highlights_Menu15();
+        }
+        else
+        {
+          printf("Returning to MENU 1 from Menu 15\n");
+          CurrentMenu=1;
+          Start_Highlights_Menu1();
+        }
         UpdateWindow();
         continue;   // Completed Menu 15 action, go and wait for touch
       }
@@ -17274,9 +17468,20 @@ void Define_Menu15()
   button = CreateButton(15, 1);
   AddButtonStatus(button, "Reboot^Pluto", &Blue);
 
+  button = CreateButton(15, 2);
+  AddButtonStatus(button, "Set Pluto^Ref Freq", &Blue);
+
+  button = CreateButton(15, 3);
+  AddButtonStatus(button, "Check Pluto^AD9364", &Blue);
+
+
   button = CreateButton(15, 4);
   AddButtonStatus(button, "Cancel", &DBlue);
   AddButtonStatus(button, "Cancel", &LBlue);
+
+  button = CreateButton(15, 8);
+  AddButtonStatus(button, " ", &Grey);
+  AddButtonStatus(button, "Update Pluto^to AD9364", &Red);
 }
 
 void Start_Highlights_Menu15()

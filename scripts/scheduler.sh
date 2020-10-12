@@ -86,7 +86,7 @@ while [ "$GUI_RETURN_CODE" -gt 127 ] || [ "$GUI_RETURN_CODE" -eq 0 ];  do
     ;;
     130)
       /home/pi/rpidatv/bin/siggen
-      GUI_RETURN_CODE=129
+      GUI_RETURN_CODE="$?"
     ;;
     131)
       # cd /home/pi/FreqShow

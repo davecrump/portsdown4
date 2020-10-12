@@ -1,5 +1,6 @@
-202010080
-Add Basic Pluto SigGen (and Express and Elcom)
+202010120
+Add Pluto SigGen (and Express and Elcom)
+Add Pluto Settings
 
 202010040
 Modify Band LSB and ADF4351 LE GPIOs

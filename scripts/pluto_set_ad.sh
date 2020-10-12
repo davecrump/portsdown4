@@ -2,7 +2,7 @@
 
 # set -x
 
-# This script is called from the GUI to reboot the Pluto if required by the user
+# This script is called from the GUI to set the Pluto to AD9364 status
 
 ############ Set Environment Variables ###############
 
@@ -33,7 +33,10 @@ PLUTOIP=$(get_config_var plutoip $PCONFIGFILE)
 # Make sure that we will be able to log in
 ssh-keygen -f "/home/pi/.ssh/known_hosts" -R "$PLUTOIP" >/dev/null 2>/dev/null
 
-# Tell the Pluto to reboot
-timeout 2 sshpass -p analog ssh -o StrictHostKeyChecking=no root@"$PLUTOIP" 'PATH=/bin:/sbin:/usr/bin:/usr/sbin;reboot' >/dev/null 2>/dev/null
+timeout 2 sshpass -p analog ssh -o StrictHostKeyChecking=no root@"$PLUTOIP" 'PATH=/bin:/sbin:/usr/bin:/usr/sbin;fw_setenv attr_name compatible'
 
-exit
+sleep 1
+
+timeout 2 sshpass -p analog ssh -o StrictHostKeyChecking=no root@"$PLUTOIP" 'PATH=/bin:/sbin:/usr/bin:/usr/sbin;fw_setenv attr_val ad9364'
+
+exit 0
