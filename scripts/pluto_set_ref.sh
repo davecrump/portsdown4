@@ -2,7 +2,8 @@
 
 # set -x
 
-# This script is called from the GUI to reboot the Pluto if required by the user
+# This script is called from the GUI to set the Pluto XO correction
+# $1 is the desired new ref freq
 
 ############ Set Environment Variables ###############
 
@@ -33,7 +34,13 @@ PLUTOIP=$(get_config_var plutoip $PCONFIGFILE)
 # Make sure that we will be able to log in
 ssh-keygen -f "/home/pi/.ssh/known_hosts" -R "$PLUTOIP" >/dev/null 2>/dev/null
 
-# Tell the Pluto to reboot
-timeout 2 sshpass -p analog ssh -o StrictHostKeyChecking=no root@"$PLUTOIP" 'PATH=/bin:/sbin:/usr/bin:/usr/sbin;reboot' >/dev/null 2>/dev/null
+# Check that $1 is sensible
+if [[ ( "$1" > 9000000 ) || ( "$1" < 101000000 ) ]]; then
+  exit 1
+fi
 
-exit
+echo $1
+# set the xo correction
+timeout 2 sshpass -p analog ssh -o StrictHostKeyChecking=no root@"$PLUTOIP" 'PATH=/bin:/sbin:/usr/bin:/usr/sbin;fw_setenv xo_correction' "$1"
+
+exit 0
