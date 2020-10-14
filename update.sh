@@ -159,10 +159,12 @@ sudo apt-get -y dist-upgrade # Upgrade all the installed packages to their lates
 # --------- Install new packages as Required ---------
 
 echo
-# Install libiio if required (used for Pluto SigGen)
+# Install libiio and dependencies if required (used for Pluto SigGen)
 if [ ! -d  /home/pi/libiio ]; then
-  echo "Installing libiio"
+  echo "Installing libiio and dependencies"
   echo
+  sudo apt-get -y install libxml2 libxml2-dev bison flex libcdk5-dev
+  sudo apt-get -y install libaio-dev libserialport-dev libxml2-dev libavahi-client-dev
   cd /home/pi
   git clone https://github.com/analogdevicesinc/libiio.git
   cd libiio
