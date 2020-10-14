@@ -75,6 +75,9 @@ sudo apt-get -y install libavcodec-dev libavformat-dev libswscale-dev libavdevic
 sudo apt-get -y install mplayer vlc # 202004300 Used for video monitor and LongMynd (not libpng12-dev)
 sudo apt-get -y install autoconf libtool # for fdk aac
 
+sudo apt-get -y install libxml2 libxml2-dev bison flex libcdk5-dev                   # for libiio
+sudo apt-get -y install libaio-dev libserialport-dev libxml2-dev libavahi-client-dev # for libiio
+
 # Install WiringPi
 cd /tmp
 wget https://project-downloads.drogon.net/wiringpi-latest.deb
@@ -84,6 +87,15 @@ cd /home/pi
 # Freqshow install no longer required:
 #sudo apt-get -y install python-pip pandoc python-numpy pandoc python-pygame gdebi-core # 20180101 FreqShow
 #sudo pip install pyrtlsdr  #20180101 FreqShow
+
+# Install libiio for Pluto SigGen (and Langstone)
+cd /home/pi
+git clone https://github.com/analogdevicesinc/libiio.git
+cd libiio
+cmake ./
+make all
+sudo make install
+cd /home/pi
 
 # Enable USB Storage automount in Buster
 echo

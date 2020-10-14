@@ -14,6 +14,9 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 Rewitten by Dave, G8GKQ
+Thanks to Alberto Ferraris IU1KVL For his plutotx and to Robin Getz 
+for his comments.  The Pluto SigGen would not have been possible
+without them 
 */
 
 #include <stdio.h>
@@ -39,6 +42,7 @@ Rewitten by Dave, G8GKQ
 #include "font/font.h"
 #include "touch.h"
 #include "Graphics.h"
+#include "/home/pi/libiio/iio.h"  // for Pluto
 
 #define KWHT  "\x1B[37m"
 #define KYEL  "\x1B[33m"
@@ -105,12 +109,12 @@ int CallingMenu = 1;
 
 char osc[15] = "pluto";      // Output device
 char osc_text[15] = "Pluto"; // Output device display text
-// pluto Pluto
+// pluto   Pluto
 // adf4351 ADF4351
-// adf4355 ADF4355
-// elcom  Elcom
+// adf5355 ADF5355
+// elcom   Elcom
 // express DATV Express
-// lime Lime Mini
+// lime    Lime Mini
 
 int64_t DisplayFreq = 437000000;  // Input freq and display freq are the same
 int64_t OutputFreq = 0;           // Calculated output frequency
@@ -135,35 +139,34 @@ char UpdateStatus[31] = "NotAvailable";
 
 char LinuxCommand[511];
 int  scaledX, scaledY;
+
+// Wiring Pi numbers for GPIOs
 int GPIO_PTT = 29;
 int GPIO_SPI_CLK = 21;
 int GPIO_SPI_DATA = 22;
-int GPIO_4351_LE = 30;
+int GPIO_4351_LE = 23;   // Changed for RPi 4
 int GPIO_Atten_LE = 16;
-int GPIO_5355_LE = 15;
-int GPIO_Band_LSB = 31;
-int GPIO_Band_MSB = 24;
-int GPIO_Tverter = 7;
+int GPIO_5355_LE = 15;   // Also Elcom LE
+int GPIO_Band_LSB = 26;  // Band D0, Changed for RPi 4
+int GPIO_Band_MSB = 24;  // Band D1
+int GPIO_Tverter = 7;    // Band D2
 int GPIO_SD_LED = 2;
 int debug_level = 0; // 0 minimum, 1 medium, 2 max
 
 char MenuTitle[50][127];
 char KeyboardReturn[64];
 
-
 // Lime Control
 float LimeCalFreq = 0;  // -2 cal never, -1 = cal every time, 0 = cal next time, freq = no cal if no change
 int LimeRFEState = 0;   // 0 = disabled, 1 = enabled
 
 // Langstone Integration variables
-char StartApp[63];            // Startup app on boot
-char PlutoIP[10];             // Pluto IP address
+char PlutoIP[16];             // Pluto IP address
 
 // Touch display variables
 int PresetStoreTrigger = 0;   //Set to 1 if awaiting preset being stored
 int FinishedButton = 0;       // Used to indicate screentouch during TX or RX
 int touch_response = 0;       // set to 1 on touch and used to reboot display if it locks up
-
 
 // Function Prototypes
 
@@ -193,6 +196,22 @@ void ShowTitle();
 void UpdateWindow();
 void adf4351On(int);
 void ElcomOn();
+int plutotx(bool);
+
+// PLUTO Constants and declarations
+
+#define REFTXPWR 10
+#define FBANDWIDTH 4000000
+#define FSAMPLING 4000000
+#define FCW 1000000
+
+struct iio_channel *tx0_i, *tx0_q, *tx1_i, *tx1_q;
+struct iio_context *ctx;
+struct iio_device *phy;
+struct iio_device *dds_core_lpc;
+struct iio_channel *tx_chain;
+struct iio_channel *tx_lo;
+bool PlutoCalValid = false;
 
 /***************************************************************************//**
  * @brief Looks up the value of a Param in PathConfigFile and sets value
@@ -383,6 +402,7 @@ void GetIPAddr(char IPAddress[256])
   /* close */
   pclose(fp);
 }
+
 /***************************************************************************//**
  * @brief Looks up the current second IPV4 address
  *
@@ -413,7 +433,6 @@ void GetIPAddr2(char IPAddress[256])
 }
 
 
-
 /***************************************************************************//**
  * @brief Checks whether a ping to google on 8.8.8.8 works
  *
@@ -421,6 +440,7 @@ void GetIPAddr2(char IPAddress[256])
  *
  * @return 0 if it pings OK, 1 if it doesn't
 *******************************************************************************/
+
 
 int CheckGoogle()
 {
@@ -452,6 +472,7 @@ int CheckGoogle()
   }
 }
 
+
 /***************************************************************************//**
  * @brief int is_valid_ip(char *ip_str) Checks whether an IP address is valid
  *
@@ -476,6 +497,7 @@ int valid_digit(char *ip_str)
   } 
   return 1; 
 } 
+
 
 int is_valid_ip(char *ip_str) 
 { 
@@ -648,6 +670,9 @@ void ReadSavedState()
 
   // ref_freq_5355 is initialised to 26000000 and stays as a string
   GetConfigParam(PATH_SGCONFIG,"adf5355ref", ref_freq_5355);
+
+  // Read Pluto IP from Portsdown Config file
+  GetConfigParam(PATH_PCONFIG,"plutoip", PlutoIP);
 }
 
 /***************************************************************************//**
@@ -957,7 +982,7 @@ int CheckLimeUSBConnect()
 }
 
 /***************************************************************************//**
- * @brief Checks whether a Pluto is connected
+ * @brief Checks whether a Pluto responds to ping on pluto.local
  *
  * @param 
  *
@@ -1038,6 +1063,140 @@ int CheckPlutoIPConnect()
   }
 }
 
+
+/***************************************************************************//**
+ * @brief Checks and reports on Pluto Connection
+ *
+ * @param 
+ *
+ * @return 0 if OK, 1 if there is a problem
+*******************************************************************************/
+
+int PlutoConnectTest()
+{
+
+  // Check whether Pluto is connected on stored IP address
+  if (CheckPlutoIPConnect() == 0)
+  {
+    return 0;  // Connected!
+  }
+  else
+  {
+    // Check whether Pluto is connected on pluto.local
+    if (CheckPlutoConnect() == 0)
+    {
+      MsgBox4("Pluto Connected, but", "IP Address stored does not match",
+              "Please use Settings menu to enter IP Address", "Touch Screen to Continue");
+      wait_touch();
+      return 1;
+    }
+    else
+    {
+      MsgBox4("No Pluto Connected", "Please check connections",
+              " ", "Touch Screen to Continue");
+      wait_touch();
+      return 1;
+    }
+  }
+}
+
+
+/***************************************************************************//**
+ * @brief Looks up the current xo_correction on the Pluto
+ *
+ * @param nil
+ *
+ * @return int which is value read from Pluto (typically 40000000)
+*******************************************************************************/
+
+int GetPlutoXO()
+{
+  FILE *fp;
+  char response[127];
+  char XOtext[63];
+  int XO = 40000000;
+
+  /* Open the command for reading. */
+  fp = popen("/home/pi/rpidatv/scripts/pluto_get_ref.sh", "r");
+  if (fp == NULL) {
+    printf("Failed to run command\n" );
+    pclose(fp);
+    
+    exit(1);
+  }
+
+  /* Read the output a line at a time - output it. */
+  while (fgets(response, 63, fp) != NULL)
+  {
+    strcpyn(XOtext, response, 13);
+    if (strcmp(XOtext, "xo_correction") == 0)
+    {
+      size_t len = strlen(response);
+      if (len > 14)
+      {
+        memmove(response, response + 14, len - 14 + 1);
+        XO = atoi(response);
+      }
+      else // This means that it has not been set, so return 40 MHz.
+      {
+        XO = 40000000; 
+      }
+    }
+  }
+
+  /* close */
+  pclose(fp);
+  return XO;
+}
+
+
+/***************************************************************************//**
+ * @brief Looks up the current frequency expansion state on the Pluto
+ *
+ * @param nil
+ *
+ * @return int 9364 if expanded
+*******************************************************************************/
+
+int GetPlutoAD()
+{
+  FILE *fp;
+  char response[127];
+  char ADtext[63];
+  int AD = 0;
+
+  /* Open the command for reading. */
+  fp = popen("/home/pi/rpidatv/scripts/pluto_get_ad.sh", "r");
+  if (fp == NULL) {
+    printf("Failed to run command\n" );
+    pclose(fp);
+    
+    exit(1);
+  }
+
+  /* Read the output a line at a time - output it. */
+  while (fgets(response, 63, fp) != NULL)
+  {
+    strcpyn(ADtext, response, 8);
+    if (strcmp(ADtext, "attr_val") == 0)
+    {
+      size_t len = strlen(response);
+      if (len > 11)
+      {
+        memmove(response, response + 11, len - 11 + 1);
+        AD = atoi(response);
+      }
+      else // This means that it has not been set, so return 40 MHz.
+      {
+        AD = 0; 
+      }
+    }
+  }
+
+  /* close */
+  pclose(fp);
+  return AD;
+}
 
 
 /***************************************************************************//**
@@ -1322,10 +1481,18 @@ int IsMenuButtonPushed(int x, int y)
 {
   int  i, NbButton, cmo, cmsize;
   NbButton = -1;
-  int margin=10;  // was 20
+  int margin= 5 ;  // was 20 then 10
   cmo = ButtonNumber(CurrentMenu, 0); // Current Menu Button number Offset
-  cmsize = ButtonNumber(CurrentMenu + 1, 0) - ButtonNumber(CurrentMenu, 0);
-  TransformTouchMap(x,y);       // Sorts out orientation and approx scaling of the touch map
+  if (CurrentMenu == 12)
+  {
+    cmsize = 350 - ButtonNumber(CurrentMenu, 0);
+  }
+  else
+  {
+    cmsize = ButtonNumber(CurrentMenu + 1, 0) - ButtonNumber(CurrentMenu, 0);
+  }
+
+TransformTouchMap(x,y);       // Sorts out orientation and approx scaling of the touch map
 
   //printf("x=%d y=%d scaledx %d scaledy %d sxv %f syv %f Button %d\n",x,y,scaledX,scaledY,scaleXvalue,scaleYvalue, NbButton);
 
@@ -1411,10 +1578,9 @@ int CreateButton(int MenuIndex, int ButtonPosition)
   swbuttonsize = (wscreen - 25) / 12;  // width of small button
   shbuttonsize = hscreen / 10;         // height of small button
 
-
   ButtonIndex = ButtonNumber(MenuIndex, ButtonPosition);
 
-  if (MenuIndex <= 10)  // All except contro, and keyboard
+  if (MenuIndex <= 10)  // All except control and keyboard
   {
     if (ButtonPosition < 20)  // Bottom 4 rows
     {
@@ -1677,7 +1843,7 @@ void DrawButton(int ButtonIndex)
     {
       TextMid2(Button->x+Button->w/2, Button->y+Button->h/2, label, &font_dejavu_sans_28);
     }
-    else if (CurrentMenu == 41)  // Keyboard
+    else if (CurrentMenu == 12)  // Keyboard
     {
       TextMid2(Button->x+Button->w/2, Button->y+Button->h/2 - hscreen / 64, label, &font_dejavu_sans_28);
     }
@@ -2154,6 +2320,11 @@ void AdjustFreq(int button)
       system(ExpressCommand);
     }
 
+    if (strcmp(osc, "pluto") == 0)
+    {
+      plutotx(false);
+    }
+
     if (strcmp(osc, "adf4351") == 0)
     {
       adf4351On(level); // change adf freq at set level
@@ -2220,6 +2391,38 @@ void AdjustLevel(int Button)
     strcat(ExpressCommand, "\" >> /tmp/expctrl" );
     system(ExpressCommand);
   }
+  else if (strcmp(osc, "pluto") == 0)
+  {
+    if (Button == 0)  // decrement level by 10
+    {
+      level = level - 10;
+    }
+    if (Button == 1)  // decrement level by 1
+    {
+      level = level - 1;
+    }
+    if (Button == 5)  // increment level by 10
+    {
+      level = level + 10;
+    }
+    if (Button == 6)  // increment level by 1
+    {
+      level = level + 1;
+    }
+    if (level > 10 )
+    {
+      level = 10;
+    }
+    if (level < -69 )
+    {
+      level = -69;
+    }
+    if (OutputStatus == 1)  // Change on Pluto
+    {
+      plutotx(false);
+    }
+  }
+
   else
   {
     if (AttenIn == 0) // No attenuator
@@ -2328,7 +2531,7 @@ void CalcOPLevel()
 
   while ((PointAbove == 0) && (n <= 100))
   {
-    n = n+1;
+    n = n + 1;
     if (DisplayFreq <= CalFreq[n])
     {
       PointAbove = n;
@@ -2359,7 +2562,12 @@ void CalcOPLevel()
 
   if (strcmp(osc, "express")==0)
   {
-    DisplayLevel = DisplayLevel + 10*level;  // assumes 1 dB steps  Could use look-up table for more accuracy
+    DisplayLevel = DisplayLevel + 10 * level;  // assumes 1 dB steps  Could use look-up table for more accuracy
+  }
+
+  if (strcmp(osc, "pluto")==0)
+  {
+    DisplayLevel = DisplayLevel + 10 * (level);  // assumes 1 dB steps  Could use look-up table for more accuracy
   }
 
   if (strcmp(osc, "adf5355")==0)
@@ -2429,7 +2637,7 @@ void ShowAtten()
   if (strcmp(osc, "pluto") == 0)                // Pluto Text
   {
     strcpy(LevelText, "Pluto Level = ");
-    snprintf(AttenSet, 3, "%d", level);
+    snprintf(AttenSet, 4, "%d", level);
     strcat(LevelText, AttenSet);
     Text2(hpos*wscreen, vpos*hscreen, LevelText, font_ptr);
   }
@@ -2445,7 +2653,7 @@ void ShowOPFreq()
   float vpos = 0.31;
   float hpos = 0.39;
   
-  if ((strcmp(osc, "elcom") == 0) && (CurrentMenu == 2))
+  if ((strcmp(osc, "elcom") == 0) && (CurrentMenu == 11))
   {
       strcpy(OPFreqText, "Output Freq = ");
       snprintf(FreqString, 12, "%lld", OutputFreq);
@@ -2453,6 +2661,267 @@ void ShowOPFreq()
       Text2(hpos*wscreen, vpos*hscreen, OPFreqText, font_ptr);
   }
 }
+
+
+void stderrandexit(const char *msg, int errcode, int line)
+{
+  char line1[63];
+  char line2[63];
+
+  if(errcode < 0)
+  {
+    snprintf(line1, 63, "Pluto Error:%d,", errcode);
+    snprintf(line2, 63, "program terminated (line:%d)", line);
+    MsgBox4(line1, line2, " ", "Touch Screen to Restart");
+  }
+  else
+  {
+    snprintf(line1, 63, "%s,", msg);
+    snprintf(line2, 63, "program terminated (line:%d)", line);
+    MsgBox4(line1, line2, "Pluto error", "Touch Screen to Restart");
+  }
+  wait_touch();
+
+  setBackColour(0, 0, 0);  // Now do a clean exit without OscStop (which would fail)
+  clearScreen();
+  printf("Restarting SigGen after Pluto Error\n");
+  char Commnd[255];
+  sprintf(Commnd, "stty echo");
+  system(Commnd);
+  exit(130);
+}
+
+void CWOnOff(int onoff)
+{
+  int rc;
+
+  if((rc = iio_channel_attr_write_bool(tx0_i, "raw", onoff)) < 0)
+  {
+    stderrandexit(NULL, rc, __LINE__);
+  }
+  if((rc = iio_channel_attr_write_bool(tx0_q, "raw", onoff)) < 0)
+  {
+    stderrandexit(NULL, rc, __LINE__);
+  }
+}
+
+int plutotx(bool cal)
+{
+  const char *value;
+  long long freq;
+  double dBm;
+  int rc;
+  char URIPLUTO[20] = "ip:";
+  
+  freq = DisplayFreq;
+  dBm = level;
+  strcat(URIPLUTO, PlutoIP);
+
+  ctx = iio_create_context_from_uri(URIPLUTO);
+
+  if(ctx == NULL)
+  {
+    stderrandexit("Connection failed", 0, __LINE__);
+  }
+
+  if((value = iio_context_get_attr_value(ctx, "ad9361-phy,model")) != NULL)
+  {
+    if(strcmp(value, "ad9364"))
+    {
+      stderrandexit("Pluto is not expanded", 0, __LINE__);
+    }
+  }
+  else
+  {
+    stderrandexit("Error retrieving phy model", 0, __LINE__);
+  }
+
+  phy = iio_context_find_device(ctx, "ad9361-phy");
+  dds_core_lpc = iio_context_find_device(ctx, "cf-ad9361-dds-core-lpc");  
+  tx0_i = iio_device_find_channel(dds_core_lpc, "altvoltage0", true);
+  tx0_q = iio_device_find_channel(dds_core_lpc, "altvoltage2", true);
+  tx1_i = iio_device_find_channel(dds_core_lpc, "altvoltage1", true);
+  tx1_q = iio_device_find_channel(dds_core_lpc, "altvoltage3", true);
+  tx_chain=iio_device_find_channel(phy, "voltage0", true);
+  tx_lo=iio_device_find_channel(phy, "altvoltage1", true);
+
+  if(!phy || !dds_core_lpc || !tx0_i || !tx0_q || !tx_chain || !tx_lo)
+  {
+    stderrandexit("Error finding device or channel", 0, __LINE__);
+  }
+
+  //enable internal TX local oscillator
+  if((rc = iio_channel_attr_write_bool(tx_lo, "external", false)) < 0)
+  {
+    stderrandexit(NULL, rc, __LINE__);
+  }
+
+  //disable fastlock feature of TX local oscillator
+  if((rc = iio_channel_attr_write_bool(tx_lo, "fastlock_store", false)) < 0)
+  {
+    stderrandexit(NULL, rc, __LINE__);
+  }
+
+  //power on TX local oscillator
+  if((rc = iio_channel_attr_write_bool(tx_lo, "powerdown", false)) < 0)
+  {
+    stderrandexit(NULL, rc, __LINE__);
+  }
+
+  //full duplex mode
+  if((rc = iio_device_attr_write(phy, "ensm_mode", "fdd")) < 0)
+  {
+    stderrandexit(NULL, rc, __LINE__);
+  }
+
+  if (cal)
+  {
+    //calibration mode to auto
+    if((rc = iio_device_attr_write(phy, "calib_mode", "auto")) < 0)
+    {
+      stderrandexit(NULL, rc, __LINE__);
+    }
+  }
+  else
+  {
+    //calibration mode to manual
+    if((rc = iio_device_attr_write(phy, "calib_mode", "manual")) < 0)
+    {
+      stderrandexit(NULL, rc, __LINE__);
+    }
+  }
+
+  // Set the hardware gain
+  if((rc = iio_channel_attr_write_double(tx_chain, "hardwaregain", dBm - REFTXPWR)) < 0)
+  {
+    stderrandexit(NULL, rc, __LINE__);
+  }
+
+  // Set the TX bandwidth (to 4 MHz)
+  if((rc = iio_channel_attr_write_longlong(tx_chain, "rf_bandwidth", FBANDWIDTH)) < 0)
+  {
+    stderrandexit(NULL, rc, __LINE__);
+  }
+
+  if (cal)
+  {
+    // Set the sampling frequency (to 4 MHz), produces spike and is non-volatile so only do for Cal
+    if((rc = iio_channel_attr_write_longlong(tx_chain, "sampling_frequency", FSAMPLING) ) < 0)
+    {
+      stderrandexit(NULL, rc, __LINE__);
+    }
+  }
+
+  // Set the I channel 0 DDS scale  0.8 reduces the LSB 3rd harmonic (was 1.0)
+  if((rc = iio_channel_attr_write_double(tx0_i, "scale", 0.8)) < 0)
+  {
+    stderrandexit(NULL, rc, __LINE__);
+  }
+
+  // Set the Q channel 0 DDS scale
+  if((rc = iio_channel_attr_write_double(tx0_q, "scale", 0.8)) < 0)
+  {
+    stderrandexit(NULL, rc, __LINE__);
+  }
+
+  // Disable the DDSs on Channel 1
+  if((rc = iio_channel_attr_write_double(tx1_i, "scale", 0.0)) < 0)
+  {
+    stderrandexit(NULL, rc, __LINE__);
+  }
+  if((rc = iio_channel_attr_write_double(tx1_q, "scale", 0.0)) < 0)
+  {
+    stderrandexit(NULL, rc, __LINE__);
+  }
+
+  // Set the I channel stimulus frequency (1 MHz)
+  if((rc = iio_channel_attr_write_longlong(tx0_i, "frequency", FCW)) < 0)
+  {
+    stderrandexit(NULL, rc, __LINE__);
+  }
+
+  // Set the Q channel stimulus frequency (1 MHz)
+  if((rc = iio_channel_attr_write_longlong(tx0_q, "frequency", FCW)) < 0)
+  {
+    stderrandexit(NULL, rc, __LINE__);
+  }
+
+  // Set the I channel phase to 90 degrees for USB
+  if((rc = iio_channel_attr_write_longlong(tx0_i, "phase", 90000)) < 0)
+  {
+    stderrandexit(NULL, rc, __LINE__);
+  }
+
+  // Set the Q channel phase to 0 degrees for USB
+  if((rc = iio_channel_attr_write_longlong(tx0_q, "phase", 0)) < 0)
+  {
+    stderrandexit(NULL, rc, __LINE__);
+  }
+
+  // Set the LO frequncy for USB operation
+  if((rc = iio_channel_attr_write_longlong(tx_lo, "frequency", freq - FCW)) < 0)
+  {
+   stderrandexit(NULL, rc, __LINE__);
+  }
+
+  CWOnOff(1); //Turn the output on
+
+  return 0;
+}
+
+
+int PlutoOff()
+{
+  const char *value;
+  int rc;
+  char URIPLUTO[20] = "ip:";
+  strcat(URIPLUTO, PlutoIP);
+
+  ctx = iio_create_context_from_uri(URIPLUTO);
+
+  if(ctx==NULL)
+  {
+    // stderrandexit("Connection failed", 0, __LINE__);
+    return 1;  // Don't throw an error otherwise it obstructs system exit
+  }
+
+  if((value = iio_context_get_attr_value(ctx, "ad9361-phy,model"))!=NULL)
+  {
+    if(strcmp(value,"ad9364"))
+    {
+      stderrandexit("Pluto is not expanded",0,__LINE__);
+    }
+  }
+  else
+  {
+    stderrandexit("Error retrieving phy model",0,__LINE__);
+  }
+
+  phy = iio_context_find_device(ctx, "ad9361-phy");
+  dds_core_lpc = iio_context_find_device(ctx, "cf-ad9361-dds-core-lpc");  
+  tx0_i = iio_device_find_channel(dds_core_lpc, "altvoltage0", true);
+  tx0_q = iio_device_find_channel(dds_core_lpc, "altvoltage2", true);
+  tx_chain=iio_device_find_channel(phy, "voltage0", true);
+  tx_lo=iio_device_find_channel(phy, "altvoltage1", true);
+
+  if(!phy || !dds_core_lpc || !tx0_i || !tx0_q || !tx_chain || !tx_lo)
+  {
+    stderrandexit("Error finding device or channel", 0, __LINE__);
+  }
+
+  //power off TX local oscillator
+  if((rc = iio_channel_attr_write_bool(tx_lo, "powerdown", true)) < 0)
+  {
+    stderrandexit(NULL, rc, __LINE__);
+  }
+
+  CWOnOff(0);  // Make sure I and Q channels are off
+
+  iio_context_destroy(ctx);
+
+  return 0;
+}
+
 
 
 void ExpressOn()
@@ -2594,7 +3063,7 @@ void ElcomOn()
 
   // Calculate OutputFreq for display
   OutputFreq = CalcFreq * 10000000LL;
-  //printf("Output Freq * 3 = %lld\n", OutputFreq);
+  printf("Output Freq * 3 = %lld\n", OutputFreq);
   OutputFreq = OutputFreq / 3;
   //printf("Output Freq = %lld\n", OutputFreq);
 
@@ -2669,22 +3138,34 @@ void InitOsc()
   int n;
   char PointNumber[255];
   ImposeBounds();
-  if (strcmp(osc, "express")==0)
+  if (strcmp(osc, "express") == 0)
   {
     printf("Starting DATV Express\n");
     //MsgBox4("Please wait","Loading Firmware to DATV Express", "", "");
     //system("/home/pi/rpidatv/src/siggen/startexpresssvr.sh");
     n = StartExpressServer();
     printf("Response from StartExpressServer was %d\n", n);
-    ShowTitle();
-    //ShowLevel(DisplayLevel);
-    //ShowFreq(DisplayFreq);
-    UpdateWindow();
   }
   else
   {
     strcpy(KillExpressSvr, "echo \"set kill\" >> /tmp/expctrl");
     system(KillExpressSvr);
+  }
+
+  if (strcmp(osc, "pluto") == 0)
+  {
+    // Check Pluto properly connected
+    if (PlutoConnectTest() == 0)
+    {
+      strcpy(osc, "pluto");
+      strcpy(osc_text, "Pluto");
+    }
+    else  // Problem with Pluto so connect ADF4351
+    {
+      strcpy(osc, "adf4351");
+      strcpy(osc_text, "ADF4351");
+      SetConfigParam(PATH_SGCONFIG, "osc", osc);
+    }
   }
   
   // Turn off attenuator if not compatible with mode
@@ -2723,7 +3204,7 @@ void InitOsc()
     strcat(Param, PointNumber);
     GetConfigParam(PATH_CAL, Param, Value);
     CalFreq[n] = strtoull(Value, 0, 0);
-    //printf("CalFreq= %lld \n", CalFreq[n]);
+    //printf(" %lld \n", CalFreq[n]);
 
     strcpy(Param, osc);
     strcat(Param, "lev");
@@ -2736,14 +3217,14 @@ void InitOsc()
   // Hide unused buttons
   // First make them all visible
   for (n = 0; n < 3; n = n + 1)
-    {
-      SetButtonStatus(ButtonNumber(11, n), 0);         // Show all level decrement
-      SetButtonStatus(ButtonNumber(11, n + 2), 0);     // Show all level increment
-    }
+  {
+    SetButtonStatus(ButtonNumber(11, n), 0);         // Show all level decrement
+    SetButtonStatus(ButtonNumber(11, n + 5), 0);     // Show all level increment
+  }
   for (n = 8; n < 30; n = n + 1)
-    {
-      SetButtonStatus(ButtonNumber(11, n), 0);         // Show all freq inc/decrement
-    }
+  {
+    SetButtonStatus(ButtonNumber(11, n), 0);         // Show all freq inc/decrement
+  }
 
   // Hide the unused frequency increment/decrement buttons
   if ((strcmp(osc, "adf4351") == 0) || (strcmp(osc, "lime") == 0) 
@@ -2753,29 +3234,38 @@ void InitOsc()
     SetButtonStatus(ButtonNumber(11, 19), 1);        //hide frequency increment above 9.99 GHz
   }
 
+  if (strcmp(osc, "elcom") == 0)
+  {
+    for (n = 13; n < 19; n = n + 1)
+    {
+      SetButtonStatus(ButtonNumber(11, n), 1);         // Hide all freq decrement < 1 MHz
+      SetButtonStatus(ButtonNumber(11, n + 11), 1);    // Hide all freq increment < 1 MHz
+    }
+  }
+
   // Hide the unused level buttons
   if (AttenIn == 0)
   {
     if ((strcmp(osc, "adf4351") == 0) || (strcmp(osc, "adf5355") == 0))
     {
-      SetButtonStatus(ButtonNumber(11, 0), 1);         // Hide decrement 10ths
-      SetButtonStatus(ButtonNumber(11, 2), 1);         // Hide decrement 10s
-      SetButtonStatus(ButtonNumber(11, 5), 1);         // Hide increment 10ths
-      SetButtonStatus(ButtonNumber(11, 7), 1);         // Hide increment 10s
+      SetButtonStatus(ButtonNumber(11, 0), 1);         // Hide decrement 10s
+      SetButtonStatus(ButtonNumber(11, 2), 1);         // Hide decrement 10ths
+      SetButtonStatus(ButtonNumber(11, 5), 1);         // Hide increment 10s
+      SetButtonStatus(ButtonNumber(11, 7), 1);         // Hide increment 10ths
     }
-    if (strcmp(osc, "elcom")==0)
+    if (strcmp(osc, "elcom") == 0)
     {
-      SetButtonStatus(ButtonNumber(11, 0), 1);         // Hide decrement 10ths
+      SetButtonStatus(ButtonNumber(11, 0), 1);         // Hide decrement 10s
       SetButtonStatus(ButtonNumber(11, 1), 1);         // Hide decrement 1s
-      SetButtonStatus(ButtonNumber(11, 2), 1);         // Hide decrement 10s
-      SetButtonStatus(ButtonNumber(11, 5), 1);         // Hide increment 10ths
+      SetButtonStatus(ButtonNumber(11, 2), 1);         // Hide decrement 10ths
+      SetButtonStatus(ButtonNumber(11, 5), 1);         // Hide increment 10s
       SetButtonStatus(ButtonNumber(11, 6), 1);         // Hide decrement 1s
-      SetButtonStatus(ButtonNumber(11, 7), 1);         // Hide increment 10s
+      SetButtonStatus(ButtonNumber(11, 7), 1);         // Hide increment 10ths
     }
     if ((strcmp(osc, "express") == 0) || (strcmp(osc, "pluto") == 0))
     {
-      SetButtonStatus(ButtonNumber(11, 0), 1);         // Hide decrement 10ths
-      SetButtonStatus(ButtonNumber(11, 5), 1);         // Hide increment 10ths
+      SetButtonStatus(ButtonNumber(11, 2), 1);         // Hide decrement 10ths
+      SetButtonStatus(ButtonNumber(11, 7), 1);         // Hide increment 10ths
     }
   }
   CalcOPLevel();
@@ -2834,7 +3324,14 @@ void UpdateWindow()
 
   // Draw each button in turn
   first = ButtonNumber(CurrentMenu, 0);
-  last = ButtonNumber(CurrentMenu + 1 , 0) - 1;
+  if (CurrentMenu == 12)
+  {
+    last = 349;
+  }
+  else
+  {
+    last = ButtonNumber(CurrentMenu + 1 , 0) - 1;
+  }
 
   for(i = first; i <= last; i++)
   {
@@ -2888,8 +3385,17 @@ void SelectOsc(int NoButton)      // Output Oscillator
   switch(NoButton)
   {
   case 0:
-    strcpy(osc, "pluto");
-    strcpy(osc_text, "Pluto");  
+    // Check Pluto properly connected
+    if (PlutoConnectTest() == 0)
+    {
+      strcpy(osc, "pluto");
+      strcpy(osc_text, "Pluto");
+    }
+    else  // Problem with Pluto so connect ADF4351
+    {
+      strcpy(osc, "adf4351");
+      strcpy(osc_text, "ADF4351");
+    }
     break;
   case 1:
     // Start DATV Express if required
@@ -2925,17 +3431,16 @@ void ImposeBounds()  // Constrain DisplayFreq and level to physical limits
   if (strcmp(osc, "pluto")==0)
   {
     SourceUpperFreq = 6000000000;
-    SourceLowerFreq =   70000000;
+    SourceLowerFreq =   50000000;
     strcpy(osc_text, "Pluto");  
-    if (level > 70)
+    if (level > 10)
     {
-      level = 70;
+      level = 10;
     }
-    if (level < 0)
+    if (level < -69)
     {
-      level = 0;
+      level = -69;
     }
-
   }
 
   if (strcmp(osc, "express")==0)
@@ -3045,6 +3550,11 @@ void OscStart()
     }
   }
 
+  if (strcmp(osc, "pluto")==0)
+  {
+    plutotx(false);
+  }
+
   if (strcmp(osc, "elcom")==0)
   {
     printf("\nStarting Elcom Output\n");
@@ -3066,6 +3576,12 @@ void OscStop()
     printf("\nStopping adf4351 output\n");
   }
 
+  if ((strcmp(osc, "elcom") == 0) && (CurrentMenu == 11))
+  {
+    MsgBox4("Elcom oscillator will keep running", "until powered off", " ", "Touch screen to continue");
+    wait_touch();
+  }
+
   if (strcmp(osc, "express") == 0)
   {
     strcpy( expressrx, "echo \"set ptt rx\" >> /tmp/expctrl" );
@@ -3074,6 +3590,12 @@ void OscStop()
     //system(expressrx);
     system("sudo killall netcat >/dev/null 2>/dev/null");
     printf("\nStopping Express output\n");
+  }
+
+  if (strcmp(osc, "pluto") == 0)
+  {
+    PlutoOff();
+    printf("\nStopping Pluto output\n");
   }
 
   if (strcmp(osc, "adf5355")==0)
@@ -3290,6 +3812,9 @@ void Keyboard(char RequestText[64], char InitText[64], int MaxLength)
       setBackColour(0, 0, 0);          // on Black
       Text2(10, 420 , RequestText, font_ptr);
 
+      // Blank out the text line to erase the previous text and cursor
+      rectangle(10, 320, 780, 40, 0, 0, 0);
+
       // Display Text for Editing
       for (i = 1; i <= strlen(EditText); i = i + 1)
       {
@@ -3306,20 +3831,9 @@ void Keyboard(char RequestText[64], char InitText[64], int MaxLength)
         TextMid2(i * charPitch, 330, thischar, font_ptr);
       }
 
-      // Cover deleted text with background colour
-      setBackColour(0, 0, 0);          // on Black
-      for (i = strlen(EditText); i <= 25; i = i + 1)
-      {
-        rectangle(charPitch * i + (charPitch / 2), 320, charPitch, 40, 0, 0, 0);
-      }
-
       // Draw the cursor and erase cursors either side
       rectangle(12 + charPitch * CursorPos, 320, 2, 40, 255, 255, 255);
-      rectangle(12 + charPitch * (CursorPos + 1), 320, 2, 40, 0, 0, 0);
-      if (CursorPos >= 1)
-      {
-        rectangle(12 + charPitch * (CursorPos - 1), 320, 2, 40, 0, 0, 0);
-      }
+
       refreshed = true;
     }
 
@@ -3592,22 +4106,91 @@ void ChangePlutoIP()
   strcpy(PlutoIP, KeyboardReturn);
 }
 
+void ChangePlutoXO()
+{
+  char RequestText[63];
+  char InitText[63];
+  char cmdText[63];
+  char msgText[63];
+  int Spaces = 1;
+  int j;
+  int newXO = 0;
+  int oldXO;
+  int checkXO;
+
+  oldXO = GetPlutoXO();
+
+  snprintf(InitText, 10, "%d", oldXO);
+  snprintf(RequestText, 45, "Enter new Pluto Reference Frequency in Hz");
+
+  while ((Spaces >= 1) || (newXO < 9000000) || (newXO > 110000000))
+  {
+    Keyboard(RequestText, InitText, 9);
+  
+    // Check that there are no spaces or other characters
+    Spaces = 0;
+    for (j = 0; j < strlen(KeyboardReturn); j = j + 1)
+    {
+      if ( !(isdigit(KeyboardReturn[j])) )
+      {
+        Spaces = Spaces + 1;
+      }
+    }
+    newXO = atoi(KeyboardReturn);
+  }
+  
+  if (oldXO != newXO)
+  {
+    snprintf(cmdText, 62, "/home/pi/rpidatv/scripts/pluto_set_ref.sh %d", newXO);
+    system(cmdText);
+    printf("Pluto Ref set to: %d\n", newXO);
+
+    checkXO = GetPlutoXO();
+    snprintf(msgText, 62, "Pluto Ref Freq Changed to %d", checkXO);
+    MsgBox(msgText);
+  }
+  else
+  {
+    snprintf(msgText, 62, "Pluto Ref Freq unchanged at %d", oldXO);
+    MsgBox(msgText);
+  }
+  wait_touch();
+}
+
+
+void ChangePlutoAD()
+{
+  // Checks Whether Pluto has been expanded to AD9364 status and does it if required
+  int oldAD;
+
+  oldAD = GetPlutoAD();
+
+  if (oldAD == 9364)
+  {
+    MsgBox("Pluto range is expanded to AD 9364 status");
+    wait_touch();
+  }
+  else
+  {
+    MsgBox2("Pluto range is not expanded to AD 9364 status", "Expand from next Menu if required");
+    wait_touch();
+    // Set the status of the button to 1
+    SetButtonStatus(ButtonNumber(4, 8), 1);
+  }
+}
+
 
 void RebootPluto()
 {
   int test = 1;
   int count = 0;
-  // int rawX, rawY, rawPressure;
+  char timetext[63];
 
   system("/home/pi/rpidatv/scripts/reboot_pluto.sh");
-  MsgBox4("Pluto Rebooting", "Wait for reconnection", " ", " ");
-
   while(test == 1)
   {
-    //if (getTouchSample(&rawX, &rawY, &rawPressure) != 0)
-    //{
-    //  return;
-    //}
+    snprintf(timetext, 62, "Timeout in %d seconds", 29 - count);
+    MsgBox4("Pluto Rebooting", "Wait for reconnection", " ", timetext);
     usleep(1000000);
     test = CheckPlutoConnect();
     count = count + 1;
@@ -3622,35 +4205,19 @@ void RebootPluto()
   wait_touch();
 }
 
-/*
+
 void ChangeADFRef(int NoButton)
 {
   char RequestText[64];
   char InitText[64];
-  char Param[64];
   int Spaces = 1;
   int j;
 
   switch(NoButton)
   {
-  case 5:
-    strcpy(CurrentADFRef, ADFRef[0]);
-    SetConfigParam(PATH_PCONFIG, "adfref", CurrentADFRef);
-    break;
-  case 6:
-    strcpy(CurrentADFRef, ADFRef[1]);
-    SetConfigParam(PATH_PCONFIG, "adfref", CurrentADFRef);
-    break;
-  case 7:
-    strcpy(CurrentADFRef, ADFRef[2]);
-    SetConfigParam(PATH_PCONFIG, "adfref", CurrentADFRef);
-    break;
   case 0:
-  case 1:
-  case 2:
-    snprintf(RequestText, 45, "Enter new ADF4351 Reference Frequncy %d in Hz", NoButton + 1);
-    //snprintf(InitText, 10, "%s", ADFRef[NoButton]);
-    strcpyn(InitText, ADFRef[NoButton], 10);
+    snprintf(RequestText, 45, "Enter new ADF4351 Reference Frequency in Hz");
+    strcpyn(InitText, ref_freq_4351, 10);
     while (Spaces >= 1)
     {
       Keyboard(RequestText, InitText, 9);
@@ -3665,16 +4232,12 @@ void ChangeADFRef(int NoButton)
         }
       }
     }
-    strcpy(ADFRef[NoButton], KeyboardReturn);
-    snprintf(Param, 8, "adfref%d", NoButton + 1);
-    SetConfigParam(PATH_PPRESETS, Param, KeyboardReturn);
-    strcpy(CurrentADFRef, KeyboardReturn);
-    SetConfigParam(PATH_PCONFIG, "adfref", KeyboardReturn);
+    strcpy(ref_freq_4351, KeyboardReturn);
+    SetConfigParam(PATH_SGCONFIG, "adf4351ref", KeyboardReturn);
     break;
-  case 3:
-    snprintf(RequestText, 45, "Enter new ADF5355 Reference Frequncy in Hz");
-    //snprintf(InitText, 10, "%s", ADF5355Ref);
-    strcpyn(InitText, ADF5355Ref, 10);
+  case 1:
+    snprintf(RequestText, 45, "Enter new ADF5355 Reference Frequency in Hz");
+    strcpyn(InitText, ref_freq_5355, 10);
     while (Spaces >= 1)
     {
       Keyboard(RequestText, InitText, 9);
@@ -3689,16 +4252,16 @@ void ChangeADFRef(int NoButton)
         }
       }
     }
-    strcpy(ADF5355Ref, KeyboardReturn);
+    strcpy(ref_freq_5355, KeyboardReturn);
     SetConfigParam(PATH_SGCONFIG, "adf5355ref", KeyboardReturn);
     break;
   default:
     break;
   }
-  printf("ADF4351Ref set to: %s\n", CurrentADFRef);
-  printf("ADF5355Ref set to: %s\n", ADF5355Ref);
+  printf("ADF4351 Ref set to: %s\n", ref_freq_4351);
+  printf("ADF5355 Ref set to: %s\n", ref_freq_5355);
 }
-*/
+
 
 void waituntil(int w, int h)
 {
@@ -3744,13 +4307,12 @@ void waituntil(int w, int h)
         //  Start_Highlights_Menu3();
         //  UpdateWindow();
         //  break;
-        //case 2:
-        //  printf("MENU 4 \n");       // References Menu
-        //  CurrentMenu=4;
-        //  //setBackColour(0, 0, 0);
-       //   Start_Highlights_Menu4();
-        //  UpdateWindow();
-        //  break;
+        case 2:
+          printf("MENU 4 \n");       // Configuration Menu
+          CurrentMenu=4;
+          Start_Highlights_Menu4();
+          UpdateWindow();
+          break;
         case 20:                       // Run
           printf("MENU 11 \n");
           CurrentMenu=11;
@@ -3759,6 +4321,8 @@ void waituntil(int w, int h)
           ShowFreq(DisplayFreq);
           ShowLevel(DisplayLevel);
           ShowAtten();
+          ShowOPFreq();
+          PlutoCalValid = false;
           break;
         case 22:                      // Exit
           printf("Exit from Sig-gen\n");
@@ -3780,11 +4344,12 @@ void waituntil(int w, int h)
           SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 1);
           printf("Set Output Device Cancel\n");
           break;
-        //case 0:
-        //case 1:
-        //case 2:
-        case 5:
-        //case 6:
+        case 0:   // Pluto
+        case 1:   // DATV Express
+        case 2:   // Elcom
+        // case 3:  // LimeSDR Mini
+        case 5:   // ADF4351
+        //case 6:   // ADF5355
           SelectOsc(i); 
           break;
         default:
@@ -3838,42 +4403,57 @@ void waituntil(int w, int h)
         continue;   // Completed Menu 3 action, go and wait for touch
       }
 
-      if (CurrentMenu == 4)  // Menu 4 Select and Change ADF Reference Frequency
+      if (CurrentMenu == 4)  // Menu 4 Settings Menu
       {
         printf("Button Event %d, Entering Menu 4 Case Statement\n",i);
         switch (i)
         {
         case 4:                               // Cancel
           SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 1);
-          printf("Set or change ADFRef\n");
           UpdateWindow();
           usleep(500000);
           SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 0); // Reset cancel (even if not selected)
-          printf("Returning to MENU 1 from Menu 32\n");
+          printf("Returning to MENU 1 from Menu 4\n");
           CurrentMenu = 1;
           Start_Highlights_Menu1();
           UpdateWindow();
           break;
-        case 0:                               // Use ADF4351 Ref 1
-        case 1:                               // Use ADF4351 Ref 2
-        case 2:                               // Use ADF4351 Ref 3
-        case 3:                               // Set ADF5355 Ref
-        case 5:                               // Set ADF4351 Ref 1
-        case 6:                               // Set ADF4351 Ref 2
-        case 7:                               // Set ADF4351 Ref 3
+        case 0:                               // Set ADF4351 Ref
+        case 1:                               // Set ADF5355 Ref
           printf("Changing ADFRef\n");
-          //ChangeADFRef(i);
-          CurrentMenu=32;
-          setBackColour(0, 0, 0);
-          clearScreen();
+          ChangeADFRef(i);
           Start_Highlights_Menu4();
           UpdateWindow();
           break;
-        case 9:                               // Set RTL-SDR ppm offset
-          //ChangeRTLppm();
-          setBackColour(0, 0, 0);
-          clearScreen();
-          Start_Highlights_Menu3();          // Refresh button labels
+        case 2:                               // Set Pluto Ref
+          printf("Changing Pluto XO\n");
+          ChangePlutoXO();
+          Start_Highlights_Menu4();
+          UpdateWindow();
+          break;
+        case 3:                               // Check Pluto Expansion
+          ChangePlutoAD();
+          Start_Highlights_Menu4();
+          UpdateWindow();
+          break;
+        case 5:                               // Enter Pluto IP
+          ChangePlutoIP();
+          Start_Highlights_Menu4();
+          UpdateWindow();
+          break;
+        case 6:                               // Reboot Pluto
+          RebootPluto();
+          Start_Highlights_Menu4();
+          UpdateWindow();
+          break;
+        case 8:                               // Perform Pluto Expansion
+          if (GetButtonStatus(ButtonNumber(4, 8)) == 1)
+          {
+            system("/home/pi/rpidatv/scripts/pluto_set_ad.sh");
+            MsgBox2("Pluto expanded to AD9364 status", "You must reboot the Pluto now");
+            wait_touch();
+            SetButtonStatus(ButtonNumber(4, 8), 0);
+          }
           UpdateWindow();
           break;
         default:
@@ -3947,13 +4527,16 @@ void waituntil(int w, int h)
           }
           else
           {
-            OscStart();
+            if ((strcmp(osc, "pluto") != 0) || PlutoCalValid)
+            {
+              OscStart();
+            }
           }
           break;
         case 31:                                   // Off
           OscStop();
           break;
-        case 32:
+        case 32:                                   // Modulation or Cal
           if (strcmp(osc, "express") == 0)
           {
             if (ModOn == 0)
@@ -3978,6 +4561,17 @@ void waituntil(int w, int h)
             }
             CalcOPLevel();
           }
+          if (strcmp(osc, "pluto") == 0)
+          {
+            plutotx(true);
+            SetButtonStatus(ButtonNumber(11, 32), 4);
+            Start_Highlights_Menu11();
+            UpdateWindow();
+            usleep(500000);
+            PlutoOff();
+            PlutoCalValid = true;
+            SetButtonStatus(ButtonNumber(11, 32), 3);
+          }
           break;
         case 33:                                   // Exit
           OscStop();
@@ -3985,6 +4579,7 @@ void waituntil(int w, int h)
           CurrentMenu=1;
           Start_Highlights_Menu1();
           UpdateWindow();
+          PlutoCalValid = false;
           break;
         default:
           printf("Menu 11 Error\n");
@@ -4023,9 +4618,9 @@ void Define_Menu1()
 //  AddButtonStatus(button, "Attenuator^", &Blue);
 //  AddButtonStatus(button, "Attenuator^", &Green);
 
-//  button = CreateButton(1, 2);
-//  AddButtonStatus(button, "Set Refs", &Blue);
-//  AddButtonStatus(button, "Set Refs", &Green);
+  button = CreateButton(1, 2);
+  AddButtonStatus(button, "Settings", &Blue);
+  AddButtonStatus(button, "Settings", &Green);
 
   button = CreateButton(1, 20);
   AddButtonStatus(button,"CONTROL",&Blue);
@@ -4049,9 +4644,6 @@ void Start_Highlights_Menu1()
   strcpy(Presettext, "Attenuator^");
   strcat(Presettext, AttenType);
   AmendButtonStatus(1, 0, Presettext, &Blue);
-
-  //strcpy(Presettext, "Set^Ref Freqs");
-  //AmendButtonStatus(2, 0, Presettext, &Blue);
 }
 
 void Define_Menu2()
@@ -4062,48 +4654,70 @@ void Define_Menu2()
 
   // Bottom Row, Menu 2
 
-// pluto Pluto
-// adf4351 ADF4351
-// adf4355 ADF4355
-// elcom  Elcom
-// express DATV Express
-// lime Lime Mini
-
-
-  button = CreateButton(2, 4);
+  button = CreateButton(2, 4);                           // cancel
   AddButtonStatus(button, "Cancel", &DBlue);
   AddButtonStatus(button, "Cancel", &LBlue);
 
-  //button = CreateButton(2, 0);
-  //AddButtonStatus(button, "Pluto", &Blue);
-  //AddButtonStatus(button, "Pluto", &Green);
+  button = CreateButton(2, 0);                           // pluto
+  AddButtonStatus(button, "Pluto", &Blue);
+  AddButtonStatus(button, "Pluto", &Green);
 
-  //button = CreateButton(2, 1);
-  //AddButtonStatus(button, "DATV^Express", &Blue);
-  //AddButtonStatus(button, "DATV^Express", &Green);
+  button = CreateButton(2, 1);                           // express
+  AddButtonStatus(button, "DATV^Express", &Blue);
+  AddButtonStatus(button, "DATV^Express", &Green);
 
- // button = CreateButton(2, 2);
-  //AddButtonStatus(button, "Elcom", &Blue);  
-  //AddButtonStatus(button, "Elcom", &Green);
+  button = CreateButton(2, 2);                           // elcom
+  AddButtonStatus(button, "Elcom", &Blue);  
+  AddButtonStatus(button, "Elcom", &Green);
 
-  //button = CreateButton(2, 3);                         //Lime
+  //button = CreateButton(2, 3);                         // lime
   //AddButtonStatus(button, "Lime Mini", &Blue);
   //AddButtonStatus(button, "Lime Mini", &Green);
 
   // 2nd Row, Menu 2
 
-  button = CreateButton(2, 5);
+  button = CreateButton(2, 5);                           // adf4351
   AddButtonStatus(button, "ADF4351", &Blue);
   AddButtonStatus(button, "ADF4351", &Green);
 
-  //button = CreateButton(2, 6);
+  //button = CreateButton(2, 6);                         // adf5355
   //AddButtonStatus(button, "ADF5355", &Blue);
   //AddButtonStatus(button, "ADF5355", &Green);
 }
 
 void Start_Highlights_Menu2()
 {
-
+  // Highlight the current output Device
+  if (strcmp(osc, "pluto") == 0)
+  {
+    SelectInGroupOnMenu(2, 0, 3, 0, 1);
+    SelectInGroupOnMenu(2, 5, 6, 0, 1);
+  }
+  if (strcmp(osc, "express") == 0)
+  {
+    SelectInGroupOnMenu(2, 0, 3, 1, 1);
+    SelectInGroupOnMenu(2, 5, 6, 1, 1);
+  }
+  if (strcmp(osc, "elcom") == 0)
+  {
+    SelectInGroupOnMenu(2, 0, 3, 2, 1);
+    SelectInGroupOnMenu(2, 5, 6, 2, 1);
+  }
+  if (strcmp(osc, "lime") == 0)
+  {
+    SelectInGroupOnMenu(2, 0, 3, 2, 1);
+    SelectInGroupOnMenu(2, 5, 6, 2, 1);
+  }
+  if (strcmp(osc, "adf4351") == 0)
+  {
+    SelectInGroupOnMenu(2, 0, 3, 5, 1);
+    SelectInGroupOnMenu(2, 5, 6, 5, 1);
+  }
+  if (strcmp(osc, "adf5355") == 0)
+  {
+    SelectInGroupOnMenu(2, 0, 3, 6, 1);
+    SelectInGroupOnMenu(2, 5, 6, 6, 1);
+  }
 }
 
 
@@ -4166,6 +4780,40 @@ void Start_Highlights_Menu3()
 
 void Define_Menu4()
 {
+  int button;
+
+  strcpy(MenuTitle[4], "Signal Generator Settings Menu (4)");
+
+  // Bottom Row, Menu 4
+
+  button = CreateButton(4, 4);
+  AddButtonStatus(button, "Cancel", &DBlue);
+  AddButtonStatus(button, "Cancel", &LBlue);
+
+  button = CreateButton(4, 0);
+  AddButtonStatus(button, "Set Ref^ADF4351", &Blue);
+
+  button = CreateButton(4, 1);
+  AddButtonStatus(button, "Set Ref^ADF5355", &Blue);
+
+  button = CreateButton(4, 2);
+  AddButtonStatus(button, "Set Ref^Pluto", &Blue);
+
+  button = CreateButton(4, 3);
+  AddButtonStatus(button, "Check Pluto^AD9364", &Blue);
+
+
+  // Second Row, Menu 4
+
+  button = CreateButton(4, 5);
+  AddButtonStatus(button, "Enter^Pluto IP", &Blue);
+
+  button = CreateButton(4, 6);
+  AddButtonStatus(button, "Reboot^Pluto", &Blue);
+
+  button = CreateButton(4, 8);
+  AddButtonStatus(button, " ", &Grey);
+  AddButtonStatus(button, "Update Pluto^to AD9364", &Red);
 }
 
 void Start_Highlights_Menu4()
@@ -4218,6 +4866,7 @@ void Define_Menu11()  // Control Panel
   button = CreateButton(11, 30);
   AddButtonStatus(button, "START", &Blue);
   AddButtonStatus(button, "ON", &Red);
+  AddButtonStatus(button, "START", &Grey);
 
   button = CreateButton(11, 31);
   AddButtonStatus(button, "OFF", &Blue);
@@ -4226,7 +4875,9 @@ void Define_Menu11()  // Control Panel
   button = CreateButton(11, 32);
   AddButtonStatus(button, "QPSK Mod", &Blue);
   AddButtonStatus(button, "QPSK Mod", &Red);
-  AddButtonStatus(button, "QPSK Mod" ,&Grey);
+  AddButtonStatus(button, "QPSK Mod", &Grey);
+  AddButtonStatus(button, "Cal Pluto", &Blue);
+  AddButtonStatus(button, "Cal Pluto" ,&Red);
 
   button = CreateButton(11, 33);
   AddButtonStatus(button, "Exit", &Blue);
@@ -4236,15 +4887,29 @@ void Define_Menu11()  // Control Panel
 
 void Start_Highlights_Menu11()
 {
-  SetButtonStatus(ButtonNumber(11, 30), OutputStatus); // Off (blue), On (red)
-
-  if (strcmp(osc, "express") != 0)                     // Grey-out modulation
+  if ((strcmp(osc, "pluto") != 0) || PlutoCalValid)
   {
-    SetButtonStatus(ButtonNumber(11, 32), 2);
+    SetButtonStatus(ButtonNumber(11, 30), OutputStatus); // Off (blue), On (red)
   }
   else
   {
+    SetButtonStatus(ButtonNumber(11, 30), 2); // Grey because Pluto Cal required
+  }
+  
+  if (strcmp(osc, "express") == 0)                     // QPSK or Pluto Cal
+  {
     SetButtonStatus(ButtonNumber(11, 32), ModOn);
+  }
+  else if (strcmp(osc, "pluto") == 0)
+  {
+    if (GetButtonStatus(ButtonNumber(11, 32)) != 4)
+    {
+      SetButtonStatus(ButtonNumber(11, 32), 3);
+    }
+  }
+  else
+  {
+    SetButtonStatus(ButtonNumber(11, 32), 2);
   }
 }
 
