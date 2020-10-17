@@ -66,14 +66,13 @@
 
 #define NUM_ELEMENT_STREAMS 16
 
-/* Timer to reset the NIM after a long time after init with no TS data, in milliseconds */
-#define NO_TS_REINIT_TIMER   (10*1000)
-
 typedef struct {
     bool port_swap;
     uint8_t port;
-    uint32_t freq_requested;
-    uint32_t sr_requested;
+    uint8_t freq_index;
+    uint8_t sr_index;
+    uint32_t freq_requested[4];
+    uint32_t sr_requested[4];
     bool beep_enabled;
 
     uint8_t device_usb_bus;
@@ -93,6 +92,8 @@ typedef struct {
     bool polarisation_supply;
     bool polarisation_horizontal; // false -> 13V, true -> 18V
 
+    int ts_timeout;
+
     bool new;
     pthread_mutex_t mutex;
 } longmynd_config_t;
@@ -108,6 +109,7 @@ typedef struct {
     int32_t frequency_offset;
     bool polarisation_supply;
     bool polarisation_horizontal; // false -> 13V, true -> 18V
+    uint32_t symbolrate_requested;
     uint32_t symbolrate;
     uint32_t viterbi_error_rate; // DVB-S1
     uint32_t bit_error_rate; // DVB-S2
@@ -145,7 +147,7 @@ void config_set_frequency(uint32_t frequency);
 void config_set_symbolrate(uint32_t symbolrate);
 void config_set_frequency_and_symbolrate(uint32_t frequency, uint32_t symbolrate);
 void config_set_lnbv(bool enabled, bool horizontal);
-void config_reinit(void);
+void config_reinit(bool increment_frsr);
 
 #endif
 

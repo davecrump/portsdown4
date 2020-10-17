@@ -1,0 +1,80 @@
+on: [push, pull_request]
+
+jobs:
+  build-x86_64:
+    runs-on: ${{ matrix.os }}
+    name: Build on ${{ matrix.os }} x86_64
+    strategy:
+      matrix:
+        os: [ubuntu-20.04, ubuntu-18.04]
+
+    steps:
+    - uses: actions/checkout@v2.1.0
+    - name: Install dependencies
+      shell: bash
+      run: |
+        # Install longmynd dependencies
+        sudo apt-get install -q -y libusb-1.0-0-dev libasound2-dev
+        # Install test matrix dependencies
+        sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
+        sudo apt-get update -q -y
+        sudo apt-get install -q -y build-essential gcc-7 gcc-8 gcc-9 gcc-10
+    - name: Build longmynd
+      shell: bash
+      run: |
+        make clean && make werror CC=gcc-7
+        make clean && make werror CC=gcc-8
+        make clean && make werror CC=gcc-9
+        make clean && make werror CC=gcc-10
+
+  build-arm:
+    # The host should always be linux
+    runs-on: ubuntu-20.04
+    name: Build on ${{ matrix.distro }} ${{ matrix.arch }}
+
+    strategy:
+      matrix:
+        include:
+          - arch: armv6
+            distro: buster
+          - arch: armv7
+            distro: buster
+          - arch: aarch64
+            distro: ubuntu20.04
+
+    steps:
+      - uses: actions/checkout@v2.1.0
+      - uses: uraimo/run-on-arch-action@v2.0.5
+        name: Build Matrix
+        id: build
+        with:
+          arch: ${{ matrix.arch }}
+          distro: ${{ matrix.distro }}
+
+          githubToken: ${{ github.token }}
+
+          shell: /bin/sh
+
+          install: |
+            case "${{ matrix.distro }}" in
+              buster)
+                apt-get update -q -y
+                apt-get install -q -y build-essential gcc-7 gcc-8 libusb-1.0-0-dev libasound2-dev
+                ;;
+              ubuntu20.04)
+                apt-get update -q -y
+                apt-get install -q -y build-essential gcc-9 gcc-10 libusb-1.0-0-dev libasound2-dev
+                ;;
+            esac
+
+          run: |
+            case "${{ matrix.distro }}" in
+              buster)
+                make clean && make werror CC=gcc-7
+                make clean && make werror CC=gcc-8
+                ;;
+              ubuntu20.04)
+                make clean && make werror CC=gcc-9
+                make clean && make werror CC=gcc-10
+                ;;
+            esac

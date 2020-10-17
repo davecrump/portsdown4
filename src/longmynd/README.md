@@ -1,4 +1,4 @@
-# Longmynd [![Build Status](https://travis-ci.org/myorangedragon/longmynd.svg?branch=master)](https://travis-ci.org/myorangedragon/longmynd)
+# Longmynd
 
 An Open Source Linux ATV Receiver.
 

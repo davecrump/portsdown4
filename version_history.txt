@@ -1,3 +1,6 @@
+202010170
+Update LongMynd version for reliability with new tuners
+
 202010120
 Add Pluto SigGen (and Express and Elcom)
 Add Pluto Settings
