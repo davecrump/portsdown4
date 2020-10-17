@@ -28,7 +28,7 @@ COPT += -funsafe-math-optimizations
 CFLAGS += -Wall -Wextra -Wpedantic -Wunused -DVERSION=\"${VER}\" -pthread -D_GNU_SOURCE
 LDFLAGS += -lusb-1.0 -lm -lasound
 
-all: ${BIN} fake_read
+all: _print_banner ${BIN} fake_read
 
 debug: COPT = -Og
 debug: CFLAGS += -ggdb -fno-omit-frame-pointer
@@ -36,6 +36,9 @@ debug: all
 
 werror: CFLAGS += -Werror
 werror: all
+
+_print_banner:
+	@echo "Compiling longmynd with GCC $(shell $(CC) -dumpfullversion) on $(shell $(CC) -dumpmachine)"
 
 fake_read:
 	@echo "  CC     "$@

@@ -265,7 +265,7 @@ static uint8_t ftdi_usb_init(libusb_context **usb_context_ptr, libusb_device_han
 
     /* turn on debug */
     #if LIBUSB_API_VERSION >= 0x01000106
-    libusb_set_option(*usb_context_ptr, LIBUSB_LOG_LEVEL_INFO);
+    libusb_set_option(*usb_context_ptr, LIBUSB_OPTION_LOG_LEVEL, LIBUSB_LOG_LEVEL_INFO);
     #else
     libusb_set_debug(*usb_context_ptr, LIBUSB_LOG_LEVEL_INFO);
     #endif

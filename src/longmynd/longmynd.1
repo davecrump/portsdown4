@@ -5,8 +5,8 @@ longmynd \- Outputs transport streams from the Minitiouner DVB-S/S2 demodulator
 .B longmynd \fR[\fB\-u\fR \fIUSB_BUS USB_DEVICE\fR]
          [\fB\-i\fR \fIMAIN_IP_ADDR\fR  \fIMAIN_PORT\fR | \fB\-t\fR \fIMAIN_TS_FIFO\fR]
          [\fB\-I\fR \fISTATUS_IP_ADDR\fR  \fISTATUS_PORT\fR | \fB\-s\fR \fIMAIN_STATUS_FIFO\fR]
-         [\fB\-w\fR] [\fB\-b\fR] [\fB\-p\fR \fIh\fR | \fB\-p\fR \fIv\fR]
-      \fIMAIN_FREQ\fR \fIMAIN_SR\fR
+         [\fB\-w\fR] [\fB\-b\fR] [\fB\-p\fR \fIh\fR | \fB\-p\fR \fIv\fR] [\fB\-r\fR \fITS_TIMEOUT_PERIOD\fR]
+      \fIMAIN_FREQ\fR[\fI,ALT_FREQ\fR] \fIMAIN_SR\fR[\fI,ALT_SR\fR]
 .IR 
 .SH DESCRIPTION
 .B longmynd
@@ -48,11 +48,16 @@ Controls and enables the LNB supply voltage output when an RT5047A LNB Voltage R
 "-p v" will set 13V output (Vertical Polarisation), "-p h" will set 18V output (Horizontal Polarisation).
 By default the RT5047A output is disabled.
 .TP
-.BR \fIMAIN_FREQ\fR
-specifies the starting frequency (in KHz) of the Main TS Stream search algorithm".
+.BR \-r " " \fITS_TIMEOUT_PERIOD\fR
+Resets and reconfigures the NIM after this period in milliseconds without any valid TS packets (including Nulls.), or since last reset cycle. If multiple frequencies or multiple symbolrates are specified then these will be cycled through on each reset. When multiple frequencies and symbolrates are given, each frequency will be scanned for each symbolrate before moving on to the next frequency.
+Set to -1 to disable.
+By default this is 5000 milliseconds.
+.TP
+.BR \fIMAIN_FREQ\fR[\fI,ALT_FREQ\fR]
+specifies the starting frequency (in KHz) of the Main TS Stream search algorithm, and up to 3 alternative frequencies that will be scanned. The TS TIMEOUT must not be disabled to enable scanning functionality. When multiple frequencies and symbolrates are given, each frequency will be scanned for each symbolrate before moving on to the next frequency.
 .TP
 .BR \fIMAIN_SR\fR
-specifies the starting Symbol Rate (in KSPS) of the Main TS Stream search algorithm".
+specifies the starting Symbol Rate (in KSPS) of the Main TS Stream search algorithm, and up to 3 alternative symbolrates that will be scanned. The TS TIMEOUT must not be disabled to enable scanning functionality. When multiple frequencies and symbolrates are given, each frequency will be scanned for each symbolrate before moving on to the next frequency.
 
 .SH EXAMPLES
 .TP
@@ -67,3 +72,13 @@ As above but will attempt to find a minitiouner at usb device 4 on usb bus 1.
 .TP
 longmynd -i 192.168.1.1 87 2000 2000
 As above but any TS output will be to IP address 192.168.1.1 on port 87
+.TP
+longmynd -i 192.168.1.1 87 -r 5000 145000,146000 35,66,125
+As above but after 5000 milliseconds with no TS data the Tuner configuration will be cycled to the next of the following combinations:
+ * 145 MHz, 35 Ks/s
+ * 145 MHz, 66 Ks/s
+ * 145 MHz, 125 Ks/s
+ * 146 MHz, 35 Ks/s
+ * 146 MHz, 66 Ks/s
+ * 146 MHz, 125 Ks/s
+ * [repeat from start]
