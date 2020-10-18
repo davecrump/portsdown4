@@ -108,8 +108,9 @@ int CallingMenu = 1;
 // Sig Gen
 
 char osc[15] = "pluto";      // Output device
-char osc_text[15] = "Pluto"; // Output device display text
+char osc_text[20] = "Pluto"; // Output device display text
 // pluto   Pluto
+// pluto5  Pluto 5th Harmonic
 // adf4351 ADF4351
 // adf5355 ADF5355
 // elcom   Elcom
@@ -2143,16 +2144,19 @@ void ShowLevel(int DisplayLevel)
     dl04 = RemLevel;
     snprintf(dl04text, 10, "%d", dl04);
   }
-    vpos = 0.14;
-    Text3(0.02*wscreen, vpos*hscreen, dl01text, font_ptr);
-    if ((DisplayLevel <= -100) || (DisplayLevel >= 100))
-    {
-      Text3(0.11*wscreen, vpos*hscreen, dl02text, font_ptr);
-    }
-    Text3(0.19*wscreen, vpos*hscreen, dl03text, font_ptr);
+  vpos = 0.14;
+  Text3(0.02*wscreen, vpos*hscreen, dl01text, font_ptr);
+  if ((DisplayLevel <= -100) || (DisplayLevel >= 100))
+  {
+    Text3(0.11*wscreen, vpos*hscreen, dl02text, font_ptr);
+  }
+  Text3(0.19*wscreen, vpos*hscreen, dl03text, font_ptr);
+  if(strcmp(osc, "pluto5") != 0)
+  {
     Text3(0.25*wscreen, vpos*hscreen, ".", font_ptr);
     Text3(0.29*wscreen, vpos*hscreen, dl04text, font_ptr);
     Text3(0.37*wscreen, vpos*hscreen, "dBm", font_ptr);
+  }
 }
 
 
@@ -2230,67 +2234,67 @@ void AdjustFreq(int button)
       }
       break;
     case 11:
-      if (DisplayFreq <= 9999999999)
+      if (DisplayFreq <= 39999999999)
       {
         DisplayFreq=DisplayFreq+10000000000;
       }
       break;
     case 12:
-      if (DisplayFreq <= 18999999999)
+      if (DisplayFreq <= 38999999999)
       {
         DisplayFreq=DisplayFreq+1000000000;
       }
       break;
     case 13:
-      if (DisplayFreq <= 19899999999)
+      if (DisplayFreq <= 39899999999)
       {
         DisplayFreq=DisplayFreq+100000000;
       }
       break;
     case 14:
-      if (DisplayFreq <= 19989999999)
+      if (DisplayFreq <= 39989999999)
       {
         DisplayFreq=DisplayFreq+10000000;
       }
       break;
     case 15:
-      if (DisplayFreq <= 19998999999)
+      if (DisplayFreq <= 39998999999)
       {
         DisplayFreq=DisplayFreq+1000000;
       }
       break;
     case 16:
-      if (DisplayFreq <= 19999899999)
+      if (DisplayFreq <= 39999899999)
       {
         DisplayFreq=DisplayFreq+100000;
       }
       break;
     case 17:
-      if (DisplayFreq <= 19999989999)
+      if (DisplayFreq <= 39999989999)
       {
         DisplayFreq=DisplayFreq+10000;
       }
       break;
     case 18:
-      if (DisplayFreq <= 19999998999)
+      if (DisplayFreq <= 39999998999)
       {
         DisplayFreq=DisplayFreq+1000;
       }
       break;
     case 19:
-      if (DisplayFreq <= 19999999899)
+      if (DisplayFreq <= 39999999899)
       {
         DisplayFreq=DisplayFreq+100;
       }
       break;
     case 20:
-      if (DisplayFreq <= 19999999989)
+      if (DisplayFreq <= 39999999989)
       {
         DisplayFreq=DisplayFreq+10;
       }
       break;
     case 21:
-      if (DisplayFreq <= 19999999998)
+      if (DisplayFreq <= 39999999998)
       {
         DisplayFreq=DisplayFreq+1;
       }
@@ -2320,7 +2324,7 @@ void AdjustFreq(int button)
       system(ExpressCommand);
     }
 
-    if (strcmp(osc, "pluto") == 0)
+    if ((strcmp(osc, "pluto") == 0) || (strcmp(osc, "pluto5") == 0))
     {
       plutotx(false);
     }
@@ -2391,7 +2395,7 @@ void AdjustLevel(int Button)
     strcat(ExpressCommand, "\" >> /tmp/expctrl" );
     system(ExpressCommand);
   }
-  else if (strcmp(osc, "pluto") == 0)
+  else if ((strcmp(osc, "pluto") == 0) || (strcmp(osc, "pluto5") == 0))
   {
     if (Button == 0)  // decrement level by 10
     {
@@ -2565,7 +2569,7 @@ void CalcOPLevel()
     DisplayLevel = DisplayLevel + 10 * level;  // assumes 1 dB steps  Could use look-up table for more accuracy
   }
 
-  if (strcmp(osc, "pluto")==0)
+  if ((strcmp(osc, "pluto") == 0) || (strcmp(osc, "pluto5") == 0))
   {
     DisplayLevel = DisplayLevel + 10 * (level);  // assumes 1 dB steps  Could use look-up table for more accuracy
   }
@@ -2611,7 +2615,8 @@ void ShowAtten()
   float vpos = 0.04;
   float hpos = 0.39;
   
-  if ((strcmp(osc, "express") != 0) && (strcmp(osc, "pluto") != 0) && (AttenIn == 1))  // do Attenuator text first
+  if ((strcmp(osc, "express") != 0) && (strcmp(osc, "pluto") != 0) 
+    && (strcmp(osc, "pluto5") != 0) && (AttenIn == 1))  // do Attenuator text first
   {
     strcpy(LevelText, "Attenuator Set to -");
     snprintf(AttenSet, 7, " %.2f", atten);
@@ -2634,7 +2639,7 @@ void ShowAtten()
     strcat(LevelText, AttenSet);
     Text2(hpos*wscreen, vpos*hscreen, LevelText, font_ptr);
   }
-  if (strcmp(osc, "pluto") == 0)                // Pluto Text
+  if ((strcmp(osc, "pluto") == 0) || (strcmp(osc, "pluto5") == 0))                // Pluto Text
   {
     strcpy(LevelText, "Pluto Level = ");
     snprintf(AttenSet, 4, "%d", level);
@@ -2858,12 +2863,23 @@ int plutotx(bool cal)
     stderrandexit(NULL, rc, __LINE__);
   }
 
-  // Set the LO frequncy for USB operation
-  if((rc = iio_channel_attr_write_longlong(tx_lo, "frequency", freq - FCW)) < 0)
+  if (strcmp(osc, "pluto") == 0)
   {
-   stderrandexit(NULL, rc, __LINE__);
+    // Set the LO frequncy for USB operation
+    if((rc = iio_channel_attr_write_longlong(tx_lo, "frequency", freq - FCW)) < 0)
+    {
+      stderrandexit(NULL, rc, __LINE__);
+    }
   }
-
+  else  // 5th harmonic operation
+  {
+    // Set the LO frequncy for USB operation
+    if((rc = iio_channel_attr_write_longlong(tx_lo, "frequency", (freq - FCW) / 5)) < 0)
+    {
+      stderrandexit(NULL, rc, __LINE__);
+    }
+  }
+  
   CWOnOff(1); //Turn the output on
 
   return 0;
@@ -3152,13 +3168,19 @@ void InitOsc()
     system(KillExpressSvr);
   }
 
-  if (strcmp(osc, "pluto") == 0)
+  if ((strcmp(osc, "pluto") == 0) || (strcmp(osc, "pluto5") == 0))
   {
     // Check Pluto properly connected
     if (PlutoConnectTest() == 0)
     {
-      strcpy(osc, "pluto");
-      strcpy(osc_text, "Pluto");
+      if (strcmp(osc, "pluto") == 0)
+      {
+        strcpy(osc_text, "Pluto");
+      }
+      else
+      {
+        strcpy(osc_text, "Pluto 5th Harmonic");
+      }      
     }
     else  // Problem with Pluto so connect ADF4351
     {
@@ -3169,7 +3191,7 @@ void InitOsc()
   }
   
   // Turn off attenuator if not compatible with mode
-  if ((strcmp(osc, "pluto") == 0) || (strcmp(osc, "elcom") == 0)
+  if ((strcmp(osc, "pluto") == 0) || (strcmp(osc, "pluto5") == 0) || (strcmp(osc, "elcom") == 0)
     ||(strcmp(osc, "express") == 0) || (strcmp(osc, "lime") == 0))
   {
     AttenIn = 0;
@@ -3177,7 +3199,7 @@ void InitOsc()
   }
 
   // Turn off modulation if not compatible with mode
-  if ((strcmp(osc, "pluto") == 0) || (strcmp(osc, "elcom") == 0)
+  if ((strcmp(osc, "pluto") == 0) || (strcmp(osc, "pluto5") == 0) || (strcmp(osc, "elcom") == 0)
     || (strcmp(osc, "adf4351") == 0) || (strcmp(osc, "adf5355") == 0))
   {
     ModOn = 0;
@@ -3190,28 +3212,39 @@ void InitOsc()
   }
 
   // Read in amplitude Cal table
-  strcpy(Param, osc);
-  strcat(Param, "points");
-  GetConfigParam(PATH_CAL, Param, Value);
-  CalPoints = atoi(Value);
-  //printf("CalPoints= %d \n", CalPoints);
-  for ( n = 1; n <= CalPoints; n = n + 1 )
+  if (strcmp(osc, "pluto5") != 0)
   {
-    snprintf(PointNumber, 4, "%d", n);
-
     strcpy(Param, osc);
-    strcat(Param, "freq");
-    strcat(Param, PointNumber);
+    strcat(Param, "points");
     GetConfigParam(PATH_CAL, Param, Value);
-    CalFreq[n] = strtoull(Value, 0, 0);
-    //printf(" %lld \n", CalFreq[n]);
+    CalPoints = atoi(Value);
+    //printf("CalPoints= %d \n", CalPoints);
+    for ( n = 1; n <= CalPoints; n = n + 1 )
+    {
+      snprintf(PointNumber, 4, "%d", n);
 
-    strcpy(Param, osc);
-    strcat(Param, "lev");
-    strcat(Param, PointNumber);
-    GetConfigParam(PATH_CAL, Param, Value);
-    CalLevel[n] = atoi(Value);
-    //printf("CalLevel= %d \n", CalLevel[n]);
+      strcpy(Param, osc);
+      strcat(Param, "freq");
+      strcat(Param, PointNumber);
+      GetConfigParam(PATH_CAL, Param, Value);
+      CalFreq[n] = strtoull(Value, 0, 0);
+      //printf(" %lld \n", CalFreq[n]);
+
+      strcpy(Param, osc);
+      strcat(Param, "lev");
+      strcat(Param, PointNumber);
+      GetConfigParam(PATH_CAL, Param, Value);
+      CalLevel[n] = atoi(Value);
+      //printf("CalLevel= %d \n", CalLevel[n]);
+    }
+  }
+  else  // Pluto 5th harmonic
+  {
+    CalPoints = 2;
+    CalFreq[1] = 6000000000;
+    CalFreq[2] = 30000000000;
+    CalLevel[1] = 0;
+    CalLevel[2] = 0;
   }
 
   // Hide unused buttons
@@ -3262,7 +3295,7 @@ void InitOsc()
       SetButtonStatus(ButtonNumber(11, 6), 1);         // Hide decrement 1s
       SetButtonStatus(ButtonNumber(11, 7), 1);         // Hide increment 10ths
     }
-    if ((strcmp(osc, "express") == 0) || (strcmp(osc, "pluto") == 0))
+    if ((strcmp(osc, "express") == 0) || (strcmp(osc, "pluto") == 0) || (strcmp(osc, "pluto5") == 0))
     {
       SetButtonStatus(ButtonNumber(11, 2), 1);         // Hide decrement 10ths
       SetButtonStatus(ButtonNumber(11, 7), 1);         // Hide increment 10ths
@@ -3398,19 +3431,27 @@ void SelectOsc(int NoButton)      // Output Oscillator
     }
     break;
   case 1:
+    // Check Pluto properly connected
+    if (PlutoConnectTest() == 0)
+    {
+      strcpy(osc, "pluto5");
+      strcpy(osc_text, "Pluto 5th");
+    }
+    else  // Problem with Pluto so connect ADF4351
+    {
+      strcpy(osc, "adf4351");
+      strcpy(osc_text, "ADF4351");
+    }
+    break;
+  case 2:
     // Start DATV Express if required
     StartExpressServer();
     strcpy(osc, "express");
     strcpy(osc_text, "DATV Express");  
     break;
-  case 2:
+  case 3:
     strcpy(osc, "elcom");
     strcpy(osc_text, "Elcom");  
-    break;
-  case 3:
-    CheckLimeReady();
-    strcpy(osc, "lime");
-    strcpy(osc_text, "Lime Mini");  
     break;
   case 5:
     strcpy(osc, "adf4351");
@@ -3419,6 +3460,11 @@ void SelectOsc(int NoButton)      // Output Oscillator
   case 6:
     strcpy(osc, "adf5355");
     strcpy(osc_text, "ADF5355");  
+    break;
+  case 7:
+    CheckLimeReady();
+    strcpy(osc, "lime");
+    strcpy(osc_text, "Lime Mini");  
     break;
   }
   SetConfigParam(PATH_SGCONFIG, "osc", osc);
@@ -3433,6 +3479,20 @@ void ImposeBounds()  // Constrain DisplayFreq and level to physical limits
     SourceUpperFreq = 6000000000;
     SourceLowerFreq =   50000000;
     strcpy(osc_text, "Pluto");  
+    if (level > 10)
+    {
+      level = 10;
+    }
+    if (level < -69)
+    {
+      level = -69;
+    }
+  }
+  if (strcmp(osc, "pluto5")==0)
+  {
+    SourceUpperFreq = 30000000000;
+    SourceLowerFreq =  6000000000;
+    strcpy(osc_text, "Pluto 5th Harmonic");  
     if (level > 10)
     {
       level = 10;
@@ -3550,7 +3610,7 @@ void OscStart()
     }
   }
 
-  if (strcmp(osc, "pluto")==0)
+  if ((strcmp(osc, "pluto") == 0) || (strcmp(osc, "pluto5") == 0))
   {
     plutotx(false);
   }
@@ -3592,7 +3652,7 @@ void OscStop()
     printf("\nStopping Express output\n");
   }
 
-  if (strcmp(osc, "pluto") == 0)
+  if ((strcmp(osc, "pluto") == 0) || (strcmp(osc, "pluto5") == 0))
   {
     PlutoOff();
     printf("\nStopping Pluto output\n");
@@ -4190,9 +4250,9 @@ void RebootPluto()
   while(test == 1)
   {
     snprintf(timetext, 62, "Timeout in %d seconds", 29 - count);
-    MsgBox4("Pluto Rebooting", "Wait for reconnection", " ", timetext);
+    MsgBox4("Pluto Rebooting", "Wait for reconnection", timetext, "(this is normal on exit from Sig Gen)");
     usleep(1000000);
-    test = CheckPlutoConnect();
+    test = CheckPlutoIPConnect();
     count = count + 1;
     if (count > 29)
     {
@@ -4326,6 +4386,10 @@ void waituntil(int w, int h)
           break;
         case 22:                      // Exit
           printf("Exit from Sig-gen\n");
+          if ((strcmp(osc, "pluto") == 0) || (strcmp(osc, "pluto5") == 0))
+          {
+            RebootPluto();
+          }
           clearScreen();
           cleanexit(129); //exit to Portsdown
           break;
@@ -4345,11 +4409,13 @@ void waituntil(int w, int h)
           printf("Set Output Device Cancel\n");
           break;
         case 0:   // Pluto
-        case 1:   // DATV Express
-        case 2:   // Elcom
+        case 1:   // Pluto 5th Harmonic
+        case 2:   // DATV Express
+        case 3:   // Elcom
         // case 3:  // LimeSDR Mini
         case 5:   // ADF4351
         //case 6:   // ADF5355
+        //case 7:  // LimeSDR Mini
           SelectOsc(i); 
           break;
         default:
@@ -4527,7 +4593,7 @@ void waituntil(int w, int h)
           }
           else
           {
-            if ((strcmp(osc, "pluto") != 0) || PlutoCalValid)
+            if ( !((strcmp(osc, "pluto") == 0) || (strcmp(osc, "pluto5") == 0)) || PlutoCalValid)
             {
               OscStart();
             }
@@ -4561,7 +4627,7 @@ void waituntil(int w, int h)
             }
             CalcOPLevel();
           }
-          if (strcmp(osc, "pluto") == 0)
+          if ((strcmp(osc, "pluto") == 0) || (strcmp(osc, "pluto5") == 0))
           {
             plutotx(true);
             SetButtonStatus(ButtonNumber(11, 32), 4);
@@ -4637,8 +4703,15 @@ void Start_Highlights_Menu1()
 
   char Presettext[63];
 
-  strcpy(Presettext, "Output to^");
-  strcat(Presettext, osc_text);
+  if (strcmp(osc, "pluto5") == 0)
+  {
+    strcpy(Presettext, "Output to^Pluto 5th");
+  }
+  else
+  {
+    strcpy(Presettext, "Output to^");
+    strcat(Presettext, osc_text);
+  }
   AmendButtonStatus(0, 0, Presettext, &Blue);
 
   strcpy(Presettext, "Attenuator^");
@@ -4662,17 +4735,17 @@ void Define_Menu2()
   AddButtonStatus(button, "Pluto", &Blue);
   AddButtonStatus(button, "Pluto", &Green);
 
-  button = CreateButton(2, 1);                           // express
+  button = CreateButton(2, 1);                           // pluto
+  AddButtonStatus(button, "Pluto 5th^Harmonic", &Blue);
+  AddButtonStatus(button, "Pluto 5th^Harmonic", &Green);
+
+  button = CreateButton(2, 2);                           // express
   AddButtonStatus(button, "DATV^Express", &Blue);
   AddButtonStatus(button, "DATV^Express", &Green);
 
-  button = CreateButton(2, 2);                           // elcom
+  button = CreateButton(2, 3);                           // elcom
   AddButtonStatus(button, "Elcom", &Blue);  
   AddButtonStatus(button, "Elcom", &Green);
-
-  //button = CreateButton(2, 3);                         // lime
-  //AddButtonStatus(button, "Lime Mini", &Blue);
-  //AddButtonStatus(button, "Lime Mini", &Green);
 
   // 2nd Row, Menu 2
 
@@ -4683,6 +4756,10 @@ void Define_Menu2()
   //button = CreateButton(2, 6);                         // adf5355
   //AddButtonStatus(button, "ADF5355", &Blue);
   //AddButtonStatus(button, "ADF5355", &Green);
+
+  //button = CreateButton(2, 7);                         // lime
+  //AddButtonStatus(button, "Lime Mini", &Blue);
+  //AddButtonStatus(button, "Lime Mini", &Green);
 }
 
 void Start_Highlights_Menu2()
@@ -4693,20 +4770,20 @@ void Start_Highlights_Menu2()
     SelectInGroupOnMenu(2, 0, 3, 0, 1);
     SelectInGroupOnMenu(2, 5, 6, 0, 1);
   }
-  if (strcmp(osc, "express") == 0)
+  if (strcmp(osc, "pluto5") == 0)
   {
     SelectInGroupOnMenu(2, 0, 3, 1, 1);
     SelectInGroupOnMenu(2, 5, 6, 1, 1);
   }
-  if (strcmp(osc, "elcom") == 0)
+  if (strcmp(osc, "express") == 0)
   {
     SelectInGroupOnMenu(2, 0, 3, 2, 1);
     SelectInGroupOnMenu(2, 5, 6, 2, 1);
   }
-  if (strcmp(osc, "lime") == 0)
+  if (strcmp(osc, "elcom") == 0)
   {
-    SelectInGroupOnMenu(2, 0, 3, 2, 1);
-    SelectInGroupOnMenu(2, 5, 6, 2, 1);
+    SelectInGroupOnMenu(2, 0, 3, 3, 1);
+    SelectInGroupOnMenu(2, 5, 6, 3, 1);
   }
   if (strcmp(osc, "adf4351") == 0)
   {
@@ -4717,6 +4794,11 @@ void Start_Highlights_Menu2()
   {
     SelectInGroupOnMenu(2, 0, 3, 6, 1);
     SelectInGroupOnMenu(2, 5, 6, 6, 1);
+  }
+  if (strcmp(osc, "lime") == 0)
+  {
+    SelectInGroupOnMenu(2, 0, 3, 7, 1);
+    SelectInGroupOnMenu(2, 5, 6, 7, 1);
   }
 }
 
@@ -4887,7 +4969,7 @@ void Define_Menu11()  // Control Panel
 
 void Start_Highlights_Menu11()
 {
-  if ((strcmp(osc, "pluto") != 0) || PlutoCalValid)
+  if ( !((strcmp(osc, "pluto") == 0) || (strcmp(osc, "pluto5") == 0)) || PlutoCalValid)
   {
     SetButtonStatus(ButtonNumber(11, 30), OutputStatus); // Off (blue), On (red)
   }
@@ -4900,7 +4982,7 @@ void Start_Highlights_Menu11()
   {
     SetButtonStatus(ButtonNumber(11, 32), ModOn);
   }
-  else if (strcmp(osc, "pluto") == 0)
+  else if ((strcmp(osc, "pluto") == 0) || (strcmp(osc, "pluto5") == 0))
   {
     if (GetButtonStatus(ButtonNumber(11, 32)) != 4)
     {

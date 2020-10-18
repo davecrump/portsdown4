@@ -160,6 +160,19 @@ static uint32_t crc32_mpeg2(uint8_t *data_ptr, size_t length)
     return crc;
 }
 
+static inline void timespec_add_ns(struct timespec *ts, int32_t ns)
+{
+    if((ts->tv_nsec + ns) >= 1e9)
+    {
+        ts->tv_sec = ts->tv_sec + 1;
+        ts->tv_nsec = (ts->tv_nsec + ns) - 1e9;
+    }
+    else
+    {
+        ts->tv_nsec = ts->tv_nsec + ns;
+    }
+}
+
 /* -------------------------------------------------------------------------------------------------- */
 void *loop_ts_parse(void *arg) {
 /* -------------------------------------------------------------------------------------------------- */
@@ -249,7 +262,7 @@ void *loop_ts_parse(void *arg) {
         {
             /* Set timer for 100ms */
             clock_gettime(CLOCK_MONOTONIC, &ts);
-            ts.tv_nsec += 100 * 1000000;
+            timespec_add_ns(&ts, 100 * 1000*1000);
 
             pthread_cond_timedwait(&longmynd_ts_parse_buffer.signal, &longmynd_ts_parse_buffer.mutex, &ts);
         }

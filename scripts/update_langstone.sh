@@ -23,3 +23,6 @@ cd Langstone
 
 cd /home/pi
 
+# Restore the old Config file
+cp -f rpidatv/scripts/configs/Langstone.conf Langstone/Langstone.conf 
+
