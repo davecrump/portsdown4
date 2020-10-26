@@ -5012,6 +5012,7 @@ void UpdateWindow()
   if ((CurrentMenu != 38) && (CurrentMenu != 41)) // If not yes/no or the keyboard
   {
     clearScreen();
+    clearScreen();  // Second clear screen sometimes required on return from fbi images
   }
   // Draw the backgrounds for the smaller menus
   if ((CurrentMenu >= 11) && (CurrentMenu <= 40))  // 10-button menus
@@ -10357,7 +10358,7 @@ void InfoScreen()
   // Display Text
   clearScreen();
 
-  TextMid2(wscreen / 2.0, hscreen - linenumber * linepitch, "BATC Portsdown Information Screen", font_ptr);
+  TextMid2(wscreen / 2.0, hscreen - linenumber * linepitch, "BATC Portsdown 4 Information Screen", font_ptr);
   linenumber = linenumber + 2;
 
   Text2(wscreen/25, hscreen - linenumber * linepitch, swversion, font_ptr);

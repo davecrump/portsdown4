@@ -1,3 +1,7 @@
+202010260
+Bugfix occasional partial menu backgrounds
+Add initial ADF5355 SigGen Code
+
 202010170
 Update LongMynd version for reliability with new tuners
 Add Pluto 5th Harmonic SigGen
