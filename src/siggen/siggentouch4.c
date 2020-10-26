@@ -38,6 +38,8 @@ without them
 #include <sys/stat.h> 
 #include <sys/types.h> 
 #include <time.h>
+#include <inttypes.h>
+
 
 #include "font/font.h"
 #include "touch.h"
@@ -129,12 +131,14 @@ char AttenType[255] = "NONE";  // or PE4302 (0.5 dB steps) or HMC1119 (0.25dB) o
 
 char ref_freq_4351[63] = "25000000";        // read on startup from siggenconfig.txt
 char ref_freq_5355[63] = "26000000";        // read on startup from siggenconfig.txt
+int refin = 2600000;                        // adf5355 ref_freq/10
 uint64_t SourceUpperFreq = 13600000000;     // set every time an oscillator is selected
 uint64_t SourceLowerFreq = 54000000;        // set every time an oscillator is selected
 
 uint64_t CalFreq[50];
 int CalLevel[50];
 int CalPoints;
+uint32_t R[13];                  // ADF5355 Registers
 
 char UpdateStatus[31] = "NotAvailable";
 
@@ -196,6 +200,7 @@ void ImposeBounds();
 void ShowTitle();
 void UpdateWindow();
 void adf4351On(int);
+void adf5355On(int);
 void ElcomOn();
 int plutotx(bool);
 
@@ -671,6 +676,7 @@ void ReadSavedState()
 
   // ref_freq_5355 is initialised to 26000000 and stays as a string
   GetConfigParam(PATH_SGCONFIG,"adf5355ref", ref_freq_5355);
+  refin = atoi(ref_freq_5355) / 10;
 
   // Read Pluto IP from Portsdown Config file
   GetConfigParam(PATH_PCONFIG,"plutoip", PlutoIP);
@@ -2334,6 +2340,11 @@ void AdjustFreq(int button)
       adf4351On(level); // change adf freq at set level
     }
 
+    if (strcmp(osc, "adf5355") == 0)
+    {
+      adf5355On(level); // change adf freq at set level
+    }
+
     if (strcmp(osc, "elcom")==0)
     {
       ElcomOn(); // Change Elcom Freq
@@ -2449,11 +2460,33 @@ void AdjustLevel(int Button)
             level = 3;
           }
         }
-        adf4351On(level); // change adf level
+        if (OutputStatus == 1)
+        {
+          adf4351On(level); // change adf level
+        }
       }
       if (strcmp(osc, "adf5355")==0)
       {
-        ;  // adf5355 behaviour tbd
+        if (Button == 1)  // decrement level
+        {
+          level = level - 1;
+          if (level < 0 )
+          {
+            level = 0;
+          }
+        }
+        if (Button == 6)  // increment level
+        {
+          level = level + 1;
+          if (level > 3 )
+          {
+            level = 3;
+          }
+        }
+        if (OutputStatus == 1)
+        {
+          adf5355On(level); // change adf level
+        }
       }
     }
     else                         // With attenuator
@@ -2463,8 +2496,7 @@ void AdjustLevel(int Button)
       {
         level = 3;
       }
-      if (strcmp(osc, "adf4351") == 0)
-      // adf4351 attenuator behaviour here
+      if ((strcmp(osc, "adf4351") == 0) || (strcmp(osc, "adf5355") == 0))
       {
         if (Button == 0)  // decrement level by 10 dB
         {
@@ -2542,7 +2574,7 @@ void CalcOPLevel()
       PointBelow = n - 1;
     }
   }
-  // printf("PointAbove = %d \n", PointAbove);
+   printf("PointAbove = %d \n", PointAbove);
 
   if (DisplayFreq == CalFreq[n])
   {
@@ -2551,20 +2583,20 @@ void CalcOPLevel()
   else
   {
     proportion = (float)(DisplayFreq - CalFreq[PointBelow])/(CalFreq[PointAbove]- CalFreq[PointBelow]);
-    //printf("proportion = %f \n", proportion);
+    printf("proportion = %f \n", proportion);
     DisplayLevel = CalLevel[PointBelow] + (CalLevel[PointAbove] - CalLevel[PointBelow]) * proportion;
   }
 
-  // printf("Initial Display Level = %d\n", DisplayLevel);
+   printf("Initial Display Level = %d\n", DisplayLevel);
 
   // Now correct for set oscillator level ******************************************
 
-  if (strcmp(osc, "adf4351")==0)
+  if (strcmp(osc, "adf4351") == 0)
   {
     DisplayLevel = DisplayLevel + 30 * level;
   }
 
-  if (strcmp(osc, "express")==0)
+  if (strcmp(osc, "express") == 0)
   {
     DisplayLevel = DisplayLevel + 10 * level;  // assumes 1 dB steps  Could use look-up table for more accuracy
   }
@@ -2574,9 +2606,19 @@ void CalcOPLevel()
     DisplayLevel = DisplayLevel + 10 * (level);  // assumes 1 dB steps  Could use look-up table for more accuracy
   }
 
-  if (strcmp(osc, "adf5355")==0)
+  if (strcmp(osc, "adf5355") == 0)
   {
-    DisplayLevel=0;
+    if (DisplayFreq <= 6800000000)  // else no change
+    {
+      DisplayLevel = DisplayLevel + 30 * level;
+      SetButtonStatus(ButtonNumber(11, 1), 0);         // Show decrement 1s
+      SetButtonStatus(ButtonNumber(11, 6), 0);         // Show decrement 1s
+    }
+    else
+    {
+      SetButtonStatus(ButtonNumber(11, 1), 1);         // Hide decrement 1s
+      SetButtonStatus(ButtonNumber(11, 6), 1);         // Hide decrement 1s
+    }
   }
 
   // Now apply attenuation *********************************************************************
@@ -3036,6 +3078,353 @@ void adf4351On(int adflevel)
   system(Startadf4351);
 }
 
+void adf5355write(uint32_t dataword)
+{
+  // Nominate pins using WiringPi numbers
+
+  // CLK  pin 29 wPi 21
+  // Data pin 31 wPi 22
+  // ADF5355 LE pin 8 wPi 15
+
+  uint8_t LE_5355_GPIO = 15;
+  uint8_t CLK_GPIO     = 21;
+  uint8_t DATA_GPIO    = 22;
+
+  // Set all nominated pins to outputs
+  pinMode(LE_5355_GPIO, OUTPUT);
+  pinMode(CLK_GPIO, OUTPUT);
+  pinMode(DATA_GPIO, OUTPUT);
+
+  // Set idle conditions
+  digitalWrite(LE_5355_GPIO, HIGH);
+  digitalWrite(CLK_GPIO, LOW);
+  digitalWrite(DATA_GPIO, LOW);
+
+  // Delay, select device LE low and delay again
+  usleep(10);
+  digitalWrite(LE_5355_GPIO, LOW);
+  usleep(10);
+
+  // Initialise loop
+
+  uint16_t i;
+
+  // Send all 32 bits
+
+  for (i = 0; i < 32; i++)
+  {
+    // Test left-most bit
+    if (dataword & 0x80000000)
+    {
+      digitalWrite(DATA_GPIO, HIGH);
+    }
+    else
+    {
+      digitalWrite(DATA_GPIO, LOW);
+    }
+
+    // Pulse clock
+    usleep(10);
+    digitalWrite(CLK_GPIO, HIGH);
+    usleep(10);
+    digitalWrite(CLK_GPIO, LOW);
+    usleep(10);
+
+    // shift data left so next bit will be leftmost
+    dataword <<= 1;
+  }
+
+  //Set ADF4351 LE high and delay before exit
+
+  digitalWrite(LE_5355_GPIO, HIGH);
+  usleep(10);
+}
+
+void adf5355On(int adflevel)
+{
+  // adflevel 0 to 3; for F < 6.8 GHz only
+
+  // PLL-Reg-R0
+  //  Registerselect        4  bit
+  int N_Int;;            // 16 bit
+  int Prescal = 0;       // 1  bit 
+  int Autocal = 1;       // 1  bit
+  //  reserved           // 10 bit
+
+  // PLL-Reg-R1
+  //   Registerselect       4  bit
+  int F_Frac1;           // 24 bit
+  //   reserved          // 4  bit
+
+  // PLL-Reg-R2
+  //   Registerselect       4  bit
+  int M_Mod2 = 16383;    // 14 bit  Set to max for smallest channel spacing
+  int F_Frac2;           // 14 bit
+ 
+  // PLL-Reg-R3
+  //  Registerselect        4  bit
+  // No phase adjustments so reg is all zeros
+
+  // PLL-Reg-R4
+  // Registerselect         4  bit
+  int U1_CountRes = 0;   // 1  bit
+  int U2_Cp3state = 0;   // 1  bit
+  int U3_PwrDown = 0;    // 1  bit (set to 1 to turn the ADF5355 off)
+  int U4_PDpola = 1;     // 1  bit
+  int U5_MuxLog = 1;     // 1  bit (3v3 used on mux pin)
+  int U6_RefMode = 1;    // 1  bit (may be better spur performance on 0?)
+  int CP_ChgPump = 9;    // 4  bit (3 ma CP current)
+  int D1_DoublBuf = 0;   // 1  bit (double buffering disabled)
+  int R_Counter = 1;     // 10 bit (don't divide the Ref freq)
+  int RD1_Rdiv2 = 0;     // 1  bit (no ref divide by 2)
+  int RD2refdoubl = 0;   // 1  bit (decide whether to double later)
+  int M_Muxout = 6;      // 3  bit (digital lock detect)
+  // reserved            // 2  bit
+
+  // PLL-Reg-R5
+  // Registerselect      // 4  bit
+  // All other bits reserved
+
+  // PLL-Reg-R6
+  // Registerselect      // 4  bit
+  int D_out_PWR = level; // 2  bit  (Output Pwr 0-3)
+  int D_RF_ena = 1;      // 1  bit  (RF A output on)
+  // reserved            // 3  bit
+  int D_RFoutB = 1;      // 1  bit  (SHF RF Output B off)
+  int D_MTLD = 0;        // 1  bit  (Mute till lock detect off)
+  // reserved            // 1  bit
+  int CPBleed = 126;     // 8  bit
+  int D_RfDivSel = 3;    // 3  bit  (set below)
+  int D_FeedBack = 1;    // 1  bit  (fundamental)
+  // reserved            // 4  bit
+  int NBleed = 1;        // 1  bit  (negative bleed enabled)
+  int GBleed = 0;        // 1  bit  (gate bleed disabled)
+  // reserved            // 1  bit
+
+  // PLL-Reg-R7
+  // Registerselect      // 4  bit
+  // LD Mode                1  bit  (0 = fractional N)
+  // Frac N LD precision    2  bit  (11 = 12ns)
+  // LOL Mode               1  bit  (enabled)
+  // reserved               15 bit
+  // LE sync                1  bit  (enabled)
+  // reserved               6  bit  (000100)
+  // Fixed value to be written = 0x120000E7
+
+  // PLL-Reg-R8
+  // Registerselect      // 4  bit
+  // reserved            // 28 bit (0x102D042)
+  // Fixed value to be written = 0x102D0428
+
+  // PLL-Reg-R9         =  32bit
+  // Registerselect        // 4bit
+  // Fixed value to be written = 0x5047CC9 = 84180169 (dec)
+
+  // PLL-Reg-R10         =  32bit
+  // Registerselect        // 4bit
+  // Fixed value to be written = 0xC0067A = 12584570 9dec)
+
+  // PLL-Reg-R11         =  32bit
+  // Registerselect        // 4bit
+  // Fixed value to be written = 0x61300B = 6369291 (dec)
+
+  // PLL-Reg-R12         =  32bit
+  // Registerselect        // 4bit
+  // Fixed value to be written = 0x1041C = 66588 (dec)
+
+  // int F4_BandSel = 10.0 * B_BandSelClk / PFDFreq;
+  double RFout = DisplayFreq / 10;       // DisplayFreq is global, RFout is local
+
+  // calculate bandselect and RF-div
+  float outdiv = 1;
+  if (RFout >= 680000000)
+  {
+    outdiv = 0.5;
+    D_RfDivSel = 0;
+    D_RFoutB = 0;
+    D_RF_ena = 0;
+  }
+  if (RFout < 680000000)
+  {
+    outdiv = 1;
+    D_RfDivSel = 0;
+    D_RFoutB = 1;
+    D_RF_ena = 1;
+  }
+  if (RFout < 340000000)
+  {
+    outdiv = 2;
+    D_RfDivSel = 1;
+    D_RFoutB = 1;
+    D_RF_ena = 1;
+  }
+  if (RFout < 170000000)
+  {
+    outdiv = 4;
+    D_RfDivSel = 2;
+    D_RFoutB = 1;
+    D_RF_ena = 1;
+  }
+  if (RFout < 85000000)
+  {
+    outdiv = 8;
+    D_RfDivSel = 3;
+    D_RFoutB = 1;
+    D_RF_ena = 1;
+  }
+  if (RFout < 42500000)
+  {
+    outdiv = 16;
+    D_RfDivSel = 4;
+    D_RFoutB = 1;
+    D_RF_ena = 1;
+  }
+  if (RFout < 21250000)
+  {
+    outdiv = 32;
+    D_RfDivSel = 5;
+    D_RFoutB = 1;
+    D_RF_ena = 1;
+  }
+  if (RFout < 10625000)
+  {
+    outdiv = 64;
+    D_RfDivSel = 6;
+    D_RFoutB = 1;
+    D_RF_ena = 1;
+  }
+
+  // Calculate the divider values
+
+  if (refin < 3750000 ) // If reference is under 37.5 MHz, use the reference doubler
+  {
+    RD2refdoubl = 1;
+  }
+
+  double PFDFreq = refin * ((1.0 + RD2refdoubl) / (R_Counter * (1.0 + RD1_Rdiv2))); //Phase detector frequency
+  //printf("Phase Det Freq = %lF \n",  PFDFreq);
+
+  double N = ((RFout) * outdiv) / PFDFreq;   // Calculate N
+  //printf("N = %lF \n",  N);
+
+  N_Int = N;   //  Turn N into integer
+  //printf("Int N = %d \n",  N_Int);
+
+  double F_Frac1x = (N - N_Int) * pow(2, 24);   // Calculate Frac1 (N remainder * 2^24)
+   
+  int F_FracN = F_Frac1x;  // turn Frac1 into an integer
+   
+  double F_Frac2x = ((F_Frac1x - F_FracN)) * pow(2, 14);  // Calculate Frac2 (F_FracN remainder * 2^14)
+   
+  F_Frac1 =   F_Frac1x;  // turn Frac1 into integer
+  F_Frac2 =   F_Frac2x;  // turn Frac2 into integer
+
+  float VCOBandDiv = PFDFreq / 240000; 
+  int VCOBandDivInt = 1 + VCOBandDiv;  // AD datasheet says "ceiling()"
+  //printf("Int VCOBandDiv = %d \n", VCOBandDivInt);
+
+  // Calculate or set the register values
+   
+  R[0] = (unsigned long)(0 + N_Int * pow(2,  4)
+                         + Prescal * pow(2, 20) 
+                         + Autocal * pow(2, 21));
+  
+  R[1]=(unsigned long)(1 + F_Frac1 * pow(2,  4));
+   
+  R[2] = (unsigned long)(2 + M_Mod2 * pow(2,  4)
+                          + F_Frac2 * pow(2, 18));
+  
+  R[3] = (unsigned long)(0x3);  //Fixed value (Phase control not needed)
+
+  R[4] = (unsigned long)(4 + U1_CountRes * pow(2,  4)
+                           + U2_Cp3state * pow(2,  5)
+                            + U3_PwrDown * pow(2,  6)
+                             + U4_PDpola * pow(2,  7)
+                             + U5_MuxLog * pow(2,  8)
+                            + U6_RefMode * pow(2,  9)
+                            + CP_ChgPump * pow(2, 10)
+                           + D1_DoublBuf * pow(2, 14)
+                             + R_Counter * pow(2, 15)
+                             + RD1_Rdiv2 * pow(2, 25)
+                           + RD2refdoubl * pow(2, 26)
+                              + M_Muxout * pow(2, 27));
+  
+  R[5] = (unsigned long) (0x800025); // Fixed (Reserved)
+
+  R[6] = (unsigned long)(6 + D_out_PWR * pow(2, 4)
+                            + D_RF_ena * pow(2, 6)
+                            + D_RFoutB * pow(2, 10)
+                              + D_MTLD * pow(2, 11)
+                             + CPBleed * pow(2, 13)
+                         +  D_RfDivSel * pow(2, 21)
+                          + D_FeedBack * pow(2, 24)
+                                  + 10 * pow(2, 25)
+                              + NBleed * pow(2, 29)
+                              + GBleed * pow(2, 30));
+
+  R[7] = (unsigned long) (0x120000E7);
+
+  R[8] = (unsigned long) (0x102D0428);
+
+  R[9] = (unsigned long) (0x2FCC9)
+                       + VCOBandDivInt * pow(2, 24);
+
+  R[10] = (unsigned long) (0xC0043A);
+
+  R[11] = (unsigned long) (0x61300B);
+
+  R[12] = (unsigned long) (0x1041C);
+
+  adf5355write(R[12]);
+  //printf("12: %08" PRIx32 "\n", R[12]);
+  adf5355write(R[11]);
+  //printf("11: %08" PRIx32 "\n", R[11]);
+  adf5355write(R[10]);
+  //printf("10: %08" PRIx32 "\n", R[10]);
+  adf5355write(R[9]);
+  //printf("9:  %08" PRIx32 "\n", R[9]);
+  adf5355write(R[8]);
+  //printf("8:  %08" PRIx32 "\n", R[8]);
+  adf5355write(R[7]);
+  //printf("7:  %08" PRIx32 "\n", R[7]);
+  adf5355write(R[6]);
+  //printf("6:  %08" PRIx32 "\n", R[6]);
+  adf5355write(R[5]);
+  //printf("5:  %08" PRIx32 "\n", R[5]);
+  adf5355write(R[4]);
+  //printf("4:  %08" PRIx32 "\n", R[4]);
+  adf5355write(R[3]);
+  //printf("3:  %08" PRIx32 "\n", R[3]);
+  adf5355write(R[2]);
+  //printf("2:  %08" PRIx32 "\n", R[2]);
+  adf5355write(R[1]);
+  //printf("1:  %08" PRIx32 "\n", R[1]);
+  adf5355write(R[0]);
+  //printf("0:  %08" PRIx32 "\n", R[0]);
+
+
+  // Working for 11805 MHz:
+  //adf5355write(0x0001041C);
+  //adf5355write(0x0061300B);
+  //adf5355write(0x00C0083A);
+  //adf5355write(0x0605BCC9);
+  //adf5355write(0x102D0428);
+  //adf5355write(0x120000E7);
+  //adf5355write(0x35004076);
+  //adf5355write(0x00800025);
+  //adf5355write(0x32008B84);
+  //adf5355write(0x00000003);
+  //adf5355write(0x89DBFFF2);
+  //adf5355write(0x009D89D1);
+  //adf5355write(0x00201C60);
+}
+
+void adf5355off()
+{
+  // Set the Power Down bit
+  adf5355write(0x32008BC4);
+}
+
 void ElcomOn()
 {
   int D[8]= {0, 0, 0, 0, 0, 0, 0, 0};
@@ -3206,7 +3595,7 @@ void InitOsc()
   }
 
   // Set adf4351 level correctly for attenuator
-  if ((strcmp(osc, "adf4351") == 0) && (AttenIn == 1))
+  if (((strcmp(osc, "adf4351") == 0) || (strcmp(osc, "adf5355") == 0)) && (AttenIn == 1))
   {
     level = 3;
   }
@@ -3551,7 +3940,15 @@ void ImposeBounds()  // Constrain DisplayFreq and level to physical limits
   {
     SourceUpperFreq = 13600000000;
     SourceLowerFreq = 54000000;
-    strcpy(osc_text, "ADF5355"); 
+    strcpy(osc_text, "ADF5355");
+    if (level > 3)
+    {
+      level = 3;
+    }
+    if (level < 0)
+    {
+      level = 0;
+    }
   }
 
   if (DisplayFreq > SourceUpperFreq)
@@ -3598,6 +3995,11 @@ void OscStart()
     system(Startadf4351);
   }
 
+  if (strcmp(osc, "adf5355") == 0)
+  {
+    adf5355On(level);
+  }
+
   if (strcmp(osc, "express")==0)
   {
     if (ModOn == 0)  // Start Express without Mod
@@ -3634,6 +4036,11 @@ void OscStop()
   {
     system("sudo /home/pi/rpidatv/bin/adf4351 off");    
     printf("\nStopping adf4351 output\n");
+  }
+
+  if (strcmp(osc, "adf5355") == 0)
+  {
+    adf5355off();
   }
 
   if ((strcmp(osc, "elcom") == 0) && (CurrentMenu == 11))
@@ -4414,7 +4821,7 @@ void waituntil(int w, int h)
         case 3:   // Elcom
         // case 3:  // LimeSDR Mini
         case 5:   // ADF4351
-        //case 6:   // ADF5355
+        case 6:   // ADF5355
         //case 7:  // LimeSDR Mini
           SelectOsc(i); 
           break;
@@ -4753,9 +5160,9 @@ void Define_Menu2()
   AddButtonStatus(button, "ADF4351", &Blue);
   AddButtonStatus(button, "ADF4351", &Green);
 
-  //button = CreateButton(2, 6);                         // adf5355
-  //AddButtonStatus(button, "ADF5355", &Blue);
-  //AddButtonStatus(button, "ADF5355", &Green);
+  button = CreateButton(2, 6);                           // adf5355
+  AddButtonStatus(button, "ADF5355", &Blue);
+  AddButtonStatus(button, "ADF5355", &Green);
 
   //button = CreateButton(2, 7);                         // lime
   //AddButtonStatus(button, "Lime Mini", &Blue);
