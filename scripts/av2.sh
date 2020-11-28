@@ -117,5 +117,13 @@ echo "The Selected Audio Card number is -"$AUDIO_OUT_DEV"-"
 sudo killall mplayer >/dev/null 2>/dev/null
 
 mplayer -nolirc tv:// -tv driver=v4l2:device="$VID_USB":norm=PAL:input=0:alsa:adevice=hw."$EC_AUDIO_DEV",0:amode=1:audiorate=48000:forceaudio:volume=100:immediatemode=0\
-  -ao alsa:device=hw="$AUDIO_OUT_DEV".0 -vo fbdev2 -vf scale=800:480
+  -ao alsa:device=hw="$AUDIO_OUT_DEV".0 -vo fbdev2 -vf scale=800:480 &
+
+# If a Fushicai EasyCap, adjust the contrast to prevent white crushing
+lsusb | grep -q '1b71:3002'
+if [ $? == 0 ]; then   ## Fushuicai USBTV007
+  sleep 0.7
+  v4l2-ctl -d "$VID_USB" --set-ctrl contrast=380 >/dev/null 2>/dev/null
+fi
+
 
