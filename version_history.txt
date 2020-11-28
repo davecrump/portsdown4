@@ -1,3 +1,6 @@
+202011290
+Reduce contrast in all EasyCap modes to prevent white crushing
+
 202010260
 Bugfix occasional partial menu backgrounds
 Add initial ADF5355 SigGen Code
