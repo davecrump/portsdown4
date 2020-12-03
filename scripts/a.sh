@@ -77,6 +77,15 @@ LKVPORT=$(get_config_var lkvport $JCONFIGFILE)
 OUTPUT_IP=""
 LIMETYPE=""
 
+# If a Fushicai EasyCap, adjust the contrast to prevent white crushing
+# Default is 464 (scale 0 - 1023) which crushes whites
+lsusb | grep -q '1b71:3002'
+if [ $? == 0 ]; then   ## Fushuicai USBTV007
+  ECCONTRAST="contrast=380"
+else
+  ECCONTRAST=" "
+fi
+
 let SYMBOLRATE=SYMBOLRATEK*1000
 
 # Set the FEC
@@ -963,6 +972,11 @@ fi
           -ar 22050 -ac $AUDIO_CHANNELS -ab 64k \
           -f flv \
           rtmp://pluto.local:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,-$PLUTOPWR,nocalib,800,32,/,$CALL, &
+
+        # Set the EasyCap contrast to prevent crushed whites
+        sleep 0.7
+        v4l2-ctl -d "$ANALOGCAMNAME" --set-ctrl "$ECCONTRAST" >/dev/null 2>/dev/null
+
       exit
     fi
 
@@ -1066,10 +1080,14 @@ fi
         -f $VIDEO_FPS -i $IDRPERIOD $OUTPUT_FILE -t 2 -e $ANALOGCAMNAME -p $PIDPMT -s $CALL $OUTPUT_IP \
          > /dev/null &
 
+      if [ "$MODE_INPUT" == "ANALOGCAM" ]; then
+        # Set the EasyCap contrast to prevent crushed whites
+        sleep 2
+        v4l2-ctl -d "$ANALOGCAMNAME" --set-ctrl "$ECCONTRAST" >/dev/null 2>/dev/null
+      fi
+
     else
       # ******************************* H264 VIDEO WITH AUDIO ************************************
-
-
 
       # Resample the audio (was 32k or 48k which overruns, so this is reduced to 46500)
       arecord -f S16_LE -r $AUDIO_SAMPLE -c 2 -B $ARECORD_BUF -D plughw:$AUDIO_CARD_NUMBER,0 \
@@ -1078,6 +1096,12 @@ fi
       sudo $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -d 300 -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
         -f $VIDEO_FPS -i $IDRPERIOD $OUTPUT_FILE -t 2 -e $ANALOGCAMNAME -p $PIDPMT -s $CALL $OUTPUT_IP \
         -a audioin.wav -z $BITRATE_AUDIO > /dev/null &
+
+      if [ "$MODE_INPUT" == "ANALOGCAM" ]; then
+        # Set the EasyCap contrast to prevent crushed whites
+        sleep 2
+        v4l2-ctl -d "$ANALOGCAMNAME" --set-ctrl "$ECCONTRAST" >/dev/null 2>/dev/null
+      fi
 
       # Auto restart for arecord (which dies after about an hour)  in repeater TX modes
       while [[ "$MODE_STARTUP" == "TX_boot" || "$MODE_STARTUP" == "Keyed_TX_boot" ]]
@@ -1546,6 +1570,13 @@ fi
             -vf "$CAPTION""$SCALE"yadif=0:1:0 -g 25 \
             -f flv $STREAM_URL/$STREAM_KEY &
         fi
+
+        if [ "$MODE_INPUT" == "ANALOGMPEG-2" ] || [ "$MODE_INPUT" == "ANALOG16MPEG-2" ]; then
+          # Set the EasyCap contrast to prevent crushed whites
+          sleep 1
+          v4l2-ctl -d "$ANALOGCAMNAME" --set-ctrl "$ECCONTRAST" >/dev/null 2>/dev/null
+        fi
+
       ;;
 
       *) # Transmitting modes
@@ -1615,6 +1646,12 @@ fi
           -metadata service_provider=$CHANNEL -metadata service_name=$CALL \
           -muxrate $BITRATE_TS -y $OUTPUT &
 
+      fi
+
+      if [ "$MODE_INPUT" == "ANALOGMPEG-2" ] || [ "$MODE_INPUT" == "ANALOG16MPEG-2" ]; then
+        # Set the EasyCap contrast to prevent crushed whites
+        sleep 2
+        v4l2-ctl -d "$ANALOGCAMNAME" --set-ctrl "$ECCONTRAST" >/dev/null 2>/dev/null
       fi
     ;;
     esac
