@@ -34,6 +34,8 @@ UDPPORT=$(get_config_var udpport $RCONFIGFILE)
 INPUT_SEL=$(get_config_var input $RCONFIGFILE)
 INPUT_SEL_T=$(get_config_var input1 $RCONFIGFILE)
 LNBVOLTS=$(get_config_var lnbvolts $RCONFIGFILE)
+TSTIMEOUT=$(get_config_var tstimeout $RCONFIGFILE)
+TSTIMEOUT_T=$(get_config_var tstimeout1 $RCONFIGFILE)
 
 # Correct for LNB LO Frequency if required
 if [ "$RX_MODE" == "sat" ]; then
@@ -42,6 +44,7 @@ else
   FREQ_KHZ=$FREQ_KHZ_T
   SYMBOLRATEK=$SYMBOLRATEK_T
   INPUT_SEL=$INPUT_SEL_T
+  TSTIMEOUT=$TSTIMEOUT_T
 fi
 
 # Select the correct tuner input
@@ -59,9 +62,14 @@ if [ "$LNBVOLTS" == "v" ]; then
   VOLTS_CMD="-p v"
 fi
 
+TIMEOUT_CMD=" "
+if [[ $TSTIMEOUT -ge 500 ]] || [[ $TSTIMEOUT -eq -1 ]]; then
+  TIMEOUT_CMD=" -r "$TSTIMEOUT" "
+fi
+
 sudo killall longmynd
 
-sudo /home/pi/longmynd/longmynd -i $UDPIP $UDPPORT -s longmynd_status_fifo $VOLTS_CMD $INPUT_CMD $FREQ_KHZ $SYMBOLRATEK &
+sudo /home/pi/longmynd/longmynd -i $UDPIP $UDPPORT -s longmynd_status_fifo $VOLTS_CMD $TIMEOUT_CMD $INPUT_CMD $FREQ_KHZ $SYMBOLRATEK &
 
 exit
 

@@ -33,6 +33,8 @@ AUDIO_OUT=$(get_config_var audio $RCONFIGFILE)
 INPUT_SEL=$(get_config_var input $RCONFIGFILE)
 INPUT_SEL_T=$(get_config_var input1 $RCONFIGFILE)
 LNBVOLTS=$(get_config_var lnbvolts $RCONFIGFILE)
+TSTIMEOUT=$(get_config_var tstimeout $RCONFIGFILE)
+TSTIMEOUT_T=$(get_config_var tstimeout1 $RCONFIGFILE)
 
 ############ IDENTIFY RPi JACK AUDIO CARD NUMBER #############################
 
@@ -100,6 +102,7 @@ else
   FREQ_KHZ=$FREQ_KHZ_T
   SYMBOLRATEK=$SYMBOLRATEK_T
   INPUT_SEL=$INPUT_SEL_T
+  TSTIMEOUT=$TSTIMEOUT_T
 fi
 
 # Select the correct tuner input
@@ -117,13 +120,18 @@ if [ "$LNBVOLTS" == "v" ]; then
   VOLTS_CMD="-p v"
 fi
 
+TIMEOUT_CMD=" "
+if [[ $TSTIMEOUT -ge 500 ]] || [[ $TSTIMEOUT -eq -1 ]]; then
+  TIMEOUT_CMD=" -r "$TSTIMEOUT" "
+fi
+
 sudo killall longmynd >/dev/null 2>/dev/null
 sudo killall omxplayer.bin >/dev/null 2>/dev/null
 
 sudo rm longmynd_main_ts
 mkfifo longmynd_main_ts
 
-sudo /home/pi/longmynd/longmynd -s longmynd_status_fifo $VOLTS_CMD $INPUT_CMD $FREQ_KHZ $SYMBOLRATEK &
+sudo /home/pi/longmynd/longmynd -s longmynd_status_fifo $VOLTS_CMD $TIMEOUT_CMD $INPUT_CMD $FREQ_KHZ $SYMBOLRATEK &
 
 omxplayer --vol 600 --adev alsa:plughw:"$AUDIO_OUT_DEV",0 \
   --live --layer 6 longmynd_main_ts & 

@@ -54,4 +54,11 @@ tsr6=125
 2ndsr1=333
 lnbvolts=off
 lnbvolts1=off
+tstimeout=5000
+tstimeout1=10000
+scanwidth=50
+scanwidth1=50
+chan=0
+chan1=0
+rxmod=dvbs
 
