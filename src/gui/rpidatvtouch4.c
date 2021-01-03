@@ -249,7 +249,8 @@ char LMRXudpip[20];         // UDP IP address
 char LMRXudpport[10];       // UDP IP port
 char LMRXmode[10];          // sat or terr
 char LMRXaudio[15];         // rpi or usb
-char LMRXvolts[7];          // off, v or h             
+char LMRXvolts[7];          // off, v or h
+char RXmod[7];              // DVB-S or DVB-T                      
 
 // LongMynd RX Received Parameters for display
 
@@ -299,7 +300,6 @@ pthread_t thbutton;     //
 pthread_t thview;       //
 pthread_t thwait3;      //  Used to count 3 seconds for WebCam reset after transmit
 
-
 // Function Prototypes
 
 void Start_Highlights_Menu1();
@@ -344,6 +344,7 @@ void Start_Highlights_Menu42();
 void Start_Highlights_Menu43();
 void Start_Highlights_Menu44();
 void Start_Highlights_Menu45();
+void Start_Highlights_Menu46();
 
 void MsgBox(char *);
 void MsgBox2(char *, char *);
@@ -3010,6 +3011,17 @@ void ReadLMRXPresets()
     GetConfigParam(PATH_LMCONFIG, Param, Value);
     LMRXsr[n + 6] = atoi(Value);
   }
+
+  // Modulation
+  GetConfigParam(PATH_LMCONFIG, "rxmod", Value);
+  if (strcmp(Value, "dvbt") == 0)
+  {
+    strcpy(RXmod, "DVB-T");
+  }
+  else
+  {
+    strcpy(RXmod, "DVB-S");
+  }
 }
 
 void ChangeLMRXIP()
@@ -3099,6 +3111,132 @@ void ChangeLMRXOffset()
   // Save offset to Config File
   LMRXqoffset = atoi(KeyboardReturn);
   SetConfigParam(PATH_LMCONFIG, "qoffset", KeyboardReturn);
+}
+
+void ChangeLMTST()
+{
+  char RequestText[64];
+  char InitText[64];
+  bool IsValid = FALSE;
+  char LMTST[15];
+
+  //  Retrieve (6 char) Current Sat or Terr Timeout from Config file
+  if (strcmp(LMRXmode, "sat") == 0)
+  {
+    GetConfigParam(PATH_LMCONFIG, "tstimeout", LMTST);
+    strcpy(RequestText, "Enter the new Tuner Timeout for QO-100 in ms");
+  }
+  else  //Terrestrial
+  {
+    GetConfigParam(PATH_LMCONFIG, "tstimeout1", LMTST);
+    strcpy(RequestText, "Enter the new Tuner Timeout for terrestrial in ms");
+  }
+
+  while (IsValid == FALSE)
+  {
+    strcpyn(InitText, LMTST, 10);
+    Keyboard(RequestText, InitText, 10);
+  
+    if (((atoi(KeyboardReturn) >= 500) && (atoi(KeyboardReturn) <= 60000)) || (atoi(KeyboardReturn) == -1))
+    {
+      IsValid = TRUE;
+    }
+  }
+  printf("Tuner Timeout set to: %s ms\n", KeyboardReturn);
+
+  // Save offset to Config File
+  if (strcmp(LMRXmode, "sat") == 0)
+  {
+    SetConfigParam(PATH_LMCONFIG, "tstimeout", KeyboardReturn);
+  }
+  else
+  {
+    SetConfigParam(PATH_LMCONFIG, "tstimeout1", KeyboardReturn);
+  }
+}
+
+void ChangeLMSW()
+{
+  char RequestText[64];
+  char InitText[64];
+  bool IsValid = FALSE;
+  char LMSW[15];
+
+  //  Retrieve (5 char) Current Sat or Terr Scan Width from Config file
+  if (strcmp(LMRXmode, "sat") == 0)
+  {
+    GetConfigParam(PATH_LMCONFIG, "scanwidth", LMSW);
+    strcpy(RequestText, "Enter scan width as % of SR for QO-100 in ms");
+  }
+  else  //Terrestrial
+  {
+    GetConfigParam(PATH_LMCONFIG, "scanwidth1", LMSW);
+    strcpy(RequestText, "Enter scan width as % of SR for terrestrial in ms");
+  }
+
+  while (IsValid == FALSE)
+  {
+    strcpyn(InitText, LMSW, 10);
+    Keyboard(RequestText, InitText, 10);
+  
+    if((atoi(KeyboardReturn) >= 10) && (atoi(KeyboardReturn) <= 500))
+    {
+      IsValid = TRUE;
+    }
+  }
+  printf("Scan Width set to: %s %% of SR\n", KeyboardReturn);
+
+  // Save scan width to Config File
+  if (strcmp(LMRXmode, "sat") == 0)
+  {
+    SetConfigParam(PATH_LMCONFIG, "scanwidth", KeyboardReturn);
+  }
+  else
+  {
+    SetConfigParam(PATH_LMCONFIG, "scanwidth1", KeyboardReturn);
+  }
+}
+
+void ChangeLMChan()
+{
+  char RequestText[64];
+  char InitText[64];
+  bool IsValid = FALSE;
+  char LMChan[7];
+
+  //  Retrieve (1 char) Current Sat or Terr channel from Config file
+  if (strcmp(LMRXmode, "sat") == 0)
+  {
+    GetConfigParam(PATH_LMCONFIG, "chan", LMChan);
+    strcpy(RequestText, "Enter TS Video Channel, 0 for default");
+  }
+  else  //Terrestrial
+  {
+    GetConfigParam(PATH_LMCONFIG, "chan1", LMChan);
+    strcpy(RequestText, "Enter TS Video Channel, 0 for default");
+  }
+
+  while (IsValid == FALSE)
+  {
+    strcpyn(InitText, LMChan, 10);
+    Keyboard(RequestText, InitText, 10);
+  
+    if((atoi(KeyboardReturn) >= 0) && (atoi(KeyboardReturn) <= 9))
+    {
+      IsValid = TRUE;
+    }
+  }
+  printf("Video Channel %s selected\n", KeyboardReturn);
+
+  // Save channel to Config File
+  if (strcmp(LMRXmode, "sat") == 0)
+  {
+    SetConfigParam(PATH_LMCONFIG, "chan", KeyboardReturn);
+  }
+  else
+  {
+    SetConfigParam(PATH_LMCONFIG, "chan1", KeyboardReturn);
+  }
 }
 
 void AutosetLMRXOffset()
@@ -8029,6 +8167,7 @@ void chopN(char *str, size_t n)
   }
 }
 
+
 void LMRX(int NoButton)
 {
   #define PATH_SCRIPT_LMRXMP "/home/pi/rpidatv/scripts/lmmp.sh 2>&1"
@@ -8037,6 +8176,7 @@ void LMRX(int NoButton)
   #define PATH_SCRIPT_LMRXOMX "/home/pi/rpidatv/scripts/lmomx.sh 2>&1"
   #define PATH_SCRIPT_LMRXVLC "/home/pi/rpidatv/scripts/lmvlc.sh" // 2>&1"
   #define PATH_SCRIPT_LMRXVLCFF "/home/pi/rpidatv/scripts/lmvlcff.sh" // 2>&1"
+  #define PATH_SCRIPT_CTVLCFF "/home/pi/rpidatv/scripts/ctvlcff.sh 2>&1"
 
   //Local parameters:
 
@@ -8057,7 +8197,7 @@ void LMRX(int NoButton)
   // Global Paramaters:
 
   char status_message_char[14];
-  char stat_string[63];
+  char stat_string[255];
   char udp_string[63];
   char MERtext[63];
   char MERNtext[63];
@@ -8080,6 +8220,20 @@ void LMRX(int NoButton)
   float previousMER = 0;
   int FirstLock = 0;  // set to 1 on first lock, and 2 after parameter fade
   clock_t LockTime;
+
+  char line3[31] = "";
+  char line4[31] = "";
+  char line5[127] = "";
+  char line6[31] = "";
+  char line7[31] = "";
+  char line8[31] = "";
+  char line9[31] = "";
+  char line10[31] = "";
+  char line11[31] = "";
+  char line12[31] = "";
+  char line13[31] = "";
+  char line14[31] = "";
+  char linex[127] = "";
 
   // Set globals
   FinishedButton = 1;
@@ -8117,7 +8271,13 @@ void LMRX(int NoButton)
 
   // Create Wait Button thread
   pthread_create (&thbutton, NULL, &WaitButtonLMRX, NULL);
-  
+
+  // Use case 6 for DVB-T
+  if (strcmp(RXmod, "DVB-T") == 0)
+  {
+    NoButton = 6;
+  }
+
   switch (NoButton)
   {
   case 0:
@@ -8574,6 +8734,321 @@ void LMRX(int NoButton)
     system("sudo killall lmvlcff.sh >/dev/null 2>/dev/null");
     touch_response = 0; 
     break;
+
+  case 6:
+    printf("STARTING VLC with FFMPEG DVB-T RX\n");
+
+    // Create DVB-T Receiver thread
+    system("/home/pi/rpidatv/scripts/ctvlcff.sh");
+
+    // Open status FIFO for read only
+    fd_status_fifo = open("longmynd_status_fifo", O_RDONLY); 
+
+    if (fd_status_fifo < 0)  // failed to open
+    {
+      printf("Failed to open status fifo\n");
+    }
+
+    // Flush status message string
+    stat_string[0]='\0';
+
+    while ((FinishedButton == 1) || (FinishedButton == 2)) // 1 is captions on, 2 is off
+    {
+      // Read the next character from the fifo
+      num = read(fd_status_fifo, status_message_char, 1);
+
+      if (num >= 0 )  // If there was a character to read
+      {
+        status_message_char[num]='\0';  // Make sure that it is a single character (when num=1)
+        //printf("%s\n", status_message_char);
+
+        if (strcmp(status_message_char, "\n") == 0)  // If end of line, process info
+        {
+          printf("%s\n", stat_string);  // for test
+
+          if (strcmp(stat_string, "[GetChipId] chip id:AVL6862") == 0)
+          {
+            strcpy(line5, "Found Knucker Tuner");
+          }
+          else
+          {
+            if (strcmp(stat_string, "Tuner not found") == 0)
+            {
+              strcpy(line5, "Please connect a Knucker Tuner");
+              //MsgBox4("Please connect a Knucker Tuner", " ", "If a MiniTiouner is connected,", "please disconnect it.");
+            }
+          }
+        
+          if (strcmp(stat_string, "[GetFamilyId] Family ID:0x4955") == 0)
+          {
+            strcpy(line5, "Initialising Tuner, Please Wait");
+          }
+
+          if (strcmp(stat_string, "[AVL_Init] ok") == 0)
+          {
+            strcpy(line5, "Tuner Initialised");
+          }
+
+          if ((stat_string[0] == '=') && (stat_string[5] == 'F'))  // Frequency
+          {
+            line3[0] = stat_string[13];
+            line3[1] = stat_string[14];
+            line3[2] = stat_string[15];
+            line3[3] = stat_string[16];
+            line3[4] = stat_string[17];
+            line3[5] = stat_string[18];
+            line3[6] = stat_string[19];
+            line3[7] = '\0';
+            strcat(line3, " MHz");
+            printf("%s\n", line3);
+          }
+
+          if ((stat_string[0] == '=') && (stat_string[5] == 'B'))  // Bandwidth
+          {
+            if (stat_string[18] != '0')
+            {
+              line4[0] = stat_string[18];
+              line4[1] = stat_string[20];
+              line4[2] = stat_string[21];
+              line4[3] = stat_string[22];
+              line4[7] = '\0';
+            }
+            else
+            {
+              line4[0] = stat_string[20];
+              line4[1] = stat_string[21];
+              line4[2] = stat_string[22];
+            }
+            strcat(line4, " kHz");
+            printf("%s\n", line4);
+          }
+
+          // Now detect start of signal search
+          strcpyn(linex, stat_string, 25);  // for destructive test
+          if (strcmp(linex, "[AVL_ChannelScan_Tx] Freq") == 0)
+          {
+            strcpy(line5, "Searching for signal");
+            //printf("%s\n", line5);
+          }
+
+          // And detect failed search
+          if (strcmp(stat_string, "[DVBTx_Channel_ScanLock_Example] DVBTx channel scan is fail,Err.") == 0)
+          {
+            strcpy(line5, "Search failed, resetting for another search");
+            //printf("%s\n", line5);
+          }
+
+          // Notify failed sync (Don't!)
+          //if (strcmp(stat_string, "Transport Stream sync (0x47) not found") == 0)
+          //{
+          //  strcpy(line5, "TS received, but not synced");
+          //  //printf("%s\n", line5);
+          //}
+
+          // Notify unlocked
+          if (strcmp(stat_string, "Unlocked") == 0)
+          {
+            strcpy(line5, "Tuner Unlocked");
+            strcpy(line10, "|");
+            strcpy(line11, "|");
+            strcpy(line12, "|");
+            strcpy(line13, "|");
+            strcpy(line14, "|");
+            FinishedButton = 1;
+            if(FirstLock == 0)
+            {
+              FirstLock = 1;
+            }
+          }
+
+          // Display reported modulation
+          strcpyn(linex, stat_string, 6);  // for destructive test
+          if (strcmp(linex, "MOD  :") == 0)
+          {
+            strcpy(line6, stat_string);
+          }
+
+          // Display reported FFT
+          strcpyn(linex, stat_string, 6);  // for destructive test
+          if (strcmp(linex, "FFT  :") == 0)
+          {
+            strcpy(line7, stat_string);
+          }
+
+          // Display reported constellation
+          strcpyn(linex, stat_string, 6);  // for destructive test
+          if (strcmp(linex, "Const:") == 0)
+          {
+            strcpy(line8, stat_string);
+          }
+
+          // Display reported FEC
+          strcpyn(linex, stat_string, 6);  // for destructive test
+          if (strcmp(linex, "FEC  :") == 0)
+          {
+            strcpy(line9, stat_string);
+          }
+          
+          // Display reported Guard
+          strcpyn(linex, stat_string, 6);  // for destructive test
+          if (strcmp(linex, "Guard:") == 0)
+          {
+            strcpy(line10, stat_string);
+          }
+
+          // Display reported SSI
+          strcpyn(linex, stat_string, 6);  // for destructive test
+          if (strcmp(linex, "SSI is") == 0)
+          {
+            strcpy(line11, stat_string);
+          }
+
+          // Display reported SQI
+          strcpyn(linex, stat_string, 6);  // for destructive test
+          if (strcmp(linex, "SQI is") == 0)
+          {
+            strcpy(line12, stat_string);
+          }
+
+          // Display reported SNR
+          strcpyn(linex, stat_string, 6);  // for destructive test
+          if (strcmp(linex, "SNR is") == 0)
+          {
+            strcpy(line13, stat_string);
+          }
+
+          // Display reported PER
+          strcpyn(linex, stat_string, 6);  // for destructive test
+          if (strcmp(linex, "PER is") == 0)
+          {
+            strcpy(line14, stat_string);
+            strcpy(line5, "|");            // Clear any old text from line 5
+          }
+
+          stat_string[0] = '\0';   // Finished processing this info, so clear the stat_string
+
+          if (FinishedButton == 1)  // Parameters requested to be displayed
+          {
+
+            Parameters_currently_displayed = 1;
+
+            rectangle(wscreen * 1 / 40, hscreen - 1 * linepitch - txtdesc, wscreen * 39 / 40, txttot, 0, 0, 0);
+            Text2(wscreen * 1 / 40, hscreen - 1 * linepitch, line5, font_ptr);
+            rectangle(wscreen * 1 / 40, hscreen - 2 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
+            Text2(wscreen * 1 / 40, hscreen - 2 * linepitch, line3, font_ptr);
+            Text2(wscreen * 14 / 40, hscreen - 2 * linepitch, line4, font_ptr);
+            rectangle(wscreen * 1 / 40, hscreen - 3 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
+            Text2(wscreen * 1 / 40, hscreen - 3 * linepitch, line6, font_ptr);
+            Text2(wscreen * 14 / 40, hscreen - 3 * linepitch, line7, font_ptr);
+            rectangle(wscreen * 1 / 40, hscreen - 4 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
+            Text2(wscreen * 1 / 40, hscreen - 4 * linepitch, line8, font_ptr);
+            Text2(wscreen * 14 / 40, hscreen - 4 * linepitch, line9, font_ptr);
+            rectangle(wscreen * 1 / 40, hscreen - 5 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
+            Text2(wscreen * 1 / 40, hscreen - 5 * linepitch, line10, font_ptr);
+            rectangle(wscreen * 1 / 40, hscreen - 6 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
+            Text2(wscreen * 1 / 40, hscreen - 6 * linepitch, line11, font_ptr);
+            rectangle(wscreen * 1 / 40, hscreen - 7 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
+            Text2(wscreen * 1 / 40, hscreen - 7 * linepitch, line12, font_ptr);
+            rectangle(wscreen * 1 / 40, hscreen - 8 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
+            Text2(wscreen * 1 / 40, hscreen - 8 * linepitch, line13, font_ptr);
+
+            if (strlen(line14) > 2)  // Locked, so Auto-hide the parameter display after 5 seconds
+            {
+              if (FirstLock == 0) // This is the first time MER has exceeded threshold
+              {
+                FirstLock = 1;
+                LockTime = clock();  // Set first lock time
+              }
+              if ((clock() > LockTime + 600000) && (FirstLock == 1))  // About 5s since first lock
+              {
+                FinishedButton = 2; // Hide parameters
+                FirstLock = 2;      // and stop it trying to hide them again
+              }
+            }
+
+            rectangle(wscreen * 1 / 40, hscreen - 9 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
+            Text2(wscreen * 1 / 40, hscreen - 9 * linepitch, line14, font_ptr);
+
+            // Only change VLC overlayfile if Display has changed
+            if (TRUE)
+            {
+              // Build string for VLC
+              strcpy(vlctext, line5);
+              strcat(vlctext, "%n");
+              strcat(vlctext, line3);
+              strcat(vlctext, ",  ");
+              strcat(vlctext, line4);
+              strcat(vlctext, "%n");
+              strcat(vlctext, line6);
+              strcat(vlctext, ",  ");
+              strcat(vlctext, line7);
+              strcat(vlctext, "%n");
+              strcat(vlctext, line8);
+              strcat(vlctext, ",  ");
+              strcat(vlctext, line9);
+              strcat(vlctext, "%n");
+              strcat(vlctext, line10);
+              strcat(vlctext, "%n");
+              strcat(vlctext, line11);
+              strcat(vlctext, "%n");
+              strcat(vlctext, line12);
+              strcat(vlctext, "%n");
+              strcat(vlctext, line13);
+              strcat(vlctext, "%n");
+              strcat(vlctext, line14);
+              strcat(vlctext, "%n.%nTouch Left to Hide Overlay%nTouch Right to Exit");
+
+              FILE *fw=fopen("/home/pi/tmp/vlc_temp_overlay.txt","w+");
+              if(fw!=0)
+              {
+                fprintf(fw, "%s\n", vlctext);
+              }
+              fclose(fw);
+
+              // Copy temp file to file to be read by VLC to prevent file collisions
+              system("cp /home/pi/tmp/vlc_temp_overlay.txt /home/pi/tmp/vlc_overlay.txt");
+
+            }
+            Text2(wscreen * 1 / 40, hscreen - 11 * linepitch, "Touch Right side to exit", font_ptr);
+            Text2(wscreen * 1 / 40, hscreen - 12 * linepitch, "Touch Lower left for image capture", font_ptr);
+          }
+          else
+          {
+            if (Parameters_currently_displayed == 1)
+            {
+              setBackColour(0, 0, 0);
+              clearScreen();
+              Parameters_currently_displayed = 0;
+
+              FILE *fw=fopen("/home/pi/tmp/vlc_overlay.txt","w+");
+              if(fw!=0)
+              {
+                fprintf(fw, " ");
+              }
+              fclose(fw);
+            }
+          }
+        }
+        else
+        {
+          strcat(stat_string, status_message_char);  // Not end of line, so append the character to the stat string
+        }
+      }
+    }
+    
+    // Shutdown VLC if it has not stolen the graphics
+    system("/home/pi/rpidatv/scripts/lmvlcsd.sh &");
+
+    close(fd_status_fifo); 
+    usleep(1000);
+
+    printf("Stopping receive process\n");
+    system("sudo killall /home/pi/rpidatv/scripts/ctvlcff.sh >/dev/null 2>/dev/null");
+    system("/home/pi/rpidatv/scripts/lmstop.sh");
+    touch_response = 0; 
+    printf("Stopped receive process?\n");
+    break;
+
 
   case 1:
     fp=popen(PATH_SCRIPT_LMRXOMX, "r");
@@ -10005,6 +10480,7 @@ void LMRX(int NoButton)
     break;
   }
   system("sudo killall longmynd >/dev/null 2>/dev/null");
+  system("sudo killall CombiTunerExpress >/dev/null 2>/dev/null");
   system("sudo killall omxplayer.bin >/dev/null 2>/dev/null");
   system("sudo killall mplayer >/dev/null 2>/dev/null");
   system("sudo killall vlc >/dev/null 2>/dev/null");
@@ -12811,7 +13287,7 @@ rawY = 0;
         case 21:                       // LongMynd RX
           if (CheckFTDI() == 1)  // No MiniTiouner
           {
-            MsgBox2("No MiniTiouner Connected", "Connect MiniTiouner to enable RX");
+            MsgBox4("No Tuner Connected", "Connect a MiniTiouner or a Knucker", "for the receiver to use", "Touch Screen to Continue");
             wait_touch();
           }
           printf("MENU 8 \n");  //  LongMynd
@@ -13617,12 +14093,12 @@ rawY = 0;
           Start_Highlights_Menu1();
           UpdateWindow();
           break;
-        case 23:                                          // Config Menu 13
-          printf("MENU 13\n");
-          CurrentMenu=13;
+        case 23:                                          // Config Menu 46
+          printf("MENU 46\n");
+          CurrentMenu=46;
           setBackColour(0, 0, 0);
           clearScreen();
-          Start_Highlights_Menu13();
+          Start_Highlights_Menu46();
           UpdateWindow();
           break;
         default:
@@ -14598,7 +15074,7 @@ rawY = 0;
             setBackColour(0, 0, 0);
             Start_Highlights_Menu1();
           }
-          else if (CallingMenu == 13) // RX presets
+          else if (CallingMenu == 46) // RX presets
           {
             printf("Returning to MENU 8 from Menu 27\n");
             CurrentMenu=8;
@@ -14622,7 +15098,7 @@ rawY = 0;
           {
             ChangePresetFreq(i);
           }
-          else if (CallingMenu == 13) // RX presets
+          else if (CallingMenu == 46) // RX presets
           {
             ChangeLMPresetFreq(i);
           }
@@ -14658,7 +15134,7 @@ rawY = 0;
             setBackColour(0, 0, 0);
             Start_Highlights_Menu1();
           }
-          else if (CallingMenu == 13) // RX presets
+          else if (CallingMenu == 46) // RX presets
           {
             printf("Returning to MENU 8 from Menu 28\n");
             CurrentMenu=8;
@@ -14682,7 +15158,7 @@ rawY = 0;
           {
             ChangePresetSR(i);
           }
-          else if (CallingMenu == 13) // RX presets
+          else if (CallingMenu == 46) // RX presets
           {
             ChangeLMPresetSR(i);
           }
@@ -15553,7 +16029,167 @@ rawY = 0;
         setBackColour(0, 0, 0);
         Start_Highlights_Menu1();
         UpdateWindow();
-        continue;   // Completed Menu 15 action, go and wait for touch
+        continue;   // Completed Menu 45 action, go and wait for touch
+      }
+
+      if (CurrentMenu == 46)  // Menu 46 New Receiver Config Menu
+      {
+        printf("Button Event %d, Entering Menu 46 Case Statement\n",i);
+        CallingMenu = 46;
+        switch (i)
+        {
+        case 0:                                         // Output UDP IP
+          ChangeLMRXIP();
+          CurrentMenu=46;
+          setBackColour(0, 0, 0);
+          clearScreen();
+          Start_Highlights_Menu46();
+          UpdateWindow();
+          break;
+        case 1:                                         // Output UDP port 
+          ChangeLMRXPort();
+          CurrentMenu=46;
+          setBackColour(0, 0, 0);
+          clearScreen();
+          Start_Highlights_Menu46();
+          UpdateWindow();
+          break;
+        case 2:                                         // Change Receive Preset freqss
+          printf("MENU 27 \n");
+          CurrentMenu=27;
+          setBackColour(0, 0, 0);
+          clearScreen();
+          Start_Highlights_Menu27();
+          UpdateWindow();
+          break;
+        case 3:                                         // Change Receive Preset SRs 
+          printf("MENU 28 \n");
+          CurrentMenu=28;
+          setBackColour(0, 0, 0);
+          clearScreen();
+          Start_Highlights_Menu28();
+          UpdateWindow();
+          break;
+        case 4:                                         // Cancel
+          SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 1);
+          printf("Menu 46 Cancel\n");
+          Start_Highlights_Menu46();  // Update Menu appearance
+          UpdateWindow();             // and display for half a second
+          usleep(500000);
+          SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 0); // Reset cancel (even if not selected)
+          printf("Returning to MENU 8 from Menu 46\n");
+          CurrentMenu=8;
+          setBackColour(0, 0, 0);
+          clearScreen();
+          Start_Highlights_Menu8();
+          UpdateWindow();
+          break;
+        case 5:                                         // QO-100 Offset
+          ChangeLMRXOffset();
+          CurrentMenu=46;
+          setBackColour(0, 0, 0);
+          clearScreen();
+          Start_Highlights_Menu46();
+          UpdateWindow();
+          break;
+        case 6:                                         // Autoset QO-100 Offset
+          if (strcmp(LMRXmode, "sat") == 0)
+          {
+            AutosetLMRXOffset();
+          }
+          CurrentMenu=46;
+          setBackColour(0, 0, 0);
+          clearScreen();
+          Start_Highlights_Menu46();
+          UpdateWindow();
+          break;
+        case 7:                                        // Input Socket
+          if (strcmp(LMRXinput, "a") == 0)
+          {
+            strcpy(LMRXinput, "b");
+          }
+          else
+          {
+            strcpy(LMRXinput, "a");
+          }
+          if (strcmp(LMRXmode, "sat") == 0)
+          {
+            SetConfigParam(PATH_LMCONFIG, "input", LMRXinput);
+          }
+          else
+          {
+            SetConfigParam(PATH_LMCONFIG, "input1", LMRXinput);
+          }
+          Start_Highlights_Menu46();
+          UpdateWindow();
+          break;
+        case 8:                                        // LNB Volts
+          CycleLNBVolts();
+          Start_Highlights_Menu46();
+          UpdateWindow();
+          break;
+        case 9:                                        // Audio Output
+          if (strcmp(LMRXaudio, "rpi") == 0)
+          {
+            strcpy(LMRXaudio, "usb");
+          }
+          else
+          {
+            strcpy(LMRXaudio, "rpi");
+          }
+          SetConfigParam(PATH_LMCONFIG, "audio", LMRXaudio);
+          Start_Highlights_Menu46();
+          UpdateWindow();
+          break;
+        case 10:                                         // Tuner TS Timeout
+          ChangeLMTST();
+          CurrentMenu=46;
+          setBackColour(0, 0, 0);
+          clearScreen();
+          Start_Highlights_Menu46();
+          UpdateWindow();
+          break;
+        case 11:                                         // Tuner Scan Width
+          ChangeLMSW();
+          CurrentMenu=46;
+          setBackColour(0, 0, 0);
+          clearScreen();
+          Start_Highlights_Menu46();
+          UpdateWindow();
+          break;
+        case 12:                                         // Video Channel for MCPC TS
+          ChangeLMChan();
+          CurrentMenu=46;
+          setBackColour(0, 0, 0);
+          clearScreen();
+          Start_Highlights_Menu46();
+          UpdateWindow();
+          break;
+        case 13:                                        // DVB-S/S2 or DVB-T/T2
+          if (strcmp(RXmod, "DVB-S") == 0)
+          {
+            strcpy(RXmod, "DVB-T");
+          }
+          else
+          {
+            strcpy(RXmod, "DVB-S");
+          }
+          if (strcmp(RXmod, "DVB-S") == 0)
+          {
+            SetConfigParam(PATH_LMCONFIG, "rxmod", "dvbs");
+          }
+          else
+          {
+            SetConfigParam(PATH_LMCONFIG, "rxmod", "dvbt");
+          }
+          Start_Highlights_Menu46();
+          UpdateWindow();
+          break;
+
+        default:
+          printf("Menu 46 Error\n");
+        }
+        continue;   // Completed Menu 46 action, go and wait for touch
       }
 
       if (CurrentMenu == 41)  // Menu 41 Keyboard (should not get here)
@@ -16646,19 +17282,19 @@ void Define_Menu8()
 
   button = CreateButton(8, 0);
   AddButtonStatus(button, "Play with^ffmpeg VLC", &Blue);
-  AddButtonStatus(button, "Play with^ffmpeg VLC", &Green);
+  AddButtonStatus(button, "Play with^ffmpeg VLC", &Grey);
 
   button = CreateButton(8, 1);
   AddButtonStatus(button, "Play with^OMX Player", &Blue);
-  AddButtonStatus(button, "Play with^OMX Player", &Green);
+  AddButtonStatus(button, "Play with^OMX Player", &Grey);
 
   button = CreateButton(8, 2);
   AddButtonStatus(button, "Play with^VLC", &Blue);
-  AddButtonStatus(button, "Play with^VLC", &Green);
+  AddButtonStatus(button, "Play with^VLC", &Grey);
 
   button = CreateButton(8, 3);
   AddButtonStatus(button, "Play to^UDP Stream", &Blue);
-  AddButtonStatus(button, "Play to^UDP Stream", &Green);
+  AddButtonStatus(button, "Play to^UDP Stream", &Grey);
 
   button = CreateButton(8, 4);
   AddButtonStatus(button, "Beacon^MER", &Blue);
@@ -16761,6 +17397,22 @@ void Start_Highlights_Menu8()
   div_t div_10;
   div_t div_100;
   div_t div_1000;
+
+  if (strcmp(RXmod, "DVB-S") == 0)
+  {
+    strcpy(MenuTitle[8], "Portsdown DVB-S/S2 Receiver Menu (8)"); 
+    SetButtonStatus(ButtonNumber(CurrentMenu, 1), 0);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 2), 0);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 3), 0);
+  }
+  else
+  {
+    strcpy(MenuTitle[8], "Portsdown DVB-T/T2 Receiver Menu (8)"); 
+    SetButtonStatus(ButtonNumber(CurrentMenu, 1), 1);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 2), 1);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 3), 1);
+  }
+
 
   // Freq buttons
 
@@ -18467,7 +19119,7 @@ void Start_Highlights_Menu27()
       AmendButtonStatus(ButtonNumber(27, NoButton), 1, FreqBtext, &Green);
     }
   }
-  else if (CallingMenu == 13)  // LMRX Presets
+  else if (CallingMenu == 46)  // LMRX Presets
   {
     for(index = 1; index < 10 ; index = index + 1)
     {
@@ -18571,7 +19223,7 @@ void Start_Highlights_Menu28()
       AmendButtonStatus(ButtonNumber(28, NoButton), 1, SRLabel[index], &Green);
     }
   }
-  else if (CallingMenu == 13)  // LMRX Presets
+  else if (CallingMenu == 46)  // LMRX Presets
   {
     for(index = 1; index < 7 ; index = index + 1)
     {
@@ -19633,6 +20285,130 @@ void Start_Highlights_Menu45()
   GreyOut45();
 }
 
+void Define_Menu46()
+{
+  int button;
+
+  strcpy(MenuTitle[46], "Portsdown Receiver Configuration (46)"); 
+
+  // Bottom Row, Menu 46
+
+  button = CreateButton(46, 0);
+  AddButtonStatus(button, "UDP^IP", &Blue);
+  AddButtonStatus(button, "UDP^IP", &Blue);
+
+  button = CreateButton(46, 1);
+  AddButtonStatus(button, "UDP^Port", &Blue);
+  AddButtonStatus(button, "UDP^Port", &Blue);
+
+  button = CreateButton(46, 2);
+  AddButtonStatus(button, "Set Preset^RX Freqs", &Blue);
+  AddButtonStatus(button, "Set Preset^RX Freqs", &Blue);
+
+  button = CreateButton(46, 3);
+  AddButtonStatus(button, "Set Preset^RX SRs", &Blue);
+  AddButtonStatus(button, "Set Preset^RX SRs", &Blue);
+
+  button = CreateButton(46, 4);
+  AddButtonStatus(button, "Exit", &DBlue);
+  AddButtonStatus(button, "Exit", &LBlue);
+
+  // 2nd Row, Menu 46
+
+  button = CreateButton(46, 5);
+  AddButtonStatus(button, "Sat LNB^Offset", &Blue);
+  AddButtonStatus(button, "Sat LNB^Offset", &Blue);
+
+  button = CreateButton(46, 6);
+  AddButtonStatus(button, "Autoset^LNB Offset", &Blue);
+  AddButtonStatus(button, " ", &Grey);
+
+  button = CreateButton(46, 7);
+  AddButtonStatus(button, "Input^A", &Blue);
+  AddButtonStatus(button, "Input^A", &Blue);
+
+  button = CreateButton(46, 8);
+  AddButtonStatus(button, "LNB Volts^OFF", &Blue);
+  AddButtonStatus(button, "LNB Volts^18 Horiz", &Green);
+  AddButtonStatus(button, "LNB Volts^13 Vert", &Green);
+
+  button = CreateButton(46, 9);
+  AddButtonStatus(button, "Audio out^RPi Jack", &Blue);
+  AddButtonStatus(button, "Audio out^RPi Jack", &Blue);
+
+  // 3rd Row, Menu 46
+
+  button = CreateButton(46, 10);
+  AddButtonStatus(button, "Tuner^Timeout", &Blue);
+  AddButtonStatus(button, "Tuner^Timeout", &Blue);
+
+  button = CreateButton(46, 11);
+  AddButtonStatus(button, "Tuner Scan^Width", &Grey);
+  AddButtonStatus(button, "Tuner Scan^Width", &Grey);
+
+  button = CreateButton(46, 12);
+  AddButtonStatus(button, "TS Video^Channel", &Grey);
+  AddButtonStatus(button, "TS Video^Channel", &Grey);
+
+  button = CreateButton(46, 13);
+  AddButtonStatus(button, "Modulation^DVB-S/S2", &Blue);
+  AddButtonStatus(button, "Modulation^DVB-S/S2", &Blue);
+}
+
+void Start_Highlights_Menu46()
+{
+  char LMBtext[63];
+
+  if (strcmp(LMRXmode, "sat") == 0)
+  {
+    strcpy(MenuTitle[46], "Portsdown QO-100 Receiver Configuration (46)"); 
+    strcpy(LMBtext, "QO-100^Input ");
+    strcat(LMBtext, LMRXinput);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 6), 0);
+  }
+  else
+  {
+    strcpy(MenuTitle[46], "Portsdown Terrestrial Receiver Configuration (46)"); 
+    strcpy(LMBtext, "Terrestrial^Input ");
+    strcat(LMBtext, LMRXinput);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 6), 1);
+  }
+  AmendButtonStatus(ButtonNumber(46, 7), 0, LMBtext, &Blue);
+
+  if (strcmp(LMRXvolts, "off") == 0)
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 8), 0);
+  }
+  if (strcmp(LMRXvolts, "h") == 0)
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 8), 1);
+  }
+  if (strcmp(LMRXvolts, "v") == 0)
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 8), 2);
+  }
+ 
+
+  if (strcmp(LMRXaudio, "rpi") == 0)
+  {
+    AmendButtonStatus(ButtonNumber(46, 9), 0, "Audio out^RPi Jack", &Blue);
+  }
+  else
+  {
+    AmendButtonStatus(ButtonNumber(46, 9), 0, "Audio out^USB dongle", &Blue);
+  }
+
+  if (strcmp(RXmod, "DVB-S") == 0)
+  {
+    AmendButtonStatus(ButtonNumber(46, 13), 0, "Modulation^DVB-S/S2", &Blue);
+  }
+  else
+  {
+    AmendButtonStatus(ButtonNumber(46, 13), 0, "Modulation^DVB-T/T2", &Blue);
+  }
+
+}
+
 
 
 void Define_Menu41()
@@ -19901,6 +20677,7 @@ terminate(int dummy)
   system("sudo killall vlc >/dev/null 2>/dev/null");
   system("sudo killall lmudp.sh >/dev/null 2>/dev/null");
   system("sudo killall longmynd >/dev/null 2>/dev/null");
+  system("sudo killall /home/pi/rpidatv/bin/CombiTunerExpress >/dev/null 2>/dev/null");
   printf("Terminate\n");
   setBackColour(0, 0, 0);
   clearScreen();
@@ -20082,6 +20859,7 @@ int main(int argc, char **argv)
   Define_Menu43();
   Define_Menu44();
   Define_Menu45();
+  Define_Menu46();
 
   // Initialise direct access to the 7 inch screen
   initScreen();

@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# Script to run Combituner on the Portsdown V1
+
 PCONFIGFILE="/home/pi/rpidatv/scripts/portsdown_config.txt"
 RCONFIGFILE="/home/pi/rpidatv/scripts/longmynd_config.txt"
 
@@ -30,11 +32,6 @@ FREQ_KHZ_T=$(get_config_var freq1 $RCONFIGFILE)
 RX_MODE=$(get_config_var mode $RCONFIGFILE)
 Q_OFFSET=$(get_config_var qoffset $RCONFIGFILE)
 AUDIO_OUT=$(get_config_var audio $RCONFIGFILE)
-INPUT_SEL=$(get_config_var input $RCONFIGFILE)
-INPUT_SEL_T=$(get_config_var input1 $RCONFIGFILE)
-LNBVOLTS=$(get_config_var lnbvolts $RCONFIGFILE)
-TSTIMEOUT=$(get_config_var tstimeout $RCONFIGFILE)
-TSTIMEOUT_T=$(get_config_var tstimeout1 $RCONFIGFILE)
 
 # Correct for LNB LO Frequency if required
 if [ "$RX_MODE" == "sat" ]; then
@@ -43,7 +40,6 @@ else
   FREQ_KHZ=$FREQ_KHZ_T
   SYMBOLRATEK=$SYMBOLRATEK_T
   INPUT_SEL=$INPUT_SEL_T
-  TSTIMEOUT=$TSTIMEOUT_T
 fi
 
 # Send audio to the correct port
@@ -59,30 +55,10 @@ else
   AUDIO_DEVICE="hw:CARD=Device,DEV=0"
 fi
 
-# Select the correct tuner input
-INPUT_CMD=" "
-if [ "$INPUT_SEL" == "b" ]; then
-  INPUT_CMD="-w"
-fi
-
-# Set the LNB Volts
-VOLTS_CMD=" "
-if [ "$LNBVOLTS" == "h" ]; then
-  VOLTS_CMD="-p h"
-fi
-if [ "$LNBVOLTS" == "v" ]; then
-  VOLTS_CMD="-p v"
-fi
-
-TIMEOUT_CMD=" "
-if [[ $TSTIMEOUT -ge 500 ]] || [[ $TSTIMEOUT -eq -1 ]]; then
-  TIMEOUT_CMD=" -r "$TSTIMEOUT" "
-fi
-
 # Create dummy marquee overlay file
 echo " " >/home/pi/tmp/vlc_overlay.txt
 
-sudo killall longmynd >/dev/null 2>/dev/null
+sudo killall CombiTunerExpress >/dev/null 2>/dev/null
 sudo killall vlc >/dev/null 2>/dev/null
 
 # Play a very short dummy file if this is a first start for VLC since boot
@@ -98,20 +74,21 @@ if [[ ! -f /home/pi/tmp/vlcprimed ]]; then
   echo shutdown | nc 127.0.0.1 1111
 fi
 
-# Create the ts fifo
-sudo rm longmynd_main_ts >/dev/null 2>/dev/null
-mkfifo longmynd_main_ts
+# Create the status fifo
+sudo rm longmynd_status_fifo >/dev/null 2>/dev/null
+mkfifo longmynd_status_fifo
 
-# Start LongMynd
-sudo /home/pi/longmynd/longmynd -s longmynd_status_fifo $VOLTS_CMD $TIMEOUT_CMD $INPUT_CMD $FREQ_KHZ $SYMBOLRATEK &
+# Make sure that the status FIFO gets read (usually read by the GUI)
+#/home/pi/longmynd/fake_read &
+
+# Start Combituner, and set buffer to output STDOUT one line at a time
+stdbuf -oL /home/pi/rpidatv/bin/CombiTunerExpress -m dvbt -f $FREQ_KHZ -b $SYMBOLRATEK >>longmynd_status_fifo 2>/dev/null &
 
 # Start VLC
 cvlc -I rc --rc-host 127.0.0.1:1111 --codec ffmpeg -f --video-title-timeout=100 \
   --width 800 --height 480 \
   --sub-filter marq --marq-x 25 --marq-file "/home/pi/tmp/vlc_overlay.txt" \
   --gain 3 --alsa-audio-device $AUDIO_DEVICE \
-  longmynd_main_ts >/dev/null 2>/dev/null &
-
-exit
+  udp://@127.0.0.1:1314 >/dev/null 2>/dev/null &
 
 

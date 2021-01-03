@@ -1,3 +1,7 @@
+202101030
+Add Knucker DVB-T receive capability
+Add variable longmynd timeout
+
 202011290
 Reduce contrast in all EasyCap modes to prevent white crushing
 
