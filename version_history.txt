@@ -1,3 +1,6 @@
+202101060
+Bugfix Knucker issues
+
 202101030
 Add Knucker DVB-T receive capability
 Add variable longmynd timeout
