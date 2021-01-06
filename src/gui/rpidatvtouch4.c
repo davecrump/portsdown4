@@ -8176,7 +8176,7 @@ void LMRX(int NoButton)
   #define PATH_SCRIPT_LMRXOMX "/home/pi/rpidatv/scripts/lmomx.sh 2>&1"
   #define PATH_SCRIPT_LMRXVLC "/home/pi/rpidatv/scripts/lmvlc.sh" // 2>&1"
   #define PATH_SCRIPT_LMRXVLCFF "/home/pi/rpidatv/scripts/lmvlcff.sh" // 2>&1"
-  #define PATH_SCRIPT_CTVLCFF "/home/pi/rpidatv/scripts/ctvlcff.sh 2>&1"
+ // #define PATH_SCRIPT_CTVLCFF "/home/pi/rpidatv/scripts/ctvlcff.sh 2>&1"
 
   //Local parameters:
 
@@ -8272,11 +8272,19 @@ void LMRX(int NoButton)
   // Create Wait Button thread
   pthread_create (&thbutton, NULL, &WaitButtonLMRX, NULL);
 
-  // Use case 6 for DVB-T
+  // Switch for DVB-T
   if (strcmp(RXmod, "DVB-T") == 0)
   {
-    NoButton = 6;
+    if (NoButton == 3)  // UDP
+    {
+      NoButton = 9;
+    }
+    else
+    {
+      NoButton = 6;   // VLC FF
+    }
   }
+
 
   switch (NoButton)
   {
@@ -8744,6 +8752,9 @@ void LMRX(int NoButton)
     // Open status FIFO for read only
     fd_status_fifo = open("longmynd_status_fifo", O_RDONLY); 
 
+    // Set the status fifo to be non-blocking on empty reads
+    fcntl(fd_status_fifo, F_SETFL, O_NONBLOCK);
+
     if (fd_status_fifo < 0)  // failed to open
     {
       printf("Failed to open status fifo\n");
@@ -8757,7 +8768,11 @@ void LMRX(int NoButton)
       // Read the next character from the fifo
       num = read(fd_status_fifo, status_message_char, 1);
 
-      if (num >= 0 )  // If there was a character to read
+      if (num < 0)  // no character to read
+      {
+        usleep(500);
+      }
+      else // there was a character to read
       {
         status_message_char[num]='\0';  // Make sure that it is a single character (when num=1)
         //printf("%s\n", status_message_char);
@@ -8775,7 +8790,6 @@ void LMRX(int NoButton)
             if (strcmp(stat_string, "Tuner not found") == 0)
             {
               strcpy(line5, "Please connect a Knucker Tuner");
-              //MsgBox4("Please connect a Knucker Tuner", " ", "If a MiniTiouner is connected,", "please disconnect it.");
             }
           }
         
@@ -8800,7 +8814,6 @@ void LMRX(int NoButton)
             line3[6] = stat_string[19];
             line3[7] = '\0';
             strcat(line3, " MHz");
-            printf("%s\n", line3);
           }
 
           if ((stat_string[0] == '=') && (stat_string[5] == 'B'))  // Bandwidth
@@ -8811,16 +8824,16 @@ void LMRX(int NoButton)
               line4[1] = stat_string[20];
               line4[2] = stat_string[21];
               line4[3] = stat_string[22];
-              line4[7] = '\0';
+              line4[4] = '\0';
             }
             else
             {
               line4[0] = stat_string[20];
               line4[1] = stat_string[21];
               line4[2] = stat_string[22];
+              line4[3] = '\0';
             }
             strcat(line4, " kHz");
-            printf("%s\n", line4);
           }
 
           // Now detect start of signal search
@@ -8828,22 +8841,25 @@ void LMRX(int NoButton)
           if (strcmp(linex, "[AVL_ChannelScan_Tx] Freq") == 0)
           {
             strcpy(line5, "Searching for signal");
-            //printf("%s\n", line5);
           }
 
           // And detect failed search
           if (strcmp(stat_string, "[DVBTx_Channel_ScanLock_Example] DVBTx channel scan is fail,Err.") == 0)
           {
             strcpy(line5, "Search failed, resetting for another search");
-            //printf("%s\n", line5);
           }
 
-          // Notify failed sync (Don't!)
-          //if (strcmp(stat_string, "Transport Stream sync (0x47) not found") == 0)
-          //{
-          //  strcpy(line5, "TS received, but not synced");
-          //  //printf("%s\n", line5);
-          //}
+          // Notify signal detection (linex is already the first 25 chars of stat_string)
+          if (strcmp(linex, "[AVL_LockChannel_T] Freq ") == 0)
+          {
+            strcpy(line5, "Signal detected, attempting to lock");
+          }
+
+          // Notify lock
+          if (strcmp(stat_string, "locked") == 0)
+          {
+            strcpy(line5, "Signal locked");
+          }
 
           // Notify unlocked
           if (strcmp(stat_string, "Unlocked") == 0)
@@ -9046,9 +9062,266 @@ void LMRX(int NoButton)
     system("sudo killall /home/pi/rpidatv/scripts/ctvlcff.sh >/dev/null 2>/dev/null");
     system("/home/pi/rpidatv/scripts/lmstop.sh");
     touch_response = 0; 
-    printf("Stopped receive process?\n");
+    printf("Stopped receive process\n");
     break;
 
+  case 9:
+    printf("STARTING UDP Output DVB-T RX\n");
+
+    // Create DVB-T Receiver thread
+    system("/home/pi/rpidatv/scripts/ctudp.sh");
+
+    // Open status FIFO for read only
+    fd_status_fifo = open("longmynd_status_fifo", O_RDONLY); 
+
+
+    // Set the status fifo to be non-blocking on empty reads
+    fcntl(fd_status_fifo, F_SETFL, O_NONBLOCK);
+
+    if (fd_status_fifo < 0)  // failed to open
+    {
+      printf("Failed to open status fifo\n");
+    }
+
+    // Flush status message string
+    stat_string[0]='\0';
+
+    while ((FinishedButton == 1) || (FinishedButton == 2)) // 1 is captions on, 2 is off
+    {
+      // Read the next character from the fifo
+      num = read(fd_status_fifo, status_message_char, 1);
+
+      if (num < 0)  // no character to read
+      {
+        usleep(500);
+      }
+      else // there was a character to read
+      {
+        status_message_char[num]='\0';  // Make sure that it is a single character (when num=1)
+        //printf("%s\n", status_message_char);
+
+        if (strcmp(status_message_char, "\n") == 0)  // If end of line, process info
+        {
+          printf("%s\n", stat_string);  // for test
+
+          if (strcmp(stat_string, "[GetChipId] chip id:AVL6862") == 0)
+          {
+            strcpy(line5, "Found Knucker Tuner");
+          }
+          else
+          {
+            if (strcmp(stat_string, "Tuner not found") == 0)
+            {
+              strcpy(line5, "Please connect a Knucker Tuner");
+            }
+          }
+        
+          if (strcmp(stat_string, "[GetFamilyId] Family ID:0x4955") == 0)
+          {
+            strcpy(line5, "Initialising Tuner, Please Wait");
+          }
+
+          if (strcmp(stat_string, "[AVL_Init] ok") == 0)
+          {
+            strcpy(line5, "Tuner Initialised");
+          }
+
+          if ((stat_string[0] == '=') && (stat_string[5] == 'F'))  // Frequency
+          {
+            line3[0] = stat_string[13];
+            line3[1] = stat_string[14];
+            line3[2] = stat_string[15];
+            line3[3] = stat_string[16];
+            line3[4] = stat_string[17];
+            line3[5] = stat_string[18];
+            line3[6] = stat_string[19];
+            line3[7] = '\0';
+            strcat(line3, " MHz");
+          }
+
+          if ((stat_string[0] == '=') && (stat_string[5] == 'B'))  // Bandwidth
+          {
+            if (stat_string[18] != '0')
+            {
+              line4[0] = stat_string[18];
+              line4[1] = stat_string[20];
+              line4[2] = stat_string[21];
+              line4[3] = stat_string[22];
+              line4[4] = '\0';
+            }
+            else
+            {
+              line4[0] = stat_string[20];
+              line4[1] = stat_string[21];
+              line4[2] = stat_string[22];
+              line4[3] = '\0';
+            }
+            strcat(line4, " kHz");
+          }
+
+          // Now detect start of signal search
+          strcpyn(linex, stat_string, 25);  // for destructive test
+          if (strcmp(linex, "[AVL_ChannelScan_Tx] Freq") == 0)
+          {
+            strcpy(line5, "Searching for signal");
+          }
+
+          // And detect failed search
+          if (strcmp(stat_string, "[DVBTx_Channel_ScanLock_Example] DVBTx channel scan is fail,Err.") == 0)
+          {
+            strcpy(line5, "Search failed, resetting for another search");
+          }
+
+          // Notify signal detection (linex is already the first 25 chars of stat_string)
+          if (strcmp(linex, "[AVL_LockChannel_T] Freq ") == 0)
+          {
+            strcpy(line5, "Signal detected, attempting to lock");
+          }
+
+          // Notify lock
+          if (strcmp(stat_string, "locked") == 0)
+          {
+            strcpy(line5, "Signal locked");
+          }
+
+          // Notify unlocked
+          if (strcmp(stat_string, "Unlocked") == 0)
+          {
+            strcpy(line5, "Tuner Unlocked");
+            strcpy(line10, "|");
+            strcpy(line11, "|");
+            strcpy(line12, "|");
+            strcpy(line13, "|");
+            strcpy(line14, "|");
+            FinishedButton = 1;
+            if(FirstLock == 0)
+            {
+              FirstLock = 1;
+            }
+          }
+
+          // Display reported modulation
+          strcpyn(linex, stat_string, 6);  // for destructive test
+          if (strcmp(linex, "MOD  :") == 0)
+          {
+            strcpy(line6, stat_string);
+          }
+
+          // Display reported FFT
+          strcpyn(linex, stat_string, 6);  // for destructive test
+          if (strcmp(linex, "FFT  :") == 0)
+          {
+            strcpy(line7, stat_string);
+          }
+
+          // Display reported constellation
+          strcpyn(linex, stat_string, 6);  // for destructive test
+          if (strcmp(linex, "Const:") == 0)
+          {
+            strcpy(line8, stat_string);
+          }
+
+          // Display reported FEC
+          strcpyn(linex, stat_string, 6);  // for destructive test
+          if (strcmp(linex, "FEC  :") == 0)
+          {
+            strcpy(line9, stat_string);
+          }
+          
+          // Display reported Guard
+          strcpyn(linex, stat_string, 6);  // for destructive test
+          if (strcmp(linex, "Guard:") == 0)
+          {
+            strcpy(line10, stat_string);
+          }
+
+          // Display reported SSI
+          strcpyn(linex, stat_string, 6);  // for destructive test
+          if (strcmp(linex, "SSI is") == 0)
+          {
+            strcpy(line11, stat_string);
+          }
+
+          // Display reported SQI
+          strcpyn(linex, stat_string, 6);  // for destructive test
+          if (strcmp(linex, "SQI is") == 0)
+          {
+            strcpy(line12, stat_string);
+          }
+
+          // Display reported SNR
+          strcpyn(linex, stat_string, 6);  // for destructive test
+          if (strcmp(linex, "SNR is") == 0)
+          {
+            strcpy(line13, stat_string);
+          }
+
+          // Display reported PER
+          strcpyn(linex, stat_string, 6);  // for destructive test
+          if (strcmp(linex, "PER is") == 0)
+          {
+            strcpy(line14, stat_string);
+            strcpy(line5, "|");            // Clear any old text from line 5
+          }
+
+          stat_string[0] = '\0';   // Finished processing this info, so clear the stat_string
+
+          if (FinishedButton == 1)  // Parameters requested to be displayed
+          {
+
+            Parameters_currently_displayed = 1;
+
+            rectangle(wscreen * 1 / 40, hscreen - 1 * linepitch - txtdesc, wscreen * 39 / 40, txttot, 0, 0, 0);
+            Text2(wscreen * 1 / 40, hscreen - 1 * linepitch, line5, font_ptr);
+            rectangle(wscreen * 1 / 40, hscreen - 2 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
+            Text2(wscreen * 1 / 40, hscreen - 2 * linepitch, line3, font_ptr);
+            Text2(wscreen * 14 / 40, hscreen - 2 * linepitch, line4, font_ptr);
+            rectangle(wscreen * 1 / 40, hscreen - 3 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
+            Text2(wscreen * 1 / 40, hscreen - 3 * linepitch, line6, font_ptr);
+            Text2(wscreen * 14 / 40, hscreen - 3 * linepitch, line7, font_ptr);
+            rectangle(wscreen * 1 / 40, hscreen - 4 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
+            Text2(wscreen * 1 / 40, hscreen - 4 * linepitch, line8, font_ptr);
+            Text2(wscreen * 14 / 40, hscreen - 4 * linepitch, line9, font_ptr);
+            rectangle(wscreen * 1 / 40, hscreen - 5 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
+            Text2(wscreen * 1 / 40, hscreen - 5 * linepitch, line10, font_ptr);
+            rectangle(wscreen * 1 / 40, hscreen - 6 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
+            Text2(wscreen * 1 / 40, hscreen - 6 * linepitch, line11, font_ptr);
+            rectangle(wscreen * 1 / 40, hscreen - 7 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
+            Text2(wscreen * 1 / 40, hscreen - 7 * linepitch, line12, font_ptr);
+            rectangle(wscreen * 1 / 40, hscreen - 8 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
+            Text2(wscreen * 1 / 40, hscreen - 8 * linepitch, line13, font_ptr);
+            rectangle(wscreen * 1 / 40, hscreen - 9 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
+            Text2(wscreen * 1 / 40, hscreen - 9 * linepitch, line14, font_ptr);
+
+            Text2(wscreen * 1 / 40, hscreen - 11 * linepitch, "UDP Output", font_ptr);
+            Text2(wscreen * 1 / 40, hscreen - 12 * linepitch, "Touch Right Side to Exit", font_ptr);
+          }
+          else
+          {
+            if (Parameters_currently_displayed == 1)
+            {
+              setBackColour(0, 0, 0);
+              clearScreen();
+              Parameters_currently_displayed = 0;
+            }
+          }
+        }
+        else
+        {
+          strcat(stat_string, status_message_char);  // Not end of line, so append the character to the stat string
+        }
+      }
+    }
+    
+    close(fd_status_fifo); 
+    usleep(1000);
+
+    printf("Stopping receive process\n");
+    system("sudo killall /home/pi/rpidatv/scripts/ctudp.sh >/dev/null 2>/dev/null");
+    system("/home/pi/rpidatv/scripts/lmstop.sh");
+    touch_response = 0; 
+    printf("Stopped receive process\n");
+    break;
 
   case 1:
     fp=popen(PATH_SCRIPT_LMRXOMX, "r");
@@ -17391,7 +17664,7 @@ void Start_Highlights_Menu8()
 {
   int indexoffset = 0;
   char LMBtext[11][21];
-  char LMBStext[21];
+  char LMBStext[31];
   int i;
   int FreqIndex;
   div_t div_10;
@@ -17403,18 +17676,15 @@ void Start_Highlights_Menu8()
     strcpy(MenuTitle[8], "Portsdown DVB-S/S2 Receiver Menu (8)"); 
     SetButtonStatus(ButtonNumber(CurrentMenu, 1), 0);
     SetButtonStatus(ButtonNumber(CurrentMenu, 2), 0);
-    SetButtonStatus(ButtonNumber(CurrentMenu, 3), 0);
   }
   else
   {
     strcpy(MenuTitle[8], "Portsdown DVB-T/T2 Receiver Menu (8)"); 
     SetButtonStatus(ButtonNumber(CurrentMenu, 1), 1);
     SetButtonStatus(ButtonNumber(CurrentMenu, 2), 1);
-    SetButtonStatus(ButtonNumber(CurrentMenu, 3), 1);
   }
 
-
-  // Freq buttons
+  // Grey-out Beacon MER Button
 
   if (strcmp(LMRXmode, "terr") == 0)
   {
@@ -17425,6 +17695,12 @@ void Start_Highlights_Menu8()
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 4), 0);
   }
+  if (strcmp(RXmod, "DVB-T") == 0)
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 4), 1);
+  }
+
+  // Freq buttons
 
   for(i = 1; i <= 10; i = i + 1)
   {
@@ -17551,29 +17827,58 @@ void Start_Highlights_Menu8()
     indexoffset = 6;
   }
 
-  snprintf(LMBStext, 15, "SR^%d", LMRXsr[1 + indexoffset]);
-  AmendButtonStatus(ButtonNumber(8, 15), 0, LMBStext, &Blue);
-  AmendButtonStatus(ButtonNumber(8, 15), 1, LMBStext, &Green);
+  if (strcmp(RXmod, "DVB-S") == 0)
+  {
+    snprintf(LMBStext, 15, "SR^%d", LMRXsr[1 + indexoffset]);
+    AmendButtonStatus(ButtonNumber(8, 15), 0, LMBStext, &Blue);
+    AmendButtonStatus(ButtonNumber(8, 15), 1, LMBStext, &Green);
   
-  snprintf(LMBStext, 15, "SR^%d", LMRXsr[2 + indexoffset]);
-  AmendButtonStatus(ButtonNumber(8, 16), 0, LMBStext, &Blue);
-  AmendButtonStatus(ButtonNumber(8, 16), 1, LMBStext, &Green);
+    snprintf(LMBStext, 15, "SR^%d", LMRXsr[2 + indexoffset]);
+    AmendButtonStatus(ButtonNumber(8, 16), 0, LMBStext, &Blue);
+    AmendButtonStatus(ButtonNumber(8, 16), 1, LMBStext, &Green);
   
-  snprintf(LMBStext, 15, "SR^%d", LMRXsr[3 + indexoffset]);
-  AmendButtonStatus(ButtonNumber(8, 17), 0, LMBStext, &Blue);
-  AmendButtonStatus(ButtonNumber(8, 17), 1, LMBStext, &Green);
+    snprintf(LMBStext, 15, "SR^%d", LMRXsr[3 + indexoffset]);
+    AmendButtonStatus(ButtonNumber(8, 17), 0, LMBStext, &Blue);
+    AmendButtonStatus(ButtonNumber(8, 17), 1, LMBStext, &Green);
   
-  snprintf(LMBStext, 15, "SR^%d", LMRXsr[4 + indexoffset]);
-  AmendButtonStatus(ButtonNumber(8, 18), 0, LMBStext, &Blue);
-  AmendButtonStatus(ButtonNumber(8, 18), 1, LMBStext, &Green);
+    snprintf(LMBStext, 15, "SR^%d", LMRXsr[4 + indexoffset]);
+    AmendButtonStatus(ButtonNumber(8, 18), 0, LMBStext, &Blue);
+    AmendButtonStatus(ButtonNumber(8, 18), 1, LMBStext, &Green);
   
-  snprintf(LMBStext, 15, "SR^%d", LMRXsr[5 + indexoffset]);
-  AmendButtonStatus(ButtonNumber(8, 19), 0, LMBStext, &Blue);
-  AmendButtonStatus(ButtonNumber(8, 19), 1, LMBStext, &Green);
+    snprintf(LMBStext, 15, "SR^%d", LMRXsr[5 + indexoffset]);
+    AmendButtonStatus(ButtonNumber(8, 19), 0, LMBStext, &Blue);
+    AmendButtonStatus(ButtonNumber(8, 19), 1, LMBStext, &Green);
   
-  snprintf(LMBStext, 15, "SR^%d", LMRXsr[6 + indexoffset]);
-  AmendButtonStatus(ButtonNumber(8, 20), 0, LMBStext, &Blue);
-  AmendButtonStatus(ButtonNumber(8, 20), 1, LMBStext, &Green);
+    snprintf(LMBStext, 15, "SR^%d", LMRXsr[6 + indexoffset]);
+    AmendButtonStatus(ButtonNumber(8, 20), 0, LMBStext, &Blue);
+    AmendButtonStatus(ButtonNumber(8, 20), 1, LMBStext, &Green);
+  }
+  else
+  {
+    snprintf(LMBStext, 21, "Bandwidth^%d kHz", LMRXsr[1 + indexoffset]);
+    AmendButtonStatus(ButtonNumber(8, 15), 0, LMBStext, &Blue);
+    AmendButtonStatus(ButtonNumber(8, 15), 1, LMBStext, &Green);
+  
+    snprintf(LMBStext, 21, "Bandwidth^%d kHz", LMRXsr[2 + indexoffset]);
+    AmendButtonStatus(ButtonNumber(8, 16), 0, LMBStext, &Blue);
+    AmendButtonStatus(ButtonNumber(8, 16), 1, LMBStext, &Green);
+  
+    snprintf(LMBStext, 21, "Bandwidth^%d kHz", LMRXsr[3 + indexoffset]);
+    AmendButtonStatus(ButtonNumber(8, 17), 0, LMBStext, &Blue);
+    AmendButtonStatus(ButtonNumber(8, 17), 1, LMBStext, &Green);
+  
+    snprintf(LMBStext, 21, "Bandwidth^%d kHz", LMRXsr[4 + indexoffset]);
+    AmendButtonStatus(ButtonNumber(8, 18), 0, LMBStext, &Blue);
+    AmendButtonStatus(ButtonNumber(8, 18), 1, LMBStext, &Green);
+  
+    snprintf(LMBStext, 21, "Bandwidth^%d kHz", LMRXsr[5 + indexoffset]);
+    AmendButtonStatus(ButtonNumber(8, 19), 0, LMBStext, &Blue);
+    AmendButtonStatus(ButtonNumber(8, 19), 1, LMBStext, &Green);
+  
+    snprintf(LMBStext, 21, "Bandwidth^%d kHz", LMRXsr[6 + indexoffset]);
+    AmendButtonStatus(ButtonNumber(8, 20), 0, LMBStext, &Blue);
+    AmendButtonStatus(ButtonNumber(8, 20), 1, LMBStext, &Green);
+  }
 
   if ( LMRXsr[0] == LMRXsr[1 + indexoffset] )
   {
