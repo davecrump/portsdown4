@@ -21,3 +21,4 @@ cd /home/pi
 reset
 
 /home/pi/rpidatv/scripts/scheduler_debug.sh
+

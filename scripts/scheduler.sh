@@ -107,7 +107,6 @@ while [ "$GUI_RETURN_CODE" -gt 127 ] || [ "$GUI_RETURN_CODE" -eq 0 ];  do
     ;;
     135)
       cd /home/pi
-      # /home/pi/Langstone/stop
       /home/pi/Langstone/run
       /home/pi/Langstone/stop
       PLUTOIP=$(get_config_var plutoip $PCONFIGFILE)

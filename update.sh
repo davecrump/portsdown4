@@ -349,6 +349,17 @@ if ! grep -q micgain "$PATHSCRIPT"/portsdown_config.txt; then
   echo "micgain=26" >> "$PATHSCRIPT"/portsdown_config.txt
 fi
 
+# Add new parameters to config file if not included
+if ! grep -q udpoutport "$PATHSCRIPT"/portsdown_config.txt; then
+  # File needs updating
+  # Delete any blank lines first
+  sed -i -e '/^$/d' "$PATHSCRIPT"/portsdown_config.txt
+  # Add the new entry and a new line 
+  echo "udpoutport=10000" >> "$PATHSCRIPT"/portsdown_config.txt
+  echo "udpinport=10000" >> "$PATHSCRIPT"/portsdown_config.txt
+  echo "guard=32" >> "$PATHSCRIPT"/portsdown_config.txt
+fi
+
 # Add new receiver parameters to longmynd_config.txt if not included
 if ! grep -q tstimeout "$PATHSCRIPT"/longmynd_config.txt; then
   # File needs updating

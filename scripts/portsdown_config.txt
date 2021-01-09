@@ -1,9 +1,9 @@
-modulation=DVB-S
+modulation=S2QPSK
 modeinput=DESKTOP
 modeoutput=LIMEMINI
 freqoutput=437
 symbolrate=333
-fec=7
+fec=91
 band=d3
 labelofband=70_cm
 attenlevel=-10.0
@@ -48,4 +48,7 @@ limerfe=disabled
 plutoip=192.168.2.1
 plutopwr=0
 micgain=26
+udpoutport=10000
+udpinport=10000
+guard=32
 

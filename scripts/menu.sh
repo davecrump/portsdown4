@@ -565,85 +565,51 @@ do_output_setup_mode()
   Radio7=OFF
   Radio8=OFF
   Radio9=OFF
-  Radio10=OFF
-  Radio11=OFF
-  Radio12=OFF
+
   case "$MODE_OUTPUT" in
-  IQ)
+  STREAMER)
     Radio1=ON
   ;;
-  QPSKRF)
+  DATVEXPRESS)
     Radio2=ON
   ;;
-  STREAMER)
+  IP)
     Radio3=ON
   ;;
-  DIGITHIN)
+  COMPVID)
     Radio4=ON
   ;;
-  DTX1)
+  LIMEMINI)
     Radio5=ON
   ;;
-  DATVEXPRESS)
-    Radio6=ON
-  ;;
-  IP)
-    Radio6=ON
-  ;;
-  COMPVID)
-    Radio8=ON
-  ;;
-  LIMEMINI)
-    Radio9=ON
-  ;;
   LIMEUSB)
-    Radio10=ON
+    Radio6=ON
   ;;
   LIMEDVB)
-    Radio11=ON
+    Radio7=ON
+  ;;
+  PLUTO)
+    Radio8=ON
   ;;
   *)
-    Radio12=ON
+    Radio9=ON
   ;;
   esac
 
   choutput=$(whiptail --title "$StrOutputSetupTitle" --radiolist \
     "$StrOutputSetupContext" 20 78 11 \
-    "IQ" "$StrOutputSetupIQ" $Radio1 \
-    "QPSKRF" "$StrOutputSetupRF" $Radio2 \
-    "STREAMER" "Stream to BATC or other Streaming Facility" $Radio3 \
-    "DIGITHIN" "$StrOutputSetupDigithin" $Radio4 \
-    "DTX1" "$StrOutputSetupDTX1" $Radio5 \
-    "DATVEXPRESS" "$StrOutputSetupDATVExpress" $Radio6 \
-    "IP" "$StrOutputSetupIP" $Radio7 \
-    "COMPVID" "Output PAL Comp Video from Raspberry Pi AV Socket" $Radio8 \
-    "LIMEMINI" "Transmit using a LimeSDR Mini" $Radio9 \
-    "LIMEUSB" "Transmit using a LimeSDR USB" $Radio10 \
-    "LIMEDVB" "Use a LimeSDR Mini with Custom DVB Firmware" $Radio11 \
+    "STREAMER" "Stream to BATC or other Streaming Facility" $Radio1 \
+    "DATVEXPRESS" "$StrOutputSetupDATVExpress" $Radio2 \
+    "IP" "$StrOutputSetupIP" $Radio3 \
+    "COMPVID" "Output PAL Comp Video from Raspberry Pi AV Socket" $Radio4 \
+    "LIMEMINI" "Transmit using a LimeSDR Mini" $Radio5 \
+    "LIMEUSB" "Transmit using a LimeSDR USB" $Radio6 \
+    "LIMEDVB" "Use a LimeSDR Mini with Custom DVB Firmware" $Radio7 \
+    "PLUTO" "Use a Pluto" $Radio8 \
     3>&2 2>&1 1>&3)
 
   if [ $? -eq 0 ]; then
     case "$choutput" in
-    IQ)
-      PIN_I=$(get_config_var gpio_i $PCONFIGFILE)
-      PIN_I=$(whiptail --inputbox "$StrPIN_IContext" 8 78 $PIN_I --title "$StrPIN_ITitle" 3>&1 1>&2 2>&3)
-      if [ $? -eq 0 ]; then
-        set_config_var gpio_i "$PIN_I" $PCONFIGFILE
-      fi
-      PIN_Q=$(get_config_var gpio_q $PCONFIGFILE)
-      PIN_Q=$(whiptail --inputbox "$StrPIN_QContext" 8 78 $PIN_Q --title "$StrPIN_QTitle" 3>&1 1>&2 2>&3)
-      if [ $? -eq 0 ]; then
-        set_config_var gpio_q "$PIN_Q" $PCONFIGFILE
-      fi
-    ;;
-    QPSKRF)
-      FREQ_OUTPUT=$(get_config_var freqoutput $PCONFIGFILE)
-      GAIN_OUTPUT=$(get_config_var rfpower $PCONFIGFILE)
-      GAIN=$(whiptail --inputbox "$StrOutputRFGainContext" 8 78 $GAIN_OUTPUT --title "$StrOutputRFGainTitle" 3>&1 1>&2 2>&3)
-      if [ $? -eq 0 ]; then
-        set_config_var rfpower "$GAIN" $PCONFIGFILE
-      fi
-    ;;
     STREAMER)
       STREAM_URL=$(get_config_var streamurl $PCONFIGFILE)
       STREAM=$(whiptail --inputbox "Enter the stream URL: rtmp://rtmp.batc.org.uk/live" 8 78\
@@ -656,23 +622,6 @@ do_output_setup_mode()
       if [ $? -eq 0 ]; then
         set_config_var streamkey "$STREAMK" $PCONFIGFILE
       fi
-    ;;
-    DIGITHIN)
-      PIN_I=$(get_config_var gpio_i $PCONFIGFILE)
-      PIN_I=$(whiptail --inputbox "$StrPIN_IContext" 8 78 $PIN_I --title "$StrPIN_ITitle" 3>&1 1>&2 2>&3)
-      if [ $? -eq 0 ]; then
-        set_config_var gpio_i "$PIN_I" $PCONFIGFILE
-      fi
-      PIN_Q=$(get_config_var gpio_q $PCONFIGFILE)
-      PIN_Q=$(whiptail --inputbox "$StrPIN_QContext" 8 78 $PIN_Q --title "$StrPIN_QTitle" 3>&1 1>&2 2>&3)
-      if [ $? -eq 0 ]; then
-        set_config_var gpio_q "$PIN_Q" $PCONFIGFILE
-      fi
-      FREQ_OUTPUT=$(get_config_var freqoutput $PCONFIGFILE)
-      sudo ./si570 -f $FREQ_OUTPUT -m off
-    ;;
-    DTX1)
-      :
     ;;
     DATVEXPRESS)
       echo "Starting the DATV Express Server.  Please wait."
@@ -707,6 +656,9 @@ do_output_setup_mode()
       :
     ;;
     LIMEDVB)
+      :
+    ;;
+    PLUTO)
       :
     ;;
     esac

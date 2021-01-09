@@ -1,6 +1,7 @@
 #!/bin/bash
 
-PCONFIGFILE="/home/pi/rpidatv/scripts/portsdown_config.txt"
+# Used to display the incoming video from an LKV373A
+
 RCONFIGFILE="/home/pi/rpidatv/scripts/longmynd_config.txt"
 JCONFIGFILE="/home/pi/rpidatv/scripts/jetson_config.txt"
 ############ FUNCTION TO READ CONFIG FILE #############################
@@ -24,10 +25,10 @@ cd /home/pi
 
 # Read from receiver config file
 AUDIO_OUT=$(get_config_var audio $RCONFIGFILE)
+
 # Read from Jetson config file
 LKVUDP=$(get_config_var lkvudp $JCONFIGFILE)
 LKVPORT=$(get_config_var lkvport $JCONFIGFILE)
-
 
 # Send audio to the correct port
 if [ "$AUDIO_OUT" == "rpi" ]; then

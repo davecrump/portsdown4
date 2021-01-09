@@ -35,6 +35,8 @@ MODE_INPUT=$(get_config_var modeinput $PCONFIGFILE)
 TSVIDEOFILE=$(get_config_var tsvideofile $PCONFIGFILE)
 PATERNFILE=$(get_config_var paternfile $PCONFIGFILE)
 UDPOUTADDR=$(get_config_var udpoutaddr $PCONFIGFILE)
+UDPOUTPORT=$(get_config_var udpoutport $PCONFIGFILE)
+UDPINPORT=$(get_config_var udpinport $PCONFIGFILE)
 CALL=$(get_config_var call $PCONFIGFILE)
 CHANNEL="Portsdown"
 FREQ_OUTPUT=$(get_config_var freqoutput $PCONFIGFILE)
@@ -72,7 +74,6 @@ MODE_STARTUP=$(get_config_var startup $PCONFIGFILE)
 
 LKVUDP=$(get_config_var lkvudp $JCONFIGFILE)
 LKVPORT=$(get_config_var lkvport $JCONFIGFILE)
-
 
 OUTPUT_IP=""
 LIMETYPE=""
@@ -270,9 +271,9 @@ case "$MODE_OUTPUT" in
   IP)
     FREQUENCY_OUT=0
     # Set Output parameters for H264 (avc2ts) modes:
-    OUTPUT_IP="-n"$UDPOUTADDR":10000"
+    OUTPUT_IP="-n"$UDPOUTADDR":"$UDPOUTPORT
     # Set Output parameters for MPEG-2 (ffmpeg) modes:
-    OUTPUT="udp://"$UDPOUTADDR":10000?pkt_size=1316&buffer_size=1316" # Try this
+    OUTPUT="udp://"$UDPOUTADDR":"$UDPOUTPORT"?pkt_size=1316&buffer_size=1316" # Try this
   ;;
 
   COMPVID)
@@ -1361,8 +1362,7 @@ fi
 
     # Now generate the stream
 
-    PORT=10000
-    netcat -u -4 -l $PORT > videots &
+    netcat -u -4 -l $UDPINPORT > videots &
   ;;
 
   # *********************************** TRANSPORT STREAM INPUT FILE ******************************************
