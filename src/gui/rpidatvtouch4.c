@@ -8424,7 +8424,7 @@ void LMRX(int NoButton)
     printf("STARTING VLC with FFMPEG RX\n");
 
     /* Open status FIFO for read only  */
-    mkfifo("longmynd_status_fifo", 0666);
+    //mkfifo("longmynd_status_fifo", 0666);
     ret = mkfifo("longmynd_status_fifo", 0666);
     fd_status_fifo = open("longmynd_status_fifo", O_RDONLY); 
 
@@ -14786,17 +14786,16 @@ rawY = 0;
         }
         if (i != 7)   // Skip if DVB-T guard needs to be set
         {
-        Start_Highlights_Menu11();
-        UpdateWindow();
-        usleep(500000);
-        SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 0); // Reset cancel (even if not selected)
-        printf("Returning to MENU 1 from Menu 11\n");
-        CurrentMenu=1;
-        setBackColour(255, 255, 255);
-        clearScreen();
-        setBackColour(0, 0, 0);
-        Start_Highlights_Menu1();
-        UpdateWindow();
+          Start_Highlights_Menu11();
+          UpdateWindow();
+          usleep(500000);
+          SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 0); // Reset cancel (even if not selected)
+          printf("Returning to MENU 1 from Menu 11\n");
+          CurrentMenu=1;
+          setBackColour(255, 255, 255);
+          clearScreen();
+          Start_Highlights_Menu1();
+          UpdateWindow();
         }
         continue;   // Completed Menu 11 action, go and wait for touch
       }
