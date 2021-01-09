@@ -7,7 +7,8 @@
 #
 # To define the time you can provide concrete values for
 # minute (m), hour (h), day of month (dom), month (mon),
-# and day of week (dow) or use '*' in these fields (for 'any').#
+# and day of week (dow) or use '*' in these fields (for 'any').
+#
 # Notice that tasks will be started based on the cron's system
 # daemon's notion of time and timezones.
 #
@@ -21,6 +22,4 @@
 # For more information see the manual pages of crontab(5) and cron(8)
 #
 # m h  dom mon dow   command
-0 3 * * * /sbin/shutdown -r now
-0 15 * * * /sbin/shutdown -r now
 

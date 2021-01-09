@@ -1,8 +1,10 @@
 #!/bin/bash
 
+# Used to display video from an incoming TS on the specified port
+
 PCONFIGFILE="/home/pi/rpidatv/scripts/portsdown_config.txt"
 RCONFIGFILE="/home/pi/rpidatv/scripts/longmynd_config.txt"
-JCONFIGFILE="/home/pi/rpidatv/scripts/jetson_config.txt"
+
 ############ FUNCTION TO READ CONFIG FILE #############################
 
 get_config_var() {
@@ -24,9 +26,9 @@ cd /home/pi
 
 # Read from receiver config file
 AUDIO_OUT=$(get_config_var audio $RCONFIGFILE)
-# Read from Jetson config file
-LKVUDP=$(get_config_var lkvudp $JCONFIGFILE)
-LKVPORT=$(get_config_var lkvport $JCONFIGFILE)
+
+# Read from Portsdown config file
+UDPINPORT=$(get_config_var udpinport $PCONFIGFILE)
 
 
 # Send audio to the correct port
@@ -56,12 +58,13 @@ if [[ ! -f /home/pi/tmp/vlcprimed ]]; then
   echo shutdown | nc 127.0.0.1 1111
 fi
 
-# Start VLC
+# Start VLC udp://@"$LKVUDP":"$LKVPORT" >/dev/null 2>/dev/null &
+
 
 cvlc -I rc --rc-host 127.0.0.1:1111 --codec ffmpeg -f --video-title-timeout=100 \
   --width 800 --height 480 \
   --gain 3 --alsa-audio-device hw:CARD=Device,DEV=0 \
-  udp://:@:10000 >/dev/null 2>/dev/null &
+  udp://:@:"$UDPINPORT" >/dev/null 2>/dev/null &
 
 exit
 

@@ -107,12 +107,11 @@ while [ "$GUI_RETURN_CODE" -gt 127 ] || [ "$GUI_RETURN_CODE" -eq 0 ];  do
     ;;
     135)
       cd /home/pi
-      /home/pi/Langstone/stop
       /home/pi/Langstone/run
       /home/pi/Langstone/stop
       PLUTOIP=$(get_config_var plutoip $PCONFIGFILE)
       ssh-keygen -f "/home/pi/.ssh/known_hosts" -R "$PLUTOIP" >/dev/null 2>/dev/null
-      timeout 2 sshpass -p analog ssh -o StrictHostKeyChecking=no root@"$PLUTOIP" 'reboot'
+      timeout 2 sshpass -p analog ssh -o StrictHostKeyChecking=no root@"$PLUTOIP" 'PATH=/bin:/sbin:/usr/bin:/usr/sbin;reboot'
       GUI_RETURN_CODE="129"
     ;;
     160)

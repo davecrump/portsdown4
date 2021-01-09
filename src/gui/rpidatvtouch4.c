@@ -176,7 +176,7 @@ char TabModeOPtext[14][31]={"Portsdown", " Ugly ", "Express", "Lime USB", "BATC^
 char TabAtten[4][15] = {"NONE", "PE4312", "PE43713", "HMC1119"};
 char CurrentModeOP[31] = "QPSKRF";
 char CurrentModeOPtext[31] = " UGLY ";
-char TabTXMode[6][255] = {"DVB-S", "Carrier", "S2QPSK", "8PSK", "16APSK", "32APSK"};
+char TabTXMode[7][255] = {"DVB-S", "Carrier", "S2QPSK", "8PSK", "16APSK", "32APSK", "DVB-T"};
 char CurrentTXMode[255] = "DVB-S";
 char CurrentPilots[7] = "off";
 char CurrentFrames[7] = "long";
@@ -194,6 +194,7 @@ int CurrentBand = 2; // 0 thru 8
 char KeyboardReturn[64];
 char FreqBtext[31];
 char MenuText[5][63];
+char Guard[7];
 
 // Valid Input Modes:
 // "CAMMPEG-2", "CAMH264", "PATERNAUDIO", "ANALOGCAM" ,"CARRIER" ,"CONTEST"
@@ -264,6 +265,12 @@ int StreamStoreTrigger = 0;  // Set to 1 if stream amendment needed
 char StreamURL[9][127];      // Full rtmp address of stream server (except for key)
 char StreamKey[9][31];       // streamname-key for stream
 int StreamerStoreTrigger = 0;   // Set to 1 if streamer amendment needed
+
+// TS in/out parameters
+char UDPOutAddr[31];
+char UDPOutPort[31];
+char UDPInPort[31];
+char TSVideoFile[63];
 
 // Range and Bearing Calculator Parameters
 int GcBearing(const float, const float, const float, const float);
@@ -340,6 +347,7 @@ void Start_Highlights_Menu36();
 void Start_Highlights_Menu37();
 void Start_Highlights_Menu38();
 void Start_Highlights_Menu39();
+void Start_Highlights_Menu40();
 void Start_Highlights_Menu42();
 void Start_Highlights_Menu43();
 void Start_Highlights_Menu44();
@@ -1735,6 +1743,9 @@ void ReadModeOutput(char Moutput[256])
   {
     LimeRFEState = 0;
   }
+
+  // Read DVB-T Guard Interval
+  GetConfigParam(PATH_PCONFIG, "guard", Guard);
 }
 
 /***************************************************************************//**
@@ -2010,6 +2021,35 @@ void ReadLangstone()
   strcpy(Param, "plutoip");
   GetConfigParam(PATH_PCONFIG, Param, Value);
   strcpy(PlutoIP, Value);
+}
+
+/***************************************************************************//**
+ * @brief Reads the TS Config parameters from portsdown_config.txt
+ *        
+ * @param nil
+ *
+ * @return void
+*******************************************************************************/
+void ReadTSConfig()
+{
+  char Param[31];
+  char Value[255]="";
+
+  strcpy(Param, "udpoutaddr");
+  GetConfigParam(PATH_PCONFIG, Param, Value);
+  strcpy(UDPOutAddr, Value);
+
+  strcpy(Param, "udpoutport");
+  GetConfigParam(PATH_PCONFIG, Param, Value);
+  strcpy(UDPOutPort, Value);
+
+  strcpy(Param, "udpinport");
+  GetConfigParam(PATH_PCONFIG, Param, Value);
+  strcpy(UDPInPort, Value);
+
+  strcpy(Param, "tsvideofile");
+  GetConfigParam(PATH_PCONFIG, Param, Value);
+  strcpy(TSVideoFile, Value);
 }
 
 
@@ -5545,7 +5585,7 @@ void ApplyTXConfig()
   printf("a.sh will be called with format %s\n", CurrentFormat);
 
   // Load the Pi Cam driver for CAMMPEG-2 and Streaming modes
-  printf("TESTING FOR STREAMER\n");
+  //printf("TESTING FOR STREAMER\n");
   if ((strcmp(ModeInput,"CAMMPEG-2")==0)
     ||(strcmp(ModeInput,"CAM16MPEG-2")==0)
     ||(strcmp(ModeInput,"CAMHDMPEG-2")==0))
@@ -5586,9 +5626,10 @@ void EnforceValidFEC()
   char Param[7]="fec";
   char Value[7];
 
-  if ((strcmp(CurrentTXMode, TabTXMode[0]) == 0) || (strcmp(CurrentTXMode, TabTXMode[1]) == 0)) // Carrier or DVB-S
+  if ((strcmp(CurrentTXMode, TabTXMode[0]) == 0) || (strcmp(CurrentTXMode, TabTXMode[1]) == 0)
+   || (strcmp(CurrentTXMode, TabTXMode[6]) == 0)) // Carrier, DVB-S or DVB-T
   {
-    if (fec > 10)  // DVB-S2 FEC selected for DVB-S transmit mode
+    if (fec > 10)  // DVB-S2 FEC selected for DVB-S or DVB-T transmit mode
     {
       if((fec == 14) || (fec == 13) || (fec == 12)) // 1/4, 1/3, or 1/2
       {
@@ -6095,15 +6136,22 @@ void SelectInGroupOnMenu(int Menu, int StartButton, int StopButton, int NumberBu
 
 void SelectTX(int NoButton)  // TX RF Output Mode
 {
-  SelectInGroupOnMenu(CurrentMenu, 5, 6, NoButton, 1);
+  SelectInGroupOnMenu(CurrentMenu, 5, 7, NoButton, 1);
   SelectInGroupOnMenu(CurrentMenu, 0, 3, NoButton, 1);
-  if (NoButton > 3)  // Correct numbering
+  if (NoButton == 7) // DVB-T
   {
-    NoButton = NoButton - 5;
+    NoButton = 6;
   }
   else
   {
-    NoButton = NoButton + 2;
+    if (NoButton > 3)  // Correct numbering
+    {
+      NoButton = NoButton - 5;
+    }
+    else
+    {
+      NoButton = NoButton + 2;
+    }
   }
   strcpy(CurrentTXMode, TabTXMode[NoButton]);
   char Param[15]="modulation";
@@ -6440,6 +6488,33 @@ void SelectSTD(int NoButton)  // PAL or NTSC
     strcat(SetStandard, ModeSTD);
     printf("Video Standard set with command %s\n", SetStandard);
     system(SetStandard);
+  }
+}
+
+void SelectGuard(int NoButton)
+{
+  char OldGuard[7];
+
+  strcpy(OldGuard, Guard);
+  switch (NoButton)
+  {
+  case 0:                               //   Guard 1/4
+    strcpy(Guard, "4");
+    break;
+  case 1:                               //   Guard 1/8
+    strcpy(Guard, "8");
+    break;
+  case 2:                               //   Guard 1/16
+    strcpy(Guard, "16");
+    break;
+  case 3:                               //   Guard 1/32
+    strcpy(Guard, "32");
+    break;
+  }
+
+  if (strcmp(OldGuard, Guard) != 0)  // if changed, write to config file
+  {
+    SetConfigParam(PATH_PCONFIG, "guard", Guard);
   }
 }
 
@@ -8168,15 +8243,66 @@ void chopN(char *str, size_t n)
 }
 
 
+void checkTunerSettings()
+{
+  int basefreq;
+
+  // First check that an FTDI device is connected
+  if (CheckFTDI() != 0)
+  {
+    MsgBox4("No tuner connected", "Please check that you have either", "a MiniTiouner or a Knucker connected", "Touch Screen to Continue");
+    wait_touch();
+  }
+
+  if (strcmp(LMRXmode, "sat") == 0)  // Correct for Sat freqs
+  {
+    basefreq = LMRXfreq[0] - LMRXqoffset;
+  }
+  else
+  {
+    basefreq = LMRXfreq[0];
+  }
+
+  if (strcmp(RXmod, "DVB-S") == 0)  // Check DVB-S Settings
+  {
+    // Frequency
+    if ((basefreq < 143500 ) || (basefreq > 2650000))
+    {
+      MsgBox4("Receive Frequency outside normal range", "of 143.5 MHz to 2650 MHz", "Tuner may not operate", "Touch Screen to Continue");
+      wait_touch();
+    }
+    if ((LMRXsr[0] < 66 ) || (LMRXsr[0] > 8000))
+    {
+      MsgBox4("Receive SR outside normal range", "of 66 kS to 8 MS", "Tuner may not operate", "Touch Screen to Continue");
+      wait_touch();
+    }
+  }
+  else                              // Check DVB-T settings
+  {
+    // Frequency
+    if ((basefreq < 50000 ) || (basefreq > 1000000))
+    {
+      MsgBox4("Receive Frequency outside normal range", "of 50 MHz to 1000 MHz", "Tuner may not operate", "Touch Screen to Continue");
+      wait_touch();
+    }
+    if ((LMRXsr[0] > 500 ) && (LMRXsr[0] != 1000) && (LMRXsr[0] != 1700) && (LMRXsr[0] != 2000) && (LMRXsr[0] != 4000)
+                           && (LMRXsr[0] != 5000) && (LMRXsr[0] != 6000) && (LMRXsr[0] != 7000) && (LMRXsr[0] != 8000))
+    {
+      MsgBox4("Receive bandwidth outside normal range", "of < 501 kHz or 1, 1.7, 2, 4, 5, 6, 7, or 8 MHz", 
+              "Tuner may not operate", "Touch Screen to Continue");
+      wait_touch();
+    }
+  }
+}
+
+
 void LMRX(int NoButton)
 {
-  #define PATH_SCRIPT_LMRXMP "/home/pi/rpidatv/scripts/lmmp.sh 2>&1"
   #define PATH_SCRIPT_LMRXMER "/home/pi/rpidatv/scripts/lmmer.sh 2>&1"
   #define PATH_SCRIPT_LMRXUDP "/home/pi/rpidatv/scripts/lmudp.sh 2>&1"
   #define PATH_SCRIPT_LMRXOMX "/home/pi/rpidatv/scripts/lmomx.sh 2>&1"
   #define PATH_SCRIPT_LMRXVLC "/home/pi/rpidatv/scripts/lmvlc.sh" // 2>&1"
   #define PATH_SCRIPT_LMRXVLCFF "/home/pi/rpidatv/scripts/lmvlcff.sh" // 2>&1"
- // #define PATH_SCRIPT_CTVLCFF "/home/pi/rpidatv/scripts/ctvlcff.sh 2>&1"
 
   //Local parameters:
 
@@ -8194,7 +8320,7 @@ void LMRX(int NoButton)
   int SR;
   char Value[63];
 
-  // Global Paramaters:
+  // To be Global Paramaters:
 
   char status_message_char[14];
   char stat_string[255];
@@ -8221,6 +8347,8 @@ void LMRX(int NoButton)
   int FirstLock = 0;  // set to 1 on first lock, and 2 after parameter fade
   clock_t LockTime;
 
+  // DVB-T parameters
+
   char line3[31] = "";
   char line4[31] = "";
   char line5[127] = "";
@@ -8234,6 +8362,8 @@ void LMRX(int NoButton)
   char line13[31] = "";
   char line14[31] = "";
   char linex[127] = "";
+  int TunerPollCount = 0;
+  bool TunerFound = FALSE;
 
   // Set globals
   FinishedButton = 1;
@@ -8281,10 +8411,9 @@ void LMRX(int NoButton)
     }
     else
     {
-      NoButton = 6;   // VLC FF
+      NoButton = 6;   // VLC with ffmpeg
     }
   }
-
 
   switch (NoButton)
   {
@@ -8295,8 +8424,13 @@ void LMRX(int NoButton)
     printf("STARTING VLC with FFMPEG RX\n");
 
     /* Open status FIFO for read only  */
+    mkfifo("longmynd_status_fifo", 0666);
     ret = mkfifo("longmynd_status_fifo", 0666);
     fd_status_fifo = open("longmynd_status_fifo", O_RDONLY); 
+
+    // Set the status fifo to be non-blocking on empty reads
+    fcntl(fd_status_fifo, F_SETFL, O_NONBLOCK);
+
     if (fd_status_fifo < 0)
     {
       printf("Failed to open status fifo\n");
@@ -8306,14 +8440,30 @@ void LMRX(int NoButton)
     while ((FinishedButton == 1) || (FinishedButton == 2)) // 1 is captions on, 2 is off
     {
       num = read(fd_status_fifo, status_message_char, 1);
-      // printf("%s Num= %d \n", "End Read", num);
-      if (num >= 0 )
+
+      if (num < 0)  // no character to read
+      {
+        usleep(500);
+        if (TunerFound == FALSE)
+        {
+          TunerPollCount = TunerPollCount + 1;
+
+          if (TunerPollCount > 15)
+          {
+            strcpy(line5, "Waiting for MiniTiouner to Respond");
+            Text2(wscreen * 1 / 40, hscreen - 1 * linepitch, line5, font_ptr);
+            TunerPollCount = 0;
+          }
+        }
+      }
+      else // there was a character to read
       {
         status_message_char[num]='\0';
-        //if (num>0) printf("%s\n",status_message_char);
+        // if (num>0) printf("%s\n",status_message_char);
         
         if (strcmp(status_message_char, "$") == 0)
         {
+          TunerFound = TRUE;
 
           if ((stat_string[0] == '1') && (stat_string[1] == ','))  // Decoder State
           {
@@ -8617,7 +8767,7 @@ void LMRX(int NoButton)
               }
               snprintf(MERtext, 24, "MER %.1f (%.1f needed)", MER, MERThreshold);
 
-              rectangle(wscreen * 1 / 40, hscreen - 1 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
+              rectangle(wscreen * 1 / 40, hscreen - 1 * linepitch - txtdesc, wscreen * 30 / 40, txttot, 0, 0, 0);
               Text2(wscreen * 1 / 40, hscreen - 1 * linepitch, STATEtext, font_ptr);
               rectangle(wscreen * 1 / 40, hscreen - 2 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
               Text2(wscreen * 1 / 40, hscreen - 2 * linepitch, FREQtext, font_ptr);
@@ -8726,10 +8876,6 @@ void LMRX(int NoButton)
           strcat(stat_string, status_message_char);
         }
       }
-      else
-      {
-        FinishedButton = 0;
-      }
     }
     // Shutdown VLC if it has not stolen the graphics
     system("/home/pi/rpidatv/scripts/lmvlcsd.sh &");
@@ -8771,6 +8917,16 @@ void LMRX(int NoButton)
       if (num < 0)  // no character to read
       {
         usleep(500);
+        if (TunerFound == FALSE)
+        {
+          TunerPollCount = TunerPollCount + 1;
+          if (TunerPollCount > 30)
+          {
+            strcpy(line5, "Knucker Tuner Not Responding");
+            Text2(wscreen * 1 / 40, hscreen - 1 * linepitch, line5, font_ptr);
+            TunerPollCount = 0;
+          }
+        }
       }
       else // there was a character to read
       {
@@ -8784,6 +8940,7 @@ void LMRX(int NoButton)
           if (strcmp(stat_string, "[GetChipId] chip id:AVL6862") == 0)
           {
             strcpy(line5, "Found Knucker Tuner");
+            TunerFound = TRUE;
           }
           else
           {
@@ -9094,6 +9251,16 @@ void LMRX(int NoButton)
       if (num < 0)  // no character to read
       {
         usleep(500);
+        if (TunerFound == FALSE)
+        {
+          TunerPollCount = TunerPollCount + 1;
+          if (TunerPollCount > 30)
+          {
+            strcpy(line5, "Knucker Tuner Not Responding");
+            Text2(wscreen * 1 / 40, hscreen - 1 * linepitch, line5, font_ptr);
+            TunerPollCount = 0;
+          }
+        }
       }
       else // there was a character to read
       {
@@ -9107,6 +9274,7 @@ void LMRX(int NoButton)
           if (strcmp(stat_string, "[GetChipId] chip id:AVL6862") == 0)
           {
             strcpy(line5, "Found Knucker Tuner");
+            TunerFound = TRUE;
           }
           else
           {
@@ -11907,6 +12075,91 @@ void MonitorStop()
   system("sudo killall arecord >/dev/null 2>/dev/null");
 }
 
+void IPTSConfig(int NoButton)
+{
+  char RequestText[64];
+  char InitText[64];
+  char filename[63];
+  bool IsValid = FALSE;
+  char KRCopy[63];
+
+  switch (NoButton)
+  {
+  case 0:
+    while (IsValid == FALSE)
+    {
+      strcpy(RequestText, "Enter IP address for TS Out");
+      strcpyn(InitText, UDPOutAddr, 17);
+      Keyboard(RequestText, InitText, 17);
+  
+      strcpy(KRCopy, KeyboardReturn);
+      if(is_valid_ip(KRCopy) == 1)
+      {
+        IsValid = TRUE;
+      }
+    }
+    printf("UDP Out IP set to: %s\n", KeyboardReturn);
+
+    // Save IP to config file
+    SetConfigParam(PATH_PCONFIG, "udpoutaddr", KeyboardReturn);
+    strcpy(UDPOutAddr, KeyboardReturn);
+    break;
+  case 1:
+    while (IsValid == FALSE)
+    {
+      strcpy(RequestText, "Enter IP Port for TS Out");
+      strcpyn(InitText, UDPOutPort, 17);
+      Keyboard(RequestText, InitText, 17);
+  
+      strcpy(KRCopy, KeyboardReturn);
+      if(atoi(KRCopy) <= 65353)
+      {
+        IsValid = TRUE;
+      }
+    }
+    printf("UDP Port for TS Out set to: %s\n", KeyboardReturn);
+
+    // Save IP to config file
+    SetConfigParam(PATH_PCONFIG, "udpoutport", KeyboardReturn);
+    strcpy(UDPOutPort, KeyboardReturn);
+    break;
+  case 2:
+    while (IsValid == FALSE)
+    {
+      strcpy(RequestText, "Enter IP Port for TS Input");
+      strcpyn(InitText, UDPInPort, 17);
+      Keyboard(RequestText, InitText, 17);
+  
+      strcpy(KRCopy, KeyboardReturn);
+      if(atoi(KRCopy) <= 65353)
+      {
+        IsValid = TRUE;
+      }
+    }
+    printf("UDP Port for TS in set to: %s\n", KeyboardReturn);
+
+    // Save IP to config file
+    SetConfigParam(PATH_PCONFIG, "udpinport", KeyboardReturn);
+    strcpy(UDPInPort, KeyboardReturn);
+    break;
+  case 3:                            // Edit TS Filename
+    strcpy(filename, TSVideoFile);
+    chopN(filename, 23);  // cut off /home/pi/rpidatv/video/
+    strcpy(RequestText, "Enter TS filename in rpidatv/video/ folder");
+    strcpyn(InitText, filename, 31);
+    Keyboard(RequestText, InitText, 31);
+
+    strcpy(KRCopy, "/home/pi/rpidatv/video/");
+    strcat(KRCopy, KeyboardReturn);
+
+    printf("New TS filename: %s\n", KRCopy);
+
+    // Save filename config file
+    SetConfigParam(PATH_PCONFIG, "tsvideofile", KRCopy);
+    strcpy(TSVideoFile, KRCopy);
+  }
+}
+
 
 void Keyboard(char RequestText[64], char InitText[64], int MaxLength)
 {
@@ -12390,7 +12643,7 @@ void ChangeLMPresetFreq(int NoButton)
 
   // Define initial value and convert to MHz
 
-  if(LMRXfreq[FreqIndex] < 143000)  // below 143 MHz, so set to 146.5
+  if(LMRXfreq[FreqIndex] < 50000)  // below 50 MHz, so set to 146.5
   {
     strcpy(InitText, "146.5");
   }
@@ -12426,7 +12679,7 @@ void ChangeLMPresetFreq(int NoButton)
   }
 
   // Ask for new value
-  while ((CheckValue - Offset_to_Apply < 143000) || (CheckValue - Offset_to_Apply > 2600000))
+  while ((CheckValue - Offset_to_Apply < 50000) || (CheckValue - Offset_to_Apply > 2600000))
   {
     Keyboard(RequestText, InitText, 10);
     CheckValue = (int)(1000 * atof(KeyboardReturn));
@@ -13459,7 +13712,8 @@ rawY = 0;
         case 12:
           setBackColour(0, 0, 0);
           clearScreen();
-          if ((strcmp(CurrentTXMode, TabTXMode[0]) == 0) || (strcmp(CurrentTXMode, TabTXMode[1]) == 0)) // DVB-S
+          if ((strcmp(CurrentTXMode, TabTXMode[0]) == 0) || (strcmp(CurrentTXMode, TabTXMode[1]) == 0)
+           || (strcmp(CurrentTXMode, TabTXMode[6]) == 0)) // Carrier, DVB-S or DVB-T
           {
             printf("MENU 18 \n");       // FEC
             CurrentMenu=18;
@@ -13788,7 +14042,13 @@ rawY = 0;
           Start_Highlights_Menu36();
           UpdateWindow();
           break;
-        case 3:                               // 
+        case 3:                               // TS IP Config
+          printf("MENU 40 \n"); 
+          CurrentMenu=40;
+          setBackColour(0, 0, 0);
+          clearScreen();
+          Start_Highlights_Menu40();
+          UpdateWindow();
           break;
         case 4:                               // 
           break;
@@ -14286,6 +14546,7 @@ rawY = 0;
         case 1:                                           // OMXPlayer
         case 2:                                           // VLC
         case 3:                                           // UDP Output
+          checkTunerSettings();
           setBackColour(0, 0, 0);
           clearScreen();
           LMRX(i);
@@ -14374,6 +14635,27 @@ rawY = 0;
           Start_Highlights_Menu46();
           UpdateWindow();
           break;
+        case 24:                                          // Switch between S/S2 and T/T2
+          if (strcmp(RXmod, "DVB-S") == 0)
+          {
+            strcpy(RXmod, "DVB-T");
+          }
+          else
+          {
+            strcpy(RXmod, "DVB-S");
+          }
+          if (strcmp(RXmod, "DVB-S") == 0)
+          {
+            SetConfigParam(PATH_LMCONFIG, "rxmod", "dvbs");
+          }
+          else
+          {
+            SetConfigParam(PATH_LMCONFIG, "rxmod", "dvbt");
+          }
+          Start_Highlights_Menu8();
+          UpdateWindow();
+          break;
+
         default:
           printf("Menu 8 Error\n");
         }
@@ -14464,6 +14746,16 @@ rawY = 0;
           SelectTX(i);
           printf("Carrier\n");
           break;
+        case 7:                               // DVB-T
+          SelectTX(i);
+          printf("DVB-T\n");
+          CurrentMenu = 16;                  // Set the guard interval
+          printf("MENU 16 \n");              // on DVB-T selection
+          setBackColour(0, 0, 0);
+          clearScreen();
+          Start_Highlights_Menu16();
+          UpdateWindow();
+          break;
         case 0:                               // QPSK
           SelectTX(i);
           printf("S2 QPSK\n");
@@ -14492,6 +14784,8 @@ rawY = 0;
         default:
           printf("Menu 11 Error\n");
         }
+        if (i != 7)   // Skip if DVB-T guard needs to be set
+        {
         Start_Highlights_Menu11();
         UpdateWindow();
         usleep(500000);
@@ -14503,6 +14797,7 @@ rawY = 0;
         setBackColour(0, 0, 0);
         Start_Highlights_Menu1();
         UpdateWindow();
+        }
         continue;   // Completed Menu 11 action, go and wait for touch
       }
 
@@ -14707,7 +15002,7 @@ rawY = 0;
         continue;   // Completed Menu 14 action, go and wait for touch
       }
 
-      if (CurrentMenu == 15)  // Menu 15 Spare
+      if (CurrentMenu == 15)  // Menu 15 Pluto Config
       {
         printf("Button Event %d, Entering Menu 15 Case Statement\n",i);
         switch (i)
@@ -14773,57 +15068,33 @@ rawY = 0;
         continue;   // Completed Menu 15 action, go and wait for touch
       }
 
-      if (CurrentMenu == 16)  // Menu 16 Frequency
+      if (CurrentMenu == 16)  // Menu 16 Guard Interval (was frequency)
       {
         printf("Button Event %d, Entering Menu 16 Case Statement\n",i);
         switch (i)
         {
         case 4:                               // Cancel
           SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 1);
-          printf("SR Cancel\n");
+          printf("Guard Cancel\n");
           break;
-        case 0:                               // Freq 6
-        case 1:                               // Freq 7
-        case 2:                               // Freq 8
-        case 5:                               // Freq 1
-        case 6:                               // Freq 2
-        case 7:                               // Freq 3
-        case 8:                               // Freq 4
-        case 9:                               // Freq 5
-          SelectFreq(i);
-          printf("Frequency Button %d\n", i);
-          break;
-        case 3:                               // Freq 9 Direct Entry
-          ChangePresetFreq(i);
-          SelectFreq(i);
-          printf("Frequency Button %d\n", i);
+        case 0:                               //   Guard 1/4
+        case 1:                               //   Guard 1/8
+        case 2:                               //   Guard 1/16
+        case 3:                               //   Guard 1/32
+          SelectInGroupOnMenu(CurrentMenu, 0, 3, i, 1);
+          SelectGuard(i);
+          printf("Guard Interval Button %d\n", i);
           break;
         default:
           printf("Menu 16 Error\n");
         }
-        if(i != 3)  // Don't pause if frequency has been set on keyboard
-        {
-          UpdateWindow();
-          usleep(500000);
-        }
+        UpdateWindow();
+        usleep(1000000);
         SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 0); // Reset cancel (even if not selected)
-        if (CallingMenu == 1)
-        {
-          printf("Returning to MENU 1 from Menu 16\n");
-          CurrentMenu=1;
-          setBackColour(255, 255, 255);
-          clearScreen();
-          setBackColour(0, 0, 0);
-          Start_Highlights_Menu1();
-        }
-        else
-        {
-          printf("Returning to MENU 5 from Menu 16\n");
-          CurrentMenu=5;
-          setBackColour(0, 0, 0);
-          clearScreen();
-          Start_Highlights_Menu5();
-        }
+
+        printf("Returning to MENU 1 from Menu 16\n");
+        CurrentMenu=1;
+        Start_Highlights_Menu1();
         UpdateWindow();
         continue;   // Completed Menu 16 action, go and wait for touch
       }
@@ -15922,7 +16193,7 @@ rawY = 0;
           break;
         case 4:                               // Exit
           SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 1);
-          printf("Cancelling LeanDVB SDR Selection Menu\n");
+          printf("Cancelling Langstone Config Menu\n");
           UpdateWindow();
           usleep(500000);
           SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 0); // Reset cancel (even if not selected)
@@ -15939,6 +16210,44 @@ rawY = 0;
         }
         continue;   // Completed Menu 39 action, go and wait for touch
       }
+
+      if (CurrentMenu == 40)  // Menu 40 TS IP Config
+      {
+        printf("Button Event %d, Entering Menu 40 Case Statement\n",i);
+        switch (i)
+        {
+        case 0:                               // IP TS Out Address
+        case 1:                               // IP TS Out Port
+        case 2:                               // IP TS In Port
+        case 3:                               // TS Filename
+          printf("IPTS Config %d\n", i);
+          IPTSConfig(i);
+          CurrentMenu=40;
+          setBackColour(0, 0, 0);
+          clearScreen();
+          UpdateWindow();
+          break;
+        case 4:                               // Exit
+          SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 1);
+          printf("Cancelling TS IP Config Menu\n");
+          UpdateWindow();
+          usleep(500000);
+          SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 0); // Reset cancel (even if not selected)
+          printf("Returning to MENU 1 from Menu 40\n");
+          CurrentMenu = 1;
+          setBackColour(255, 255, 255);
+          clearScreen();
+          setBackColour(0, 0, 0);
+          Start_Highlights_Menu1();
+          UpdateWindow();
+          break;
+        default:
+          printf("Menu 40 Error\n");
+        }
+        continue;   // Completed Menu 40 action, go and wait for touch
+      }
+
+
 
       if (CurrentMenu == 42)  // Menu 42 Output Device
       {
@@ -17113,6 +17422,9 @@ void Define_Menu3()
   button = CreateButton(3, 2);
   AddButtonStatus(button, "WiFi^Config", &Blue);
 
+  button = CreateButton(3, 3);
+  AddButtonStatus(button, "TS IP^Config", &Blue);
+
   // 2nd line up Menu 3: Lime Config 
 
   button = CreateButton(3, 5);
@@ -17657,6 +17969,10 @@ void Define_Menu8()
   button = CreateButton(8, 23);
   AddButtonStatus(button, "Config", &Blue);
   AddButtonStatus(button, "Config", &Green);
+
+  button = CreateButton(8, 24);
+  AddButtonStatus(button, "DVB-S/S2", &Blue);
+  AddButtonStatus(button, "DVB-T/T2", &Blue);
 }
 
 
@@ -17676,12 +17992,14 @@ void Start_Highlights_Menu8()
     strcpy(MenuTitle[8], "Portsdown DVB-S/S2 Receiver Menu (8)"); 
     SetButtonStatus(ButtonNumber(CurrentMenu, 1), 0);
     SetButtonStatus(ButtonNumber(CurrentMenu, 2), 0);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 24), 0);
   }
   else
   {
     strcpy(MenuTitle[8], "Portsdown DVB-T/T2 Receiver Menu (8)"); 
     SetButtonStatus(ButtonNumber(CurrentMenu, 1), 1);
     SetButtonStatus(ButtonNumber(CurrentMenu, 2), 1);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 24), 1);
   }
 
   // Grey-out Beacon MER Button
@@ -18124,6 +18442,11 @@ void Define_Menu11()
   AddButtonStatus(button, "Carrier", &Green);
   AddButtonStatus(button, "Carrier", &Grey);
 
+  button = CreateButton(11, 7);
+  AddButtonStatus(button, "DVB-T", &Grey);
+  AddButtonStatus(button, "DVB-T", &Green);
+  AddButtonStatus(button, "DVB-T", &Grey);
+
   button = CreateButton(11, 8);
   AddButtonStatus(button, "Pilots^Off", &LBlue);
   AddButtonStatus(button, "Pilots^Off", &Green);
@@ -18145,33 +18468,38 @@ void Start_Highlights_Menu11()
   GreyOutReset11();
   if(strcmp(CurrentTXMode, TabTXMode[0])==0)
   {
-    SelectInGroupOnMenu(11, 5, 6, 5, 1);
+    SelectInGroupOnMenu(11, 5, 7, 5, 1);
     SelectInGroupOnMenu(11, 0, 3, 5, 1);
   }
   if(strcmp(CurrentTXMode, TabTXMode[1])==0)
   {
-    SelectInGroupOnMenu(11, 5, 6, 6, 1);
+    SelectInGroupOnMenu(11, 5, 7, 6, 1);
     SelectInGroupOnMenu(11, 0, 3, 6, 1);
   }
   if(strcmp(CurrentTXMode, TabTXMode[2])==0)
   {
-    SelectInGroupOnMenu(11, 5, 6, 0, 1);
+    SelectInGroupOnMenu(11, 5, 7, 0, 1);
     SelectInGroupOnMenu(11, 0, 3, 0, 1);
   }
   if(strcmp(CurrentTXMode, TabTXMode[3])==0)
   {
-    SelectInGroupOnMenu(11, 5, 6, 1, 1);
+    SelectInGroupOnMenu(11, 5, 7, 1, 1);
     SelectInGroupOnMenu(11, 0, 3, 1, 1);
   }
   if(strcmp(CurrentTXMode, TabTXMode[4])==0)
   {
-    SelectInGroupOnMenu(11, 5, 6, 2, 1);
+    SelectInGroupOnMenu(11, 5, 7, 2, 1);
     SelectInGroupOnMenu(11, 0, 3, 2, 1);
   }
   if(strcmp(CurrentTXMode, TabTXMode[5])==0)
   {
-    SelectInGroupOnMenu(11, 5, 6, 3, 1);
+    SelectInGroupOnMenu(11, 5, 7, 3, 1);
     SelectInGroupOnMenu(11, 0, 3, 3, 1);
+  }
+  if(strcmp(CurrentTXMode, TabTXMode[6])==0)
+  {
+    SelectInGroupOnMenu(11, 5, 7, 7, 1);
+    SelectInGroupOnMenu(11, 0, 3, 7, 1);
   }
   if(strcmp(CurrentPilots, "on") == 0)
   {
@@ -18450,73 +18778,29 @@ void Define_Menu16()
 {
   int button;
 
-  float TvtrFreq;
-  char Freqtext[31];
-  char Value[31];
-
-  strcpy(MenuTitle[16], "Frequency Selection Menu (16)"); 
+  strcpy(MenuTitle[16], "Select DVB-T Guard Interval Menu (16)"); 
 
   // Bottom Row, Menu 16
 
-  if ((TabBandLO[5] < 0.1) && (TabBandLO[5] > -0.1))
-  {
-    strcpy(Freqtext, FreqLabel[5]);
-  }
-  else
-  {
-    strcpy(Freqtext, "F: ");
-    strcat(Freqtext, TabFreq[5]);
-    strcat(Freqtext, "^T:");
-    TvtrFreq = atof(TabFreq[5]) + TabBandLO[CurrentBand];
-    if (TvtrFreq < 0)
-    {
-      TvtrFreq = TvtrFreq * -1;
-    }
-    snprintf(Value, 10, "%.2f", TvtrFreq);
-    strcat(Freqtext, Value);
-  }
- 
   button = CreateButton(16, 0);
-  AddButtonStatus(button, "test", &Blue);
-  AddButtonStatus(button, Freqtext, &Green);
+  AddButtonStatus(button, "Guard^1/4", &Blue);
+  AddButtonStatus(button, "Guard^1/4", &Green);
 
   button = CreateButton(16, 1);
-  AddButtonStatus(button, FreqLabel[6], &Blue);
-  AddButtonStatus(button, FreqLabel[6], &Green);
+  AddButtonStatus(button, "Guard^1/8", &Blue);
+  AddButtonStatus(button, "Guard^1/8", &Green);
 
   button = CreateButton(16, 2);
-  AddButtonStatus(button, FreqLabel[7], &Blue);
-  AddButtonStatus(button, FreqLabel[7], &Green);
+  AddButtonStatus(button, "Guard^1/16", &Blue);
+  AddButtonStatus(button, "Guard^1/16", &Green);
 
   button = CreateButton(16, 3);
-  AddButtonStatus(button, FreqLabel[8], &Blue);
-  AddButtonStatus(button, FreqLabel[8], &Green);
+  AddButtonStatus(button, "Guard^1/32", &Blue);
+  AddButtonStatus(button, "Guard^1/32", &Green);
 
   button = CreateButton(16, 4);
   AddButtonStatus(button, "Cancel", &DBlue);
   AddButtonStatus(button, "Cancel", &LBlue);
-
-  // 2nd Row, Menu 16
-
-  button = CreateButton(16, 5);
-  AddButtonStatus(button, FreqLabel[0], &Blue);
-  AddButtonStatus(button, FreqLabel[0], &Green);
-
-  button = CreateButton(16, 6);
-  AddButtonStatus(button, FreqLabel[1], &Blue);
-  AddButtonStatus(button, FreqLabel[1], &Green);
-
-  button = CreateButton(16, 7);
-  AddButtonStatus(button, FreqLabel[2], &Blue);
-  AddButtonStatus(button, FreqLabel[2], &Green);
-
-  button = CreateButton(16, 8);
-  AddButtonStatus(button, FreqLabel[3], &Blue);
-  AddButtonStatus(button, FreqLabel[3], &Green);
-
-  button = CreateButton(16, 9);
-  AddButtonStatus(button, FreqLabel[4], &Blue);
-  AddButtonStatus(button, FreqLabel[4], &Green);
 }
 
 void MakeFreqText(int index)
@@ -18570,41 +18854,26 @@ void MakeFreqText(int index)
 
 void Start_Highlights_Menu16()
 {
-  // Frequency
-  char Param[255];
-  char Value[255];
-  int index;
   int NoButton;
 
-  strcpy(MenuTitle[16], "Transmit Frequency Selection Menu (16)"); 
-
-  // Update info in memory
-  ReadPresets();
-
-  // Look up current transmit frequency for highlighting
-  strcpy(Param,"freqoutput");
-  GetConfigParam(PATH_PCONFIG, Param, Value);
-
-  for(index = 0; index < 9 ; index = index + 1)
+  if (strcmp(Guard, "4") == 0)
   {
-    // Define the button text
-    MakeFreqText(index);
-    NoButton = index + 5; // Valid for bottom row
-    if (index > 4)          // Overwrite for top row
-    {
-      NoButton = index - 5;
-    }
-
-    AmendButtonStatus(ButtonNumber(16, NoButton), 0, FreqBtext, &Blue);
-    AmendButtonStatus(ButtonNumber(16, NoButton), 1, FreqBtext, &Green);
-
-    //Highlight the Current Button
-    if((strcmp(Value, TabFreq[index]) == 0) && (CallingMenu == 1))
-    {
-      SelectInGroupOnMenu(16, 5, 9, NoButton, 1);
-      SelectInGroupOnMenu(16, 0, 3, NoButton, 1);
-    }
+    NoButton = 0;
   }
+  else if (strcmp(Guard, "8") == 0)
+  {
+    NoButton = 1;
+  }
+  else if (strcmp(Guard, "16") == 0)
+  {
+    NoButton = 2;
+  }
+  else if (strcmp(Guard, "32") == 0)
+  {
+    NoButton = 3;
+  }
+
+  SelectInGroupOnMenu(16, 0, 3, NoButton, 1);
 }
 
 void Define_Menu17()
@@ -19480,7 +19749,7 @@ void Define_Menu28()
   int button;
   int i;
 
-  strcpy(MenuTitle[28], "Symbol Rate Preset Setting Menu (28)"); 
+  strcpy(MenuTitle[28], "Symbol Rate/Bandwidth Preset Setting Menu (28)"); 
 
   // Bottom Row, Menu 28
 
@@ -20184,6 +20453,37 @@ void Start_Highlights_Menu39()
     SetButtonStatus(ButtonNumber(39, 3), 2);
   }
 }
+
+void Define_Menu40()
+{
+  int button;
+
+  strcpy(MenuTitle[40], "TS IP Configuration Menu (40)"); 
+
+  // Bottom Row, Menu 40
+
+  button = CreateButton(40, 0);
+  AddButtonStatus(button, "Edit TS Out^IP Address", &Blue);
+
+  button = CreateButton(40, 1);
+  AddButtonStatus(button,"Edit TS Out^IP Port",&Blue);
+
+  button = CreateButton(40, 2);
+  AddButtonStatus(button,"Edit TS In^IP Port",&Blue);
+
+  button = CreateButton(40, 3);
+  AddButtonStatus(button,"Edit^TS Filename",&Blue);
+
+  button = CreateButton(40, 4);
+  AddButtonStatus(button, "Exit", &DBlue);
+  AddButtonStatus(button, "Exit", &LBlue);
+}
+
+void Start_Highlights_Menu40()
+{
+  // Nothing here yet
+}
+
 
 void Define_Menu42()
 {
@@ -21112,8 +21412,9 @@ int main(int argc, char **argv)
   ReadStreamPresets();
   ReadLMRXPresets();
   ReadLangstone();
-  SetAudioLevels();
+  ReadTSConfig();
 
+  SetAudioLevels();
 
   // Initialise all the button Status Indexes to 0
   InitialiseButtons();
@@ -21158,7 +21459,7 @@ int main(int argc, char **argv)
   Define_Menu37();
   Define_Menu38();
   Define_Menu39();
-
+  Define_Menu40();
   Define_Menu41();
   Define_Menu42();
   Define_Menu43();
