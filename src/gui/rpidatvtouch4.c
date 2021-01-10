@@ -1724,9 +1724,12 @@ void ReadModeOutput(char Moutput[256])
     strcpy(Moutput, "Pluto");
     strcpy(CurrentModeOPtext, TabModeOPtext[13]);
   } 
-  else
+  else  // Possibly Ugly or IQ, so set to Lime Mini
   {
-    strcpy(Moutput, "notset");
+    strcpy(Moutput, "LimeSDR Mini");
+    strcpy(CurrentModeOPtext, TabModeOPtext[8]);
+    SetConfigParam(PATH_PCONFIG,"modeoutput", "LIMEMINI");
+    strcpy(CurrentModeOP, "LIMEMINI");
   }
 
   // Read LimeCal freq
