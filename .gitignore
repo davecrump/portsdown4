@@ -5,7 +5,6 @@
 *.o
 *.so
 *.a
-bin/*
 scripts/portsdown_config.txt
 scripts/portsdown_presets.txt
 src/adf4351/adf4351

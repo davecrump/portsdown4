@@ -268,23 +268,22 @@ make
 cp avc2ts ../rpidatv/bin/
 cd /home/pi
 
-# Get rtl_sdr
-#echo
-#echo "-----------------------------------------------"
-#echo "----- Installing RTL-SDR Drivers and Apps -----"
-#echo "-----------------------------------------------"
-#cd /home/pi
-#wget https://github.com/keenerd/rtl-sdr/archive/master.zip
-#unzip master.zip
-#mv rtl-sdr-master rtl-sdr
-#rm master.zip
+echo
+echo "-----------------------------------------------"
+echo "----- Installing RTL-SDR Drivers and Apps -----"
+echo "-----------------------------------------------"
+cd /home/pi
+wget https://github.com/keenerd/rtl-sdr/archive/master.zip
+unzip master.zip
+mv rtl-sdr-master rtl-sdr
+rm master.zip
 
-# Compile and install rtl-sdr
-#cd rtl-sdr/ && mkdir build && cd build
-#cmake ../ -DINSTALL_UDEV_RULES=ON
-#make && sudo make install && sudo ldconfig
-#sudo bash -c 'echo -e "\n# for RTL-SDR:\nblacklist dvb_usb_rtl28xxu\n" >> /etc/modprobe.d/blacklist.conf'
-#cd /home/pi
+ Compile and install rtl-sdr
+cd rtl-sdr/ && mkdir build && cd build
+cmake ../ -DINSTALL_UDEV_RULES=ON
+make && sudo make install && sudo ldconfig
+sudo bash -c 'echo -e "\n# for RTL-SDR:\nblacklist dvb_usb_rtl28xxu\n" >> /etc/modprobe.d/blacklist.conf'
+cd /home/pi
 
 # Get leandvb
 #cd /home/pi/rpidatv/src

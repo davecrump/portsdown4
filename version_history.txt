@@ -1,3 +1,10 @@
+202101090
+Add Knucker DVB-T receive capability
+Add variable longmynd timeout
+Add RTL-SDR to the installation
+Update new-build Raspios version and presets
+Configurable TS IP, port and file selections
+
 202011290
 Reduce contrast in all EasyCap modes to prevent white crushing
 

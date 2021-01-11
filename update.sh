@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Updated by davecrump 20200726 for Portsdown 4
+# Updated by davecrump 202101030 for Portsdown 4 and Knucker
 
 DisplayUpdateMsg() {
   # Delete any old update message image
@@ -347,6 +347,32 @@ if ! grep -q micgain "$PATHSCRIPT"/portsdown_config.txt; then
   sed -i -e '/^$/d' "$PATHSCRIPT"/portsdown_config.txt
   # Add the new entry and a new line 
   echo "micgain=26" >> "$PATHSCRIPT"/portsdown_config.txt
+fi
+
+# Add new parameters to config file if not included
+if ! grep -q udpoutport "$PATHSCRIPT"/portsdown_config.txt; then
+  # File needs updating
+  # Delete any blank lines first
+  sed -i -e '/^$/d' "$PATHSCRIPT"/portsdown_config.txt
+  # Add the new entry and a new line 
+  echo "udpoutport=10000" >> "$PATHSCRIPT"/portsdown_config.txt
+  echo "udpinport=10000" >> "$PATHSCRIPT"/portsdown_config.txt
+  echo "guard=32" >> "$PATHSCRIPT"/portsdown_config.txt
+fi
+
+# Add new receiver parameters to longmynd_config.txt if not included
+if ! grep -q tstimeout "$PATHSCRIPT"/longmynd_config.txt; then
+  # File needs updating
+  # Delete any blank lines first
+  sed -i -e '/^$/d' "$PATHSCRIPT"/longmynd_config.txt
+  # Add the new entry and a new line 
+  echo "tstimeout=5000" >> "$PATHSCRIPT"/longmynd_config.txt
+  echo "tstimeout1=10000" >> "$PATHSCRIPT"/longmynd_config.txt
+  echo "scanwidth=50" >> "$PATHSCRIPT"/longmynd_config.txt
+  echo "scanwidth1=50" >> "$PATHSCRIPT"/longmynd_config.txt
+  echo "chan=0" >> "$PATHSCRIPT"/longmynd_config.txt
+  echo "chan1=0" >> "$PATHSCRIPT"/longmynd_config.txt
+  echo "rxmod=dvbs" >> "$PATHSCRIPT"/longmynd_config.txt
 fi
 
 
