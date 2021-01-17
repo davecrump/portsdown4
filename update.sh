@@ -243,7 +243,21 @@ make dvb
 cp limesdr_dvb /home/pi/rpidatv/bin/
 cd /home/pi
 
-# Update LongMynd
+echo
+echo "--------------------------------"
+echo "----- Updating dvb_t_stack -----"
+echo "--------------------------------"
+cd /home/pi/rpidatv/src/dvb_t_stack/Release
+make clean
+make
+cp dvb_t_stack /home/pi/rpidatv/bin/dvb_t_stack
+
+# Install the DATV Express firmware files
+cd /home/pi/rpidatv/src/dvb_t_stack
+sudo cp datvexpress16.ihx /lib/firmware/datvexpress/datvexpress16.ihx
+sudo cp datvexpressraw16.rbf /lib/firmware/datvexpress/datvexpressraw16.rbf
+cd /home/pi
+
 echo
 echo "------------------------------------------"
 echo "----- Updating the LongMynd Receiver -----"
@@ -255,7 +269,6 @@ cd longmynd
 make
 cd /home/pi
 
-# Compile the Signal Generator
 echo
 echo "------------------------------------------"
 echo "----- Compiling the Signal Generator -----"
@@ -265,7 +278,6 @@ make
 sudo make install
 cd /home/pi
 
-# Compile adf4351
 echo
 echo "----------------------------------------"
 echo "----- Compiling the ADF4351 driver -----"
@@ -349,7 +361,7 @@ if ! grep -q micgain "$PATHSCRIPT"/portsdown_config.txt; then
   echo "micgain=26" >> "$PATHSCRIPT"/portsdown_config.txt
 fi
 
-# Add new parameters to config file if not included
+# Add new parameters to config file if not included  202101090
 if ! grep -q udpoutport "$PATHSCRIPT"/portsdown_config.txt; then
   # File needs updating
   # Delete any blank lines first
@@ -358,6 +370,15 @@ if ! grep -q udpoutport "$PATHSCRIPT"/portsdown_config.txt; then
   echo "udpoutport=10000" >> "$PATHSCRIPT"/portsdown_config.txt
   echo "udpinport=10000" >> "$PATHSCRIPT"/portsdown_config.txt
   echo "guard=32" >> "$PATHSCRIPT"/portsdown_config.txt
+fi
+
+# Add another new parameter to config file if not included  202101180
+if ! grep -q qam= "$PATHSCRIPT"/portsdown_config.txt; then
+  # File needs updating
+  # Delete any blank lines first
+  sed -i -e '/^$/d' "$PATHSCRIPT"/portsdown_config.txt
+  # Add the new entry and a new line 
+  echo "qam=qpsk" >> "$PATHSCRIPT"/portsdown_config.txt
 fi
 
 # Add new receiver parameters to longmynd_config.txt if not included

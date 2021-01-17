@@ -195,6 +195,7 @@ char KeyboardReturn[64];
 char FreqBtext[31];
 char MenuText[5][63];
 char Guard[7];
+char DVBTQAM[7];
 
 // Valid Input Modes:
 // "CAMMPEG-2", "CAMH264", "PATERNAUDIO", "ANALOGCAM" ,"CARRIER" ,"CONTEST"
@@ -1747,8 +1748,10 @@ void ReadModeOutput(char Moutput[256])
     LimeRFEState = 0;
   }
 
-  // Read DVB-T Guard Interval
+  // Read DVB-T Guard Interval and QAM
   GetConfigParam(PATH_PCONFIG, "guard", Guard);
+  GetConfigParam(PATH_PCONFIG, "qam", DVBTQAM);
+
 }
 
 /***************************************************************************//**
@@ -5921,6 +5924,11 @@ void GreyOut11()
     SetButtonStatus(ButtonNumber(CurrentMenu, 6), 2); // grey-out carrier
     SetButtonStatus(ButtonNumber(CurrentMenu, 8), 2); // grey-out Pilots on/off
     SetButtonStatus(ButtonNumber(CurrentMenu, 9), 2); // grey-out Frames long/short
+    SetButtonStatus(ButtonNumber(CurrentMenu, 7), 0); // Show DVB-T
+  }
+  else
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 7), 2); // Grey-out DVB-T
   }
 }
 
@@ -6520,6 +6528,32 @@ void SelectGuard(int NoButton)
     SetConfigParam(PATH_PCONFIG, "guard", Guard);
   }
 }
+
+void SelectQAM(int NoButton)
+{
+  char OldDVBTQAM[7];
+
+  strcpy(OldDVBTQAM, DVBTQAM);
+  switch (NoButton)
+  {
+  case 5:                               //   QPSK
+    strcpy(DVBTQAM, "qpsk");
+    break;
+  case 6:                               //   16-QAM
+    strcpy(DVBTQAM, "16qam");
+    break;
+  case 7:                               //   64-QAM
+    strcpy(DVBTQAM, "64qam");
+    break;
+  }
+
+  if (strcmp(OldDVBTQAM, DVBTQAM) != 0)  // if changed, write to config file
+  {
+    SetConfigParam(PATH_PCONFIG, "qam", DVBTQAM);
+  }
+}
+
+
 
 void ChangeBandDetails(int NoButton)
 {
@@ -7646,6 +7680,7 @@ void TransmitStop()
   system("sudo killall avc2ts >/dev/null 2>/dev/null");
   system("sudo killall sox >/dev/null 2>/dev/null");
   system("sudo killall arecord >/dev/null 2>/dev/null");
+  system("sudo killall dvb_t_stack >/dev/null 2>/dev/null");
 
   if((strcmp(ModeOutput, "IQ") == 0) || (strcmp(ModeOutput, "QPSKRF") == 0))
   {
@@ -7676,6 +7711,7 @@ void TransmitStop()
 
   // And make sure rpidatv has been stopped (required for brief transmit selections)
   system("sudo killall -9 rpidatv >/dev/null 2>/dev/null");
+  system("sudo killall -9 dvb_t_stack >/dev/null 2>/dev/null");
 
   // Ensure PTT off.  Required for carrier mode
   pinMode(GPIO_PTT, OUTPUT);
@@ -14752,7 +14788,7 @@ rawY = 0;
         case 7:                               // DVB-T
           SelectTX(i);
           printf("DVB-T\n");
-          CurrentMenu = 16;                  // Set the guard interval
+          CurrentMenu = 16;                  // Set the guard interval and QAM
           printf("MENU 16 \n");              // on DVB-T selection
           setBackColour(0, 0, 0);
           clearScreen();
@@ -14787,7 +14823,7 @@ rawY = 0;
         default:
           printf("Menu 11 Error\n");
         }
-        if (i != 7)   // Skip if DVB-T guard needs to be set
+        if (i != 7)   // Skip if DVB-T guard/QAM needs to be set
         {
           Start_Highlights_Menu11();
           UpdateWindow();
@@ -15075,7 +15111,7 @@ rawY = 0;
         printf("Button Event %d, Entering Menu 16 Case Statement\n",i);
         switch (i)
         {
-        case 4:                               // Cancel
+        case 4:                               // Cancel DVBTQAM
           SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 1);
           printf("Guard Cancel\n");
           break;
@@ -15086,6 +15122,13 @@ rawY = 0;
           SelectInGroupOnMenu(CurrentMenu, 0, 3, i, 1);
           SelectGuard(i);
           printf("Guard Interval Button %d\n", i);
+          break;
+        case 5:                               //   qpsk
+        case 6:                               //   16-QAM
+        case 7:                               //   64-QAM
+          SelectInGroupOnMenu(CurrentMenu, 5, 7, i, 1);
+          SelectQAM(i);
+          printf("DVB-T QAM Button %d\n", i);
           break;
         default:
           printf("Menu 16 Error\n");
@@ -17129,7 +17172,14 @@ void Start_Highlights_Menu1()
   strcpy(Param,"symbolrate");
   GetConfigParam(PATH_PCONFIG,Param,Value);
   printf("Value=%s %s\n",Value,"SR");
-  strcpy(SRtext, "Sym Rate^ ");
+  if (strcmp(CurrentTXMode, "DVB-T") != 0)  //not DVB-T
+  {
+    strcpy(SRtext, "Sym Rate^ ");
+  }
+  else
+  {
+    strcpy(SRtext, "Bandwidth^ ");
+  }
   strcat(SRtext, Value);
   strcat(SRtext, " ");
   AmendButtonStatus(11, 0, SRtext, &Blue);
@@ -18445,7 +18495,7 @@ void Define_Menu11()
   AddButtonStatus(button, "Carrier", &Grey);
 
   button = CreateButton(11, 7);
-  AddButtonStatus(button, "DVB-T", &Grey);
+  AddButtonStatus(button, "DVB-T", &Blue);
   AddButtonStatus(button, "DVB-T", &Green);
   AddButtonStatus(button, "DVB-T", &Grey);
 
@@ -18780,7 +18830,7 @@ void Define_Menu16()
 {
   int button;
 
-  strcpy(MenuTitle[16], "Select DVB-T Guard Interval Menu (16)"); 
+  strcpy(MenuTitle[16], "DVB-T Parameters Menu (16)"); 
 
   // Bottom Row, Menu 16
 
@@ -18801,8 +18851,23 @@ void Define_Menu16()
   AddButtonStatus(button, "Guard^1/32", &Green);
 
   button = CreateButton(16, 4);
-  AddButtonStatus(button, "Cancel", &DBlue);
-  AddButtonStatus(button, "Cancel", &LBlue);
+  AddButtonStatus(button, "Continue", &DBlue);
+  AddButtonStatus(button, "Continue", &LBlue);
+
+  // 2nd Row, Menu 16
+
+  button = CreateButton(16, 5);
+  AddButtonStatus(button, "QPSK", &Blue);
+  AddButtonStatus(button, "QPSK", &Green);
+
+  button = CreateButton(16, 6);
+  AddButtonStatus(button, "16-QAM", &Blue);
+  AddButtonStatus(button, "16-QAM", &Green);
+
+  button = CreateButton(16, 7);
+  AddButtonStatus(button, "64-QAM", &Blue);
+  AddButtonStatus(button, "64-QAM", &Green);
+
 }
 
 void MakeFreqText(int index)
@@ -18874,8 +18939,21 @@ void Start_Highlights_Menu16()
   {
     NoButton = 3;
   }
-
   SelectInGroupOnMenu(16, 0, 3, NoButton, 1);
+
+  if (strcmp(DVBTQAM, "qpsk") == 0)
+  {
+    NoButton = 5;
+  }
+  else if (strcmp(DVBTQAM, "16qam") == 0)
+  {
+    NoButton = 6;
+  }
+  else if (strcmp(DVBTQAM, "64qam") == 0)
+  {
+    NoButton = 7;
+  }
+  SelectInGroupOnMenu(16, 5, 7, NoButton, 1);
 }
 
 void Define_Menu17()
@@ -18929,12 +19007,20 @@ void Define_Menu17()
 
 void Start_Highlights_Menu17()
 {
-  // Symbol Rate
+  // Symbol Rate or Bandwidth (DVB-T)
   char Param[255];
   char Value[255];
   int SR;
 
-  strcpy(MenuTitle[17], "Transmit Symbol Rate Selection Menu (17)"); 
+  if (strcmp(CurrentTXMode, "DVB-T") != 0)  //not DVB-T
+  {
+    strcpy(MenuTitle[17], "Transmit Symbol Rate Selection Menu (17)");
+  }
+  else
+  {
+    strcpy(MenuTitle[17], "DVB-T Transmit Bandwidth Selection Menu (17)");
+  }
+
   strcpy(Param,"symbolrate");
   GetConfigParam(PATH_PCONFIG,Param,Value);
   SR=atoi(Value);
