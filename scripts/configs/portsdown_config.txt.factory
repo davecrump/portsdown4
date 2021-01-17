@@ -51,4 +51,5 @@ micgain=26
 udpoutport=10000
 udpinport=10000
 guard=32
+qam=qpsk
 

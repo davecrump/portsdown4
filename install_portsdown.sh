@@ -331,7 +331,6 @@ make
 cp dvb2iq /home/pi/rpidatv/bin/
 cd /home/pi/rpidatv/src/limesdr_toolbox/
 
-#Make 
 make 
 cp limesdr_send /home/pi/rpidatv/bin/
 cp limesdr_dump /home/pi/rpidatv/bin/
@@ -339,6 +338,21 @@ cp limesdr_stopchannel /home/pi/rpidatv/bin/
 cp limesdr_forward /home/pi/rpidatv/bin/
 make dvb
 cp limesdr_dvb /home/pi/rpidatv/bin/
+cd /home/pi
+
+echo
+echo "----------------------------------"
+echo "----- Installing dvb_t_stack -----"
+echo "----------------------------------"
+cd /home/pi/rpidatv/src/dvb_t_stack/Release
+make clean
+make
+cp dvb_t_stack /home/pi/rpidatv/bin/dvb_t_stack
+
+# Install the DATV Express firmware files
+cd /home/pi/rpidatv/src/dvb_t_stack
+sudo cp datvexpress16.ihx /lib/firmware/datvexpress/datvexpress16.ihx
+sudo cp datvexpressraw16.rbf /lib/firmware/datvexpress/datvexpressraw16.rbf
 cd /home/pi
 
 # Install LongMynd
@@ -482,6 +496,7 @@ echo "--------------------------------------"
 echo "alias menu='/home/pi/rpidatv/scripts/menu.sh menu'" >> /home/pi/.bash_aliases
 echo "alias gui='/home/pi/rpidatv/scripts/utils/guir.sh'"  >> /home/pi/.bash_aliases
 echo "alias ugui='/home/pi/rpidatv/scripts/utils/uguir.sh'"  >> /home/pi/.bash_aliases
+echo "alias udvbt='/home/pi/rpidatv/scripts/utils/udvbt.sh'"  >> /home/pi/.bash_aliases
 
 # Modify .bashrc to run startup script on ssh logon
 #cd /home/pi

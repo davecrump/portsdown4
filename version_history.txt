@@ -1,3 +1,6 @@
+202101180
+Add DVB-T transmit capability for Pluto
+
 202101090
 Add Knucker DVB-T receive capability
 Add variable longmynd timeout
