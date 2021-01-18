@@ -1216,7 +1216,7 @@ fi
 
     ############ Pluto Contest ##################################
 
-    if [ "$MODE_OUTPUT" == "PLUTO" ] && [ "$MODE_INPUT" == "CONTEST" ]; then
+    if [ "$MODE_OUTPUT" == "PLUTO" ] && [ "$MODE_INPUT" == "CONTEST" ] && [ "$MODULATION" != "DVB-T" ]; then
 
       # Delete the old numbers image
       rm /home/pi/tmp/contest.jpg >/dev/null 2>/dev/null
@@ -1252,7 +1252,7 @@ fi
     ############ Pluto Desktop ##################################
 
 
-    if [ "$MODE_OUTPUT" == "PLUTO" ] && [ "$MODE_INPUT" == "DESKTOP" ]; then
+    if [ "$MODE_OUTPUT" == "PLUTO" ] && [ "$MODE_INPUT" == "DESKTOP" ] && [ "$MODULATION" != "DVB-T" ]; then
 
       # Grab an image of the desktop
       rm /home/pi/tmp/desktop.jpg >/dev/null 2>/dev/null
