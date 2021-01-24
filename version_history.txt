@@ -1,3 +1,7 @@
+202101240
+Correct DVB-T Video Bitrate
+Display Required TS Bitrate on Info Screen
+
 202101180
 Add DVB-T transmit capability for Pluto
 

@@ -51,3 +51,27 @@ MARGIN=100           #
 let BITRATE_TS=$BITRATE_TS*$MARGIN
 let BITRATE_TS=$BITRATE_TS/100
 
+# Adjust Video bitrate  and image size based on TS Bitrate
+
+  if [ "$AUDIO_CHANNELS" != 0 ]; then                 # H264 with AAC audio
+    ARECORD_BUF=55000     # arecord buffer in us
+    BITRATE_AUDIO=24000
+    let TS_AUDIO_BITRATE=$BITRATE_AUDIO*15/10
+    let BITRATE_VIDEO=($BITRATE_TS-24000-$TS_AUDIO_BITRATE)*725/1000
+
+  else                                                # H264 or H265 no audio
+    let BITRATE_VIDEO=($BITRATE_TS-12000)*725/1000
+  fi
+
+  # Set the H264 image size
+  if [ "$BITRATE_VIDEO" -lt 190000 ]; then  # less than 333KS FEC 1/2
+    VIDEO_WIDTH=352
+    VIDEO_HEIGHT=288
+    VIDEO_FPS=25
+  fi
+  if [ "$BITRATE_VIDEO" -lt 100000 ]; then
+    VIDEO_WIDTH=160
+    VIDEO_HEIGHT=120
+  fi
+
+
