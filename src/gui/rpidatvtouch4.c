@@ -2122,6 +2122,181 @@ void GetSerNo(char SerNo[256])
 }
 
 /***************************************************************************//**
+ * @brief Calculates the TS bitrate for the current settings
+ *
+ * @param nil.  Looks up globals
+ *
+ * @return int Bitrate.  -1  indicates calculation error
+*******************************************************************************/
+
+int CalcTSBitrate()
+{
+  char Value[127] = " ";
+  float Bitrate = 0;
+  int BitrateK = 0;
+  int guard = 32;
+  int BitsPerSymbol = 2;
+  int fec = 99;
+  int fecden = 100;
+  char Constellation[15];
+  FILE *fp;
+  char BitRateCommand[255];
+
+  // Look up raw SR or bandwidth
+  GetConfigParam(PATH_PCONFIG, "symbolrate", Value);
+  BitrateK = atoi(Value);
+  Bitrate = 1000 * atof(Value);
+
+  strcpy(Value, "99");
+  GetConfigParam(PATH_PCONFIG, "fec", Value);
+  fec = atoi(Value);
+
+  if ((strcmp(CurrentTXMode, "S2QPSK") == 0) || (strcmp(CurrentTXMode, "8PSK") == 0)
+   || (strcmp(CurrentTXMode, "16APSK") == 0) || (strcmp(CurrentTXMode, "32APSK") == 0))
+  {
+    // First determine FEC parameters
+    if((fec == 14) || (fec == 13) || (fec == 12)) // 1/4, 1/3, or 1/2
+    {
+      fecden = fec - 10;
+      fec = 1;
+    }
+    else if (fec == 23)
+    {
+      fec = 2;
+      fecden = 3;
+    }
+    else if ((fec == 34) || (fec == 35))
+    {
+      fecden = fec - 30;
+      fec = 3;
+    }
+    else if (fec == 56)
+    {
+      fec = 5;
+      fecden = 6;
+    }
+    else if (fec == 89)
+    {
+      fec = 8;
+      fecden = 9;
+    }
+    else if (fec == 91)
+    {
+      fec = 9;
+      fecden = 10;
+    }
+    else
+    {
+      return -1; // invalid FEC
+    }
+
+    // Now determine Bits per symbol
+    if (strcmp(CurrentTXMode, "S2QPSK") == 0)
+    {
+      strcpy(Constellation, "QPSK");
+    }
+    else if (strcmp(CurrentTXMode, "8PSK") == 0)
+    {
+      strcpy(Constellation, "8PSK");
+    }
+    else if (strcmp(CurrentTXMode, "16APSK") == 0)
+    {
+      strcpy(Constellation, "16APSK");
+    }
+    else if (strcmp(CurrentTXMode, "32APSK") == 0)
+    {
+      strcpy(Constellation, "32APSK");
+    }
+
+    strcpy(BitRateCommand, "/home/pi/rpidatv/bin/dvb2iq");
+    snprintf(Value, 15, " -s %d", BitrateK);
+    strcat(BitRateCommand, Value);
+    snprintf(Value, 63, " -f %d/%d -d -r 2 -m DVBS2", fec, fecden);
+    strcat(BitRateCommand, Value);
+    snprintf(Value, 63, " -c %s", Constellation);
+    strcat(BitRateCommand, Value);
+
+    //printf("Command is %s\n", BitRateCommand);
+
+    fp = popen(BitRateCommand, "r");
+    if (fp == NULL)
+    {
+      printf("Failed to run command\n" );
+      exit(1);
+    }
+
+    while (fgets(Value, 10, fp) != NULL)
+    {
+      //printf("Calculated DVB-S2 bitrate is: %s", Value);
+    }
+    pclose(fp);
+    return atoi(Value);  
+  }
+
+  if (strcmp(CurrentTXMode, "DVB-S") == 0)
+  {
+    // bitrate = SR * 2 * FEC * 188 / 204
+
+    if ((fec == 1) || (fec == 2) || (fec == 3) || (fec == 5) || (fec ==7))  // valid FEC
+    {
+      Bitrate = Bitrate *  2 * fec *    188 ;       // top line
+      Bitrate = Bitrate /  ((fec + 1) * 204);       // bottom line    
+    }
+    else
+    {
+      return -1;
+    }
+  }
+
+  if (strcmp(CurrentTXMode, "DVB-T") == 0)
+  {
+    // bitrate = 423/544 * bandwidth * FEC * (bits per symbol) * (Guard Factor)
+
+    if (strcmp(DVBTQAM, "qpsk") == 0)
+    {
+      BitsPerSymbol = 2;
+    }
+    if (strcmp(DVBTQAM, "16qam") == 0)
+    {
+      BitsPerSymbol = 4;
+    }
+    if (strcmp(DVBTQAM, "64qam") == 0)
+    {
+      BitsPerSymbol = 6;
+    }
+
+    if (strcmp(Guard, "4") == 0)
+    {
+      guard = 4;
+    }
+    if (strcmp(Guard, "8") == 0)
+    {
+      guard = 8;
+    }
+    if (strcmp(Guard, "16") == 0)
+    {
+      guard = 16;
+    }
+    if (strcmp(Guard, "32") == 0)
+    {
+      guard = 32;
+    }
+
+    if ((fec == 1) || (fec == 2) || (fec == 3) || (fec == 5) || (fec ==7))  // valid FEC
+    {
+      Bitrate = Bitrate *  423 * fec * BitsPerSymbol * guard;       // top line
+      Bitrate = Bitrate / (544 * (fec + 1)       *   (guard + 1));  // bottom line    
+    }
+    else
+    {
+      return -1;
+    }
+  } 
+  return (int)Bitrate;
+}
+
+
+/***************************************************************************//**
  * @brief Looks up the Audio Input Devices
  *
  * @param DeviceName1 and DeviceName2 (str) First 40 char of device names
@@ -11303,6 +11478,9 @@ void InfoScreen()
   char Device2[255]=" ";
   GetDevices(Device1, Device2);
 
+  char BitRate[255];
+  sprintf(BitRate, "TS Bitrate Required = %d", CalcTSBitrate());
+
   // Initialise and calculate the text display
   setForeColour(255, 255, 255);    // White text
   setBackColour(0, 0, 0);          // on Black
@@ -11348,7 +11526,10 @@ void InfoScreen()
   linenumber = linenumber + 1;
 
   Text2(wscreen/25, hscreen - linenumber * linepitch, Device2, font_ptr);
-  linenumber = linenumber + 2;
+  linenumber = linenumber + 1;
+
+  Text2(wscreen/25, hscreen - linenumber * linepitch, BitRate, font_ptr);
+  linenumber = linenumber + 1;
 
   TextMid2(wscreen / 2, hscreen - linenumber * linepitch, "Touch Screen to Continue", font_ptr);
 
@@ -21381,8 +21562,6 @@ terminate(int dummy)
   system(Commnd);
   sprintf(Commnd,"reset");
   system(Commnd);
-  //system("sudo swapoff -a");
-  //system("sudo swapon -a");
   exit(1);
 }
 
@@ -21580,11 +21759,9 @@ int main(int argc, char **argv)
   setBackColour(255, 255, 255);          // White background
   clearScreen();
 
-  // Determine button highlights
+  // Display Menu 1
   Start_Highlights_Menu1();
-  printf("Entering Update Window\n");  
   UpdateWindow();
-  printf("Update Window\n");
 
   // Go and wait for the screen to be touched
   waituntil(wscreen,hscreen);
