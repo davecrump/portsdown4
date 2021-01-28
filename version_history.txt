@@ -1,9 +1,12 @@
-202101240
-Correct DVB-T Video Bitrate
-Display Required TS Bitrate on Info Screen
-
-202101180
+202101310
 Add DVB-T transmit capability for Pluto
+New builds based on Raspios 2021-01-11
+Update Limesuite Version
+Tidy LimeFPGA builds and add Calibration Warning
+Display Required TS Bitrate on Info Screen
+Display C920 type on Info Screen
+Add selection of TS Video Channel on Receive
+Improve Jetson HDMI video quality
 
 202101090
 Add Knucker DVB-T receive capability

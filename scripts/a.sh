@@ -1990,8 +1990,9 @@ case "$MODE_OUTPUT" in
 
   AUDIO_BITRATE=20000
   let TS_AUDIO_BITRATE=AUDIO_BITRATE*14/10
-  # let VIDEOBITRATE=(BITRATE_TS-12000-TS_AUDIO_BITRATE)*650/1000    # Evariste
-  let VIDEOBITRATE=(BITRATE_TS-12000-TS_AUDIO_BITRATE)*600/1000  # Mike
+  # let VIDEOBITRATE=(BITRATE_TS-12000-TS_AUDIO_BITRATE)*650/1000  # Evariste
+  # let VIDEOBITRATE=(BITRATE_TS-12000-TS_AUDIO_BITRATE)*600/1000  # Mike
+  let VIDEOBITRATE=(BITRATE_TS-12000-TS_AUDIO_BITRATE)*750/1000  # dave
   let VIDEOPEAKBITRATE=VIDEOBITRATE*110/100
 
   echo
@@ -2018,7 +2019,7 @@ case "$MODE_OUTPUT" in
       cd ~/dvbsdr/scripts
       gst-launch-1.0 udpsrc address=$LKVUDP port=$LKVPORT \
         '!' video/mpegts '!' tsdemux name=dem dem. '!' queue '!' h264parse '!' omxh264dec \
-        '!' nvvidconv \
+        '!' nvvidconv interpolation-method=2 \
         '!' 'video/x-raw(memory:NVMM), width=(int)$VIDEO_WIDTH, height=(int)$VIDEO_HEIGHT, format=(string)I420' \
         '!' omxh265enc control-rate=2 bitrate=$VIDEOBITRATE peak-bitrate=$VIDEOPEAKBITRATE preset-level=3 iframeinterval=100 \
         '!' 'video/x-h265,stream-format=(string)byte-stream' '!' mux. dem. '!' queue \
@@ -2122,7 +2123,7 @@ EOM
       cd ~/dvbsdr/scripts
       gst-launch-1.0 udpsrc address=$LKVUDP port=$LKVPORT \
         '!' video/mpegts '!' tsdemux name=dem dem. '!' queue '!' h264parse '!' omxh264dec \
-        '!' nvvidconv \
+        '!' nvvidconv interpolation-method=2 \
         '!' 'video/x-raw(memory:NVMM), width=(int)$VIDEO_WIDTH, height=(int)$VIDEO_HEIGHT, format=(string)I420' \
         '!' omxh264enc vbv-size=15 control-rate=2 bitrate=$VIDEOBITRATE peak-bitrate=$VIDEOPEAKBITRATE \
         insert-sps-pps=1 insert-vui=1 cabac-entropy-coding=1 preset-level=3 profile=8 iframeinterval=100 \

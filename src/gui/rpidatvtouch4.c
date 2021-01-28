@@ -1152,10 +1152,10 @@ void ExecuteUpdate(int NoButton)
 
 void LimeFWUpdate(int button)
 {
-  // Portsdown 4 and selectable FW.  0 = 1.29. 1 = 1.30, 2 = Custom
+  // Portsdown 4 and selectable FW.  1 = 1.30, 2 = Custom (0 was 1.29, but no more)
   if (CheckLimeUSBConnect() == 0)
   {
-    MsgBox4("Upgrading Lime USB", "To latest standard", "Using LimeUtil 19.04", "Please Wait");
+    MsgBox4("Upgrading Lime USB", "To latest standard", "Using LimeUtil 20.10", "Please Wait");
     system("LimeUtil --update");
     usleep(250000);
     MsgBox4("Upgrade Complete", " ", "Touch Screen to Continue" ," ");
@@ -1164,21 +1164,9 @@ void LimeFWUpdate(int button)
   {
     switch (button)
     {
-    case 0:
-      MsgBox4("Upgrading Lime Firmware", "to 1.29", " ", " ");
-      system("sudo LimeUtil --fpga=/home/pi/.local/share/LimeSuite/images/19.01/LimeSDR-Mini_HW_1.2_r1.29.rpd");
-      if (LimeGWRev() == 29)
-      {
-        MsgBox4("Firmware Upgrade Successful", "Now at Gateware 1.29", "Touch Screen to Continue" ," ");
-      }
-      else
-      {
-        MsgBox4("Firmware Upgrade Unsuccessful", "Further Investigation required", "Touch Screen to Continue" ," ");
-      }
-      break;
     case 1:
       MsgBox4("Upgrading Lime Firmware", "to 1.30", " ", " ");
-      system("sudo LimeUtil --fpga=/home/pi/.local/share/LimeSuite/images/19.04/LimeSDR-Mini_HW_1.2_r1.30.rpd");
+      system("sudo LimeUtil --fpga=/home/pi/.local/share/LimeSuite/images/20.10/LimeSDR-Mini_HW_1.2_r1.30.rpd");
       if (LimeGWRev() == 30)
       {
         MsgBox4("Firmware Upgrade Successful", "Now at Gateware 1.30", "Touch Screen to Continue" ," ");
@@ -2527,6 +2515,9 @@ int CheckC920()
     exit(1);
   }
 
+  // Response is /dev/videox if present, null if not
+  // So, if there is a response, return 1.
+
   /* Read the output a line at a time - output it. */
   while (fgets(response_line, 250, fp) != NULL)
   {
@@ -2539,6 +2530,62 @@ int CheckC920()
   pclose(fp);
   return 0;
 }
+
+/***************************************************************************//**
+ * @brief Checks the type of C920 Webcam
+ *
+ * @param nil
+ *
+ * @return 0 if not connected, 1 if old with H264 Encoder and 2 if new without encoder
+*******************************************************************************/
+
+int CheckC920Type()
+{
+  FILE *fp;
+  char response_line[255];
+
+  // lsusb response is Bus 00x Device 00x: ID 046d:082d Logitech, Inc. HD Pro Webcam C920 (old)
+  // or          Bus 001 Device 00x: ID 046d:0892 Logitech, Inc. OrbiCam            (new)
+  // or null
+
+  fp = popen("lsusb | grep '046d:082d'", "r");
+  if (fp == NULL)
+  {
+    printf("Failed to run command\n" );
+    exit(1);
+  }
+
+  /* Read the output a line at a time - output it. */
+  while (fgets(response_line, 250, fp) != NULL)
+  {
+    if (strlen(response_line) > 1)
+    {
+      pclose(fp);
+      return 1;
+    }
+  }
+
+  fp = popen("lsusb | grep '046d:0892'", "r");
+  if (fp == NULL)
+  {
+    printf("Failed to run command\n" );
+    exit(1);
+  }
+
+  /* Read the output a line at a time - output it. */
+  while (fgets(response_line, 250, fp) != NULL)
+  {
+    if (strlen(response_line) > 1)
+    {
+      pclose(fp);
+      return 2;
+    }
+  }
+  pclose(fp);
+  return 0;
+}
+
+
 
 /***************************************************************************//**
  * @brief Initialises all the GPIOs at startup
@@ -3442,7 +3489,7 @@ void ChangeLMChan()
     strcpyn(InitText, LMChan, 10);
     Keyboard(RequestText, InitText, 10);
   
-    if((atoi(KeyboardReturn) >= 0) && (atoi(KeyboardReturn) <= 9))
+    if((atoi(KeyboardReturn) >= 0) && (atoi(KeyboardReturn) <= 64000))
     {
       IsValid = TRUE;
     }
@@ -11481,6 +11528,16 @@ void InfoScreen()
   char BitRate[255];
   sprintf(BitRate, "TS Bitrate Required = %d", CalcTSBitrate());
 
+  if (CheckC920Type() == 1)
+  {
+    strcat(BitRate, "  Webcam: C920 (with H264 Encoder)");
+  }
+
+  if (CheckC920Type() == 2)
+  {
+    strcat(BitRate, "  Webcam: C920 (no H264 encoder)");
+  }
+
   // Initialise and calculate the text display
   setForeColour(255, 255, 255);    // White text
   setBackColour(0, 0, 0);          // on Black
@@ -12902,7 +12959,7 @@ void ChangeLMPresetFreq(int NoButton)
   while ((CheckValue - Offset_to_Apply < 50000) || (CheckValue - Offset_to_Apply > 2600000))
   {
     Keyboard(RequestText, InitText, 10);
-    CheckValue = (int)(1000 * atof(KeyboardReturn));
+    CheckValue = (int)((1000 * atof(KeyboardReturn)) + 0.1);
     printf("CheckValue = %d Offset = %d\n", CheckValue, Offset_to_Apply);
   }
 
@@ -13474,7 +13531,10 @@ void ControlLimeCal()
   if (LimeCalFreq < -1.5)  // Currently at Never Calibrate, so put to Cal if needed
   {
     LimeCalFreq = 0;  // Cal if needed
-    SetConfigParam(PATH_LIME_CAL, "limecalfreq", "0.0");   
+    SetConfigParam(PATH_LIME_CAL, "limecalfreq", "0.0");
+    MsgBox4("WARNING!", "Lime will calibrate on next TX selection", "but not after that, unless needed",
+      "Touch Screen to continue");
+    wait_touch();
   }
   else if (LimeCalFreq < -0.5) // Currently at Always calibrate so put to Never
   {
@@ -16276,7 +16336,6 @@ rawY = 0;
         printf("Button Event %d, Entering Menu 37 Case Statement\n",i);
         switch (i)
         {
-        case 0:                               // Lime FW Update 1.29
         case 1:                               // Lime FW Update 1.30
         case 2:                               // Lime FW Update DVB
           printf("Lime Firmware Update %d\n", i);
@@ -16322,6 +16381,7 @@ rawY = 0;
         case 7:                               // Display Lime Report Page
           LimeMiniTest();
           wait_touch();
+          system("/home/pi/rpidatv/bin/limesdr_stopchannel"); // reset Lime
           setBackColour(0, 0, 0);
           clearScreen();
           UpdateWindow();
@@ -20580,9 +20640,9 @@ void Define_Menu37()
 
   // Bottom Row, Menu 37
 
-  button = CreateButton(37, 0);
-  AddButtonStatus(button, "Update to^FW 1.29", &Blue);
-  AddButtonStatus(button, "Update to^FW 1.29", &Green);
+  //button = CreateButton(37, 0);
+  //AddButtonStatus(button, "Update to^FW 1.29", &Blue);
+  //AddButtonStatus(button, "Update to^FW 1.29", &Green);
 
   button = CreateButton(37, 1);
   AddButtonStatus(button, "Update to^FW 1.30", &Blue);
@@ -21221,7 +21281,7 @@ void Define_Menu46()
   AddButtonStatus(button, "Tuner Scan^Width", &Grey);
 
   button = CreateButton(46, 12);
-  AddButtonStatus(button, "TS Video^Channel", &Grey);
+  AddButtonStatus(button, "TS Video^Channel", &Blue);
   AddButtonStatus(button, "TS Video^Channel", &Grey);
 
   button = CreateButton(46, 13);

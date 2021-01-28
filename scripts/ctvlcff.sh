@@ -32,6 +32,8 @@ FREQ_KHZ_T=$(get_config_var freq1 $RCONFIGFILE)
 RX_MODE=$(get_config_var mode $RCONFIGFILE)
 Q_OFFSET=$(get_config_var qoffset $RCONFIGFILE)
 AUDIO_OUT=$(get_config_var audio $RCONFIGFILE)
+CHAN=$(get_config_var chan $RCONFIGFILE)
+CHAN_T=$(get_config_var chan1 $RCONFIGFILE)
 
 # Correct for LNB LO Frequency if required
 if [ "$RX_MODE" == "sat" ]; then
@@ -40,6 +42,7 @@ else
   FREQ_KHZ=$FREQ_KHZ_T
   SYMBOLRATEK=$SYMBOLRATEK_T
   INPUT_SEL=$INPUT_SEL_T
+  CHAN=$CHAN_T
 fi
 
 # Send audio to the correct port
@@ -53,6 +56,12 @@ if [ "$AUDIO_OUT" == "rpi" ]; then
   fi
 else
   AUDIO_DEVICE="hw:CARD=Device,DEV=0"
+fi
+
+# Select the correct channel in the stream
+PROG=" "
+if [ "$CHAN" != "0" ] && [ "$CHAN" != "" ]; then
+  PROG="--program "$CHAN
 fi
 
 # Create dummy marquee overlay file
@@ -85,7 +94,7 @@ mkfifo longmynd_status_fifo
 stdbuf -oL /home/pi/rpidatv/bin/CombiTunerExpress -m dvbt -f $FREQ_KHZ -b $SYMBOLRATEK >>longmynd_status_fifo 2>/dev/null &
 
 # Start VLC
-cvlc -I rc --rc-host 127.0.0.1:1111 --codec ffmpeg -f --video-title-timeout=100 \
+cvlc -I rc --rc-host 127.0.0.1:1111 $PROG --codec ffmpeg -f --video-title-timeout=100 \
   --width 800 --height 480 \
   --sub-filter marq --marq-x 25 --marq-file "/home/pi/tmp/vlc_overlay.txt" \
   --gain 3 --alsa-audio-device $AUDIO_DEVICE \
