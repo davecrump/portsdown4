@@ -1,4 +1,4 @@
-Updated 16 January 2021 DGC
+Updated 28 January 2021 DGC
 
 During install or update, some binaries are downloaded from github, and some
 are compiled from source.  Details:
@@ -8,6 +8,8 @@ adf4351 is compiled from adf4351.c
 avc2ts is compiled from /home/pi/avc2ts
 
 CombiTunerExpress is downloaded
+
+dvb_t_stack is compiled
 
 dvb2iq is compiled
 
