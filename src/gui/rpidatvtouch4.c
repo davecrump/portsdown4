@@ -376,7 +376,7 @@ static void cleanexit(int);
 int LimeGWRev();
 void LMRX(int);
 void MakeFreqText(int);
-
+void IPTSConfig(int);
 
 
 /***************************************************************************//**
@@ -3471,6 +3471,7 @@ void ChangeLMChan()
   char InitText[64];
   bool IsValid = FALSE;
   char LMChan[7];
+  char IntCheck[64];
 
   //  Retrieve (1 char) Current Sat or Terr channel from Config file
   if (strcmp(LMRXmode, "sat") == 0)
@@ -3488,10 +3489,19 @@ void ChangeLMChan()
   {
     strcpyn(InitText, LMChan, 10);
     Keyboard(RequestText, InitText, 10);
-  
-    if((atoi(KeyboardReturn) >= 0) && (atoi(KeyboardReturn) <= 64000))
+
+    if(strcmp(KeyboardReturn, "") == 0)  // Set null to 0
     {
-      IsValid = TRUE;
+      strcpy(KeyboardReturn, "0");
+    }
+
+    snprintf(IntCheck, 9, "%d", atoi(KeyboardReturn));
+    if(strcmp(IntCheck, KeyboardReturn) == 0)           // Check answer is an integer
+    {
+      if((atoi(KeyboardReturn) >= 0) && (atoi(KeyboardReturn) <= 64000))
+      {
+        IsValid = TRUE;
+      }
     }
   }
   printf("Video Channel %s selected\n", KeyboardReturn);
@@ -5511,48 +5521,60 @@ void ApplyTXConfig()
   }
   else if (strcmp(CurrentModeOP, "PLUTO") == 0) //          PLUTO Modes
   {
-    if (strcmp(CurrentEncoding, "MPEG-2") == 0)
+ printf("Pluto Modes\n");
+    if (strcmp(CurrentEncoding, "IPTS in") == 0)
     {
-      MsgBox2("MPEG-2 encoding not available with Pluto"
-            , "Selecting H264");
-      wait_touch();
-      strcpy(CurrentEncoding, "H264");
-      SetConfigParam(PATH_PCONFIG, "encoding", CurrentEncoding);
+      strcpy(ModeInput, "IPTSIN");
     }
-    if (strcmp(CurrentSource, "HDMI") == 0)
+    else if (strcmp(CurrentEncoding, "TS File") == 0)
     {
-      strcpy(ModeInput, "HDMI");
+      strcpy(ModeInput, "FILETS");
     }
-    else if (strcmp(CurrentSource, "CompVid") == 0)
+
+    if ((strcmp(CurrentEncoding, "IPTS in") != 0) 
+    &&  (strcmp(CurrentEncoding, "TS File") != 0))     // Only check if not IPTS, or not TS File input
     {
-      strcpy(ModeInput, "ANALOGCAM");
-    }
-    else if (strcmp(CurrentSource, "Pi Cam") == 0)
-    {
-      strcpy(ModeInput, "CAMH264");
-    }
-    else if (strcmp(CurrentSource, "Webcam") == 0)
-    {
-      strcpy(ModeInput, "WEBCAMH264");
-    }
-    else if (strcmp(CurrentSource, "TestCard") == 0)
-    {
-      strcpy(ModeInput, "CARDH264");
-    }
-    else if (strcmp(CurrentSource, "PiScreen") == 0)
-    {
-      strcpy(ModeInput, "DESKTOP");
-    }
-    else if (strcmp(CurrentSource, "Contest") == 0)
-    {
-      strcpy(ModeInput, "CONTEST");
-    }
-    else                             // Default
-    {
-      strcpy(ModeInput, "CARDH264");
+      if (strcmp(CurrentEncoding, "MPEG-2") == 0)
+      {
+        MsgBox2("MPEG-2 encoding not available with Pluto", "Selecting H264");
+        wait_touch();
+        strcpy(CurrentEncoding, "H264");
+        SetConfigParam(PATH_PCONFIG, "encoding", CurrentEncoding);
+      }
+      if (strcmp(CurrentSource, "HDMI") == 0)
+      {
+        strcpy(ModeInput, "HDMI");
+      }
+      else if (strcmp(CurrentSource, "CompVid") == 0)
+      {
+        strcpy(ModeInput, "ANALOGCAM");
+      }
+      else if (strcmp(CurrentSource, "Pi Cam") == 0)
+      {
+        strcpy(ModeInput, "CAMH264");
+      }
+      else if (strcmp(CurrentSource, "Webcam") == 0)
+      {
+        strcpy(ModeInput, "WEBCAMH264");
+      }
+      else if (strcmp(CurrentSource, "TestCard") == 0)
+      {
+        strcpy(ModeInput, "CARDH264");
+      }
+      else if (strcmp(CurrentSource, "PiScreen") == 0)
+      {
+        strcpy(ModeInput, "DESKTOP");
+      }
+      else if (strcmp(CurrentSource, "Contest") == 0)
+      {
+        strcpy(ModeInput, "CONTEST");
+      }
+      else                             // Default
+      {
+        strcpy(ModeInput, "CARDH264");
+      }
     }
   }
-
   else  // For all modes except Carrier, Jetson, Pluto and Streaming
   {
     if (strcmp(CurrentEncoding, "IPTS in") == 0)
@@ -6425,10 +6447,26 @@ void SelectFrames()  // Toggle frames long/short
 void SelectEncoding(int NoButton)  // Encoding
 {
   SelectInGroupOnMenu(CurrentMenu, 5, 9, NoButton, 1);
-  strcpy(CurrentEncoding, TabEncoding[NoButton - 5]);
-  char Param[15]="encoding";
-  SetConfigParam(PATH_PCONFIG, Param, CurrentEncoding);
 
+  // Encoding is stored as modeinput, so deal with IPTS in and TS File first
+
+  if (NoButton == 8)       // IPTS in 
+  {
+    SetConfigParam(PATH_PCONFIG, "modeinput", "IPTSIN");
+    strcpy(CurrentEncoding, "IPTS in");
+  }
+  else if (NoButton == 9) // TS File  
+  {
+    SetConfigParam(PATH_PCONFIG, "modeinput", "FILETS");
+    strcpy(CurrentEncoding, "TS File");
+    IPTSConfig(3);       // and confirm source file
+  }
+  else                   // MPEG-2, H264 or H265
+  {
+    strcpy(CurrentEncoding, TabEncoding[NoButton - 5]);
+    char Param[15]="encoding";
+    SetConfigParam(PATH_PCONFIG, Param, CurrentEncoding);
+  }
   ApplyTXConfig();
 }
 
@@ -7767,8 +7805,9 @@ void TransmitStart()
   GetConfigParam(PATH_PCONFIG,Param,Value);
   strcpy(ModeInput,Value);
 
-  // If Pi Cam source, clear the screen
-  if (strcmp(CurrentSource, "Pi Cam") == 0)
+  // If Pi Cam source, and not IPTS or TS File input, clear the screen
+  if ((strcmp(CurrentSource, "Pi Cam") == 0) && (strcmp(CurrentEncoding, "IPTS in") != 0)
+   && (strcmp(CurrentEncoding, "TS File") != 0))
   {
     setBackColour(0, 0, 0);
     clearScreen();
@@ -7806,7 +7845,6 @@ void TransmitStart()
   }
 
   // Check if non-display input mode selected.  If so, turn off response to buttons.
-  // Added || (strcmp(ModeInput,"PATERNAUDIO") == 0) in 201811170
 
   if ((strcmp(ModeInput,"ANALOGCAM") == 0)
     || (strcmp(ModeInput,"PATERNAUDIO") == 0)
@@ -7828,12 +7866,14 @@ void TransmitStart()
     ||(strcmp(ModeInput,"JPC") == 0)
     ||(strcmp(ModeInput,"JWEBCAM") == 0)
     ||(strcmp(ModeInput,"JCARD") == 0)
-    ||(strcmp(ModeInput,"HDMI") == 0))
+    ||(strcmp(ModeInput,"HDMI") == 0)
+    ||(strcmp(CurrentEncoding, "TS File") == 0)
+    ||(strcmp(CurrentEncoding, "IPTS in") == 0))
   {
      strcpy(ScreenState, "TXwithMenu");
   }
 
-  // Run the Extrascript for TX start
+  // Run the Extra script for TX start
   system("/home/pi/rpidatv/scripts/TXstartextras.sh &");
 
   // Call a.sh to transmit
@@ -12426,14 +12466,16 @@ void IPTSConfig(int NoButton)
     strcpyn(InitText, filename, 31);
     Keyboard(RequestText, InitText, 31);
 
-    strcpy(KRCopy, "/home/pi/rpidatv/video/");
-    strcat(KRCopy, KeyboardReturn);
+    if(strcmp(InitText, KeyboardReturn) != 0) // Filename has changed
+    {
+      strcpy(KRCopy, "/home/pi/rpidatv/video/");
+      strcat(KRCopy, KeyboardReturn);
+      printf("New TS filename: %s\n", KRCopy);
 
-    printf("New TS filename: %s\n", KRCopy);
-
-    // Save filename config file
-    SetConfigParam(PATH_PCONFIG, "tsvideofile", KRCopy);
-    strcpy(TSVideoFile, KRCopy);
+      // Save filename to config file
+      SetConfigParam(PATH_PCONFIG, "tsvideofile", KRCopy);
+      strcpy(TSVideoFile, KRCopy);
+    }
   }
 }
 
@@ -17579,9 +17621,18 @@ void Start_Highlights_Menu1()
   // Video Source Button 19
 
   char Sourcetext[255];
+  char SourceFile[63];
   strcpy(Sourcetext, "Source^");
-  strcat(Sourcetext, CurrentSource);
-  //strcat(Sourcetext, " ");
+  if (strcmp(CurrentEncoding, "TS File") == 0)
+  {
+    strcpy(SourceFile, TSVideoFile);
+    chopN(SourceFile, 23);              // cut off /home/pi/rpidatv/video/
+    strcat(Sourcetext, SourceFile);
+  }
+  else
+  {
+    strcat(Sourcetext, CurrentSource);
+  }
   AmendButtonStatus(19, 0, Sourcetext, &Blue);
   AmendButtonStatus(19, 1, Sourcetext, &Green);
   AmendButtonStatus(19, 2, Sourcetext, &Grey);

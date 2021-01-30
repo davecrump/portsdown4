@@ -1400,6 +1400,10 @@ fi
 # *********************************** TRANSPORT STREAM INPUT THROUGH IP ******************************************
 
   "IPTSIN")
+
+    # Turn off the viewfinder (which would show Pi Cam)
+    v4l2-ctl --overlay=0
+
     if [ "$MODULATION" != "DVB-T" ]; then
       # Set up means to transport of stream out of unit
       case "$MODE_OUTPUT" in
@@ -1415,15 +1419,11 @@ fi
           -t "$FREQ_OUTPUT"e6 -g $LIME_GAINF -q $CAL $CUSTOM_FPGA -D $DIGITAL_GAIN -e $BAND_GPIO $LIMETYPE &
         ;;
         "PLUTO")
-        #rpidatv/bin/ffmpeg -thread_queue_size 2048 \
-        #  -f v4l2 -input_format $INPUT_FORMAT -video_size "$VIDEO_WIDTH"x"$VIDEO_HEIGHT" \
-        #  -i $VID_WEBCAM \
-        #  -f alsa -thread_queue_size 2048 -ac $AUDIO_CHANNELS -ar $AUDIO_SAMPLE \
-        #  -i hw:$AUDIO_CARD_NUMBER,0 \
-        #  -c:v h264_omx -b:v $BITRATE_VIDEO -g 25 \
-        #  -ar 22050 -ac $AUDIO_CHANNELS -ab 64k \
-        #  -f flv \
-        #  rtmp://pluto.local:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,-$PLUTOPWR,nocalib,800,32,/,$CALL, &
+        rpidatv/bin/ffmpeg -thread_queue_size 2048 \
+          -i udp://:@:"$UDPINPORT"?fifo_size=1000000"&"overrun_nonfatal=1 -c:v copy -c:a copy \
+          -f flv \
+          rtmp://pluto.local:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,-$PLUTOPWR,nocalib,800,32,/,$CALL, &
+        exit
         ;;
         *)
           sudo $PATHRPI"/rpidatv" -i videots -s $SYMBOLRATE_K -c $FECNUM"/"$FECDEN -f $FREQUENCY_OUT -p $GAIN -m $MODE -x $PIN_I -y $PIN_Q &
@@ -1446,6 +1446,10 @@ fi
   # *********************************** TRANSPORT STREAM INPUT FILE ******************************************
 
   "FILETS")
+
+    # Turn off the viewfinder (which would show Pi Cam)
+    v4l2-ctl --overlay=0
+
     # Set up means to transport of stream out of unit
     case "$MODE_OUTPUT" in
       "DATVEXPRESS")
@@ -1457,6 +1461,13 @@ fi
       $PATHRPI"/limesdr_dvb" -i $TSVIDEOFILE -s "$SYMBOLRATE_K"000 -f $FECNUM/$FECDEN -r $UPSAMPLE -m $MODTYPE -c $CONSTLN $PILOTS $FRAMES \
         -t "$FREQ_OUTPUT"e6 -g $LIME_GAINF -q $CAL $CUSTOM_FPGA -D $DIGITAL_GAIN -e $BAND_GPIO $LIMETYPE &
       ;;
+#        "PLUTO")
+#        rpidatv/bin/ffmpeg -thread_queue_size 2048 \
+#          -i $TSVIDEOFILE -c:v copy -c:a copy \
+#          -f flv \
+#          rtmp://pluto.local:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,-$PLUTOPWR,nocalib,800,32,/,$CALL, &
+#        exit
+#      ;;
       *)
         sudo $PATHRPI"/rpidatv" -i $TSVIDEOFILE -s $SYMBOLRATE_K -c $FECNUM"/"$FECDEN -f $FREQUENCY_OUT -p $GAIN -m $MODE -l -x $PIN_I -y $PIN_Q &;;
     esac
