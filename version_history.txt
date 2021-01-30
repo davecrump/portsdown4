@@ -7,6 +7,7 @@ Display Required TS Bitrate on Info Screen
 Display C920 type on Info Screen
 Add selection of TS Video Channel on Receive
 Improve Jetson HDMI video quality
+Enable IPTS Input for Pluto DVB-S/S2
 
 202101090
 Add Knucker DVB-T receive capability
