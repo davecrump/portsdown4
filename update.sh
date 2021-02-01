@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Updated by davecrump 202101030 for Portsdown 4 and Knucker
+# Updated by davecrump 202101310 for Portsdown 4 and Knucker
 
 DisplayUpdateMsg() {
   # Delete any old update message image
@@ -177,6 +177,58 @@ else
   echo
 fi
 
+# -----------Update LimeSuite if required -------------
+
+if ! grep -q be27699 /home/pi/LimeSuite/commit_tag.txt; then
+
+  # Remove old LimeSuite
+  rm -rf /home/pi/LimeSuite/
+
+  # Install LimeSuite 20.10 as at 25 Jan 21
+  # Commit be276996ec3f23b2aadc10543add867d1a55afdd
+  echo
+  echo "--------------------------------------"
+  echo "----- Installing LimeSuite 20.10 -----"
+  echo "--------------------------------------"
+  cd /home/pi
+  wget https://github.com/myriadrf/LimeSuite/archive/be276996ec3f23b2aadc10543add867d1a55afdd.zip -O master.zip
+  unzip -o master.zip
+  cp -f -r LimeSuite-be276996ec3f23b2aadc10543add867d1a55afdd LimeSuite
+  rm -rf LimeSuite-be276996ec3f23b2aadc10543add867d1a55afdd
+  rm master.zip
+
+  # Compile LimeSuite
+  cd LimeSuite/
+  mkdir dirbuild
+  cd dirbuild/
+  cmake ../
+  make
+  sudo make install
+  sudo ldconfig
+  cd /home/pi
+
+  # Install udev rules for LimeSuite
+  cd LimeSuite/udev-rules
+  chmod +x install.sh
+  sudo /home/pi/LimeSuite/udev-rules/install.sh
+  cd /home/pi	
+
+  # Record the LimeSuite Version	
+  echo "be27699" >/home/pi/LimeSuite/commit_tag.txt
+
+  # Download the 20.10LimeSDR Mini firmware/gateware version
+  echo
+  echo "------------------------------------------------------"
+  echo "----- Downloading LimeSDR Mini Firmware versions -----"
+  echo "------------------------------------------------------"
+
+  # Current Version from LimeSuite 20.10 
+  mkdir -p /home/pi/.local/share/LimeSuite/images/20.10/
+  wget https://downloads.myriadrf.org/project/limesuite/20.10/LimeSDR-Mini_HW_1.2_r1.30.rpd -O \
+    /home/pi/.local/share/LimeSuite/images/20.10/LimeSDR-Mini_HW_1.2_r1.30.rpd
+fi
+
+
 # ---------- Update rpidatv -----------
 
 DisplayUpdateMsg "Step 6 of 10\nDownloading Portsdown SW\n\nXXXXX-----"
@@ -221,6 +273,7 @@ cd /home/pi/rpidatv/src/limesdr_toolbox
 # Download and overwrite
 wget https://github.com/F5OEO/libdvbmod/archive/master.zip -O master.zip
 unzip -o master.zip
+rm -rf libdvbmod
 cp -f -r libdvbmod-master libdvbmod
 rm master.zip
 rm -rf libdvbmod-master
@@ -243,7 +296,21 @@ make dvb
 cp limesdr_dvb /home/pi/rpidatv/bin/
 cd /home/pi
 
-# Update LongMynd
+echo
+echo "--------------------------------"
+echo "----- Updating dvb_t_stack -----"
+echo "--------------------------------"
+cd /home/pi/rpidatv/src/dvb_t_stack/Release
+make clean
+make
+cp dvb_t_stack /home/pi/rpidatv/bin/dvb_t_stack
+
+# Install the DATV Express firmware files
+cd /home/pi/rpidatv/src/dvb_t_stack
+sudo cp datvexpress16.ihx /lib/firmware/datvexpress/datvexpress16.ihx
+sudo cp datvexpressraw16.rbf /lib/firmware/datvexpress/datvexpressraw16.rbf
+cd /home/pi
+
 echo
 echo "------------------------------------------"
 echo "----- Updating the LongMynd Receiver -----"
@@ -255,7 +322,6 @@ cd longmynd
 make
 cd /home/pi
 
-# Compile the Signal Generator
 echo
 echo "------------------------------------------"
 echo "----- Compiling the Signal Generator -----"
@@ -265,7 +331,6 @@ make
 sudo make install
 cd /home/pi
 
-# Compile adf4351
 echo
 echo "----------------------------------------"
 echo "----- Compiling the ADF4351 driver -----"
@@ -349,7 +414,7 @@ if ! grep -q micgain "$PATHSCRIPT"/portsdown_config.txt; then
   echo "micgain=26" >> "$PATHSCRIPT"/portsdown_config.txt
 fi
 
-# Add new parameters to config file if not included
+# Add new parameters to config file if not included  202101090
 if ! grep -q udpoutport "$PATHSCRIPT"/portsdown_config.txt; then
   # File needs updating
   # Delete any blank lines first
@@ -358,6 +423,15 @@ if ! grep -q udpoutport "$PATHSCRIPT"/portsdown_config.txt; then
   echo "udpoutport=10000" >> "$PATHSCRIPT"/portsdown_config.txt
   echo "udpinport=10000" >> "$PATHSCRIPT"/portsdown_config.txt
   echo "guard=32" >> "$PATHSCRIPT"/portsdown_config.txt
+fi
+
+# Add another new parameter to config file if not included  202101180
+if ! grep -q qam= "$PATHSCRIPT"/portsdown_config.txt; then
+  # File needs updating
+  # Delete any blank lines first
+  sed -i -e '/^$/d' "$PATHSCRIPT"/portsdown_config.txt
+  # Add the new entry and a new line 
+  echo "qam=qpsk" >> "$PATHSCRIPT"/portsdown_config.txt
 fi
 
 # Add new receiver parameters to longmynd_config.txt if not included

@@ -230,7 +230,13 @@ case "$MODE_OUTPUT" in
   ;;
 
   PLUTO)
-    PLUTOPWR=$(get_config_var plutopwr $PCONFIGFILE);
+    PLUTOPWR=$(get_config_var plutopwr $PCONFIGFILE)
+    # CALCULATE FREQUENCY in Hz
+    #FREQ_OUTPUTHZ=`echo - | awk '{print '$FREQ_OUTPUT' * 1000000}'`
+    # awk uses scientific notation above 2.1e9, so:
+     FREQ_OUTPUTHZ=`echo - | awk '{print '$FREQ_OUTPUT' * 100000}'`
+    FREQ_OUTPUTHZ="$FREQ_OUTPUTHZ"0
+
   ;;
 
   DATVEXPRESS)
@@ -537,6 +543,12 @@ echo "LIME_GAINF="$LIME_GAINF
 
 OUTPUT_FILE="-o videots"
 
+# Branch to custom file to calculate DVB-T bitrate
+if [ "$MODULATION" == "DVB-T" ]; then
+  source /home/pi/rpidatv/scripts/a_dvb-t.sh
+fi
+
+
 case "$MODE_INPUT" in
 
   #============================================ H264 PI CAM INPUT MODE =========================================================
@@ -551,7 +563,7 @@ case "$MODE_INPUT" in
 
     ################# Pluto Code
 
-    if [ "$MODE_OUTPUT" == "PLUTO" ] && [ "$MODE_INPUT" == "CAMH264" ]; then
+    if [ "$MODE_OUTPUT" == "PLUTO" ] && [ "$MODE_INPUT" == "CAMH264" ] && [ "$MODULATION" != "DVB-T" ]; then
       sudo modprobe bcm2835_v4l2  # Make sure that Pi Cam driver is loaded
 
       if [ "$FORMAT" == "16:9" ]; then
@@ -597,7 +609,7 @@ case "$MODE_INPUT" in
       exit
     fi
 
-    ################# Lime and DATV Express Code #################################
+    ################# Lime, DATV Express and DVB-T Code #################################
 
     if [ "$FORMAT" == "16:9" ]; then
       VIDEO_WIDTH=1024
@@ -623,6 +635,8 @@ case "$MODE_INPUT" in
     # Free up Pi Camera for direct OMX Coding by removing driver
     sudo modprobe -r bcm2835_v4l2
 
+    if [ "$MODULATION" != "DVB-T" ]; then
+
     # Set up the means to transport the stream out of the unit
     case "$MODE_OUTPUT" in
       "IP")
@@ -645,6 +659,20 @@ case "$MODE_INPUT" in
       ;;
     esac
 
+    else
+      OUTPUT_FILE=""
+      case "$MODE_OUTPUT" in
+        "IP")
+          OUTPUT_FILE=""
+        ;;
+        "PLUTO")
+           OUTPUT_IP="-n 127.0.0.1:1314"
+          /home/pi/rpidatv/bin/dvb_t_stack -m $CONSTLN -f $FREQ_OUTPUTHZ -a -"$PLUTOPWR" -r pluto \
+            -g 1/"$GUARD" -b $SYMBOLRATE -p 1314 -e "$FECNUM"/"$FECDEN" -n $PLUTOIP -i /dev/null &
+        ;;
+      esac
+    fi
+
     # Now generate the stream
 
     if [ "$AUDIO_CARD" == 0 ]; then
@@ -665,9 +693,10 @@ case "$MODE_INPUT" in
 
       sudo $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -d 300 -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
         -f $VIDEO_FPS -i $IDRPERIOD $OUTPUT_FILE -t 0 -e $ANALOGCAMNAME -p $PIDPMT -s $CALL $OUTPUT_IP \
-        -a audioin.wav -z $BITRATE_AUDIO > /dev/null &
+        -a audioin.wav -z $BITRATE_AUDIO >/dev/null 2>/dev/null &
     fi
   ;;
+
 
   #============================================ MPEG-2 PI CAM INPUT MODE =============================================================
   "CAMMPEG-2"|"CAMHDMPEG-2"|"CAM16MPEG-2")
@@ -891,7 +920,7 @@ fi
 
     ##################### Pluto Code ##############################
 
-    if [ "$MODE_OUTPUT" == "PLUTO" ] && [ "$MODE_INPUT" == "WEBCAMH264" ]; then
+    if [ "$MODE_OUTPUT" == "PLUTO" ] && [ "$MODE_INPUT" == "WEBCAMH264" ] && [ "$MODULATION" != "DVB-T" ]; then
 
       if [ "$C920Present" == "1" ]; then  # Old C920 with internal H264 encoder
         INPUT_FORMAT="h264"
@@ -1052,6 +1081,8 @@ fi
       sudo modprobe -r bcm2835_v4l2
     fi    
 
+    if [ "$MODULATION" != "DVB-T" ]; then
+
     # Set up means to transport of stream out of unit
     case "$MODE_OUTPUT" in
       "IP")
@@ -1069,6 +1100,21 @@ fi
         sudo $PATHRPI"/rpidatv" -i videots -s $SYMBOLRATE_K -c $FECNUM"/"$FECDEN -f $FREQUENCY_OUT -p $GAIN -m $MODE -x $PIN_I -y $PIN_Q &
       ;;
     esac
+
+    else
+      OUTPUT_FILE=""
+      case "$MODE_OUTPUT" in
+        "IP")
+          OUTPUT_FILE=""
+        ;;
+        "PLUTO")
+          OUTPUT_IP="-n 127.0.0.1:1314"
+          /home/pi/rpidatv/bin/dvb_t_stack -m $CONSTLN -f $FREQ_OUTPUTHZ -a -"$PLUTOPWR" -r pluto \
+            -g 1/"$GUARD" -b $SYMBOLRATE -p 1314 -e "$FECNUM"/"$FECDEN" -n $PLUTOIP -i /dev/null &
+        ;;
+      esac
+    fi
+
 
     # Now generate the stream
 
@@ -1122,7 +1168,7 @@ fi
 
     ############ Pluto CardH264 ##################################
 
-    if [ "$MODE_OUTPUT" == "PLUTO" ] && [ "$MODE_INPUT" == "CARDH264" ]; then
+    if [ "$MODE_OUTPUT" == "PLUTO" ] && [ "$MODE_INPUT" == "CARDH264" ] && [ "$MODULATION" != "DVB-T" ]; then
 
       if [ "$FORMAT" == "16:9" ] || [ "$FORMAT" == "720p" ] || [ "$FORMAT" == "1080p" ]; then
         VIDEO_WIDTH=1024
@@ -1170,7 +1216,7 @@ fi
 
     ############ Pluto Contest ##################################
 
-    if [ "$MODE_OUTPUT" == "PLUTO" ] && [ "$MODE_INPUT" == "CONTEST" ]; then
+    if [ "$MODE_OUTPUT" == "PLUTO" ] && [ "$MODE_INPUT" == "CONTEST" ] && [ "$MODULATION" != "DVB-T" ]; then
 
       # Delete the old numbers image
       rm /home/pi/tmp/contest.jpg >/dev/null 2>/dev/null
@@ -1206,7 +1252,7 @@ fi
     ############ Pluto Desktop ##################################
 
 
-    if [ "$MODE_OUTPUT" == "PLUTO" ] && [ "$MODE_INPUT" == "DESKTOP" ]; then
+    if [ "$MODE_OUTPUT" == "PLUTO" ] && [ "$MODE_INPUT" == "DESKTOP" ] && [ "$MODULATION" != "DVB-T" ]; then
 
       # Grab an image of the desktop
       rm /home/pi/tmp/desktop.jpg >/dev/null 2>/dev/null
@@ -1297,29 +1343,42 @@ fi
     RESULT="$?"
     if [ "$RESULT" -eq 0 ]; then
       sudo modprobe -r bcm2835_v4l2
-    fi    
-
+    fi
     # Set up means to transport of stream out of unit
-    case "$MODE_OUTPUT" in
-      "IP")
-        OUTPUT_FILE=""
-      ;;
-      "DATVEXPRESS")
-        echo "set ptt tx" >> /tmp/expctrl
-        sudo nice -n -30 netcat -u -4 127.0.0.1 1314 < videots &
-      ;;
-      "COMPVID")
-        OUTPUT_FILE="/dev/null" #Send avc2ts output to /dev/null
-      ;;
-      "LIMEMINI" | "LIMEUSB" | "LIMEDVB")
-        $PATHRPI"/limesdr_dvb" -i videots -s "$SYMBOLRATE_K"000 -f $FECNUM/$FECDEN -r $UPSAMPLE -m $MODTYPE -c $CONSTLN $PILOTS $FRAMES \
-          -t "$FREQ_OUTPUT"e6 -g $LIME_GAINF -q $CAL $CUSTOM_FPGA -D $DIGITAL_GAIN -e $BAND_GPIO $LIMETYPE &
-      ;;
-      *)
-        sudo nice -n -30 $PATHRPI"/rpidatv" -i videots -s $SYMBOLRATE_K -c $FECNUM"/"$FECDEN -f $FREQUENCY_OUT -p $GAIN -m $MODE -x $PIN_I -y $PIN_Q &
-      ;;
 
-    esac
+    if [ "$MODULATION" != "DVB-T" ]; then
+      case "$MODE_OUTPUT" in
+        "IP")
+          OUTPUT_FILE=""
+        ;;
+        "DATVEXPRESS")
+          echo "set ptt tx" >> /tmp/expctrl
+          sudo nice -n -30 netcat -u -4 127.0.0.1 1314 < videots &
+        ;;
+        "COMPVID")
+          OUTPUT_FILE="/dev/null" #Send avc2ts output to /dev/null
+        ;;
+        "LIMEMINI" | "LIMEUSB" | "LIMEDVB")
+          $PATHRPI"/limesdr_dvb" -i videots -s "$SYMBOLRATE_K"000 -f $FECNUM/$FECDEN -r $UPSAMPLE -m $MODTYPE -c $CONSTLN $PILOTS $FRAMES \
+            -t "$FREQ_OUTPUT"e6 -g $LIME_GAINF -q $CAL $CUSTOM_FPGA -D $DIGITAL_GAIN -e $BAND_GPIO $LIMETYPE &
+        ;;
+        *)
+          sudo nice -n -30 $PATHRPI"/rpidatv" -i videots -s $SYMBOLRATE_K -c $FECNUM"/"$FECDEN -f $FREQUENCY_OUT -p $GAIN -m $MODE -x $PIN_I -y $PIN_Q &
+        ;;
+      esac
+    else                     # DVB-T
+      OUTPUT_FILE=""
+      case "$MODE_OUTPUT" in
+        "IP")
+          OUTPUT_FILE=""
+        ;;
+        "PLUTO")
+          OUTPUT_IP="-n 127.0.0.1:1314"
+          /home/pi/rpidatv/bin/dvb_t_stack -m $CONSTLN -f $FREQ_OUTPUTHZ -a -"$PLUTOPWR" -r pluto \
+            -g 1/"$GUARD" -b $SYMBOLRATE -p 1314 -e "$FECNUM"/"$FECDEN" -n $PLUTOIP -i /dev/null &
+        ;;
+      esac
+    fi
 
     # Pause to allow test card to be displayed
 #    sleep 1
@@ -1342,32 +1401,55 @@ fi
 
   "IPTSIN")
 
-    # Set up means to transport of stream out of unit
-    case "$MODE_OUTPUT" in
-      "DATVEXPRESS")
-        echo "set ptt tx" >> /tmp/expctrl
-        sudo nice -n -30 nc -u -4 127.0.0.1 1314 < videots &
-      ;;
-      "COMPVID")
-        : # Do nothing.  Mode does not work yet
-      ;;
-      "LIMEMINI" | "LIMEUSB" | "LIMEDVB")
-      $PATHRPI"/limesdr_dvb" -i videots -s "$SYMBOLRATE_K"000 -f $FECNUM/$FECDEN -r $UPSAMPLE -m $MODTYPE -c $CONSTLN $PILOTS $FRAMES \
-        -t "$FREQ_OUTPUT"e6 -g $LIME_GAINF -q $CAL $CUSTOM_FPGA -D $DIGITAL_GAIN -e $BAND_GPIO $LIMETYPE &
-      ;;
-      *)
-        sudo $PATHRPI"/rpidatv" -i videots -s $SYMBOLRATE_K -c $FECNUM"/"$FECDEN -f $FREQUENCY_OUT -p $GAIN -m $MODE -x $PIN_I -y $PIN_Q &
-      ;;
-    esac
+    # Turn off the viewfinder (which would show Pi Cam)
+    v4l2-ctl --overlay=0
 
-    # Now generate the stream
+    if [ "$MODULATION" != "DVB-T" ]; then
+      # Set up means to transport of stream out of unit
+      case "$MODE_OUTPUT" in
+        "DATVEXPRESS")
+          echo "set ptt tx" >> /tmp/expctrl
+          sudo nice -n -30 nc -u -4 127.0.0.1 1314 < videots &
+        ;;
+        "COMPVID")
+          : # Do nothing.  Mode does not work yet
+        ;;
+        "LIMEMINI" | "LIMEUSB" | "LIMEDVB")
+        $PATHRPI"/limesdr_dvb" -i videots -s "$SYMBOLRATE_K"000 -f $FECNUM/$FECDEN -r $UPSAMPLE -m $MODTYPE -c $CONSTLN $PILOTS $FRAMES \
+          -t "$FREQ_OUTPUT"e6 -g $LIME_GAINF -q $CAL $CUSTOM_FPGA -D $DIGITAL_GAIN -e $BAND_GPIO $LIMETYPE &
+        ;;
+        "PLUTO")
+        rpidatv/bin/ffmpeg -thread_queue_size 2048 \
+          -i udp://:@:"$UDPINPORT"?fifo_size=1000000"&"overrun_nonfatal=1 -c:v copy -c:a copy \
+          -f flv \
+          rtmp://pluto.local:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,-$PLUTOPWR,nocalib,800,32,/,$CALL, &
+        exit
+        ;;
+        *)
+          sudo $PATHRPI"/rpidatv" -i videots -s $SYMBOLRATE_K -c $FECNUM"/"$FECDEN -f $FREQUENCY_OUT -p $GAIN -m $MODE -x $PIN_I -y $PIN_Q &
+        ;;
+      esac
 
-    netcat -u -4 -l $UDPINPORT > videots &
+      # Now generate the stream
+
+      netcat -u -4 -l $UDPINPORT > videots &
+    else  # DVB-T
+      case "$MODE_OUTPUT" in
+        "PLUTO")
+          /home/pi/rpidatv/bin/dvb_t_stack -m $CONSTLN -f $FREQ_OUTPUTHZ -a -"$PLUTOPWR" -r pluto \
+            -g 1/"$GUARD" -b $SYMBOLRATE -p $UDPINPORT -e "$FECNUM"/"$FECDEN" -n $PLUTOIP -i /dev/null &
+        ;;
+      esac
+    fi
   ;;
 
   # *********************************** TRANSPORT STREAM INPUT FILE ******************************************
 
   "FILETS")
+
+    # Turn off the viewfinder (which would show Pi Cam)
+    v4l2-ctl --overlay=0
+
     # Set up means to transport of stream out of unit
     case "$MODE_OUTPUT" in
       "DATVEXPRESS")
@@ -1379,6 +1461,13 @@ fi
       $PATHRPI"/limesdr_dvb" -i $TSVIDEOFILE -s "$SYMBOLRATE_K"000 -f $FECNUM/$FECDEN -r $UPSAMPLE -m $MODTYPE -c $CONSTLN $PILOTS $FRAMES \
         -t "$FREQ_OUTPUT"e6 -g $LIME_GAINF -q $CAL $CUSTOM_FPGA -D $DIGITAL_GAIN -e $BAND_GPIO $LIMETYPE &
       ;;
+#        "PLUTO")
+#        rpidatv/bin/ffmpeg -thread_queue_size 2048 \
+#          -i $TSVIDEOFILE -c:v copy -c:a copy \
+#          -f flv \
+#          rtmp://pluto.local:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,-$PLUTOPWR,nocalib,800,32,/,$CALL, &
+#        exit
+#      ;;
       *)
         sudo $PATHRPI"/rpidatv" -i $TSVIDEOFILE -s $SYMBOLRATE_K -c $FECNUM"/"$FECDEN -f $FREQUENCY_OUT -p $GAIN -m $MODE -l -x $PIN_I -y $PIN_Q &;;
     esac
@@ -1912,8 +2001,9 @@ case "$MODE_OUTPUT" in
 
   AUDIO_BITRATE=20000
   let TS_AUDIO_BITRATE=AUDIO_BITRATE*14/10
-  # let VIDEOBITRATE=(BITRATE_TS-12000-TS_AUDIO_BITRATE)*650/1000    # Evariste
-  let VIDEOBITRATE=(BITRATE_TS-12000-TS_AUDIO_BITRATE)*600/1000  # Mike
+  # let VIDEOBITRATE=(BITRATE_TS-12000-TS_AUDIO_BITRATE)*650/1000  # Evariste
+  # let VIDEOBITRATE=(BITRATE_TS-12000-TS_AUDIO_BITRATE)*600/1000  # Mike
+  let VIDEOBITRATE=(BITRATE_TS-12000-TS_AUDIO_BITRATE)*750/1000  # dave
   let VIDEOPEAKBITRATE=VIDEOBITRATE*110/100
 
   echo
@@ -1940,7 +2030,7 @@ case "$MODE_OUTPUT" in
       cd ~/dvbsdr/scripts
       gst-launch-1.0 udpsrc address=$LKVUDP port=$LKVPORT \
         '!' video/mpegts '!' tsdemux name=dem dem. '!' queue '!' h264parse '!' omxh264dec \
-        '!' nvvidconv \
+        '!' nvvidconv interpolation-method=2 \
         '!' 'video/x-raw(memory:NVMM), width=(int)$VIDEO_WIDTH, height=(int)$VIDEO_HEIGHT, format=(string)I420' \
         '!' omxh265enc control-rate=2 bitrate=$VIDEOBITRATE peak-bitrate=$VIDEOPEAKBITRATE preset-level=3 iframeinterval=100 \
         '!' 'video/x-h265,stream-format=(string)byte-stream' '!' mux. dem. '!' queue \
@@ -2044,7 +2134,7 @@ EOM
       cd ~/dvbsdr/scripts
       gst-launch-1.0 udpsrc address=$LKVUDP port=$LKVPORT \
         '!' video/mpegts '!' tsdemux name=dem dem. '!' queue '!' h264parse '!' omxh264dec \
-        '!' nvvidconv \
+        '!' nvvidconv interpolation-method=2 \
         '!' 'video/x-raw(memory:NVMM), width=(int)$VIDEO_WIDTH, height=(int)$VIDEO_HEIGHT, format=(string)I420' \
         '!' omxh264enc vbv-size=15 control-rate=2 bitrate=$VIDEOBITRATE peak-bitrate=$VIDEOPEAKBITRATE \
         insert-sps-pps=1 insert-vui=1 cabac-entropy-coding=1 preset-level=3 profile=8 iframeinterval=100 \

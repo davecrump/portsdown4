@@ -18,9 +18,9 @@ gpio -g mode $PTT_BIT out
 
 sleep "$DELAY_TIME"
 
-# Only proceed if ffmpeg Running
+# Only proceed if ffmpeg or dvb_t_stack Running
 
-if (pgrep -x "ffmpeg" > /dev/null)
+if (pgrep -x "ffmpeg" > /dev/null) || (pgrep -x "dvb_t_stack" > /dev/null)
 then
   # set PTT high
   gpio -g write $PTT_BIT 1
@@ -28,7 +28,7 @@ then
   # Check again after 1 second, to make sure that PTT hadn't just been cancelled
   # If not running cancel PTT
   sleep 1
-  if !(pgrep -x "ffmpeg" > /dev/null)
+  if ! ((pgrep -x "ffmpeg" > /dev/null) || (pgrep -x "dvb_t_stack" > /dev/null))
   then
     gpio -g write $PTT_BIT 0
   fi

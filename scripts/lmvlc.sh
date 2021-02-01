@@ -35,6 +35,8 @@ INPUT_SEL_T=$(get_config_var input1 $RCONFIGFILE)
 LNBVOLTS=$(get_config_var lnbvolts $RCONFIGFILE)
 TSTIMEOUT=$(get_config_var tstimeout $RCONFIGFILE)
 TSTIMEOUT_T=$(get_config_var tstimeout1 $RCONFIGFILE)
+CHAN=$(get_config_var chan $RCONFIGFILE)
+CHAN_T=$(get_config_var chan1 $RCONFIGFILE)
 
 # Correct for LNB LO Frequency if required
 if [ "$RX_MODE" == "sat" ]; then
@@ -44,6 +46,7 @@ else
   SYMBOLRATEK=$SYMBOLRATEK_T
   INPUT_SEL=$INPUT_SEL_T
   TSTIMEOUT=$TSTIMEOUT_T
+  CHAN=$CHAN_T
 fi
 
 # Send audio to the correct port
@@ -74,6 +77,12 @@ if [ "$LNBVOLTS" == "v" ]; then
   VOLTS_CMD="-p v"
 fi
 
+# Select the correct channel in the stream
+PROG=" "
+if [ "$CHAN" != "0" ] && [ "$CHAN" != "" ]; then
+  PROG="--program "$CHAN
+fi
+
 TIMEOUT_CMD=" "
 if [[ $TSTIMEOUT -ge 500 ]] || [[ $TSTIMEOUT -eq -1 ]]; then
   TIMEOUT_CMD=" -r "$TSTIMEOUT" "
@@ -87,7 +96,7 @@ mkfifo longmynd_main_ts
 
 sudo /home/pi/longmynd/longmynd -s longmynd_status_fifo $VOLTS_CMD $TIMEOUT_CMD $INPUT_CMD $FREQ_KHZ $SYMBOLRATEK &
 
-cvlc -I rc --rc-host 127.0.0.1:1111 -f --no-video-title-show \
+cvlc -I rc --rc-host 127.0.0.1:1111 $PROG -f --no-video-title-show \
   --width 800 --height 480 \
   --gain 3 --alsa-audio-device $AUDIO_DEVICE \
   longmynd_main_ts >/dev/null 2>/dev/null &

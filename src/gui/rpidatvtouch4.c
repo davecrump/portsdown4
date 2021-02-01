@@ -195,6 +195,7 @@ char KeyboardReturn[64];
 char FreqBtext[31];
 char MenuText[5][63];
 char Guard[7];
+char DVBTQAM[7];
 
 // Valid Input Modes:
 // "CAMMPEG-2", "CAMH264", "PATERNAUDIO", "ANALOGCAM" ,"CARRIER" ,"CONTEST"
@@ -375,7 +376,7 @@ static void cleanexit(int);
 int LimeGWRev();
 void LMRX(int);
 void MakeFreqText(int);
-
+void IPTSConfig(int);
 
 
 /***************************************************************************//**
@@ -1151,10 +1152,10 @@ void ExecuteUpdate(int NoButton)
 
 void LimeFWUpdate(int button)
 {
-  // Portsdown 4 and selectable FW.  0 = 1.29. 1 = 1.30, 2 = Custom
+  // Portsdown 4 and selectable FW.  1 = 1.30, 2 = Custom (0 was 1.29, but no more)
   if (CheckLimeUSBConnect() == 0)
   {
-    MsgBox4("Upgrading Lime USB", "To latest standard", "Using LimeUtil 19.04", "Please Wait");
+    MsgBox4("Upgrading Lime USB", "To latest standard", "Using LimeUtil 20.10", "Please Wait");
     system("LimeUtil --update");
     usleep(250000);
     MsgBox4("Upgrade Complete", " ", "Touch Screen to Continue" ," ");
@@ -1163,21 +1164,9 @@ void LimeFWUpdate(int button)
   {
     switch (button)
     {
-    case 0:
-      MsgBox4("Upgrading Lime Firmware", "to 1.29", " ", " ");
-      system("sudo LimeUtil --fpga=/home/pi/.local/share/LimeSuite/images/19.01/LimeSDR-Mini_HW_1.2_r1.29.rpd");
-      if (LimeGWRev() == 29)
-      {
-        MsgBox4("Firmware Upgrade Successful", "Now at Gateware 1.29", "Touch Screen to Continue" ," ");
-      }
-      else
-      {
-        MsgBox4("Firmware Upgrade Unsuccessful", "Further Investigation required", "Touch Screen to Continue" ," ");
-      }
-      break;
     case 1:
       MsgBox4("Upgrading Lime Firmware", "to 1.30", " ", " ");
-      system("sudo LimeUtil --fpga=/home/pi/.local/share/LimeSuite/images/19.04/LimeSDR-Mini_HW_1.2_r1.30.rpd");
+      system("sudo LimeUtil --fpga=/home/pi/.local/share/LimeSuite/images/20.10/LimeSDR-Mini_HW_1.2_r1.30.rpd");
       if (LimeGWRev() == 30)
       {
         MsgBox4("Firmware Upgrade Successful", "Now at Gateware 1.30", "Touch Screen to Continue" ," ");
@@ -1747,8 +1736,10 @@ void ReadModeOutput(char Moutput[256])
     LimeRFEState = 0;
   }
 
-  // Read DVB-T Guard Interval
+  // Read DVB-T Guard Interval and QAM
   GetConfigParam(PATH_PCONFIG, "guard", Guard);
+  GetConfigParam(PATH_PCONFIG, "qam", DVBTQAM);
+
 }
 
 /***************************************************************************//**
@@ -2119,6 +2110,181 @@ void GetSerNo(char SerNo[256])
 }
 
 /***************************************************************************//**
+ * @brief Calculates the TS bitrate for the current settings
+ *
+ * @param nil.  Looks up globals
+ *
+ * @return int Bitrate.  -1  indicates calculation error
+*******************************************************************************/
+
+int CalcTSBitrate()
+{
+  char Value[127] = " ";
+  float Bitrate = 0;
+  int BitrateK = 0;
+  int guard = 32;
+  int BitsPerSymbol = 2;
+  int fec = 99;
+  int fecden = 100;
+  char Constellation[15];
+  FILE *fp;
+  char BitRateCommand[255];
+
+  // Look up raw SR or bandwidth
+  GetConfigParam(PATH_PCONFIG, "symbolrate", Value);
+  BitrateK = atoi(Value);
+  Bitrate = 1000 * atof(Value);
+
+  strcpy(Value, "99");
+  GetConfigParam(PATH_PCONFIG, "fec", Value);
+  fec = atoi(Value);
+
+  if ((strcmp(CurrentTXMode, "S2QPSK") == 0) || (strcmp(CurrentTXMode, "8PSK") == 0)
+   || (strcmp(CurrentTXMode, "16APSK") == 0) || (strcmp(CurrentTXMode, "32APSK") == 0))
+  {
+    // First determine FEC parameters
+    if((fec == 14) || (fec == 13) || (fec == 12)) // 1/4, 1/3, or 1/2
+    {
+      fecden = fec - 10;
+      fec = 1;
+    }
+    else if (fec == 23)
+    {
+      fec = 2;
+      fecden = 3;
+    }
+    else if ((fec == 34) || (fec == 35))
+    {
+      fecden = fec - 30;
+      fec = 3;
+    }
+    else if (fec == 56)
+    {
+      fec = 5;
+      fecden = 6;
+    }
+    else if (fec == 89)
+    {
+      fec = 8;
+      fecden = 9;
+    }
+    else if (fec == 91)
+    {
+      fec = 9;
+      fecden = 10;
+    }
+    else
+    {
+      return -1; // invalid FEC
+    }
+
+    // Now determine Bits per symbol
+    if (strcmp(CurrentTXMode, "S2QPSK") == 0)
+    {
+      strcpy(Constellation, "QPSK");
+    }
+    else if (strcmp(CurrentTXMode, "8PSK") == 0)
+    {
+      strcpy(Constellation, "8PSK");
+    }
+    else if (strcmp(CurrentTXMode, "16APSK") == 0)
+    {
+      strcpy(Constellation, "16APSK");
+    }
+    else if (strcmp(CurrentTXMode, "32APSK") == 0)
+    {
+      strcpy(Constellation, "32APSK");
+    }
+
+    strcpy(BitRateCommand, "/home/pi/rpidatv/bin/dvb2iq");
+    snprintf(Value, 15, " -s %d", BitrateK);
+    strcat(BitRateCommand, Value);
+    snprintf(Value, 63, " -f %d/%d -d -r 2 -m DVBS2", fec, fecden);
+    strcat(BitRateCommand, Value);
+    snprintf(Value, 63, " -c %s", Constellation);
+    strcat(BitRateCommand, Value);
+
+    //printf("Command is %s\n", BitRateCommand);
+
+    fp = popen(BitRateCommand, "r");
+    if (fp == NULL)
+    {
+      printf("Failed to run command\n" );
+      exit(1);
+    }
+
+    while (fgets(Value, 10, fp) != NULL)
+    {
+      //printf("Calculated DVB-S2 bitrate is: %s", Value);
+    }
+    pclose(fp);
+    return atoi(Value);  
+  }
+
+  if (strcmp(CurrentTXMode, "DVB-S") == 0)
+  {
+    // bitrate = SR * 2 * FEC * 188 / 204
+
+    if ((fec == 1) || (fec == 2) || (fec == 3) || (fec == 5) || (fec ==7))  // valid FEC
+    {
+      Bitrate = Bitrate *  2 * fec *    188 ;       // top line
+      Bitrate = Bitrate /  ((fec + 1) * 204);       // bottom line    
+    }
+    else
+    {
+      return -1;
+    }
+  }
+
+  if (strcmp(CurrentTXMode, "DVB-T") == 0)
+  {
+    // bitrate = 423/544 * bandwidth * FEC * (bits per symbol) * (Guard Factor)
+
+    if (strcmp(DVBTQAM, "qpsk") == 0)
+    {
+      BitsPerSymbol = 2;
+    }
+    if (strcmp(DVBTQAM, "16qam") == 0)
+    {
+      BitsPerSymbol = 4;
+    }
+    if (strcmp(DVBTQAM, "64qam") == 0)
+    {
+      BitsPerSymbol = 6;
+    }
+
+    if (strcmp(Guard, "4") == 0)
+    {
+      guard = 4;
+    }
+    if (strcmp(Guard, "8") == 0)
+    {
+      guard = 8;
+    }
+    if (strcmp(Guard, "16") == 0)
+    {
+      guard = 16;
+    }
+    if (strcmp(Guard, "32") == 0)
+    {
+      guard = 32;
+    }
+
+    if ((fec == 1) || (fec == 2) || (fec == 3) || (fec == 5) || (fec ==7))  // valid FEC
+    {
+      Bitrate = Bitrate *  423 * fec * BitsPerSymbol * guard;       // top line
+      Bitrate = Bitrate / (544 * (fec + 1)       *   (guard + 1));  // bottom line    
+    }
+    else
+    {
+      return -1;
+    }
+  } 
+  return (int)Bitrate;
+}
+
+
+/***************************************************************************//**
  * @brief Looks up the Audio Input Devices
  *
  * @param DeviceName1 and DeviceName2 (str) First 40 char of device names
@@ -2349,6 +2515,9 @@ int CheckC920()
     exit(1);
   }
 
+  // Response is /dev/videox if present, null if not
+  // So, if there is a response, return 1.
+
   /* Read the output a line at a time - output it. */
   while (fgets(response_line, 250, fp) != NULL)
   {
@@ -2361,6 +2530,62 @@ int CheckC920()
   pclose(fp);
   return 0;
 }
+
+/***************************************************************************//**
+ * @brief Checks the type of C920 Webcam
+ *
+ * @param nil
+ *
+ * @return 0 if not connected, 1 if old with H264 Encoder and 2 if new without encoder
+*******************************************************************************/
+
+int CheckC920Type()
+{
+  FILE *fp;
+  char response_line[255];
+
+  // lsusb response is Bus 00x Device 00x: ID 046d:082d Logitech, Inc. HD Pro Webcam C920 (old)
+  // or          Bus 001 Device 00x: ID 046d:0892 Logitech, Inc. OrbiCam            (new)
+  // or null
+
+  fp = popen("lsusb | grep '046d:082d'", "r");
+  if (fp == NULL)
+  {
+    printf("Failed to run command\n" );
+    exit(1);
+  }
+
+  /* Read the output a line at a time - output it. */
+  while (fgets(response_line, 250, fp) != NULL)
+  {
+    if (strlen(response_line) > 1)
+    {
+      pclose(fp);
+      return 1;
+    }
+  }
+
+  fp = popen("lsusb | grep '046d:0892'", "r");
+  if (fp == NULL)
+  {
+    printf("Failed to run command\n" );
+    exit(1);
+  }
+
+  /* Read the output a line at a time - output it. */
+  while (fgets(response_line, 250, fp) != NULL)
+  {
+    if (strlen(response_line) > 1)
+    {
+      pclose(fp);
+      return 2;
+    }
+  }
+  pclose(fp);
+  return 0;
+}
+
+
 
 /***************************************************************************//**
  * @brief Initialises all the GPIOs at startup
@@ -3246,6 +3471,7 @@ void ChangeLMChan()
   char InitText[64];
   bool IsValid = FALSE;
   char LMChan[7];
+  char IntCheck[64];
 
   //  Retrieve (1 char) Current Sat or Terr channel from Config file
   if (strcmp(LMRXmode, "sat") == 0)
@@ -3263,10 +3489,19 @@ void ChangeLMChan()
   {
     strcpyn(InitText, LMChan, 10);
     Keyboard(RequestText, InitText, 10);
-  
-    if((atoi(KeyboardReturn) >= 0) && (atoi(KeyboardReturn) <= 9))
+
+    if(strcmp(KeyboardReturn, "") == 0)  // Set null to 0
     {
-      IsValid = TRUE;
+      strcpy(KeyboardReturn, "0");
+    }
+
+    snprintf(IntCheck, 9, "%d", atoi(KeyboardReturn));
+    if(strcmp(IntCheck, KeyboardReturn) == 0)           // Check answer is an integer
+    {
+      if((atoi(KeyboardReturn) >= 0) && (atoi(KeyboardReturn) <= 64000))
+      {
+        IsValid = TRUE;
+      }
     }
   }
   printf("Video Channel %s selected\n", KeyboardReturn);
@@ -5286,48 +5521,60 @@ void ApplyTXConfig()
   }
   else if (strcmp(CurrentModeOP, "PLUTO") == 0) //          PLUTO Modes
   {
-    if (strcmp(CurrentEncoding, "MPEG-2") == 0)
+ printf("Pluto Modes\n");
+    if (strcmp(CurrentEncoding, "IPTS in") == 0)
     {
-      MsgBox2("MPEG-2 encoding not available with Pluto"
-            , "Selecting H264");
-      wait_touch();
-      strcpy(CurrentEncoding, "H264");
-      SetConfigParam(PATH_PCONFIG, "encoding", CurrentEncoding);
+      strcpy(ModeInput, "IPTSIN");
     }
-    if (strcmp(CurrentSource, "HDMI") == 0)
+    else if (strcmp(CurrentEncoding, "TS File") == 0)
     {
-      strcpy(ModeInput, "HDMI");
+      strcpy(ModeInput, "FILETS");
     }
-    else if (strcmp(CurrentSource, "CompVid") == 0)
+
+    if ((strcmp(CurrentEncoding, "IPTS in") != 0) 
+    &&  (strcmp(CurrentEncoding, "TS File") != 0))     // Only check if not IPTS, or not TS File input
     {
-      strcpy(ModeInput, "ANALOGCAM");
-    }
-    else if (strcmp(CurrentSource, "Pi Cam") == 0)
-    {
-      strcpy(ModeInput, "CAMH264");
-    }
-    else if (strcmp(CurrentSource, "Webcam") == 0)
-    {
-      strcpy(ModeInput, "WEBCAMH264");
-    }
-    else if (strcmp(CurrentSource, "TestCard") == 0)
-    {
-      strcpy(ModeInput, "CARDH264");
-    }
-    else if (strcmp(CurrentSource, "PiScreen") == 0)
-    {
-      strcpy(ModeInput, "DESKTOP");
-    }
-    else if (strcmp(CurrentSource, "Contest") == 0)
-    {
-      strcpy(ModeInput, "CONTEST");
-    }
-    else                             // Default
-    {
-      strcpy(ModeInput, "CARDH264");
+      if (strcmp(CurrentEncoding, "MPEG-2") == 0)
+      {
+        MsgBox2("MPEG-2 encoding not available with Pluto", "Selecting H264");
+        wait_touch();
+        strcpy(CurrentEncoding, "H264");
+        SetConfigParam(PATH_PCONFIG, "encoding", CurrentEncoding);
+      }
+      if (strcmp(CurrentSource, "HDMI") == 0)
+      {
+        strcpy(ModeInput, "HDMI");
+      }
+      else if (strcmp(CurrentSource, "CompVid") == 0)
+      {
+        strcpy(ModeInput, "ANALOGCAM");
+      }
+      else if (strcmp(CurrentSource, "Pi Cam") == 0)
+      {
+        strcpy(ModeInput, "CAMH264");
+      }
+      else if (strcmp(CurrentSource, "Webcam") == 0)
+      {
+        strcpy(ModeInput, "WEBCAMH264");
+      }
+      else if (strcmp(CurrentSource, "TestCard") == 0)
+      {
+        strcpy(ModeInput, "CARDH264");
+      }
+      else if (strcmp(CurrentSource, "PiScreen") == 0)
+      {
+        strcpy(ModeInput, "DESKTOP");
+      }
+      else if (strcmp(CurrentSource, "Contest") == 0)
+      {
+        strcpy(ModeInput, "CONTEST");
+      }
+      else                             // Default
+      {
+        strcpy(ModeInput, "CARDH264");
+      }
     }
   }
-
   else  // For all modes except Carrier, Jetson, Pluto and Streaming
   {
     if (strcmp(CurrentEncoding, "IPTS in") == 0)
@@ -5921,6 +6168,11 @@ void GreyOut11()
     SetButtonStatus(ButtonNumber(CurrentMenu, 6), 2); // grey-out carrier
     SetButtonStatus(ButtonNumber(CurrentMenu, 8), 2); // grey-out Pilots on/off
     SetButtonStatus(ButtonNumber(CurrentMenu, 9), 2); // grey-out Frames long/short
+    SetButtonStatus(ButtonNumber(CurrentMenu, 7), 0); // Show DVB-T
+  }
+  else
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 7), 2); // Grey-out DVB-T
   }
 }
 
@@ -6195,10 +6447,26 @@ void SelectFrames()  // Toggle frames long/short
 void SelectEncoding(int NoButton)  // Encoding
 {
   SelectInGroupOnMenu(CurrentMenu, 5, 9, NoButton, 1);
-  strcpy(CurrentEncoding, TabEncoding[NoButton - 5]);
-  char Param[15]="encoding";
-  SetConfigParam(PATH_PCONFIG, Param, CurrentEncoding);
 
+  // Encoding is stored as modeinput, so deal with IPTS in and TS File first
+
+  if (NoButton == 8)       // IPTS in 
+  {
+    SetConfigParam(PATH_PCONFIG, "modeinput", "IPTSIN");
+    strcpy(CurrentEncoding, "IPTS in");
+  }
+  else if (NoButton == 9) // TS File  
+  {
+    SetConfigParam(PATH_PCONFIG, "modeinput", "FILETS");
+    strcpy(CurrentEncoding, "TS File");
+    IPTSConfig(3);       // and confirm source file
+  }
+  else                   // MPEG-2, H264 or H265
+  {
+    strcpy(CurrentEncoding, TabEncoding[NoButton - 5]);
+    char Param[15]="encoding";
+    SetConfigParam(PATH_PCONFIG, Param, CurrentEncoding);
+  }
   ApplyTXConfig();
 }
 
@@ -6520,6 +6788,32 @@ void SelectGuard(int NoButton)
     SetConfigParam(PATH_PCONFIG, "guard", Guard);
   }
 }
+
+void SelectQAM(int NoButton)
+{
+  char OldDVBTQAM[7];
+
+  strcpy(OldDVBTQAM, DVBTQAM);
+  switch (NoButton)
+  {
+  case 5:                               //   QPSK
+    strcpy(DVBTQAM, "qpsk");
+    break;
+  case 6:                               //   16-QAM
+    strcpy(DVBTQAM, "16qam");
+    break;
+  case 7:                               //   64-QAM
+    strcpy(DVBTQAM, "64qam");
+    break;
+  }
+
+  if (strcmp(OldDVBTQAM, DVBTQAM) != 0)  // if changed, write to config file
+  {
+    SetConfigParam(PATH_PCONFIG, "qam", DVBTQAM);
+  }
+}
+
+
 
 void ChangeBandDetails(int NoButton)
 {
@@ -7511,8 +7805,9 @@ void TransmitStart()
   GetConfigParam(PATH_PCONFIG,Param,Value);
   strcpy(ModeInput,Value);
 
-  // If Pi Cam source, clear the screen
-  if (strcmp(CurrentSource, "Pi Cam") == 0)
+  // If Pi Cam source, and not IPTS or TS File input, clear the screen
+  if ((strcmp(CurrentSource, "Pi Cam") == 0) && (strcmp(CurrentEncoding, "IPTS in") != 0)
+   && (strcmp(CurrentEncoding, "TS File") != 0))
   {
     setBackColour(0, 0, 0);
     clearScreen();
@@ -7550,7 +7845,6 @@ void TransmitStart()
   }
 
   // Check if non-display input mode selected.  If so, turn off response to buttons.
-  // Added || (strcmp(ModeInput,"PATERNAUDIO") == 0) in 201811170
 
   if ((strcmp(ModeInput,"ANALOGCAM") == 0)
     || (strcmp(ModeInput,"PATERNAUDIO") == 0)
@@ -7572,12 +7866,14 @@ void TransmitStart()
     ||(strcmp(ModeInput,"JPC") == 0)
     ||(strcmp(ModeInput,"JWEBCAM") == 0)
     ||(strcmp(ModeInput,"JCARD") == 0)
-    ||(strcmp(ModeInput,"HDMI") == 0))
+    ||(strcmp(ModeInput,"HDMI") == 0)
+    ||(strcmp(CurrentEncoding, "TS File") == 0)
+    ||(strcmp(CurrentEncoding, "IPTS in") == 0))
   {
      strcpy(ScreenState, "TXwithMenu");
   }
 
-  // Run the Extrascript for TX start
+  // Run the Extra script for TX start
   system("/home/pi/rpidatv/scripts/TXstartextras.sh &");
 
   // Call a.sh to transmit
@@ -7646,6 +7942,7 @@ void TransmitStop()
   system("sudo killall avc2ts >/dev/null 2>/dev/null");
   system("sudo killall sox >/dev/null 2>/dev/null");
   system("sudo killall arecord >/dev/null 2>/dev/null");
+  system("sudo killall dvb_t_stack >/dev/null 2>/dev/null");
 
   if((strcmp(ModeOutput, "IQ") == 0) || (strcmp(ModeOutput, "QPSKRF") == 0))
   {
@@ -7676,6 +7973,7 @@ void TransmitStop()
 
   // And make sure rpidatv has been stopped (required for brief transmit selections)
   system("sudo killall -9 rpidatv >/dev/null 2>/dev/null");
+  system("sudo killall -9 dvb_t_stack >/dev/null 2>/dev/null");
 
   // Ensure PTT off.  Required for carrier mode
   pinMode(GPIO_PTT, OUTPUT);
@@ -11267,6 +11565,19 @@ void InfoScreen()
   char Device2[255]=" ";
   GetDevices(Device1, Device2);
 
+  char BitRate[255];
+  sprintf(BitRate, "TS Bitrate Required = %d", CalcTSBitrate());
+
+  if (CheckC920Type() == 1)
+  {
+    strcat(BitRate, "  Webcam: C920 (with H264 Encoder)");
+  }
+
+  if (CheckC920Type() == 2)
+  {
+    strcat(BitRate, "  Webcam: C920 (no H264 encoder)");
+  }
+
   // Initialise and calculate the text display
   setForeColour(255, 255, 255);    // White text
   setBackColour(0, 0, 0);          // on Black
@@ -11312,7 +11623,10 @@ void InfoScreen()
   linenumber = linenumber + 1;
 
   Text2(wscreen/25, hscreen - linenumber * linepitch, Device2, font_ptr);
-  linenumber = linenumber + 2;
+  linenumber = linenumber + 1;
+
+  Text2(wscreen/25, hscreen - linenumber * linepitch, BitRate, font_ptr);
+  linenumber = linenumber + 1;
 
   TextMid2(wscreen / 2, hscreen - linenumber * linepitch, "Touch Screen to Continue", font_ptr);
 
@@ -12152,14 +12466,16 @@ void IPTSConfig(int NoButton)
     strcpyn(InitText, filename, 31);
     Keyboard(RequestText, InitText, 31);
 
-    strcpy(KRCopy, "/home/pi/rpidatv/video/");
-    strcat(KRCopy, KeyboardReturn);
+    if(strcmp(InitText, KeyboardReturn) != 0) // Filename has changed
+    {
+      strcpy(KRCopy, "/home/pi/rpidatv/video/");
+      strcat(KRCopy, KeyboardReturn);
+      printf("New TS filename: %s\n", KRCopy);
 
-    printf("New TS filename: %s\n", KRCopy);
-
-    // Save filename config file
-    SetConfigParam(PATH_PCONFIG, "tsvideofile", KRCopy);
-    strcpy(TSVideoFile, KRCopy);
+      // Save filename to config file
+      SetConfigParam(PATH_PCONFIG, "tsvideofile", KRCopy);
+      strcpy(TSVideoFile, KRCopy);
+    }
   }
 }
 
@@ -12685,7 +13001,7 @@ void ChangeLMPresetFreq(int NoButton)
   while ((CheckValue - Offset_to_Apply < 50000) || (CheckValue - Offset_to_Apply > 2600000))
   {
     Keyboard(RequestText, InitText, 10);
-    CheckValue = (int)(1000 * atof(KeyboardReturn));
+    CheckValue = (int)((1000 * atof(KeyboardReturn)) + 0.1);
     printf("CheckValue = %d Offset = %d\n", CheckValue, Offset_to_Apply);
   }
 
@@ -13257,7 +13573,10 @@ void ControlLimeCal()
   if (LimeCalFreq < -1.5)  // Currently at Never Calibrate, so put to Cal if needed
   {
     LimeCalFreq = 0;  // Cal if needed
-    SetConfigParam(PATH_LIME_CAL, "limecalfreq", "0.0");   
+    SetConfigParam(PATH_LIME_CAL, "limecalfreq", "0.0");
+    MsgBox4("WARNING!", "Lime will calibrate on next TX selection", "but not after that, unless needed",
+      "Touch Screen to continue");
+    wait_touch();
   }
   else if (LimeCalFreq < -0.5) // Currently at Always calibrate so put to Never
   {
@@ -14752,7 +15071,7 @@ rawY = 0;
         case 7:                               // DVB-T
           SelectTX(i);
           printf("DVB-T\n");
-          CurrentMenu = 16;                  // Set the guard interval
+          CurrentMenu = 16;                  // Set the guard interval and QAM
           printf("MENU 16 \n");              // on DVB-T selection
           setBackColour(0, 0, 0);
           clearScreen();
@@ -14787,7 +15106,7 @@ rawY = 0;
         default:
           printf("Menu 11 Error\n");
         }
-        if (i != 7)   // Skip if DVB-T guard needs to be set
+        if (i != 7)   // Skip if DVB-T guard/QAM needs to be set
         {
           Start_Highlights_Menu11();
           UpdateWindow();
@@ -15075,7 +15394,7 @@ rawY = 0;
         printf("Button Event %d, Entering Menu 16 Case Statement\n",i);
         switch (i)
         {
-        case 4:                               // Cancel
+        case 4:                               // Cancel DVBTQAM
           SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 1);
           printf("Guard Cancel\n");
           break;
@@ -15086,6 +15405,13 @@ rawY = 0;
           SelectInGroupOnMenu(CurrentMenu, 0, 3, i, 1);
           SelectGuard(i);
           printf("Guard Interval Button %d\n", i);
+          break;
+        case 5:                               //   qpsk
+        case 6:                               //   16-QAM
+        case 7:                               //   64-QAM
+          SelectInGroupOnMenu(CurrentMenu, 5, 7, i, 1);
+          SelectQAM(i);
+          printf("DVB-T QAM Button %d\n", i);
           break;
         default:
           printf("Menu 16 Error\n");
@@ -16052,7 +16378,6 @@ rawY = 0;
         printf("Button Event %d, Entering Menu 37 Case Statement\n",i);
         switch (i)
         {
-        case 0:                               // Lime FW Update 1.29
         case 1:                               // Lime FW Update 1.30
         case 2:                               // Lime FW Update DVB
           printf("Lime Firmware Update %d\n", i);
@@ -16098,6 +16423,7 @@ rawY = 0;
         case 7:                               // Display Lime Report Page
           LimeMiniTest();
           wait_touch();
+          system("/home/pi/rpidatv/bin/limesdr_stopchannel"); // reset Lime
           setBackColour(0, 0, 0);
           clearScreen();
           UpdateWindow();
@@ -17129,7 +17455,14 @@ void Start_Highlights_Menu1()
   strcpy(Param,"symbolrate");
   GetConfigParam(PATH_PCONFIG,Param,Value);
   printf("Value=%s %s\n",Value,"SR");
-  strcpy(SRtext, "Sym Rate^ ");
+  if (strcmp(CurrentTXMode, "DVB-T") != 0)  //not DVB-T
+  {
+    strcpy(SRtext, "Sym Rate^ ");
+  }
+  else
+  {
+    strcpy(SRtext, "Bandwidth^ ");
+  }
   strcat(SRtext, Value);
   strcat(SRtext, " ");
   AmendButtonStatus(11, 0, SRtext, &Blue);
@@ -17288,9 +17621,18 @@ void Start_Highlights_Menu1()
   // Video Source Button 19
 
   char Sourcetext[255];
+  char SourceFile[63];
   strcpy(Sourcetext, "Source^");
-  strcat(Sourcetext, CurrentSource);
-  //strcat(Sourcetext, " ");
+  if (strcmp(CurrentEncoding, "TS File") == 0)
+  {
+    strcpy(SourceFile, TSVideoFile);
+    chopN(SourceFile, 23);              // cut off /home/pi/rpidatv/video/
+    strcat(Sourcetext, SourceFile);
+  }
+  else
+  {
+    strcat(Sourcetext, CurrentSource);
+  }
   AmendButtonStatus(19, 0, Sourcetext, &Blue);
   AmendButtonStatus(19, 1, Sourcetext, &Green);
   AmendButtonStatus(19, 2, Sourcetext, &Grey);
@@ -18445,7 +18787,7 @@ void Define_Menu11()
   AddButtonStatus(button, "Carrier", &Grey);
 
   button = CreateButton(11, 7);
-  AddButtonStatus(button, "DVB-T", &Grey);
+  AddButtonStatus(button, "DVB-T", &Blue);
   AddButtonStatus(button, "DVB-T", &Green);
   AddButtonStatus(button, "DVB-T", &Grey);
 
@@ -18780,7 +19122,7 @@ void Define_Menu16()
 {
   int button;
 
-  strcpy(MenuTitle[16], "Select DVB-T Guard Interval Menu (16)"); 
+  strcpy(MenuTitle[16], "DVB-T Parameters Menu (16)"); 
 
   // Bottom Row, Menu 16
 
@@ -18801,8 +19143,23 @@ void Define_Menu16()
   AddButtonStatus(button, "Guard^1/32", &Green);
 
   button = CreateButton(16, 4);
-  AddButtonStatus(button, "Cancel", &DBlue);
-  AddButtonStatus(button, "Cancel", &LBlue);
+  AddButtonStatus(button, "Continue", &DBlue);
+  AddButtonStatus(button, "Continue", &LBlue);
+
+  // 2nd Row, Menu 16
+
+  button = CreateButton(16, 5);
+  AddButtonStatus(button, "QPSK", &Blue);
+  AddButtonStatus(button, "QPSK", &Green);
+
+  button = CreateButton(16, 6);
+  AddButtonStatus(button, "16-QAM", &Blue);
+  AddButtonStatus(button, "16-QAM", &Green);
+
+  button = CreateButton(16, 7);
+  AddButtonStatus(button, "64-QAM", &Blue);
+  AddButtonStatus(button, "64-QAM", &Green);
+
 }
 
 void MakeFreqText(int index)
@@ -18874,8 +19231,21 @@ void Start_Highlights_Menu16()
   {
     NoButton = 3;
   }
-
   SelectInGroupOnMenu(16, 0, 3, NoButton, 1);
+
+  if (strcmp(DVBTQAM, "qpsk") == 0)
+  {
+    NoButton = 5;
+  }
+  else if (strcmp(DVBTQAM, "16qam") == 0)
+  {
+    NoButton = 6;
+  }
+  else if (strcmp(DVBTQAM, "64qam") == 0)
+  {
+    NoButton = 7;
+  }
+  SelectInGroupOnMenu(16, 5, 7, NoButton, 1);
 }
 
 void Define_Menu17()
@@ -18929,12 +19299,20 @@ void Define_Menu17()
 
 void Start_Highlights_Menu17()
 {
-  // Symbol Rate
+  // Symbol Rate or Bandwidth (DVB-T)
   char Param[255];
   char Value[255];
   int SR;
 
-  strcpy(MenuTitle[17], "Transmit Symbol Rate Selection Menu (17)"); 
+  if (strcmp(CurrentTXMode, "DVB-T") != 0)  //not DVB-T
+  {
+    strcpy(MenuTitle[17], "Transmit Symbol Rate Selection Menu (17)");
+  }
+  else
+  {
+    strcpy(MenuTitle[17], "DVB-T Transmit Bandwidth Selection Menu (17)");
+  }
+
   strcpy(Param,"symbolrate");
   GetConfigParam(PATH_PCONFIG,Param,Value);
   SR=atoi(Value);
@@ -20313,9 +20691,9 @@ void Define_Menu37()
 
   // Bottom Row, Menu 37
 
-  button = CreateButton(37, 0);
-  AddButtonStatus(button, "Update to^FW 1.29", &Blue);
-  AddButtonStatus(button, "Update to^FW 1.29", &Green);
+  //button = CreateButton(37, 0);
+  //AddButtonStatus(button, "Update to^FW 1.29", &Blue);
+  //AddButtonStatus(button, "Update to^FW 1.29", &Green);
 
   button = CreateButton(37, 1);
   AddButtonStatus(button, "Update to^FW 1.30", &Blue);
@@ -20954,7 +21332,7 @@ void Define_Menu46()
   AddButtonStatus(button, "Tuner Scan^Width", &Grey);
 
   button = CreateButton(46, 12);
-  AddButtonStatus(button, "TS Video^Channel", &Grey);
+  AddButtonStatus(button, "TS Video^Channel", &Blue);
   AddButtonStatus(button, "TS Video^Channel", &Grey);
 
   button = CreateButton(46, 13);
@@ -21295,8 +21673,6 @@ terminate(int dummy)
   system(Commnd);
   sprintf(Commnd,"reset");
   system(Commnd);
-  //system("sudo swapoff -a");
-  //system("sudo swapon -a");
   exit(1);
 }
 
@@ -21494,11 +21870,9 @@ int main(int argc, char **argv)
   setBackColour(255, 255, 255);          // White background
   clearScreen();
 
-  // Determine button highlights
+  // Display Menu 1
   Start_Highlights_Menu1();
-  printf("Entering Update Window\n");  
   UpdateWindow();
-  printf("Update Window\n");
 
   // Go and wait for the screen to be touched
   waituntil(wscreen,hscreen);
