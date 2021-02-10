@@ -1,3 +1,7 @@
+202102100
+Correct Pluto IP Keyboard Entry routine
+Refer to Pluto numeric IP rather than pluto.local
+
 202101310
 Add DVB-T transmit capability for Pluto
 New builds based on Raspios 2021-01-11

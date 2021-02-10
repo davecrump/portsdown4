@@ -4,7 +4,6 @@
 # First, look up the guard interval and QAM
 GUARD=$(get_config_var guard $PCONFIGFILE)
 QAM=$(get_config_var qam $PCONFIGFILE)
-PLUTOIP=$(get_config_var plutoip $PCONFIGFILE)
 
 # Calculate the max bitrate
 # bitrate = 423/544 * bandwidth * FEC * (bits per symbol) * (Guard Factor)
