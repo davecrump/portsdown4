@@ -38,7 +38,7 @@ UDPOUTADDR=$(get_config_var udpoutaddr $PCONFIGFILE)
 UDPOUTPORT=$(get_config_var udpoutport $PCONFIGFILE)
 UDPINPORT=$(get_config_var udpinport $PCONFIGFILE)
 CALL=$(get_config_var call $PCONFIGFILE)
-CHANNEL="Portsdown 4"
+CHANNEL="Portsdown_4"
 FREQ_OUTPUT=$(get_config_var freqoutput $PCONFIGFILE)
 STREAM_URL=$(get_config_var streamurl $PCONFIGFILE)
 STREAM_KEY=$(get_config_var streamkey $PCONFIGFILE)
@@ -1971,7 +1971,7 @@ case "$MODE_OUTPUT" in
   JETSONPW=$(get_config_var jetsonpw $JCONFIGFILE)
   ENCODING=$(get_config_var encoding $PCONFIGFILE)
   CMDFILE="/home/pi/tmp/jetson_command.txt"
-  CHANNEL="Portsdown Jetson"
+  CHANNEL="Portsdown_Jetson"
 
   # Set the video format
   if [ "$FORMAT" == "1080p" ]; then
