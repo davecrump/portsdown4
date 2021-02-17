@@ -38,7 +38,7 @@ UDPOUTADDR=$(get_config_var udpoutaddr $PCONFIGFILE)
 UDPOUTPORT=$(get_config_var udpoutport $PCONFIGFILE)
 UDPINPORT=$(get_config_var udpinport $PCONFIGFILE)
 CALL=$(get_config_var call $PCONFIGFILE)
-CHANNEL="Portsdown"
+CHANNEL="Portsdown_4"
 FREQ_OUTPUT=$(get_config_var freqoutput $PCONFIGFILE)
 STREAM_URL=$(get_config_var streamurl $PCONFIGFILE)
 STREAM_KEY=$(get_config_var streamkey $PCONFIGFILE)
@@ -74,6 +74,7 @@ MODE_STARTUP=$(get_config_var startup $PCONFIGFILE)
 
 LKVUDP=$(get_config_var lkvudp $JCONFIGFILE)
 LKVPORT=$(get_config_var lkvport $JCONFIGFILE)
+PLUTOIP=$(get_config_var plutoip $PCONFIGFILE)
 
 OUTPUT_IP=""
 LIMETYPE=""
@@ -533,14 +534,6 @@ mkfifo videots
 mkfifo netfifo
 mkfifo audioin.wav
 
-echo "************************************"
-echo Bitrate TS $BITRATE_TS
-echo Bitrate Video $BITRATE_VIDEO
-echo Size $VIDEO_WIDTH x $VIDEO_HEIGHT at $VIDEO_FPS fps
-echo "************************************"
-echo "ModeINPUT="$MODE_INPUT
-echo "LIME_GAINF="$LIME_GAINF
-
 OUTPUT_FILE="-o videots"
 
 # Branch to custom file to calculate DVB-T bitrate
@@ -548,6 +541,15 @@ if [ "$MODULATION" == "DVB-T" ]; then
   source /home/pi/rpidatv/scripts/a_dvb-t.sh
 fi
 
+echo "************************************"
+echo Bitrate TS $BITRATE_TS
+echo Bitrate Video $BITRATE_VIDEO
+echo Size $VIDEO_WIDTH x $VIDEO_HEIGHT at $VIDEO_FPS fps
+echo "************************************"
+echo "Modulation = "$MODULATION
+echo "ModeINPUT = "$MODE_INPUT
+echo "LIME_GAINF = "$LIME_GAINF
+echo
 
 case "$MODE_INPUT" in
 
@@ -590,7 +592,7 @@ case "$MODE_INPUT" in
           -i $VID_PICAM \
           -c:v h264_omx -b:v $BITRATE_VIDEO -g 25 \
           -f flv \
-          rtmp://pluto.local:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,-$PLUTOPWR,nocalib,800,32,/,$CALL, &
+          rtmp://$PLUTOIP:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,-$PLUTOPWR,nocalib,800,32,/,$CALL, &
 
       else
 
@@ -604,7 +606,7 @@ case "$MODE_INPUT" in
           -c:v h264_omx -b:v $BITRATE_VIDEO -g 25 \
           -ar 22050 -ac $AUDIO_CHANNELS -ab 64k \
           -f flv \
-          rtmp://pluto.local:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,-$PLUTOPWR,nocalib,800,32,/,$CALL, &
+          rtmp://$PLUTOIP:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,-$PLUTOPWR,nocalib,800,32,/,$CALL, &
       fi
       exit
     fi
@@ -968,7 +970,7 @@ fi
         -c:v h264_omx -b:v $BITRATE_VIDEO -g 25 \
         -ar 22050 -ac $AUDIO_CHANNELS -ab 64k \
         -f flv \
-        rtmp://pluto.local:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,-$PLUTOPWR,nocalib,800,32,/,$CALL, &
+        rtmp://$PLUTOIP:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,-$PLUTOPWR,nocalib,800,32,/,$CALL, &
       exit
     fi
 
@@ -1001,7 +1003,7 @@ fi
           -c:v h264_omx -b:v $BITRATE_VIDEO -g 25 \
           -ar 22050 -ac $AUDIO_CHANNELS -ab 64k \
           -f flv \
-          rtmp://pluto.local:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,-$PLUTOPWR,nocalib,800,32,/,$CALL, &
+          rtmp://$PLUTOIP:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,-$PLUTOPWR,nocalib,800,32,/,$CALL, &
 
         # Set the EasyCap contrast to prevent crushed whites
         sleep 0.7
@@ -1210,7 +1212,7 @@ fi
         -i $IMAGEFILE -framerate 1 -video_size "$VIDEO_WIDTH"x"$VIDEO_HEIGHT" \
         -c:v h264_omx -b:v $BITRATE_VIDEO \
         -f flv \
-        rtmp://pluto.local:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,-$PLUTOPWR,nocalib,800,32,/,$CALL, &
+        rtmp://$PLUTOIP:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,-$PLUTOPWR,nocalib,800,32,/,$CALL, &
       exit
     fi
 
@@ -1245,7 +1247,7 @@ fi
           -framerate 25 -video_size "$VIDEO_WIDTH"x"$VIDEO_HEIGHT" \
           -c:v h264_omx -b:v $BITRATE_VIDEO \
           -f flv \
-          rtmp://pluto.local:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,-$PLUTOPWR,nocalib,800,32,/,$CALL, &
+          rtmp://$PLUTOIP:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,-$PLUTOPWR,nocalib,800,32,/,$CALL, &
       exit
     fi
 
@@ -1267,7 +1269,7 @@ fi
             -i $IMAGEFILE \
             -framerate 25 -video_size 800x480 -c:v h264_omx -b:v $BITRATE_VIDEO \
         -f flv \
-        rtmp://pluto.local:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,-$PLUTOPWR,nocalib,800,32,/,$CALL, &
+        rtmp://$PLUTOIP:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,-$PLUTOPWR,nocalib,800,32,/,$CALL, &
       exit
     fi
 
@@ -1422,7 +1424,7 @@ fi
         rpidatv/bin/ffmpeg -thread_queue_size 2048 \
           -i udp://:@:"$UDPINPORT"?fifo_size=1000000"&"overrun_nonfatal=1 -c:v copy -c:a copy \
           -f flv \
-          rtmp://pluto.local:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,-$PLUTOPWR,nocalib,800,32,/,$CALL, &
+          rtmp://$PLUTOIP:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,-$PLUTOPWR,nocalib,800,32,/,$CALL, &
         exit
         ;;
         *)
@@ -1465,7 +1467,7 @@ fi
 #        rpidatv/bin/ffmpeg -thread_queue_size 2048 \
 #          -i $TSVIDEOFILE -c:v copy -c:a copy \
 #          -f flv \
-#          rtmp://pluto.local:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,-$PLUTOPWR,nocalib,800,32,/,$CALL, &
+#          rtmp://$PLUTOIP:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,-$PLUTOPWR,nocalib,800,32,/,$CALL, &
 #        exit
 #      ;;
       *)
@@ -1953,7 +1955,7 @@ fi
           -c:v h264_omx -b:v $BITRATE_VIDEO -g 25 \
           -ar 22050 -ac 2 -ab 64k \
           -f flv \
-          rtmp://pluto.local:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,-$PLUTOPWR,nocalib,800,32,/,$CALL, &
+          rtmp://$PLUTOIP:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,-$PLUTOPWR,nocalib,800,32,/,$CALL, &
       ;;
     esac
   ;;
@@ -1969,6 +1971,7 @@ case "$MODE_OUTPUT" in
   JETSONPW=$(get_config_var jetsonpw $JCONFIGFILE)
   ENCODING=$(get_config_var encoding $PCONFIGFILE)
   CMDFILE="/home/pi/tmp/jetson_command.txt"
+  CHANNEL="Portsdown_Jetson"
 
   # Set the video format
   if [ "$FORMAT" == "1080p" ]; then

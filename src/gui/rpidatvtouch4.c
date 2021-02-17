@@ -294,7 +294,7 @@ char QOFreqButts[10][31] = {"10494.75^2405.25", "10495.25^2405.75", "10495.75^24
 
 // Langstone Integration variables
 char StartApp[63];            // Startup app on boot
-char PlutoIP[10];             // Pluto IP address
+char PlutoIP[63];             // Pluto IP address
 
 // Touch display variables
 int Inversed=0;               //Display is inversed (Waveshare=1)
@@ -4079,7 +4079,6 @@ int CheckPlutoIPConnect()
   strcat(plutoping, " -c1 | head -n 5 | tail -n 1 | grep -o \"1 received,\" | head -c 11");
 
   /* Open the command for reading. */
-  // fp = popen("timeout 0.2 ping pluto.local -c1 | head -n 5 | tail -n 1 | grep -o \"1 received,\" | head -c 11", "r");
   fp = popen(plutoping, "r");
   if (fp == NULL) {
     printf("Failed to run command\n" );
@@ -6264,8 +6263,8 @@ void GreyOut42()
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 10), 2); // Jetson
   }
-  // Always grey-out pluto for now
-  if (CheckPlutoConnect() == 1)  // Pluto not connected, so GreyOut
+  // Check Pluto
+  if (CheckPlutoIPConnect() == 1)   // Pluto not connected, so GreyOut
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 14), 2); // Pluto
   }
@@ -13365,7 +13364,7 @@ void RebootPluto()
     snprintf(timetext, 62, "Timeout in %d seconds", 29 - count);
     MsgBox4("Pluto Rebooting", "Wait for reconnection", " ", timetext);
     usleep(1000000);
-    test = CheckPlutoConnect();
+    test = CheckPlutoIPConnect();
     count = count + 1;
     if (count > 29)
     {
@@ -13397,11 +13396,33 @@ void UpdateLangstone()
   else
   {
     MsgBox4("Unable to contact GitHub for update", "There appears to be no Internet connection", \
-     "Please check your connection and try again", " ");
+     "Please check your connection and try again", "Touch Screen to Continue");
   }
   wait_touch();
   UpdateWindow();
 }
+
+void InstallLangstone()
+{
+  int i;
+  if (CheckGoogle() == 0)  // First check internet conection
+  {
+    system("/home/pi/rpidatv/add_langstone.sh &");
+    MsgBox4("Installing Langstone Software", "This can take up to 5 minutes", " ", "Please wait for Reboot");
+    for (i = 0; i > 300; i++)
+    {
+      usleep(1000000);
+    }
+  }
+  else
+  {
+    MsgBox4("Unable to contact GitHub for Install", "There appears to be no Internet connection", \
+     "Please check your connection and try again", "Touch Screen to Continue");
+    wait_touch();
+    UpdateWindow();
+  }
+}
+
 
 void BackupLangstone()
 {
@@ -14245,7 +14266,7 @@ rawY = 0;
           clearScreen();
           UpdateWindow();
           break;
-        case 15:                                     // Select Langstone (Or Install)
+        case 15:                                     // Select Langstone (Or go to menu for install)
           if (file_exist("/home/pi/Langstone/LangstoneGUI.c") == 0)
           {
             SetButtonStatus(ButtonNumber(2, 15), 1);  // and highlight button
@@ -16515,8 +16536,10 @@ rawY = 0;
             printf("Installing Langstone\n");
             SetButtonStatus(ButtonNumber(39, 5), 1);
             UpdateWindow();
-            system("/home/pi/rpidatv/add_langstone.sh &");
-            MsgBox4("Installing Langstone Software", " ", " ", "Please wait for Reboot");
+            usleep(200000);
+            InstallLangstone();
+            Start_Highlights_Menu39();
+            UpdateWindow();
           }
           break;
         case 4:                               // Exit
