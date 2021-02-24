@@ -1117,7 +1117,6 @@ fi
       esac
     fi
 
-
     # Now generate the stream
 
     if [ "$AUDIO_CARD" == 0 ]; then
@@ -1138,18 +1137,25 @@ fi
     else
       # ******************************* H264 VIDEO WITH AUDIO ************************************
 
-      # Resample the audio (was 32k or 48k which overruns, so this is reduced to 46500)
-      arecord -f S16_LE -r $AUDIO_SAMPLE -c 2 -B $ARECORD_BUF -D plughw:$AUDIO_CARD_NUMBER,0 \
-        | sox -c $AUDIO_CHANNELS --buffer 1024 -t wav - audioin.wav rate 46500 &  
+      if [ "$MODE_INPUT" == "ANALOGCAM" ]; then              # EasyCap.  No audio resampling required
 
-      sudo $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -d 300 -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
-        -f $VIDEO_FPS -i $IDRPERIOD $OUTPUT_FILE -t 2 -e $ANALOGCAMNAME -p $PIDPMT -s $CALL $OUTPUT_IP \
-        -a audioin.wav -z $BITRATE_AUDIO > /dev/null &
+        arecord -f S16_LE -r $AUDIO_SAMPLE -c 2 -B $ARECORD_BUF -D plughw:$AUDIO_CARD_NUMBER,0 > audioin.wav &
 
-      if [ "$MODE_INPUT" == "ANALOGCAM" ]; then
+        sudo $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -d 300 -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
+          -f $VIDEO_FPS -i $IDRPERIOD $OUTPUT_FILE -t 2 -e $ANALOGCAMNAME -p $PIDPMT -s $CALL $OUTPUT_IP \
+          -a audioin.wav -z $BITRATE_AUDIO > /dev/null &
+
         # Set the EasyCap contrast to prevent crushed whites
         sleep 2
         v4l2-ctl -d "$ANALOGCAMNAME" --set-ctrl "$ECCONTRAST" >/dev/null 2>/dev/null
+      else
+        # Resample the audio (was 32k or 48k which overruns, so this is reduced to 46500)
+        arecord -f S16_LE -r $AUDIO_SAMPLE -c 2 -B $ARECORD_BUF -D plughw:$AUDIO_CARD_NUMBER,0 \
+         | sox -c $AUDIO_CHANNELS --buffer 1024 -t wav - audioin.wav rate 47500 &  
+
+        sudo $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -d 300 -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
+          -f $VIDEO_FPS -i $IDRPERIOD $OUTPUT_FILE -t 2 -e $ANALOGCAMNAME -p $PIDPMT -s $CALL $OUTPUT_IP \
+          -a audioin.wav -z $BITRATE_AUDIO > /dev/null &
       fi
 
       # Auto restart for arecord (which dies after about an hour)  in repeater TX modes
@@ -1157,8 +1163,12 @@ fi
       do
         sleep 10
         if ! pgrep -x "arecord" > /dev/null; then # arecord is not running, so restart it
-        arecord -f S16_LE -r $AUDIO_SAMPLE -c 2 -B $ARECORD_BUF -D plughw:$AUDIO_CARD_NUMBER,0 \
-          | sox -c $AUDIO_CHANNELS --buffer 1024 -t wav - audioin.wav rate 46500 &  
+          if [ "$MODE_INPUT" == "ANALOGCAM" ]; then
+            arecord -f S16_LE -r $AUDIO_SAMPLE -c 2 -B $ARECORD_BUF -D plughw:$AUDIO_CARD_NUMBER,0 > audioin.wav &
+          else
+            arecord -f S16_LE -r $AUDIO_SAMPLE -c 2 -B $ARECORD_BUF -D plughw:$AUDIO_CARD_NUMBER,0 \
+              | sox -c $AUDIO_CHANNELS --buffer 1024 -t wav - audioin.wav rate 47500 &
+          fi 
         fi
       done
     fi
