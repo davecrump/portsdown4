@@ -3065,8 +3065,7 @@ do_lime_setup()
     "3 Lime Quick Test" "Basic Test of LimeSDR" \
     "4 Update to FW 1.30" "Update LimeSDRMini to Firmware 1.30" \
     "5 Update to DVB FW" "Update LimeSDRMini to custom DVB Firmware" \
-    "6 Calibration Rules" "Set LimeSDR Calibration Behaviour" \
-    "7 Set Lime Gain" "Set the Lime Gain for the current Band" \
+    "6 Set Lime Gain" "Set the Lime Gain for the current Band" \
     3>&2 2>&1 1>&3)
   case "$menuchoice" in
     1\ *) do_lmsver ;;
