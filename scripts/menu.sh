@@ -298,6 +298,30 @@ do_input_setup_h264()
       if [ $? -eq 0 ]; then
          set_config_var analogcamname "$newcamname" $PCONFIGFILE
       fi
+
+      FORMAT=$(get_config_var format $PCONFIGFILE)
+      Radio1=OFF
+      Radio2=OFF
+
+      case "$FORMAT" in
+        "4:3")
+          Radio1=ON
+        ;;
+        "16:9")
+          Radio2=ON
+        ;;
+        *)
+          Radio1=ON
+        ;;
+      esac
+      newformat=$(whiptail --title "Select 4:3 or 16:9 Transmission Format" --radiolist \
+        "Select one option with spacebar and press enter" 20 78 5 \
+        "4:3" "Old-style 4:3 Transmission Format" $Radio1 \
+        "16:9" "Widescreen Transmission Format" $Radio2 \
+        3>&2 2>&1 1>&3)
+      if [ $? -eq 0 ]; then
+         set_config_var format "$newformat" $PCONFIGFILE
+      fi
     ;;
     PATERNAUDIO)
       PATERNFILE=$(get_config_var paternfile $PCONFIGFILE)
@@ -2902,21 +2926,6 @@ do_lqt()
   read -n 1
 }
 
-do_ud129()
-{
-  UD129=""
-  UD129=$(whiptail --inputbox "Enter y or n" 8 78 $UD129 --title "Load LimeSDR Mini Firmware 1.29?" 3>&1 1>&2 2>&3)
-  if [ $? -eq 0 ]; then
-    if [[ "$UD129" == "y" || "$UD129" == "Y" ]]; then
-      reset
-      sudo LimeUtil --fpga=/home/pi/.local/share/LimeSuite/images/19.01/LimeSDR-Mini_HW_1.2_r1.29.rpd
-      printf "\nPress any key to return to the main menu\n"
-      read -n 1
-    else
-      whiptail --title "Message" --msgbox "Current LimeSDR Configuration Retained.  Please press enter to continue" 8 78
-    fi
-  fi
-}
 
 do_ud130()
 {
@@ -2925,7 +2934,7 @@ do_ud130()
   if [ $? -eq 0 ]; then
     if [[ "$UD130" == "y" || "$UD130" == "Y" ]]; then
       reset
-      sudo LimeUtil --fpga=/home/pi/.local/share/LimeSuite/images/19.04/LimeSDR-Mini_HW_1.2_r1.30.rpd
+      sudo LimeUtil --fpga=/home/pi/.local/share/LimeSuite/images/20.10/LimeSDR-Mini_HW_1.2_r1.30.rpd
       printf "\nPress any key to return to the main menu\n"
       read -n 1
     else
@@ -2950,29 +2959,29 @@ do_uddvb()
   fi
 }
 
-do_limecal()
-{
-  LIMECALFREQ=$(get-config_var limecalfreq $PATH_LIME_CAL)
+#do_limecal()
+#{
+#  LIMECALFREQ=$(get-config_var limecalfreq $PATH_LIME_CAL)
 
-  if [[ "$LIMECALFREQ" == "2.0" ]]; then
-    CAL_MSG="LIME Set to Never Calibrate.  Select new option"
-  elif [[ "$LIMECALFREQ" == "1.0" ]]; then
-    CAL_MSG="LIME Set to Calibrate every transmission.  Select new option"
-  else
-    CAL_MSG="LIME Set to Calibrate on Frequency Change only.  Select new option"
-  fi
+#  if [[ "$LIMECALFREQ" == "2.0" ]]; then
+#    CAL_MSG="LIME Set to Never Calibrate.  Select new option"
+#  elif [[ "$LIMECALFREQ" == "1.0" ]]; then
+#    CAL_MSG="LIME Set to Calibrate every transmission.  Select new option"
+#  else
+#    CAL_MSG="LIME Set to Calibrate on Frequency Change only.  Select new option"
+#  fi
   
-  menuchoice=$(whiptail --title "LimeSDR Calibration Menu" --menu "$CAL_MSG" 20 78 4 \
-    "1 Never Calibrate" "No Calibration"  \
-    "2 Always Calibrate" "Calibrate at the Start of Every Transmission"  \
-    "3 Cal as Required" "Calibrate only on frequency change" \
-    3>&2 2>&1 1>&3)
-  case "$menuchoice" in
-    1\ *) set_config_var limecalfreq "-2.0" $PATH_LIME_CAL ;;
-    2\ *) set_config_var limecalfreq "-1.0" $PATH_LIME_CAL ;;
-    3\ *) set_config_var limecalfreq "0.0" $PATH_LIME_CAL ;;
-  esac
-}
+#  menuchoice=$(whiptail --title "LimeSDR Calibration Menu" --menu "$CAL_MSG" 20 78 4 \
+#    "1 Never Calibrate" "No Calibration"  \
+#    "2 Always Calibrate" "Calibrate at the Start of Every Transmission"  \
+#    "3 Cal as Required" "Calibrate only on frequency change" \
+#    3>&2 2>&1 1>&3)
+#  case "$menuchoice" in
+#    1\ *) set_config_var limecalfreq "-2.0" $PATH_LIME_CAL ;;
+#    2\ *) set_config_var limecalfreq "-1.0" $PATH_LIME_CAL ;;
+#    3\ *) set_config_var limecalfreq "0.0" $PATH_LIME_CAL ;;
+#  esac
+#}
 
 
 do_lg()
@@ -3054,21 +3063,18 @@ do_lime_setup()
     "1 Show LimeSuite Version" "LimeSDR Driver Software"  \
     "2 Show Lime FW Version" "Firmware and Gateware Version"  \
     "3 Lime Quick Test" "Basic Test of LimeSDR" \
-    "4 Update to FW 1.29" "Update LimeSDRMini to Firmware 1.29" \
-    "5 Update to FW 1.30" "Update LimeSDRMini to Firmware 1.30" \
-    "6 Update to DVB FW" "Update LimeSDRMini to custom DVB Firmware" \
-    "7 Calibration Rules" "Set LimeSDR Calibration Behaviour" \
-    "8 Set Lime Gain" "Set the Lime Gain for the current Band" \
+    "4 Update to FW 1.30" "Update LimeSDRMini to Firmware 1.30" \
+    "5 Update to DVB FW" "Update LimeSDRMini to custom DVB Firmware" \
+    "6 Calibration Rules" "Set LimeSDR Calibration Behaviour" \
+    "7 Set Lime Gain" "Set the Lime Gain for the current Band" \
     3>&2 2>&1 1>&3)
   case "$menuchoice" in
     1\ *) do_lmsver ;;
     2\ *) do_lfwver ;;
     3\ *) do_lqt ;;
-    4\ *) do_ud129 ;;
-    5\ *) do_ud130 ;;
-    6\ *) do_uddvb ;;
-    7\ *) do_limecal ;;
-    8\ *) do_lg ;;
+    4\ *) do_ud130 ;;
+    5\ *) do_uddvb ;;
+    6\ *) do_lg ;;
   esac
 }
 

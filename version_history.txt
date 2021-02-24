@@ -1,3 +1,7 @@
+202102250
+Improve EasyCap H264 transmissions on LimeSDR and Express
+Introduce Repeater TX Mode for Portsdown 4
+
 202102150
 Correct Pluto IP Keyboard Entry routine
 Refer to Pluto numeric IP rather than pluto.local
