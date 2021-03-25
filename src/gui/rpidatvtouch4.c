@@ -13600,7 +13600,7 @@ void InstallLangstone()
 
   if (CheckGoogle() == 0)  // First check internet conection
   {
-    // system("/home/pi/rpidatv/add_langstone.sh &");
+    system("/home/pi/rpidatv/add_langstone.sh &");
     MsgBox4("Installing Langstone Software", "This can take up to 5 minutes", " ", "Please wait for Reboot");
     for (i = 0; i < 300; i++)
     {
