@@ -4201,6 +4201,73 @@ int GetPlutoAD()
   return AD;
 }
 
+/***************************************************************************//**
+ * @brief Looks up the current CPU state on the Pluto
+ *
+ * @param nil
+ *
+ * @return int 0 on fail, 1 for single CPU, 2 for both
+*******************************************************************************/
+
+int GetPlutoCPU()
+{
+  FILE *fp;
+  char response[127];
+  char CPUtext[15];
+  int cpu = 0;
+
+  if (CheckPlutoIPConnect() == 1)
+  {
+    MsgBox4("No Pluto Detected", "Check Config and Connections", "or disconnect/connect Pluto", "Touch screen to continue");
+    wait_touch();
+    return 0;
+  }
+
+  // Open the command for reading
+  fp = popen("/home/pi/rpidatv/scripts/pluto_get_cpu.sh", "r");
+  if (fp == NULL)
+  {
+    printf("Failed to run command\n" );
+    pclose(fp);
+    return 0;
+  }
+
+  // Read the output a line at a time - output it
+  while (fgets(response, 126, fp) != NULL)
+  {
+    strcpyn(CPUtext, response, 9);
+    if (strcmp(CPUtext, "processor") == 0)
+    {
+      cpu = cpu + 1;
+    }
+  }
+
+  pclose(fp);
+  // printf("\n%d cpus detected\n", cpu);
+  return cpu;
+}
+
+
+/***************************************************************************//**
+ * @brief Checks whether a Pluto is connected if selected on the IP address
+ *        and displays error message if not
+ * @param 
+ *
+ * @return void
+*******************************************************************************/
+
+void CheckPlutoReady()
+{
+  if (strcmp(CurrentModeOP, TabModeOP[13]) == 0)  // Pluto Output selected
+  {
+    if (CheckPlutoIPConnect() == 1)
+    {
+      MsgBox4("No Pluto Detected", "Check Config and Connections", "or disconnect/connect Pluto", "Touch screen to continue");
+      wait_touch();
+    }
+  }
+}
+
 
 /***************************************************************************//**
  * @brief Checks whether a Lime Mini or Lime USB is connected if selected
@@ -6511,6 +6578,8 @@ void SelectOP(int NoButton)      // Output device
 
   // Check Lime Connected if selected
   CheckLimeReady();
+  // and check Pluto connected if selected
+  CheckPlutoReady();
 }
 
 void SelectFormat(int NoButton)  // Video Format
@@ -7231,12 +7300,16 @@ void SetAttenLevel()
       Keyboard(Prompt, Value, 6);
       AttenLevel = atof(KeyboardReturn);
     }
+
     TabBandAttenLevel[CurrentBand] = AttenLevel;
     strcpy(Param, TabBand[CurrentBand]);
     strcat(Param, "attenlevel");
     SetConfigParam(PATH_PPRESETS, Param, KeyboardReturn);
     strcpy(Param, "attenlevel");
     SetConfigParam(PATH_PCONFIG, Param, KeyboardReturn);
+
+    // Now set the new level
+    system ("sudo /home/pi/rpidatv/scripts/ctlfilter.sh");
   }
 }
 
@@ -7799,6 +7872,8 @@ void TransmitStart()
 
   // Check Lime connected if selected
   CheckLimeReady();
+  // and Check Pluto connected if selected
+  CheckPlutoReady();
 
   strcpy(Param,"modeinput");
   GetConfigParam(PATH_PCONFIG,Param,Value);
@@ -13352,28 +13427,145 @@ void ChangePlutoAD()
 }
 
 
-void RebootPluto()
+void ChangePlutoCPU()
+{
+  // Checks whether Pluto has been expanded to use 2 cpus and does it if required
+  int oldCPU;
+
+  oldCPU = GetPlutoCPU();
+
+  if (oldCPU == 2)
+  {
+    MsgBox("Both Pluto CPUs enabled");
+    wait_touch();
+  }
+
+  if (oldCPU == 1)
+  {
+    MsgBox2("Only a single CPU is enabled", "Enable both from next Menu if required");
+    wait_touch();
+    // Set the status of the change action button to 1
+    SetButtonStatus(ButtonNumber(15, 6), 1);
+  }
+}
+
+
+// Pluto reboot
+// context 0, straight reboot, waits for touch
+// context 1, Portsdown to Langstone reboot with message
+// context 2, Langstone (or SigGen) to Portsdown reboot with message
+// context 3, Portsdown to SigGen reboot with message
+
+void RebootPluto(int context)
 {
   int test = 1;
   int count = 0;
   char timetext[63];
 
-  system("/home/pi/rpidatv/scripts/reboot_pluto.sh");
-  while(test == 1)
+  if (context == 0)  // Straight reboot
   {
-    snprintf(timetext, 62, "Timeout in %d seconds", 29 - count);
-    MsgBox4("Pluto Rebooting", "Wait for reconnection", " ", timetext);
-    usleep(1000000);
-    test = CheckPlutoIPConnect();
-    count = count + 1;
-    if (count > 29)
+    system("/home/pi/rpidatv/scripts/reboot_pluto.sh");
+
+    while(test == 1)
     {
-      MsgBox4("Failed to Reconnect","to Pluto", " ", "Touch Screen to Continue");
-      wait_touch();
-      return;
+      snprintf(timetext, 62, "Timeout in %d seconds", 29 - count);
+      MsgBox4("Pluto Rebooting", "Wait for reconnection", " ", timetext);
+      usleep(1000000);
+      test = CheckPlutoIPConnect();
+      count = count + 1;
+      if (count > 29)
+      {
+        MsgBox4("Failed to Reconnect","to Pluto", " ", "Touch Screen to Continue");
+        wait_touch();
+        return;
+      }
+    }
+    MsgBox4("Pluto Rebooted"," ", " ", "Touch Screen to Continue");
+    wait_touch();
+    return;
+  }
+
+  if (context == 1)  // Switching to Langstone
+  {
+    system("/home/pi/rpidatv/scripts/reboot_pluto.sh");
+
+    while(test == 1)
+    {
+      snprintf(timetext, 62, "Timeout in %d seconds", 29 - count);
+      MsgBox4("Pluto Rebooting", "Langstone will be selected", "once Pluto has rebooted", timetext);
+      usleep(1000000);
+      test = CheckPlutoIPConnect();
+      count = count + 1;
+      if (count > 29)
+      {
+        MsgBox4("Failed to Reconnect","to Pluto", "You may need to recycle the power", "Touch Screen to Continue");
+        wait_touch();
+        return;
+      }
+    }
+    return;
+  }
+
+  if ((context == 2) && (CheckPlutoIPConnect() == 1))  // On start or entry from Langstone or SigGen with no Pluto
+  {
+    while(test == 1)
+    {
+      snprintf(timetext, 62, "Timeout in %d seconds", 29 - count);
+      MsgBox4("Pluto may be rebooting", "Portsdown will start", "once Pluto has rebooted", timetext);
+      usleep(1000000);
+      test = CheckPlutoIPConnect();
+      count = count + 1;
+      if (count > 29)
+      {
+        MsgBox4("Failed to Reconnect","to Pluto", "You may need to recycle the power", "Touch Screen to Continue");
+        wait_touch();
+        return;
+      }
     }
   }
-  MsgBox4("Pluto Rebooted"," ", " ", "Touch Screen to Continue");
+}
+
+void CheckPlutoFirmware()
+{
+  FILE *fp;
+  char firmware_response_line[127]=" ";
+  char firmware_version[127];
+
+  MsgBox4("Checking Pluto", "", "Please wait", "");
+
+  if (CheckPlutoIPConnect() == 1)
+  {
+    MsgBox4("No Pluto Detected", "Check Config and Connections", "or disconnect/connect Pluto", "Touch screen to continue");
+    wait_touch();
+    return;
+  }
+
+  // Open the command for reading
+  fp = popen("/home/pi/rpidatv/scripts/pluto_fw_version.sh", "r");
+  if (fp == NULL)
+  {
+    printf("Failed to run command\n" );
+    exit(1);
+  }
+
+  // Read the output a line at a time
+  while (fgets(firmware_response_line, 250, fp) != NULL)
+  {
+    if (firmware_response_line[0] == 'P')
+    {
+      strcpyn(firmware_version, firmware_response_line, 45);
+    }
+  }
+  pclose(fp);
+
+  if (strcmp(firmware_version, "Pluto Firmware Version is v0.31-4-g9ceb-dirty") == 0)
+  {
+    MsgBox4(firmware_version, "This is correct for Portsdown operation", " ", "Touch Screen to Continue");
+  }
+  else
+  {
+    MsgBox4(firmware_version, "This may not work with Portsdown", "Please update to v0.31-4-g9ceb-dirty", "Touch Screen to Continue");
+  }
   wait_touch();
 }
 
@@ -13405,11 +13597,12 @@ void UpdateLangstone()
 void InstallLangstone()
 {
   int i;
+
   if (CheckGoogle() == 0)  // First check internet conection
   {
-    system("/home/pi/rpidatv/add_langstone.sh &");
+    // system("/home/pi/rpidatv/add_langstone.sh &");
     MsgBox4("Installing Langstone Software", "This can take up to 5 minutes", " ", "Please wait for Reboot");
-    for (i = 0; i > 300; i++)
+    for (i = 0; i < 300; i++)
     {
       usleep(1000000);
     }
@@ -13421,19 +13614,6 @@ void InstallLangstone()
     wait_touch();
     UpdateWindow();
   }
-}
-
-
-void BackupLangstone()
-{
-  // Copy the Langstone config file out of the Langstone directory for later use.
-  system("cp -f /home/pi/Langstone/Langstone.conf /home/pi/rpidatv/scripts/configs/Langstone.conf > /tmp/PortsdownGUI.log 2>&1");
-}
-
-void RestoreLangstone()
-{
-  // Copy the Langstone config file back into the Langstone directory.
-  system("cp -f /home/pi/rpidatv/scripts/configs/Langstone.conf /home/pi/Langstone/Langstone.conf > /tmp/PortsdownGUI.log 2>&1");
 }
 
 
@@ -14270,7 +14450,8 @@ rawY = 0;
           if (file_exist("/home/pi/Langstone/LangstoneGUI.c") == 0)
           {
             SetButtonStatus(ButtonNumber(2, 15), 1);  // and highlight button
-            UpdateWindow();                           
+            UpdateWindow();
+            RebootPluto(1);                           // Reboot Pluto and wait for recovery                          
             do_Langstone();
             SetButtonStatus(ButtonNumber(2, 15), 0);  // unhighlight button
             setBackColour(0, 0, 0);
@@ -15357,7 +15538,7 @@ rawY = 0;
           UpdateWindow();
           break;
         case 1:                               // Reboot Pluto
-          RebootPluto();
+          RebootPluto(0);
           setBackColour(0, 0, 0);
           clearScreen();
           Start_Highlights_Menu15();
@@ -15380,6 +15561,26 @@ rawY = 0;
           UpdateWindow();
           usleep(500000);
           break;
+        case 5:                               // Check Pluto CPUs
+          ChangePlutoCPU();
+          Start_Highlights_Menu15();
+          UpdateWindow();
+          break;
+        case 6:                               // Enable 2nd Pluto CPU
+          if (GetButtonStatus(ButtonNumber(15, 6)) == 1)
+          {
+            system("/home/pi/rpidatv/scripts/pluto_set_cpu.sh");
+            MsgBox2("Pluto 2nd CPU enabled", "You must reboot the Pluto now");
+            wait_touch();
+            SetButtonStatus(ButtonNumber(15, 6), 0);
+          }
+          UpdateWindow();
+          break;
+        case 7:                               // Check Pluto Firmware
+          CheckPlutoFirmware();
+          Start_Highlights_Menu15();
+          UpdateWindow();
+          break;
         case 8:                               // Perform Pluto Expansion
           if (GetButtonStatus(ButtonNumber(15, 8)) == 1)
           {
@@ -15394,7 +15595,8 @@ rawY = 0;
           printf("Menu 15 Error\n");
         }
         SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 0); // Reset cancel (even if not selected)
-        if ((GetButtonStatus(ButtonNumber(15, 8)) == 1) && (i == 3))  // Update frequency range offered
+        if (((GetButtonStatus(ButtonNumber(15, 8)) == 1) && (i == 3)) 
+          || ((GetButtonStatus(ButtonNumber(15, 6)) == 1) && (i == 5)))  // Update frequency range or CPU offered
         {
           printf("Staying in Menu 15\n");
           CurrentMenu=15;
@@ -16488,20 +16690,6 @@ rawY = 0;
           Start_Highlights_Menu39();
           UpdateWindow();
           break;
-        case 1:                               // Backup Config
-          if (file_exist("/home/pi/Langstone/LangstoneGUI.c") == 0)  // Langstone installed
-          {
-            printf("Backing up Langstone Config\n");
-            SetButtonStatus(ButtonNumber(39, 1), 1);
-            UpdateWindow();
-            BackupLangstone();
-            setBackColour(0, 0, 0);
-            clearScreen();
-            SetButtonStatus(ButtonNumber(39, 1), 0);
-          }
-          Start_Highlights_Menu39();
-          UpdateWindow();
-          break;
         case 2:                               // Update Langstone
           if (file_exist("/home/pi/Langstone/LangstoneGUI.c") == 0)  // Langstone installed
           {
@@ -16512,20 +16700,6 @@ rawY = 0;
             setBackColour(0, 0, 0);
             clearScreen();
             SetButtonStatus(ButtonNumber(39, 2), 0);
-          }
-          Start_Highlights_Menu39();
-          UpdateWindow();
-          break;
-        case 3:                               // Restore Config
-          if (file_exist("/home/pi/Langstone/LangstoneGUI.c") == 0)  // Langstone installed
-          {
-            printf("Restoring Langstone Config\n");
-            SetButtonStatus(ButtonNumber(39, 3), 1);
-            UpdateWindow();
-            RestoreLangstone();
-            setBackColour(0, 0, 0);
-            clearScreen();
-            SetButtonStatus(ButtonNumber(39, 3), 0);
           }
           Start_Highlights_Menu39();
           UpdateWindow();
@@ -19127,10 +19301,21 @@ void Define_Menu15()
   button = CreateButton(15, 3);
   AddButtonStatus(button, "Check Pluto^AD9364", &Blue);
 
-
   button = CreateButton(15, 4);
   AddButtonStatus(button, "Cancel", &DBlue);
   AddButtonStatus(button, "Cancel", &LBlue);
+
+ // Second Row, Menu 15
+
+  button = CreateButton(15, 5);
+  AddButtonStatus(button, "Check Pluto^CPUs", &Blue);
+
+  button = CreateButton(15, 6);
+  AddButtonStatus(button, " ", &Grey);
+  AddButtonStatus(button, "Enable 2nd^Pluto CPU", &Red);
+
+  button = CreateButton(15, 7);
+  AddButtonStatus(button, "Check Pluto^Firmware", &Blue);
 
   button = CreateButton(15, 8);
   AddButtonStatus(button, " ", &Grey);
@@ -20817,29 +21002,19 @@ void Define_Menu39()
   button = CreateButton(39, 0);
   AddButtonStatus(button, "Enter^Pluto IP", &Blue);
 
-  button = CreateButton(39, 1);
-  AddButtonStatus(button,"Back-up^Langstone",&Blue);
-  AddButtonStatus(button,"Back-up^Langstone",&Green);
-  AddButtonStatus(button,"Back-up^Langstone",&Grey);
-
   button = CreateButton(39, 2);
   AddButtonStatus(button,"Update^Langstone",&Blue);
   AddButtonStatus(button,"Update^Langstone",&Green);
   AddButtonStatus(button,"Update^Langstone",&Grey);
-
-  button = CreateButton(39, 3);
-  AddButtonStatus(button,"Restore^Langstone",&Blue);
-  AddButtonStatus(button,"Restore^Langstone",&Green);
-  AddButtonStatus(button,"Restore^Langstone",&Grey);
 
   button = CreateButton(39, 4);
   AddButtonStatus(button, "Exit", &DBlue);
   AddButtonStatus(button, "Exit", &LBlue);
 
   button = CreateButton(39, 5);
-  AddButtonStatus(button,"Install^Langstone",&Blue);
-  AddButtonStatus(button,"Install^Langstone",&Green);
-  AddButtonStatus(button,"Install^Langstone",&Grey);
+  AddButtonStatus(button,"Install^Langstone now",&Blue);
+  AddButtonStatus(button,"Install^Langstone now",&Green);
+  AddButtonStatus(button,"Langstone^Installed",&Grey);
 }
 
 void Start_Highlights_Menu39()
@@ -20851,9 +21026,8 @@ void Start_Highlights_Menu39()
   }
   else
   {
-    SetButtonStatus(ButtonNumber(39, 1), 2);
     SetButtonStatus(ButtonNumber(39, 2), 2);
-    SetButtonStatus(ButtonNumber(39, 3), 2);
+    SetButtonStatus(ButtonNumber(39, 5), 0);
   }
 }
 
@@ -21876,6 +22050,12 @@ int main(int argc, char **argv)
 
   // Check Lime connected if selected
   CheckLimeReady();
+
+  // Check Pluto reboot status
+  if (strcmp(CurrentModeOP, "PLUTO") == 0)
+  {
+    RebootPluto(2);
+  }
 
   // Check for LimeNET Micro
   LimeNETMicroDet = DetectLimeNETMicro();

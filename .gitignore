@@ -19,16 +19,7 @@ src/DvbTsToIQ/dvb2iq
 src/DvbTsToIQ/DvbTsToIQ.o
 src/libdvbmod/lib/libdvbmod.a
 src/libdvbmod/obj/libdvbmod.o
-src/gui/DejaVuSans.inc
-src/gui/DejaVuSansMono.inc
-src/gui/DejaVuSerif.inc
-src/gui/font2openvg
-src/gui/libshapes.o
-src/gui/libshapes.so
-src/gui/oglinit.o
 src/gui/rpidatvgui
-src/gui/tcanim
-src/gui/tcanim1v16
 src/hello_video/hello_video.bin
 src/hello_video2/hello_video2.bin
 src/leansdr/
@@ -49,4 +40,19 @@ src/siggen/font2openvg
 src/siggen/libshapes.o
 src/siggen/oglinit.o
 scripts/configs/Langstone.conf
+bin/adf4351
+bin/avc2ts
+bin/dvb2iq
+bin/dvb_t_stack
+bin/keyedtx
+bin/keyedtxtouch
+bin/limesdr_dump
+bin/limesdr_dvb
+bin/limesdr_forward
+bin/limesdr_send
+bin/limesdr_stopchannel
+bin/rpidatvgui
+bin/set_attenuator
+bin/siggen
+bin/plutotx
 

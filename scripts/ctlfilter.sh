@@ -6,6 +6,7 @@
 
 # Called by a.sh in IQ and DATVEXPRESS modes to switch in correct
 # Nyquist Filter, band/transverter switching and attenuator level
+# Also sets Pin 21 (BCM 9, WiringPi 13) low for Portsdown/Langstone switching
 # Written by Dave G8GKQ 20170209.  Last amended 201802040
 
 # SR Outputs:
@@ -39,7 +40,6 @@
 ############ Set Environment Variables ###############
 
 PATHSCRIPT=/home/pi/rpidatv/scripts
-CONFIGFILE=$PATHSCRIPT"/rpidatvconfig.txt"
 PCONFIGFILE="/home/pi/rpidatv/scripts/portsdown_config.txt"
 PATH_ATTEN="/home/pi/rpidatv/bin/set_attenuator "
 
@@ -65,6 +65,9 @@ band_bit1=19
 #tverter_bit: 0 for direct, 1 for transverter = BCM 4 / Header 7
 tverter_bit=4
 
+# pdown bit: 0 for Portsdown, 1 for Langstone = BCM 9 / Header 21
+pdown_bit=9
+
 # Set all as outputs
 gpio -g mode $filter_bit0 out
 gpio -g mode $filter_bit1 out
@@ -72,6 +75,10 @@ gpio -g mode $filter_bit2 out
 gpio -g mode $band_bit0 out
 gpio -g mode $band_bit1 out
 gpio -g mode $tverter_bit out
+gpio -g mode $pdown_bit out
+
+# Set Portsdown id bit low
+gpio -g write $pdown_bit 0
 
 ############### Function to read Config File ###############
 
