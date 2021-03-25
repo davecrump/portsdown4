@@ -428,4 +428,132 @@ detect_video()
     NEWC920Present=1
   fi
   # Note that C920 present will also be set to 1
+
+  ################ Check Webcam Type (not all are compatible) #########################
+  ################ Only one can be connected at any one time  #########################
+  # Detects:
+  # NewC920
+  # OldC920
+  # C170
+  # C270
+  # C910
+  # B910
+  # C310
+  # Webcam
+
+  WEBCAM_TYPE="None"
+
+  lsusb | grep -q "046d:0892"
+  if [ $? == 0 ]; then
+    WEBCAM_TYPE="NewC920"
+  fi
+
+  if [ "$WEBCAM_TYPE" == "None" ]; then
+    lsusb | grep -q "046d:082d"
+    if [ $? == 0 ]; then
+      WEBCAM_TYPE="OldC920"
+    fi
+  fi
+
+  if [ "$WEBCAM_TYPE" == "None" ]; then
+    lsusb | grep -q "046d:082b"
+    if [ $? == 0 ]; then
+      WEBCAM_TYPE="C170"
+    fi
+  fi
+
+  if [ "$WEBCAM_TYPE" == "None" ]; then
+    lsusb | grep -q "046d:0825"
+    if [ $? == 0 ]; then
+      WEBCAM_TYPE="C270"
+    fi
+  fi
+
+  if [ "$WEBCAM_TYPE" == "None" ]; then
+    lsusb | grep -q "046d:0821"
+    if [ $? == 0 ]; then
+      WEBCAM_TYPE="C910"
+    fi
+  fi
+
+  if [ "$WEBCAM_TYPE" == "None" ]; then
+    lsusb | grep -q "046d:0823"
+    if [ $? == 0 ]; then
+      WEBCAM_TYPE="B910"
+    fi
+  fi
+
+  if [ "$WEBCAM_TYPE" == "None" ]; then
+    lsusb | grep -q "046d:0823"
+    if [ $? == 0 ]; then
+      WEBCAM_TYPE="C310"
+    fi
+  fi
+
+  if [ "$WEBCAM_TYPE" == "None" ]; then
+    lsusb | grep -q "Webcam"
+    if [ $? == 0 ]; then
+      WEBCAM_TYPE="Webcam"
+    fi
+  fi
+
+  if [ "$WEBCAM_TYPE" == "None" ]; then
+    printf "No Webcam identified\n"
+  else 
+    printf "Found Webcam of type $WEBCAM_TYPE\n"
+  fi
+
+  ####### Check Analog Capture Device Type (not all are compatible) ########
+  #######            Only one can be connected at any one time      ########
+  # Detects:
+  # USBTV007  (old BATC stock)
+  # MS2106    (new BATC Stock)
+  # Somagic
+  # STK1160 ?? Not yet
+
+  ANALOG_CAPTURE_TYPE="None"
+
+  lsusb | grep -q "1b71:3002"
+  if [ $? == 0 ]; then
+    ANALOG_CAPTURE_TYPE="USBTV007"
+  fi
+
+  if [ "$ANALOG_CAPTURE_TYPE" == "None" ]; then
+    lsusb | grep -q "534d:0021"
+    if [ $? == 0 ]; then
+      ANALOG_CAPTURE_TYPE="MS2106"
+    fi
+  fi
+
+  if [ "$ANALOG_CAPTURE_TYPE" == "None" ]; then
+    lsusb | grep -q "1c88:0007"
+    if [ $? == 0 ]; then
+      ANALOG_CAPTURE_TYPE="Somagic"
+    fi
+  fi
+
+  if [ "$ANALOG_CAPTURE_TYPE" == "None" ]; then
+    printf "No Analog Capture Device identified\n"
+  else 
+    printf "Found Analog Capture Device of type $ANALOG_CAPTURE_TYPE\n"
+  fi
+
+  ####### Check HDMI USB Capture Device Type (not all are compatible) ########
+  #######            Only one can be connected at any one time        ########
+  # Detects:
+  # MS2109 (MacroSilicon USB3)
+
+  HDMI_USB_TYPE="None"
+
+  lsusb | grep -q "534d:2109"
+  if [ $? == 0 ]; then
+    HDMI_USB_TYPE="MS2109"
+  fi
+
+  if [ "$HDMI_USB_TYPE" == "None" ]; then
+    printf "No HDMI USB Capture Device identified\n"
+  else 
+    printf "Found HDMI USB Capture Device of type $HDMI_USB_TYPE\n"
+  fi
+
 }
