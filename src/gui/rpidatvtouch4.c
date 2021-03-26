@@ -13461,6 +13461,7 @@ void RebootPluto(int context)
   int test = 1;
   int count = 0;
   char timetext[63];
+  FinishedButton = 0;
 
   if (context == 0)  // Straight reboot
   {
@@ -13508,20 +13509,25 @@ void RebootPluto(int context)
 
   if ((context == 2) && (CheckPlutoIPConnect() == 1))  // On start or entry from Langstone or SigGen with no Pluto
   {
-    while(test == 1)
+    pthread_create (&thbutton, NULL, &WaitButtonEvent, NULL);
+
+    while((test == 1) && (FinishedButton == 0))
     {
       snprintf(timetext, 62, "Timeout in %d seconds", 29 - count);
-      MsgBox4("Pluto may be rebooting", "Portsdown will start", "once Pluto has rebooted", timetext);
+      MsgBox4("Pluto may be rebooting", "Portsdown will start once Pluto has rebooted", 
+              "Touch Screen to Skip Check", timetext);
       usleep(1000000);
       test = CheckPlutoIPConnect();
       count = count + 1;
       if (count > 29)
       {
+        pthread_join(thbutton, NULL);
         MsgBox4("Failed to Reconnect","to Pluto", "You may need to recycle the power", "Touch Screen to Continue");
         wait_touch();
         return;
       }
     }
+    pthread_join(thbutton, NULL);
   }
 }
 
