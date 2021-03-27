@@ -111,7 +111,9 @@ while [ "$GUI_RETURN_CODE" -gt 127 ] || [ "$GUI_RETURN_CODE" -eq 0 ];  do
       /home/pi/Langstone/stop
       PLUTOIP=$(get_config_var plutoip $PCONFIGFILE)
       ssh-keygen -f "/home/pi/.ssh/known_hosts" -R "$PLUTOIP" >/dev/null 2>/dev/null
+      ssh-keygen -f "/home/pi/.ssh/known_hosts" -R "pluto.local" >/dev/null 2>/dev/null
       timeout 2 sshpass -p analog ssh -o StrictHostKeyChecking=no root@"$PLUTOIP" 'PATH=/bin:/sbin:/usr/bin:/usr/sbin;reboot'
+      sleep 2
       GUI_RETURN_CODE="129"
     ;;
     160)
@@ -123,8 +125,9 @@ while [ "$GUI_RETURN_CODE" -gt 127 ] || [ "$GUI_RETURN_CODE" -eq 0 ];  do
     192)
       PLUTOIP=$(get_config_var plutoip $PCONFIGFILE)
       ssh-keygen -f "/home/pi/.ssh/known_hosts" -R "$PLUTOIP" >/dev/null 2>/dev/null
+      ssh-keygen -f "/home/pi/.ssh/known_hosts" -R "pluto.local" >/dev/null 2>/dev/null
       timeout 2 sshpass -p analog ssh -o StrictHostKeyChecking=no root@"$PLUTOIP" 'reboot'
-      sleep 1
+      sleep 2
       sudo swapoff -a
       sudo reboot now
       break
@@ -153,15 +156,6 @@ while [ "$GUI_RETURN_CODE" -gt 127 ] || [ "$GUI_RETURN_CODE" -eq 0 ];  do
       fi
 
       # Make sure that scheduler reboots and does not repeat 7 inch rotation
-      GUI_RETURN_CODE=192
-      sleep 1
-      sudo swapoff -a
-      sudo reboot now
-      break
-    ;;
-    194)
-      source /home/pi/rpidatv/scripts/toggle_pwm.sh
-      # Make sure that scheduler reboots and does not repeat the command
       GUI_RETURN_CODE=192
       sleep 1
       sudo swapoff -a
