@@ -6,7 +6,7 @@ Check Pluto available when required
 Menu-driven Pluto Firmware check
 Menu-driven Pluto CPU Check and Update
 Trigger and monitor Pluto reboots when required
-BugFix Langstone install user feedback
+BugFix Langstone install feedback to user
 Bugfix 1.7 MHz DVB-T reception
 
 202102250

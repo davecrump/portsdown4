@@ -13469,12 +13469,12 @@ void RebootPluto(int context)
 
     while(test == 1)
     {
-      snprintf(timetext, 62, "Timeout in %d seconds", 29 - count);
+      snprintf(timetext, 62, "Timeout in %d seconds", 24 - count);
       MsgBox4("Pluto Rebooting", "Wait for reconnection", " ", timetext);
       usleep(1000000);
       test = CheckPlutoIPConnect();
       count = count + 1;
-      if (count > 29)
+      if (count > 24)
       {
         MsgBox4("Failed to Reconnect","to Pluto", " ", "Touch Screen to Continue");
         wait_touch();
@@ -13492,12 +13492,12 @@ void RebootPluto(int context)
 
     while(test == 1)
     {
-      snprintf(timetext, 62, "Timeout in %d seconds", 29 - count);
+      snprintf(timetext, 62, "Timeout in %d seconds", 24 - count);
       MsgBox4("Pluto Rebooting", "Langstone will be selected", "once Pluto has rebooted", timetext);
       usleep(1000000);
       test = CheckPlutoIPConnect();
       count = count + 1;
-      if (count > 29)
+      if (count > 24)
       {
         MsgBox4("Failed to Reconnect","to Pluto", "You may need to recycle the power", "Touch Screen to Continue");
         wait_touch();
@@ -13509,25 +13509,21 @@ void RebootPluto(int context)
 
   if ((context == 2) && (CheckPlutoIPConnect() == 1))  // On start or entry from Langstone or SigGen with no Pluto
   {
-    pthread_create (&thbutton, NULL, &WaitButtonEvent, NULL);
-
-    while((test == 1) && (FinishedButton == 0))
+    while(test == 1)
     {
-      snprintf(timetext, 62, "Timeout in %d seconds", 29 - count);
+      snprintf(timetext, 62, "Timeout in %d seconds", 24 - count);
       MsgBox4("Pluto may be rebooting", "Portsdown will start once Pluto has rebooted", 
-              "Touch Screen to Skip Check", timetext);
+              " ", timetext);
       usleep(1000000);
       test = CheckPlutoIPConnect();
       count = count + 1;
-      if (count > 29)
+      if (count > 24)
       {
-        pthread_join(thbutton, NULL);
-        MsgBox4("Failed to Reconnect","to Pluto", "You may need to recycle the power", "Touch Screen to Continue");
+        MsgBox4("Failed to reconnect to the Pluto", "You may need to recycle the power", " ", "Touch Screen to Continue");
         wait_touch();
         return;
       }
     }
-    pthread_join(thbutton, NULL);
   }
 }
 
