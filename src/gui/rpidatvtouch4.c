@@ -6238,7 +6238,10 @@ void GreyOut11()
   }
   else
   {
-    SetButtonStatus(ButtonNumber(CurrentMenu, 7), 2); // Grey-out DVB-T
+    if (strcmp(CurrentModeOP, "LIMEMINI") != 0)
+    {
+      SetButtonStatus(ButtonNumber(CurrentMenu, 7), 2); // Grey-out DVB-T
+    }
   }
 }
 
@@ -8017,6 +8020,7 @@ void TransmitStop()
   system("sudo killall sox >/dev/null 2>/dev/null");
   system("sudo killall arecord >/dev/null 2>/dev/null");
   system("sudo killall dvb_t_stack >/dev/null 2>/dev/null");
+  system("sudo killall /home/pi/rpidatv/bin/dvb_t_stack_lime > /dev/null 2>/dev/null");
 
   if((strcmp(ModeOutput, "IQ") == 0) || (strcmp(ModeOutput, "QPSKRF") == 0))
   {
@@ -14474,7 +14478,20 @@ rawY = 0;
           DisplayLogo();
           cleanexit(130);
           break;
-        case 17:                               // Start RTL-TCP server
+        case 17:                              // Lime Band Viewer
+          if(CheckLimeMiniConnect()==0)
+          {
+            DisplayLogo();
+            cleanexit(136);
+          }
+          else
+          {
+            MsgBox("No LimeSDR Mini Connected");
+            wait_touch();
+          }
+          UpdateWindow();
+          break;
+        case 18:                               // Start RTL-TCP server
           if(CheckRTL()==0)
           {
             rtl_tcp();
@@ -14488,7 +14505,7 @@ rawY = 0;
           clearScreen();
           UpdateWindow();
           break;
-        case 18:                              // RTL-FM Receiver
+        case 19:                              // RTL-FM Receiver
           if(CheckRTL()==0)
           {
             RTLdetected = 1;
@@ -14505,8 +14522,6 @@ rawY = 0;
           clearScreen();
           Start_Highlights_Menu6();
           UpdateWindow();
-          break;
-        case 19:                              // was LeanDVB
           break;
         case 20:                              // Not shown
           break;
@@ -15045,6 +15060,10 @@ rawY = 0;
           system("/home/pi/rpidatv/scripts/user_button5.sh &");
           UpdateWindow();
           usleep(500000);
+          break;
+        case 5:                                                 // XY Display
+          DisplayLogo();
+          cleanexit(134);
           break;
         case 22:                              // Menu 1
           printf("MENU 1 \n");
@@ -17910,16 +17929,13 @@ void Define_Menu2()
   AddButtonStatus(button, " ", &Green);
 
   button = CreateButton(2, 17);
-  AddButtonStatus(button, "RTL-TCP^Server", &Blue);
-  //AddButtonStatus(button, " ", &Green);
+  AddButtonStatus(button, "LimeSDR Mini^Band Viewer", &Blue);
 
   button = CreateButton(2, 18);
-  AddButtonStatus(button, "RTL-FM^Receiver", &Blue);
-  AddButtonStatus(button, "RTL-FM^Receiver", &Green);
+  AddButtonStatus(button, "RTL-TCP^Server", &Blue);
 
-  //button = CreateButton(2, 19);
-  //AddButtonStatus(button, " ", &Blue);
-  //AddButtonStatus(button, " ", &Green);
+  button = CreateButton(2, 19);
+  AddButtonStatus(button, "RTL-FM^Receiver", &Blue);
 
   // Top of Menu 2
 
@@ -18384,6 +18400,9 @@ void Define_Menu7()
   AddButtonStatus(button, "Button 5", &Green);
 
   // 2nd line up Menu 7: Lime Config 
+
+  button = CreateButton(7, 5);
+  AddButtonStatus(button, "Start^XY Display", &Blue);
 
   // 3rd line up Menu 7: 
 

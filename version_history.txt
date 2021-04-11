@@ -1,4 +1,4 @@
-202103250
+202104100
 Set GPIO pin 21 low on Portsdown selection (is high for Langstone)
 Enable ext attenuator with Pluto and make changes immediate on entry
 Cure TX over-run with Pluto Test Card
@@ -8,6 +8,8 @@ Menu-driven Pluto CPU Check and Update
 Trigger and monitor Pluto reboots when required
 BugFix Langstone install feedback to user
 Bugfix 1.7 MHz DVB-T reception
+Add Experimental LimeSDR Mini Band Viewer
+Add Experimental LimeSDR Mini DVB-T TX capability
 
 202102250
 Improve EasyCap H264 transmissions on LimeSDR and Express
