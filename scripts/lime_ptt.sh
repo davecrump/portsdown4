@@ -28,7 +28,8 @@ sleep "$DELAY_TIME"
 
 # Only proceed if limetx Running
 
-if ((pgrep -x "limesdr_send" > /dev/null) || (pgrep -x "limesdr_dvb" > /dev/null))
+if ((pgrep -x "limesdr_send" > /dev/null) || (pgrep -x "limesdr_dvb" > /dev/null) \
+   || (pgrep -f  "dvb_t_stack_lime"))
 then
   # set PTT high
   gpio -g write $PTT_BIT 1
@@ -41,7 +42,8 @@ then
   # Check again after 1 second, to make sure that PTT hadn't just been cancelled
   # If not running cancel PTT
   sleep 1
-  if !((pgrep -x "limesdr_send" > /dev/null) || (pgrep -x "limesdr_dvb" > /dev/null))
+  if !((pgrep -x "limesdr_send" > /dev/null) || (pgrep -x "limesdr_dvb" > /dev/null) \
+   || (pgrep -f  "dvb_t_stack_lime"))
   then
     gpio -g write $PTT_BIT 0
     gpio -g write $SR_BIT0 0
