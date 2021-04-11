@@ -49,16 +49,18 @@ MODE_OUTPUT=$(get_config_var modeoutput $PCONFIGFILE)
   sudo $PATHRPI"/adf4351" off
 
   # Kill the key TX processes as nicely as possible
-  sudo killall rpidatv >/dev/null 2>/dev/null
-  sudo killall ffmpeg >/dev/null 2>/dev/null
-  sudo killall tcanim1v16 >/dev/null 2>/dev/null
-  sudo killall avc2ts >/dev/null 2>/dev/null
-  sudo killall netcat >/dev/null 2>/dev/null
-  sudo killall dvb2iq >/dev/null 2>/dev/null
-  sudo killall limesdr_send >/dev/null 2>/dev/null
-  sudo killall limesdr_dvb >/dev/null 2>/dev/null
+  sudo killall rpidatv > /dev/null 2>/dev/null
+  sudo killall ffmpeg > /dev/null 2>/dev/null
+  sudo killall tcanim1v16 > /dev/null 2>/dev/null
+  sudo killall avc2ts > /dev/null 2>/dev/null
+  sudo killall netcat > /dev/null 2>/dev/null
+  sudo killall dvb2iq > /dev/null 2>/dev/null
+  sudo killall limesdr_send > /dev/null 2>/dev/null
+  sudo killall limesdr_dvb > /dev/null 2>/dev/null
   sudo killall sox >/dev/null 2>/dev/null
-  sudo killall dvb_t_stack>/dev/null 2>/dev/null
+  sudo killall dvb_t_stack > /dev/null 2>/dev/null
+  sudo killall dvb_t_stack_lime > /dev/null 2>/dev/null
+  sudo killall /home/pi/rpidatv/bin/dvb_t_stack_lime > /dev/null 2>/dev/null
 
   # Turn the mpeg-2 camera overlay off
   v4l2-ctl -d /dev/video0 --overlay 0 >/dev/null 2>/dev/null

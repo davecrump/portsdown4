@@ -1,0 +1,7 @@
+startfreq=2407000
+stopfreq=2412000
+reflevel=99
+normlevel=-40
+rbw=0
+title=DVB-S2 Test
+
