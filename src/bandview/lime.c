@@ -142,6 +142,11 @@ void *lime_thread(void *arg)
     LMS_GetLOFrequency(device, LMS_CH_RX, 0, &rxfreq);
     printf("RXFREQ after cal = %f\n", rxfreq);
 
+    // Antenna is set automatically by LimeSuite
+
+    // Set the Analog LPF bandwidth
+    LMS_SetLPFBW(device, LMS_CH_RX, 0, (bandwidth * 1.2));
+
     // Disable test signals generation in RX channel
     if (LMS_SetTestSignal(device, LMS_CH_RX, 0, LMS_TESTSIG_NONE, 0, 0) != 0)
     {
@@ -218,6 +223,7 @@ void *lime_thread(void *arg)
         if (NewSpan == true)
         {
           LMS_StopStream(&rx_stream);
+          LMS_SetLPFBW(device, LMS_CH_RX, 0, (bandwidth * 1.2));
           LMS_SetSampleRate(device, bandwidth, 4);
           NewSpan = false;
           LMS_StartStream(&rx_stream);
