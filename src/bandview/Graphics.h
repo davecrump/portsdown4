@@ -51,7 +51,7 @@ screen_pixel_t2 main_waterfall_buffer[MAIN_WATERFALL_HEIGHT][MAIN_WATERFALL_WIDT
 #define MAIN_SPECTRUM_WIDTH     512
 #define MAIN_SPECTRUM_HEIGHT    170
 screen_pixel_t2 main_spectrum_buffer[MAIN_SPECTRUM_HEIGHT][MAIN_SPECTRUM_WIDTH] __attribute__ ((aligned (NEON_ALIGNMENT)));
-#define MAIN_SPECTRUM_TIME_SMOOTH   0.8f
+//#define MAIN_SPECTRUM_TIME_SMOOTH   0.8f
 //float main_spectrum_smooth_buffer[MAIN_SPECTRUM_WIDTH] = { 0 };
 
 #define MAIN_SPECTRUM_POS_X     100
