@@ -27,3 +27,4 @@ bandview: bandview.c
 
 install:
 	cp bandview ../../bin/
+

@@ -168,6 +168,10 @@ while [ "$GUI_RETURN_CODE" -gt 127 ] || [ "$GUI_RETURN_CODE" -eq 0 ];  do
       sudo reboot now
       break
     ;;
+    *)
+      /home/pi/rpidatv/bin/rpidatvgui
+      GUI_RETURN_CODE="$?"
+    ;;
   esac
 done
 

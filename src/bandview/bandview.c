@@ -72,7 +72,7 @@ color_t Black = {.r = 0  , .g = 0  , .b = 0  };
 #define MAX_BUTTON 675
 int IndexButtonInArray=0;
 button_t ButtonArray[MAX_BUTTON];
-#define TIME_ANTI_BOUNCE 500
+
 int CurrentMenu = 1;
 int CallingMenu = 1;
 char KeyboardReturn[64];
@@ -165,6 +165,8 @@ void Define_Menu5();
 void Define_Menu6();
 void Define_Menu7();
 static void cleanexit(int);
+void Start_Highlights_Menu6();
+void Start_Highlights_Menu8();
 
 //////////////////////////////////////////// SA bits /////////////////////////////////////////
 
@@ -990,7 +992,7 @@ int CreateButton(int MenuIndex, int ButtonPosition)
 
   ButtonIndex = ButtonNumber(MenuIndex, ButtonPosition);
 
-  if ((MenuIndex != 41) && (MenuIndex != 1) && (MenuIndex != 2))   // All except Main, keyboard and Markers
+  if ((MenuIndex != 41) && (MenuIndex != 1) && (MenuIndex != 2) && (MenuIndex != 6))   // All except Main, keyboard, Span, Markers
   {
     if (ButtonPosition == 0)  // Capture
     {
@@ -1047,6 +1049,46 @@ int CreateButton(int MenuIndex, int ButtonPosition)
       h = 50;
     }
   }
+  else if (MenuIndex == 6)   // Scan Width Menu
+  {
+    if (ButtonPosition == 0)  // Capture
+    {
+      x = 0;
+      y = 0;
+      w = 90;
+      h = 50;
+    }
+
+    if ((ButtonPosition > 0) && (ButtonPosition < 6))  // 6 right hand buttons
+    {
+      x = normal_xpos;
+      y = 480 - (ButtonPosition * 60);
+      w = normal_width;
+      h = 50;
+    }
+    if (ButtonPosition == 6) // 10
+    {
+      x = normal_xpos;  
+      y = 480 - (6 * 60);
+      w = 50;
+      h = 50;
+    }
+    if (ButtonPosition == 7) // 20
+    {
+      x = 710;  // = normal_xpos + 50 button width + 20 gap
+      y = 480 - (6 * 60);
+      w = 50;
+      h = 50;
+    }
+    if ((ButtonPosition > 7) && (ButtonPosition < 10))  // Bottom 2 buttons
+    {
+      x = normal_xpos;
+      y = 480 - ((ButtonPosition - 1) * 60);
+      w = normal_width;
+      h = 50;
+    }
+  }
+
   else  // Keyboard
   {
     w = 65;
@@ -1154,7 +1196,7 @@ void AmendButtonStatus(int ButtonIndex, int ButtonStatusIndex, char *Text, color
 
 void DrawButton(int ButtonIndex)
 {
-  button_t *Button=&(ButtonArray[ButtonIndex]);
+  button_t *Button = &(ButtonArray[ButtonIndex]);
   char label[255];
   char line1[15];
   char line2[15];
@@ -1187,23 +1229,19 @@ void DrawButton(int ButtonIndex)
     snprintf(line2, strlen(label) - index, label + index + 1);  // and after ^
 
     // Display the text on the button
-    TextMid2(Button->x+Button->w/2, Button->y+Button->h*11/16, line1, &font_dejavu_sans_20);	
-    TextMid2(Button->x+Button->w/2, Button->y+Button->h*3/16, line2, &font_dejavu_sans_20);	
+    TextMid2(Button->x + Button->w/2, Button->y +Button->h * 11 /16, line1, &font_dejavu_sans_20);	
+    TextMid2(Button->x + Button->w/2, Button->y +Button->h * 3 / 16, line2, &font_dejavu_sans_20);	
   
   }
   else                                              // One line only
   {
-    if ((CurrentMenu <= 9) && (CurrentMenu != 4))
+    if (CurrentMenu <= 9)
     {
-      TextMid2(Button->x+Button->w/2, Button->y+Button->h/2, label, &font_dejavu_sans_20);
+      TextMid2(Button->x + Button->w/2, Button->y + Button->h/2, label, &font_dejavu_sans_20);
     }
-    else if (CurrentMenu == 41)  // Keyboard
+    else                // Keyboard
     {
-      TextMid2(Button->x+Button->w/2, Button->y+Button->h/2 - hscreen / 64, label, &font_dejavu_sans_28);
-    }
-    else // fix text size at 20
-    {
-      TextMid2(Button->x+Button->w/2, Button->y+Button->h/2, label, &font_dejavu_sans_20);
+      TextMid2(Button-> x +Button->w/2, Button->y + Button->h/2 - hscreen / 64, label, &font_dejavu_sans_28);
     }
   }
 }
@@ -1281,18 +1319,41 @@ void UpdateWindow()    // Paint each defined button
   int first;
   int last;
 
-  // Draw a black rectangle where the buttons are to erase them
-  rectangle(620, 0, 160, 480, 0, 0, 0);
-  
+  if (markeron == false)
+  {
+    // Draw a black rectangle where the buttons are to erase them
+    rectangle(620, 0, 160, 480, 0, 0, 0);
+  }
+  else   // But don't erase the marker text
+  {
+    rectangle(620, 0, 160, 420, 0, 0, 0);
+  }
+
   // Draw each button in turn
   first = ButtonNumber(CurrentMenu, 0);
   last = ButtonNumber(CurrentMenu + 1 , 0) - 1;
-
-  for(i = first; i <= last; i++)
+  if ((markeron == false) || (CurrentMenu == 41))
   {
-    if (ButtonArray[i].IndexStatus > 0)  // If button needs to be drawn
+    for(i = first; i <= last; i++)
     {
-      DrawButton(i);                     // Draw the button
+      if (ButtonArray[i].IndexStatus > 0)  // If button needs to be drawn
+      {
+        DrawButton(i);                     // Draw the button
+      }
+    }
+  }
+  else
+  {
+    if (ButtonArray[first].IndexStatus > 0)  // If button needs to be drawn
+    {
+      DrawButton(first);                     // Draw button 0, but not button 1
+    }
+    for(i = (first + 2); i <= last; i++)
+    {
+      if (ButtonArray[i].IndexStatus > 0)  // If button needs to be drawn
+      {
+        DrawButton(i);                     // Draw the button
+      }
     }
   }
 }
@@ -1449,6 +1510,9 @@ void SetSpanWidth(int button)
     case 6:
       span = 10240;
     break;
+    case 7:
+      span = 20480;
+    break;
   }
 
   // Store the new span
@@ -1567,11 +1631,11 @@ void ShiftFrequency(int button)
 
   switch (button)
   {
-    case 5:                                                       // Left 1/4 span
-      centrefreq = centrefreq + (span * 125) / 1280;
-    break;
-    case 6:                                                       // Left 1/4 span
+    case 5:                                                       // Left 1/10 span
       centrefreq = centrefreq - (span * 125) / 1280;
+    break;
+    case 6:                                                       // Left 1/10 span
+      centrefreq = centrefreq + (span * 125) / 1280;
     break;
   }
 
@@ -1594,7 +1658,7 @@ void CalcSpan()    // takes centre frequency and span and calulates startfreq an
 {
   startfreq = centrefreq - (span * 125) / 256;
   stopfreq =  centrefreq + (span * 125) / 256;
-  frequency_actual_rx = (float)(centrefreq * 1000);
+  frequency_actual_rx = 1000.0 * (float)(centrefreq);
   bandwidth = (float)(span * 1000);
 }
 
@@ -1835,6 +1899,12 @@ void *WaitButtonEvent(void * arg)
         case 2:                                            // Peak
           if ((markeron == FALSE) || (markermode != 2))
           {
+            // Freeze the scan to prevent text corruption
+            freeze = TRUE;
+            while(! frozen)
+            {
+              usleep(10);                                   // wait till the end of the scan
+            }
             markeron = TRUE;
             markermode = i;
             SetButtonStatus(ButtonNumber(CurrentMenu, 2), 1);
@@ -1850,10 +1920,17 @@ void *WaitButtonEvent(void * arg)
             SetButtonStatus(ButtonNumber(CurrentMenu, 4), 0);
           }
           UpdateWindow();
+          freeze = false;
           break;
         case 3:                                            // Null
           if ((markeron == FALSE) || (markermode != 3))
           {
+            // Freeze the scan to prevent text corruption
+            freeze = TRUE;
+            while(! frozen)
+            {
+              usleep(10);                                   // wait till the end of the scan
+            }
             markeron = TRUE;
             markermode = i;
             SetButtonStatus(ButtonNumber(CurrentMenu, 2), 0);
@@ -1869,10 +1946,17 @@ void *WaitButtonEvent(void * arg)
             SetButtonStatus(ButtonNumber(CurrentMenu, 4), 0);
           }
           UpdateWindow();
+          freeze = false;
           break;
         case 4:                                            // Manual
           if ((markeron == FALSE) || (markermode != 4))
           {
+            // Freeze the scan to prevent text corruption
+            freeze = TRUE;
+            while(! frozen)
+            {
+              usleep(10);                                   // wait till the end of the scan
+            }
             markeron = TRUE;
             markermode = i;
             SetButtonStatus(ButtonNumber(CurrentMenu, 2), 0);
@@ -1888,6 +1972,7 @@ void *WaitButtonEvent(void * arg)
             SetButtonStatus(ButtonNumber(CurrentMenu, 4), 0);
           }
           UpdateWindow();
+          freeze = false;
           break;
         case 5:                                            // Left Arrow
           if(manualmarkerx > 10)
@@ -1962,11 +2047,13 @@ void *WaitButtonEvent(void * arg)
         case 4:                                            // Span Width
           printf("Span Width Menu 6 Requested\n");
           CurrentMenu=6;
+          Start_Highlights_Menu6();
           UpdateWindow();
           break;
         case 5:                                            // Lime Gain
           printf("Lime Gain Menu 8 Requested\n");
           CurrentMenu=8;
+          Start_Highlights_Menu8();
           UpdateWindow();
           break;
         case 7:                                            // Return to Main Menu
@@ -2025,9 +2112,21 @@ void *WaitButtonEvent(void * arg)
           freeze = false;           // Restart the scan
           break;
         case 3:                                            // Restart BandView
+          freeze = TRUE;
+          usleep(100000);
+          setBackColour(0, 0, 0);
+          clearScreen();
+          usleep(1000000);
+          closeScreen();
           cleanexit(136);
           break;
         case 4:                                            // Exit to Portsdown
+          freeze = TRUE;
+          usleep(100000);
+          setBackColour(0, 0, 0);
+          clearScreen();
+          usleep(1000000);
+          closeScreen();
           cleanexit(129);
           break;
         case 5:                                            // Shutdown
@@ -2059,7 +2158,7 @@ void *WaitButtonEvent(void * arg)
       continue;  // Completed Menu 4 action, go and wait for touch
     }
 
-    if (CurrentMenu == 5)  // System Menu
+    if (CurrentMenu == 5)  // Mode Menu
     {
       printf("Button Event %d, Entering Menu 5 Case Statement\n",i);
       CallingMenu = 5;
@@ -2075,26 +2174,15 @@ void *WaitButtonEvent(void * arg)
           UpdateWindow();
           freeze = FALSE;
           break;
-        case 2:                                            // XY Mode
-          if (ContScan == TRUE)
-          {
-            ContScan = FALSE;
-          }
+        case 2:                                            // Classic SA Mode
           break;
-        case 3:                                            // Continuous Scan
-          if (ContScan == FALSE)
-          {
-            ContScan = TRUE;
-          }
+        case 3:                                            // 
           break;
-        case 4:                                            // Restart BandViewer
-          cleanexit(136);
+        case 4:                                            // 
           break;
-        case 5:                                            // Exit to Portsdown
-          cleanexit(129);
+        case 5:                                            // 
           break;
-        case 6:                                            // Shutdown Raspberry Pi
-          cleanexit(160);
+        case 6:                                            // 
           break;
         case 7:                                            // Return to Main Menu
           printf("Main Menu 1 Requested\n");
@@ -2133,6 +2221,7 @@ void *WaitButtonEvent(void * arg)
           while(! frozen);
           system("/home/pi/rpidatv/scripts/snap2.sh");
           SetButtonStatus(ButtonNumber(CurrentMenu, 0), 0);
+          Start_Highlights_Menu6();
           UpdateWindow();
           freeze = FALSE;
           break;
@@ -2141,27 +2230,29 @@ void *WaitButtonEvent(void * arg)
         case 4:                                            // 2
         case 5:                                            // 5
         case 6:                                            // 10
+        case 7:                                            // 20
           SetSpanWidth(i);
           printf("Main Menu 1 Requested\n");
           CurrentMenu=1;
           UpdateWindow();
           break;
-        case 7:                                            // Return to Settings Menu
+        case 8:                                            // Return to Settings Menu
           printf("Settings Menu 3 requested\n");
           CurrentMenu=3;
           UpdateWindow();
           break;
-        case 8:
+        case 9:
           if (freeze)
           {
-            SetButtonStatus(ButtonNumber(CurrentMenu, 8), 0);
+            SetButtonStatus(ButtonNumber(CurrentMenu, 9), 0);
             freeze = FALSE;
           }
           else
           {
-            SetButtonStatus(ButtonNumber(CurrentMenu, 8), 1);
+            SetButtonStatus(ButtonNumber(CurrentMenu, 9), 1);
             freeze = TRUE;
           }
+          Start_Highlights_Menu6();
           UpdateWindow();
           break;
         default:
@@ -2233,6 +2324,7 @@ void *WaitButtonEvent(void * arg)
           while(! frozen);
           system("/home/pi/rpidatv/scripts/snap2.sh");
           SetButtonStatus(ButtonNumber(CurrentMenu, 0), 0);
+          Start_Highlights_Menu8();
           UpdateWindow();
           freeze = FALSE;
           break;
@@ -2262,6 +2354,7 @@ void *WaitButtonEvent(void * arg)
             SetButtonStatus(ButtonNumber(CurrentMenu, 8), 1);
             freeze = TRUE;
           }
+          Start_Highlights_Menu8();
           UpdateWindow();
           break;
         default:
@@ -2518,15 +2611,71 @@ void Define_Menu6()                                           // Span Menu
   AddButtonStatus(button, "5 MHz", &Green);
 
   button = CreateButton(6, 6);
-  AddButtonStatus(button, "10 MHz", &Blue);
-  AddButtonStatus(button, "10 MHz", &Green);
+  AddButtonStatus(button, "10", &Blue);
+  AddButtonStatus(button, "10", &Green);
 
   button = CreateButton(6, 7);
-  AddButtonStatus(button, "Cancel", &DBlue);
+  AddButtonStatus(button, "20", &Blue);
+  AddButtonStatus(button, "20", &Green);
 
   button = CreateButton(6, 8);
+  AddButtonStatus(button, "Cancel", &DBlue);
+
+  button = CreateButton(6, 9);
   AddButtonStatus(button, "Freeze", &Blue);
   AddButtonStatus(button, "Unfreeze", &Green);
+}
+
+void Start_Highlights_Menu6()
+{
+  if (span == 512)
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 2), 1);
+  }
+  else
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 2), 0);
+  }
+  if (span == 1024)
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 3), 1);
+  }
+  else
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 3), 0);
+  }
+  if (span == 2048)
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 4), 1);
+  }
+  else
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 4), 0);
+  }
+  if (span == 5120)
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 5), 1);
+  }
+  else
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 5), 0);
+  }
+  if (span == 10240)
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 6), 1);
+  }
+  else
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 6), 0);
+  }
+  if (span == 20480)
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 7), 1);
+  }
+  else
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 7), 0);
+  }
 }
 
 void Define_Menu7()                                            //Presets Menu
@@ -2609,6 +2758,49 @@ void Define_Menu8()                                    // Lime Gain Menu
   AddButtonStatus(button, "Unfreeze", &Green);
 }
 
+void Start_Highlights_Menu8()
+{
+  if (limegain == 100)
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 2), 1);
+  }
+  else
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 2), 0);
+  }
+  if (limegain == 90)
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 3), 1);
+  }
+  else
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 3), 0);
+  }
+  if (limegain == 70)
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 4), 1);
+  }
+  else
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 4), 0);
+  }
+  if (limegain == 50)
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 5), 1);
+  }
+  else
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 5), 0);
+  }
+  if (limegain == 30)
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 6), 1);
+  }
+  else
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 6), 0);
+  }
+}
 
 void Define_Menu41()
 {
@@ -3188,11 +3380,6 @@ static void cleanexit(int calling_exit_code)
 {
   exit_code = calling_exit_code;
   app_exit = true;
-
-  setBackColour(0, 0, 0);
-  clearScreen();
-  usleep(100000);
-  closeScreen();
   printf("Clean Exit Code %d\n", exit_code);
   usleep(1000000);
   char Commnd[255];
@@ -3213,7 +3400,7 @@ static void terminate(int sig)
   system(Commnd);
 
   printf("scans = %d\n", tracecount);
-  exit(exit_code);
+  exit(0);
 }
 
 
@@ -3395,16 +3582,13 @@ int main(void)
     }
   }
 
-
-    printf("Waiting for Lime Thread to exit..\n");
-    pthread_join(lime_thread_obj, NULL);
-    printf("Waiting for FFT Thread to exit..\n");
-    pthread_join(fft_thread_obj, NULL);
-    printf("Waiting for Screen Thread to exit..\n");
-    pthread_join(screen_thread_obj, NULL);
-
-    printf("All threads caught, exiting..\n");
-
+  printf("Waiting for Lime Thread to exit..\n");
+  pthread_join(lime_thread_obj, NULL);
+  printf("Waiting for FFT Thread to exit..\n");
+  pthread_join(fft_thread_obj, NULL);
+  printf("Waiting for Screen Thread to exit..\n");
+  pthread_join(screen_thread_obj, NULL);
+  printf("All threads caught, exiting..\n");
   pthread_join(thbutton, NULL);
 }
 
