@@ -24,13 +24,13 @@ extern lime_fft_buffer_t lime_fft_buffer;
 
 extern bool wfall;
 extern bool NewSettings;
+//extern double bandwidth;
 
 #define FFT_SIZE    512 //2048
 //#define FFT_TIME_SMOOTH 0.999f // 0.0 - 1.0
 #define FFT_TIME_SMOOTH 0.96f // 0.0 - 1.0
-//#define MAIN_SPECTRUM_TIME_SMOOTH   0.8f
-#define MAIN_SPECTRUM_TIME_SMOOTH   0.98f
 
+extern float MAIN_SPECTRUM_TIME_SMOOTH; // 0.0 - 1.0
 
 static float hanning_window_const[FFT_SIZE];
 static float hamming_window_const[FFT_SIZE];
@@ -174,15 +174,30 @@ void *fft_thread(void *arg)
               fft_scaled_data[i] = 5 * (fft_data_staging[i] + 88);
 
 
-    main_spectrum_smooth_buffer[i] = ((fft_scaled_data[i]) * (1.f - MAIN_SPECTRUM_TIME_SMOOTH)) + (main_spectrum_smooth_buffer[i] * MAIN_SPECTRUM_TIME_SMOOTH);
-    //value = ((uint32_t)(main_spectrum_smooth_buffer[i] * MAIN_SPECTRUM_HEIGHT)) / 255;
+              main_spectrum_smooth_buffer[i] = ((fft_scaled_data[i]) * (1.f - MAIN_SPECTRUM_TIME_SMOOTH))
+                + (main_spectrum_smooth_buffer[i] * MAIN_SPECTRUM_TIME_SMOOTH);
 
-fft_scaled_data[i] = main_spectrum_smooth_buffer[i];
+              //value = ((uint32_t)(main_spectrum_smooth_buffer[i] * MAIN_SPECTRUM_HEIGHT)) / 255;
+
+              fft_scaled_data[i] = main_spectrum_smooth_buffer[i];
 
               if(fft_scaled_data[i] < 1) fft_scaled_data[i] = 1;
               if(fft_scaled_data[i] > 399) fft_scaled_data[i] = 399;
 
-              y[i] = (uint16_t)(fft_scaled_data[i]);
+              // Correct for the roll-off at the ends of the fft
+              if (i < 46)
+              {
+                y[i] = (uint16_t)(fft_scaled_data[i]) + ((46 - i) * 2) / 5;
+              }
+              else if (i > 466)
+              {
+                y[i] = (uint16_t)(fft_scaled_data[i]) + ((i - 466) * 2) / 5;
+              }
+              else
+              {
+                y[i] = (uint16_t)(fft_scaled_data[i]);
+              }
+
             }
         }
         //printf("Max: %f, Min %f\n", int_max, int_min);

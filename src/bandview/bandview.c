@@ -113,6 +113,8 @@ int centrefreq = 437000;
 int span = 5120;
 int limegain = 90;
 
+float MAIN_SPECTRUM_TIME_SMOOTH;
+
 int markerx = 250;
 int markery = 15;
 bool markeron = FALSE;
@@ -1660,6 +1662,17 @@ void CalcSpan()    // takes centre frequency and span and calulates startfreq an
   stopfreq =  centrefreq + (span * 125) / 256;
   frequency_actual_rx = 1000.0 * (float)(centrefreq);
   bandwidth = (float)(span * 1000);
+
+  // set a sensible time constant for the fft display
+  if (bandwidth >= 2048000)
+  {
+    MAIN_SPECTRUM_TIME_SMOOTH =  0.98;
+  }
+  else
+  {
+    MAIN_SPECTRUM_TIME_SMOOTH =  0.90;
+  }
+
 }
 
 void ChangeLabel(int button)
@@ -3141,7 +3154,7 @@ void DrawSettings()
   if ((startfreq >= 0) && (startfreq < 10000000))  // valid and less than 10 GHz
   {
     ParamAsFloat = (float)startfreq / 1000.0;
-    snprintf(DisplayText, 63, "%5.1f MHz", ParamAsFloat);
+    snprintf(DisplayText, 63, "%5.2f MHz", ParamAsFloat);
     Text2(100, line1y, DisplayText, font_ptr);
   }
   else if (startfreq >= 10000000)                  // valid and greater than 10 GHz
@@ -3154,7 +3167,7 @@ void DrawSettings()
   if ((centrefreq >= 0) && (centrefreq < 10000000))  // valid and less than 10 GHz
   {
     ParamAsFloat = (float)centrefreq / 1000.0;
-    snprintf(DisplayText, 63, "%5.1f MHz", ParamAsFloat);
+    snprintf(DisplayText, 63, "%5.2f MHz", ParamAsFloat);
     Text2(300, line1y, DisplayText, font_ptr);
   }
   else if (centrefreq >= 10000000)                  // valid and greater than 10 GHz
@@ -3167,8 +3180,8 @@ void DrawSettings()
   if ((stopfreq > 0) && (stopfreq < 10000000))  // valid and less than 10 GHz
   {
     ParamAsFloat = (float)stopfreq / 1000.0;
-    snprintf(DisplayText, 63, "%5.1f MHz", ParamAsFloat);
-    Text2(500, line1y, DisplayText, font_ptr);
+    snprintf(DisplayText, 63, "%5.2f MHz", ParamAsFloat);
+    Text2(490, line1y, DisplayText, font_ptr);
   }
   else if (stopfreq >= 10000000)                  // valid and greater than 10 GHz
   {
@@ -3412,7 +3425,6 @@ int main(void)
   int screenXmax, screenXmin;
   int screenYmax, screenYmin;
   int i;
-
   int pixel;
 
   wfall = FALSE;
