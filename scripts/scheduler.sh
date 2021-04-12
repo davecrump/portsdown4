@@ -119,6 +119,7 @@ while [ "$GUI_RETURN_CODE" -gt 127 ] || [ "$GUI_RETURN_CODE" -eq 0 ];  do
       GUI_RETURN_CODE="129"
     ;;
     136)
+      sleep 1
       /home/pi/rpidatv/bin/bandview
       GUI_RETURN_CODE="$?"
     ;;

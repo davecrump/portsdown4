@@ -8009,7 +8009,7 @@ void TransmitStop()
     system("sudo killall dvb2iq2 >/dev/null 2>/dev/null");
     system("sudo killall limesdr_send >/dev/null 2>/dev/null");
     system("sudo killall limesdr_dvb >/dev/null 2>/dev/null");
-    system("(sleep 1; /home/pi/rpidatv/bin/limesdr_stopchannel) &");
+    system("(sleep 0.5; /home/pi/rpidatv/bin/limesdr_stopchannel) &");
   }
 
   // Kill the key processes as nicely as possible
