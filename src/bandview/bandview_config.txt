@@ -1,0 +1,5 @@
+title=Portsdown Band Viewer
+centrefreq=437000
+span=5120
+limegain=90
+

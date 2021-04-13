@@ -60,7 +60,6 @@ PIN_Q=$(get_config_var gpio_q $PCONFIGFILE)
 ANALOGCAMNAME=$(get_config_var analogcamname $PCONFIGFILE)
 ANALOGCAMINPUT=$(get_config_var analogcaminput $PCONFIGFILE)
 ANALOGCAMSTANDARD=$(get_config_var analogcamstandard $PCONFIGFILE)
-VNCADDR=$(get_config_var vncaddr $PCONFIGFILE)
 
 AUDIO_PREF=$(get_config_var audio $PCONFIGFILE)
 CAPTIONON=$(get_config_var caption $PCONFIGFILE)
@@ -183,7 +182,7 @@ ANALOGCAMNAME=$VID_USB
 
 case "$MODE_INPUT" in
   "CAMH264" | "ANALOGCAM" | "WEBCAMH264" | "CARDH264" | "PATERNAUDIO" \
-    | "CONTEST" | "DESKTOP" | "VNC" )
+    | "CONTEST" | "DESKTOP" )
     let PIDPMT=$PIDVIDEO-1
   ;;
 esac
@@ -672,6 +671,11 @@ case "$MODE_INPUT" in
           /home/pi/rpidatv/bin/dvb_t_stack -m $CONSTLN -f $FREQ_OUTPUTHZ -a -"$PLUTOPWR" -r pluto \
             -g 1/"$GUARD" -b $SYMBOLRATE -p 1314 -e "$FECNUM"/"$FECDEN" -n $PLUTOIP -i /dev/null &
         ;;
+        "LIMEMINI")
+          OUTPUT_IP="-n 127.0.0.1:1314"
+          /home/pi/rpidatv/bin/dvb_t_stack_lime -m $CONSTLN -f $FREQ_OUTPUTHZ -a $LIME_GAINF -r lime \
+            -g 1/"$GUARD" -b $SYMBOLRATE -p 1314 -e "$FECNUM"/"$FECDEN" -n $PLUTOIP -i /dev/null &
+        ;;
       esac
     fi
 
@@ -856,62 +860,6 @@ fi
         fi
       ;;
     esac
-  ;;
-
-#============================================ VNC =============================================================
-
-  "VNC")
-    # If PiCam is present unload driver   
-    vcgencmd get_camera | grep 'detected=1' >/dev/null 2>/dev/null
-    RESULT="$?"
-    if [ "$RESULT" -eq 0 ]; then
-      sudo modprobe -r bcm2835_v4l2
-    fi    
-
-    # Set up means to transport of stream out of unit
-    case "$MODE_OUTPUT" in
-      "IP")
-        OUTPUT_FILE=""
-      ;;
-      "DATVEXPRESS")
-        echo "set ptt tx" >> /tmp/expctrl
-        sudo nice -n -30 netcat -u -4 127.0.0.1 1314 < videots &
-      ;;
-      "LIMEMINI" | "LIMEUSB" | "LIMEDVB")
-        $PATHRPI"/limesdr_dvb" -i videots -s "$SYMBOLRATE_K"000 -f $FECNUM/$FECDEN -r $UPSAMPLE -m $MODTYPE -c $CONSTLN $PILOTS $FRAMES \
-        -t "$FREQ_OUTPUT"e6 -g $LIME_GAINF -q $CAL $CUSTOM_FPGA -D $DIGITAL_GAIN -e $BAND_GPIO $LIMETYPE &
-      ;;
-      "COMPVID")
-        OUTPUT_FILE="/dev/null" #Send avc2ts output to /dev/null
-      ;;
-      *)
-        sudo $PATHRPI"/rpidatv" -i videots -s $SYMBOLRATE_K -c $FECNUM"/"$FECDEN -f $FREQUENCY_OUT -p $GAIN -m $MODE -x $PIN_I -y $PIN_Q &;;
-      esac
-
-    # Now generate the stream
-
-    if [ "$AUDIO_CARD" == 0 ]; then
-      # ******************************* H264 VIDEO, NO AUDIO ************************************
-
-      sudo $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -d 300 -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
-        -f $VIDEO_FPS -i $IDRPERIOD $OUTPUT_FILE -t 4 -e $VNCADDR -p $PIDPMT -s $CALL $OUTPUT_IP \
-         > /dev/null &
-
-    else
-      # ******************************* H264 VIDEO WITH AUDIO ************************************
-
-      if [ $AUDIO_SAMPLE != 48000 ]; then
-        arecord -f S16_LE -r $AUDIO_SAMPLE -c 2 -B $ARECORD_BUF -D plughw:$AUDIO_CARD_NUMBER,0 \
-          | sox --buffer 1024 -t wav - audioin.wav rate 48000 &
-      else
-        arecord -f S16_LE -r $AUDIO_SAMPLE -c 2 -B $ARECORD_BUF -D plughw:$AUDIO_CARD_NUMBER,0 > audioin.wav &
-      fi
-
-      sudo $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -d 300 -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
-        -f $VIDEO_FPS -i $IDRPERIOD $OUTPUT_FILE -t 4 -e $VNCADDR -p $PIDPMT -s $CALL $OUTPUT_IP \
-        -a audioin.wav -z $BITRATE_AUDIO > /dev/null &
-
-    fi
   ;;
 
   #============================================ ANALOG and WEBCAM H264 =============================================================
@@ -1103,7 +1051,7 @@ fi
       ;;
     esac
 
-    else
+    else                                      ######### DVB-T
       OUTPUT_FILE=""
       case "$MODE_OUTPUT" in
         "IP")
@@ -1113,6 +1061,11 @@ fi
           OUTPUT_IP="-n 127.0.0.1:1314"
           /home/pi/rpidatv/bin/dvb_t_stack -m $CONSTLN -f $FREQ_OUTPUTHZ -a -"$PLUTOPWR" -r pluto \
             -g 1/"$GUARD" -b $SYMBOLRATE -p 1314 -e "$FECNUM"/"$FECDEN" -n $PLUTOIP -i /dev/null &
+        ;;
+        "LIMEMINI")
+          OUTPUT_IP="-n 127.0.0.1:1314"
+          /home/pi/rpidatv/bin/dvb_t_stack_lime -m $CONSTLN -f $FREQ_OUTPUTHZ -a $LIME_GAINF -r lime \
+            -g 1/"$GUARD" -b $SYMBOLRATE -p 1314 -e "$FECNUM"/"$FECDEN" -i /dev/null &
         ;;
       esac
     fi
@@ -1218,7 +1171,7 @@ fi
       v4l2-ctl --overlay=0
 
       $PATHRPI"/ffmpeg" -loglevel $MODE_DEBUG -thread_queue_size 2048 \
-        -f image2 -loop 1 \
+        -re -loop 1 \
         -i $IMAGEFILE -framerate 1 -video_size "$VIDEO_WIDTH"x"$VIDEO_HEIGHT" \
         -c:v h264_omx -b:v $BITRATE_VIDEO \
         -f flv \
@@ -1252,7 +1205,7 @@ fi
       v4l2-ctl --overlay=0
 
          $PATHRPI"/ffmpeg" -loglevel $MODE_DEBUG -thread_queue_size 2048 \
-          -f image2 -loop 1 \
+          -re -loop 1 \
           -i $IMAGEFILE \
           -framerate 25 -video_size "$VIDEO_WIDTH"x"$VIDEO_HEIGHT" \
           -c:v h264_omx -b:v $BITRATE_VIDEO \
@@ -1275,7 +1228,7 @@ fi
       v4l2-ctl --overlay=0
 
          $PATHRPI"/ffmpeg" -loglevel $MODE_DEBUG -thread_queue_size 2048 \
-            -f image2 -loop 1 \
+            -re -loop 1 \
             -i $IMAGEFILE \
             -framerate 25 -video_size 800x480 -c:v h264_omx -b:v $BITRATE_VIDEO \
         -f flv \
@@ -1389,6 +1342,11 @@ fi
           /home/pi/rpidatv/bin/dvb_t_stack -m $CONSTLN -f $FREQ_OUTPUTHZ -a -"$PLUTOPWR" -r pluto \
             -g 1/"$GUARD" -b $SYMBOLRATE -p 1314 -e "$FECNUM"/"$FECDEN" -n $PLUTOIP -i /dev/null &
         ;;
+        "LIMEMINI")
+          OUTPUT_IP="-n 127.0.0.1:1314"
+          /home/pi/rpidatv/bin/dvb_t_stack_lime -m $CONSTLN -f $FREQ_OUTPUTHZ -a $LIME_GAINF -r lime \
+            -g 1/"$GUARD" -b $SYMBOLRATE -p 1314 -e "$FECNUM"/"$FECDEN" -i /dev/null &
+        ;;
       esac
     fi
 
@@ -1450,6 +1408,11 @@ fi
         "PLUTO")
           /home/pi/rpidatv/bin/dvb_t_stack -m $CONSTLN -f $FREQ_OUTPUTHZ -a -"$PLUTOPWR" -r pluto \
             -g 1/"$GUARD" -b $SYMBOLRATE -p $UDPINPORT -e "$FECNUM"/"$FECDEN" -n $PLUTOIP -i /dev/null &
+        ;;
+        "LIMEMINI")
+          OUTPUT_IP="-n 127.0.0.1:1314"
+          /home/pi/rpidatv/bin/dvb_t_stack_lime -m $CONSTLN -f $FREQ_OUTPUTHZ -a $LIME_GAINF -r lime \
+            -g 1/"$GUARD" -b $SYMBOLRATE -p $UDPINPORT -e "$FECNUM"/"$FECDEN" -i /dev/null &
         ;;
       esac
     fi
@@ -1887,7 +1850,7 @@ fi
           # ******************************* MPEG-2 CARD WITH NO AUDIO ************************************
 
           sudo nice -n -30 $PATHRPI"/ffmpeg" -loglevel $MODE_DEBUG \
-            -f image2 -loop 1 \
+            -re -loop 1 \
             -framerate 5 -video_size "$VIDEO_WIDTH"x"$VIDEO_HEIGHT" \
             -i $IMAGEFILE \
             \
@@ -1904,7 +1867,7 @@ fi
           # ******************************* MPEG-2 CARD WITH BEEP ************************************
 
           sudo nice -n -30 $PATHRPI"/ffmpeg" -loglevel $MODE_DEBUG \
-            -f image2 -loop 1 \
+            -re -loop 1 \
             -framerate 5 -video_size "$VIDEO_WIDTH"x"$VIDEO_HEIGHT" \
             -i $IMAGEFILE \
             \
@@ -1928,7 +1891,7 @@ fi
 
           sudo $PATHRPI"/ffmpeg" -loglevel $MODE_DEBUG -itsoffset "$ITS_OFFSET" \
             -thread_queue_size 512 \
-            -f image2 -loop 1 \
+            -re -loop 1 \
             -framerate 5 -video_size "$VIDEO_WIDTH"x"$VIDEO_HEIGHT" \
             -i $IMAGEFILE \
             \

@@ -46,8 +46,9 @@ EOF
 # 131  Exit from rpidatvgui requesting start of spectrum monitor
 # 132  Run Update Script for production load
 # 133  Run Update Script for development load
-# 134  
+# 134  Exit from rpidatvgui requesting start of the XY Display
 # 135  Run the Langstone TRX
+# 136  Exit from rpidatvgui requesting start of BandViewer
 # 160  Shutdown from GUI
 # 192  Reboot from GUI
 # 193  Rotate 7 inch and reboot
@@ -103,6 +104,7 @@ while [ "$GUI_RETURN_CODE" -gt 127 ] || [ "$GUI_RETURN_CODE" -eq 0 ];  do
       /home/pi/update.sh -d
     ;;
     134)
+      /home/pi/rpidatv/bin/xy
       GUI_RETURN_CODE="129"
     ;;
     135)
@@ -111,8 +113,15 @@ while [ "$GUI_RETURN_CODE" -gt 127 ] || [ "$GUI_RETURN_CODE" -eq 0 ];  do
       /home/pi/Langstone/stop
       PLUTOIP=$(get_config_var plutoip $PCONFIGFILE)
       ssh-keygen -f "/home/pi/.ssh/known_hosts" -R "$PLUTOIP" >/dev/null 2>/dev/null
+      # ssh-keygen -f "/home/pi/.ssh/known_hosts" -R "pluto.local" >/dev/null 2>/dev/null
       timeout 2 sshpass -p analog ssh -o StrictHostKeyChecking=no root@"$PLUTOIP" 'PATH=/bin:/sbin:/usr/bin:/usr/sbin;reboot'
+      sleep 2
       GUI_RETURN_CODE="129"
+    ;;
+    136)
+      sleep 1
+      /home/pi/rpidatv/bin/bandview
+      GUI_RETURN_CODE="$?"
     ;;
     160)
       sleep 1
@@ -123,8 +132,9 @@ while [ "$GUI_RETURN_CODE" -gt 127 ] || [ "$GUI_RETURN_CODE" -eq 0 ];  do
     192)
       PLUTOIP=$(get_config_var plutoip $PCONFIGFILE)
       ssh-keygen -f "/home/pi/.ssh/known_hosts" -R "$PLUTOIP" >/dev/null 2>/dev/null
+      # ssh-keygen -f "/home/pi/.ssh/known_hosts" -R "pluto.local" >/dev/null 2>/dev/null
       timeout 2 sshpass -p analog ssh -o StrictHostKeyChecking=no root@"$PLUTOIP" 'PATH=/bin:/sbin:/usr/bin:/usr/sbin;reboot'
-      sleep 1
+      sleep 2
       sudo swapoff -a
       sudo reboot now
       break
@@ -159,18 +169,9 @@ while [ "$GUI_RETURN_CODE" -gt 127 ] || [ "$GUI_RETURN_CODE" -eq 0 ];  do
       sudo reboot now
       break
     ;;
-    194)
-      source /home/pi/rpidatv/scripts/toggle_pwm.sh
-      # Make sure that scheduler reboots and does not repeat the command
-      GUI_RETURN_CODE=192
-      sleep 1
-      sudo swapoff -a
-      sudo reboot now
-      break
-    ;;
     *)
-      # Jump out of the loop
-      break
+      /home/pi/rpidatv/bin/rpidatvgui
+      GUI_RETURN_CODE="$?"
     ;;
   esac
 done

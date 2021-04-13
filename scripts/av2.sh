@@ -32,13 +32,21 @@ EOF
 # List the video devices, select the 2 lines for the usbtv device, then
 # select the line with the device details and delete the leading tab
 
+# Check for Fushicai USBTVOO7 (old BATC EasyCap)
 VID_USB="$(v4l2-ctl --list-devices 2> /dev/null | \
   sed -n '/usbtv/,/dev/p' | grep 'dev' | tr -d '\t')"
 
+# Check for MS2106 (new BATC EayCap) 
+if [ "$VID_USB" == '' ]; then
+  VID_USB="$(v4l2-ctl --list-devices 2> /dev/null | \
+    sed -n '/AV TO USB2/,/dev/p' | grep 'dev' | tr -d '\t')"
+fi
+
 if [ "$VID_USB" == '' ]; then
   printf "VID_USB was not found, setting to /dev/video0\n"
-  VID_USB="/dev/video0"
 fi
+
+
 
 printf "The EasyCap USB device string is $VID_USB\n"
 
@@ -51,6 +59,10 @@ printf "The EasyCap USB device string is $VID_USB\n"
 # then take the 6th character
 
 EC_AUDIO_DEV="$(arecord -l 2> /dev/null | grep 'usbtv' | cut -c6-6)"
+
+if [ "$EC_AUDIO_DEV" == '' ]; then
+  EC_AUDIO_DEV="$(arecord -l 2> /dev/null | grep 'AV TO USB2' | cut -c6-6)"
+fi
 
 if [ "$EC_AUDIO_DEV" == '' ]; then
   printf "EasyCap audio device was not found, setting to 1\n"

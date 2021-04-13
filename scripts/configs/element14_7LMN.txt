@@ -1,2 +1,0 @@
-dtoverlay=pwm-2chan,pin=40,func=4,pin2=41,func2=4
-dtparam=spi=on
