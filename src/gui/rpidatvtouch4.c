@@ -15616,8 +15616,8 @@ rawY = 0;
           printf("Menu 15 Error\n");
         }
         SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 0); // Reset cancel (even if not selected)
-        if (((GetButtonStatus(ButtonNumber(15, 8)) == 1) && (i == 3)) 
-          || ((GetButtonStatus(ButtonNumber(15, 6)) == 1) && (i == 5)))  // Update frequency range or CPU offered
+
+        if (i != 4) // Stay in Menu 15 unless cancel pressed
         {
           printf("Staying in Menu 15\n");
           CurrentMenu=15;
