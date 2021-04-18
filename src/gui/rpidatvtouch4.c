@@ -14479,14 +14479,14 @@ rawY = 0;
           cleanexit(130);
           break;
         case 17:                              // Lime Band Viewer
-          if(CheckLimeMiniConnect()==0)
+          if((CheckLimeMiniConnect() == 0) || (CheckLimeUSBConnect() == 0))
           {
             DisplayLogo();
             cleanexit(136);
           }
           else
           {
-            MsgBox("No LimeSDR Mini Connected");
+            MsgBox("No LimeSDR Connected");
             wait_touch();
           }
           UpdateWindow();

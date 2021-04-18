@@ -26,3 +26,4 @@ bool temperature_cpu(float *result)
 
   return false;
 }
+
