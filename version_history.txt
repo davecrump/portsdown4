@@ -1,3 +1,7 @@
+202104180
+Enable LimeSDR USB with bandViewer
+BandViewer Enhancements
+
 202104102
 Set GPIO pin 21 low on Portsdown selection (is high for Langstone)
 Enable ext attenuator with Pluto and make changes immediate on entry

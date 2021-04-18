@@ -245,3 +245,4 @@ void graphics_frequency_newdata(void)
   frequency_generate();
   frequency_render();
 }
+

@@ -19,3 +19,4 @@ void screen_setPixel(int x, int y, screen_pixel_t *pixel_ptr);
 void screen_setPixelLine(int x, int y, int length, screen_pixel_t *pixel_array_ptr);
 
 #endif /* __SCREEN_H__ */
+

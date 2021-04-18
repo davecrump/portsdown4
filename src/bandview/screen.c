@@ -179,3 +179,4 @@ void *screen_thread(void *arg)
 
   return NULL;
 }
+

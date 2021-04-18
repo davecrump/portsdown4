@@ -43,3 +43,4 @@ buffer_circular_t buffer_circular_iq_if;
 buffer_circular_t buffer_circular_audio;
 
 #endif /* __BUFFER_CIRCULAR_H__ */
+

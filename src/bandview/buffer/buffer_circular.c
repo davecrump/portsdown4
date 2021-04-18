@@ -393,3 +393,4 @@ void buffer_circular_waitThresholdPop(buffer_circular_t *buffer_ptr, uint32_t mi
 
     pthread_mutex_unlock(&buffer_ptr->Mutex);
 }
+
