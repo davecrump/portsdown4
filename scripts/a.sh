@@ -843,15 +843,16 @@ fi
           # PMT, Vid and Audio PIDs can all be set. 
 
           sudo $PATHRPI"/ffmpeg" -loglevel $MODE_DEBUG -itsoffset "$ITS_OFFSET"\
-            -analyzeduration 0 -probesize 2048  -fpsprobesize 0 -thread_queue_size 512\
+            -analyzeduration 0 -probesize 2048  -fpsprobesize 0 -thread_queue_size 512 \
             -f v4l2 -framerate $VIDEO_FPS -video_size "$VIDEO_WIDTH"x"$VIDEO_HEIGHT"\
             -i $VID_PICAM -fflags nobuffer \
             \
-            -f alsa -ac $AUDIO_CHANNELS -ar $AUDIO_SAMPLE \
+            -f alsa -thread_queue_size 2048 -ac $AUDIO_CHANNELS -ar $AUDIO_SAMPLE \
             -i hw:$AUDIO_CARD_NUMBER,0 \
             \
             $VF $CAPTION -b:v $BITRATE_VIDEO -minrate:v $BITRATE_VIDEO -maxrate:v  $BITRATE_VIDEO \
-            -f mpegts  -blocksize 1880 -acodec mp2 -b:a 64K -ar 44100 -ac $AUDIO_CHANNELS\
+            -acodec mp2 -b:a 64K -ar 44100 -ac $AUDIO_CHANNELS \
+            -f mpegts  -blocksize 1880 \
             -mpegts_original_network_id 1 -mpegts_transport_stream_id 1 \
             -mpegts_service_id $SERVICEID \
             -mpegts_pmt_start_pid $PIDPMT -streamid 0:"$PIDVIDEO" -streamid 1:"$PIDAUDIO" \

@@ -169,35 +169,35 @@ void *fft_thread(void *arg)
 
               fft_data_output[i] = (uint8_t)(fft_scaled_data[i]);
             }
-            else
+            else   // Standard Spectrum plot
             {
+              // Set the scaling and vertical offset
               fft_scaled_data[i] = 5 * (fft_data_staging[i] + 88);
 
-
+              // Apply some time smoothing
               main_spectrum_smooth_buffer[i] = ((fft_scaled_data[i]) * (1.f - MAIN_SPECTRUM_TIME_SMOOTH))
                 + (main_spectrum_smooth_buffer[i] * MAIN_SPECTRUM_TIME_SMOOTH);
-
-              //value = ((uint32_t)(main_spectrum_smooth_buffer[i] * MAIN_SPECTRUM_HEIGHT)) / 255;
-
-              fft_scaled_data[i] = main_spectrum_smooth_buffer[i];
-
-              if(fft_scaled_data[i] < 1) fft_scaled_data[i] = 1;
-              if(fft_scaled_data[i] > 399) fft_scaled_data[i] = 399;
 
               // Correct for the roll-off at the ends of the fft
               if (i < 46)
               {
-                y[i] = (uint16_t)(fft_scaled_data[i]) + ((46 - i) * 2) / 5;
+                fft_scaled_data[i] = main_spectrum_smooth_buffer[i] + ((46 - i) * 2) / 5;
               }
               else if (i > 466)
               {
-                y[i] = (uint16_t)(fft_scaled_data[i]) + ((i - 466) * 2) / 5;
+                fft_scaled_data[i] = main_spectrum_smooth_buffer[i] + ((i - 466) * 2) / 5;
               }
               else
               {
-                y[i] = (uint16_t)(fft_scaled_data[i]);
+                fft_scaled_data[i] = main_spectrum_smooth_buffer[i];
               }
 
+              // Make sure that the data is within bounds
+              if(fft_scaled_data[i] < 1) fft_scaled_data[i] = 1;
+              if(fft_scaled_data[i] > 399) fft_scaled_data[i] = 399;
+
+              // Convert to int
+              y[i] = (uint16_t)(fft_scaled_data[i]);
             }
         }
         //printf("Max: %f, Min %f\n", int_max, int_min);
@@ -218,3 +218,4 @@ void *fft_thread(void *arg)
     printf("fft Thread Closed\n");
     return NULL;
 }
+
