@@ -65,6 +65,10 @@ case "$MODE_STARTUP" in
     # Start the Langstone
     GUI_RETURN_CODE=135
   ;;
+  Bandview_boot)
+    # Start the Band Viewer
+    GUI_RETURN_CODE=136
+  ;;
   *)
     # Default to Portsdown
     GUI_RETURN_CODE=129

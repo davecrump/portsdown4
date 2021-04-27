@@ -33,12 +33,6 @@ src/limesdr_toolbox/limesdr_send
 src/limesdr_toolbox/limesdr_stopchannel
 src/limesdr_toolbox/limesdr_dvb
 src/rpidatv
-src/siggen/DejaVuSans.inc
-src/siggen/DejaVuSansMono.inc
-src/siggen/DejaVuSerif.inc
-src/siggen/font2openvg
-src/siggen/libshapes.o
-src/siggen/oglinit.o
 scripts/configs/Langstone.conf
 bin/adf4351
 bin/avc2ts
