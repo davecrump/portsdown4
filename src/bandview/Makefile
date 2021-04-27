@@ -16,7 +16,6 @@ bandview: bandview.c
 		timing.c \
 		temperature.c \
 		font/font.c \
-		font/Font.c \
 		font/dejavu_sans_18.c \
 		font/dejavu_sans_20.c \
 		font/dejavu_sans_22.c \

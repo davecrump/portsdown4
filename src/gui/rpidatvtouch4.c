@@ -13323,8 +13323,8 @@ void ChangeStartApp(int NoButton)
     }
     break;
   case 7:
-    SetConfigParam(PATH_PCONFIG, "startup", "Limetrx_boot");
-    strcpy(StartApp, "Limetrx_boot");
+    SetConfigParam(PATH_PCONFIG, "startup", "Bandview_boot");
+    strcpy(StartApp, "Bandview_boot");
     break;
   default:
     break;
@@ -16511,7 +16511,7 @@ rawY = 0;
           break;
         case 5:                               // Boot to Portsdown
         case 6:                               // Boot to Langstone
-        //case 7:                               // Boot to LimeTRX
+        case 7:                               // Boot to Band Viewer
           ChangeStartApp(i);
           wait_touch();
           setBackColour(0, 0, 0);
@@ -20771,9 +20771,9 @@ void Define_Menu34()
   AddButtonStatus(button, "Boot to^Langstone", &Green);
   AddButtonStatus(button, "Boot to^Langstone", &Grey);
 
-//  button = CreateButton(34, 7);
-//  AddButtonStatus(button, "Boot to^Lime TRX", &Blue);
-//  AddButtonStatus(button, "Boot to^Lime TRX", &Green);
+  button = CreateButton(34, 7);
+  AddButtonStatus(button, "Boot to^Band Viewer", &Blue);
+  AddButtonStatus(button, "Boot to^Band Viewer", &Green);
 
 }
 
@@ -20784,19 +20784,25 @@ void Start_Highlights_Menu34()
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 5), 1);
     SetButtonStatus(ButtonNumber(CurrentMenu, 6), 0);
-    //SetButtonStatus(ButtonNumber(CurrentMenu, 7), 0);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 7), 0);
   }
   else if (strcmp(StartApp, "Langstone_boot") == 0)
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 5), 0);
     SetButtonStatus(ButtonNumber(CurrentMenu, 6), 1);
-    //SetButtonStatus(ButtonNumber(CurrentMenu, 7), 0);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 7), 0);
   }
-  else // Limetrx_boot
+  else if (strcmp(StartApp, "Bandview_boot") == 0)
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 5), 0);
     SetButtonStatus(ButtonNumber(CurrentMenu, 6), 0);
-    //SetButtonStatus(ButtonNumber(CurrentMenu, 7), 1);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 7), 1);
+  }
+  else
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 5), 0);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 6), 0);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 7), 0);
   }
 
   // Over-ride if Langstone not installed (set to Grey)

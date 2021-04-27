@@ -16,8 +16,8 @@
 
 #include "timing.h"
 #include "lime.h"
+#include "font/font.h"
 #include "graphics.h"
-//#include "graphics2.h"
 
 /* Input from lime.c */
 extern lime_fft_buffer_t lime_fft_buffer;

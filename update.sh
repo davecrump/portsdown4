@@ -133,6 +133,9 @@ cp -f -r "$PATHSCRIPT"/longmynd_config.txt "$PATHUBACKUP"/longmynd_config.txt
 # Make a safe copy of the Lime Calibration frequency or status
 cp -f -r "$PATHSCRIPT"/limecalfreq.txt "$PATHUBACKUP"/limecalfreq.txt
 
+# Make a safe copy of the Band Viewer config
+cp -f -r /home/pi/rpidatv/src/bandview/bandview_config.txt "$PATHUBACKUP"/bandview_config.txt
+
 # Make a safe copy of the User Button scripts
 cp -f -r "$PATHSCRIPT"/user_button1.sh "$PATHUBACKUP"/user_button1.sh
 cp -f -r "$PATHSCRIPT"/user_button2.sh "$PATHUBACKUP"/user_button2.sh
@@ -340,6 +343,16 @@ make
 cp adf4351 ../../bin/
 cd /home/pi
 
+# Compile Band Viewer
+echo
+echo "---------------------------------"
+echo "----- Compiling Band Viewer -----"
+echo "---------------------------------"
+cd /home/pi/rpidatv/src/bandview
+make
+cp bandview ../../bin/
+cd /home/pi
+
 # Compile and install the executable for GPIO-switched transmission (201710080)
 echo "Installing keyedtx"
 cd /home/pi/rpidatv/src/keyedtx
@@ -393,6 +406,9 @@ cp -f -r "$PATHUBACKUP"/longmynd_config.txt "$PATHSCRIPT"/longmynd_config.txt
 
 # Restore the user's original Lime Calibration frequency or status
 cp -f -r "$PATHUBACKUP"/limecalfreq.txt "$PATHSCRIPT"/limecalfreq.txt
+
+# Restore the user's original Band Viewer config (but not yet)
+# cp -f -r "$PATHUBACKUP"/bandview_config.txt /home/pi/rpidatv/src/bandview/bandview_config.txt 
 
 # Restore the user's original User Button scripts
 cp -f -r "$PATHUBACKUP"/user_button1.sh "$PATHSCRIPT"/user_button1.sh
