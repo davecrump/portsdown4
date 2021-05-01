@@ -16513,7 +16513,7 @@ rawY = 0;
         case 6:                               // Boot to Langstone
         case 7:                               // Boot to Band Viewer
           ChangeStartApp(i);
-          wait_touch();
+          //wait_touch();
           setBackColour(0, 0, 0);
           clearScreen();
           Start_Highlights_Menu34();
