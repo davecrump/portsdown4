@@ -198,6 +198,11 @@ case "$MODE_STARTUP" in
     source /home/pi/rpidatv/scripts/scheduler.sh
     #return
   ;;
+  Bandview_boot)
+    # Start the Touchscreen Scheduler
+    source /home/pi/rpidatv/scripts/scheduler.sh
+    #return
+  ;;
   Keyed_Stream_boot)
     # Start the Switched stream with the default GPIO Pins
     if [ "$SESSION_TYPE" == "boot" ]; then

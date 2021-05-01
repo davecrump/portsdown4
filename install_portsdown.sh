@@ -84,10 +84,6 @@ wget https://project-downloads.drogon.net/wiringpi-latest.deb
 sudo dpkg -i wiringpi-latest.deb
 cd /home/pi
 
-# Freqshow install no longer required:
-#sudo apt-get -y install python-pip pandoc python-numpy pandoc python-pygame gdebi-core # 20180101 FreqShow
-#sudo pip install pyrtlsdr  #20180101 FreqShow
-
 # Install libiio for Pluto SigGen (and Langstone)
 cd /home/pi
 git clone https://github.com/analogdevicesinc/libiio.git
@@ -271,26 +267,12 @@ unzip master.zip
 mv rtl-sdr-master rtl-sdr
 rm master.zip
 
- Compile and install rtl-sdr
+# Compile and install rtl-sdr
 cd rtl-sdr/ && mkdir build && cd build
 cmake ../ -DINSTALL_UDEV_RULES=ON
 make && sudo make install && sudo ldconfig
 sudo bash -c 'echo -e "\n# for RTL-SDR:\nblacklist dvb_usb_rtl28xxu\n" >> /etc/modprobe.d/blacklist.conf'
 cd /home/pi
-
-# Get leandvb
-#cd /home/pi/rpidatv/src
-#wget https://github.com/pabr/leansdr/archive/master.zip
-#unzip master.zip
-#mv leansdr-master leansdr
-#rm master.zip
-
-# Compile leandvb
-#cd leansdr/src/apps
-#make
-#cp leandvb ../../../../bin/
-#cd /home/pi
-
 
 # Download, compile and install DATV Express-server
 echo
@@ -408,6 +390,16 @@ make
 cp adf4351 ../../bin/
 cd /home/pi
 
+# Compile Band Viewer
+echo
+echo "---------------------------------"
+echo "----- Compiling Band Viewer -----"
+echo "---------------------------------"
+cd /home/pi/rpidatv/src/bandview
+make
+cp bandview ../../bin/
+cd /home/pi
+
 #echo
 #echo "-----------------------------------------"
 #echo "----- Compiling Ancilliary programs -----"
@@ -447,30 +439,8 @@ mkdir /home/pi/snaps
 # Set the image index number to 0 (201708150)
 echo "0" > /home/pi/snaps/snap_index.txt
 
-#echo
-#echo "--------------------------------------"
-#echo "----- Configure the Video Output -----"
-#echo "--------------------------------------"
 
-# Enable the Video output in PAL mode (201707120)
-#cd /boot
-#sudo sed -i 's/^#sdtv_mode=2/sdtv_mode=2/' config.txt
-#cd /home/pi
-
-# Download and compile the components for Comp Vid output whilst using 7 inch screen
-#wget https://github.com/AndrewFromMelbourne/raspi2raspi/archive/master.zip
-#unzip master.zip
-#mv raspi2raspi-master raspi2raspi
-#rm master.zip
-#cd raspi2raspi/
-#mkdir build
-#cd build
-#cmake ..
-#make
-#sudo make install
-#cd /home/pi
-
-# Download and compile the components for LongMynd Screen Capture
+# Download and compile the components for Screen Capture
 wget https://github.com/AndrewFromMelbourne/raspi2png/archive/master.zip
 unzip master.zip
 mv raspi2png-master raspi2png

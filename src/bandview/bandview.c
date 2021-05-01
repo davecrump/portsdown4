@@ -10,7 +10,7 @@
 #include <linux/types.h>
 #include <linux/spi/spidev.h>
 
-#include <wiringPi.h>
+//#include <wiringPi.h>
 #include <signal.h>
 #include <dirent.h>
 #include <pthread.h>
@@ -18,14 +18,11 @@
 #include <stdbool.h>
 #include <fftw3.h>
 
-#include "font/font.h"
-#include "font/Font.h"
-#include "touch.h"
-#include "Graphics.h"
 #include "screen.h"
+#include "font/font.h"
+#include "touch.h"
 #include "graphics.h"
 #include "timing.h"
-
 #include "lime.h"
 #include "fft.h"
 #include "buffer/buffer_circular.h"
@@ -76,42 +73,36 @@ button_t ButtonArray[MAX_BUTTON];
 int CurrentMenu = 1;
 int CallingMenu = 1;
 char KeyboardReturn[64];
-//bool NewSettings = false;
+
 bool NewFreq = false;
 bool NewGain = false;
 bool NewSpan = false;
 bool NewCal  = false;
 float gain;
 
-int Inversed = 0;
-int  scaledX, scaledY;
-char DisplayType[31] = "Element14_7";
+int scaledX, scaledY;
+
 int wbuttonsize = 100;
 int hbuttonsize = 50;
 int rawX, rawY;
 int FinishedButton = 0;
 int i;
-bool freeze = FALSE;
-bool frozen = FALSE;
-bool normalised = FALSE;
-bool normalising = FALSE;
-bool activescan = FALSE;
-bool finishednormalising = FALSE;
+bool freeze = false;
+bool frozen = false;
+bool activescan = false;
 bool PeakPlot = false;
 //int y[501];               // Actual displayed values on the chart
-int norm[501];            // Normalisation corrections
+
 int scaledadresult[501];  // Sensed AD Result
 int PeakValue[513] = {0};
 bool RequestPeakValueZero = false;
-int normleveloffset = 300;
 
 int startfreq = 0;
 int stopfreq = 0;
 int rbw = 0;
 int reflevel = 99;
-int normlevel = -20;
 char PlotTitle[63] = "-";
-bool ContScan = FALSE;
+bool ContScan = false;
 
 int centrefreq = 437000;
 int span = 5120;
@@ -126,7 +117,7 @@ float MAIN_SPECTRUM_TIME_SMOOTH;
 
 int markerx = 250;
 int markery = 15;
-bool markeron = FALSE;
+bool markeron = false;
 int markermode = 7;       // 2 peak, 3, null, 4 man, 7 off
 int historycount = 0;
 int markerxhistory[10];
@@ -167,7 +158,6 @@ void DrawEmptyScreen();
 void DrawYaxisLabels();  
 void DrawSettings();
 void CalculateMarkers();
-void Normalise();
 void Define_Menu1();
 void Define_Menu2();
 void Define_Menu3();
@@ -853,35 +843,8 @@ void TransformTouchMap(int x, int y)
   // and transforms it to approx 0 - wscreen and 0 - hscreen in globals scaledX 
   // and scaledY prior to final correction by CorrectTouchMap  
 
-  int shiftX, shiftY;
-  double factorX, factorY;
-
-  // Adjust registration of touchscreen for Waveshare
-  shiftX=30; // move touch sensitive position left (-) or right (+).  Screen is 700 wide
-  shiftY=-5; // move touch sensitive positions up (-) or down (+).  Screen is 480 high
-
-  factorX=-0.4;  // expand (+) or contract (-) horizontal button space from RHS. Screen is 5.6875 wide
-  factorY=-0.3;  // expand or contract vertical button space.  Screen is 8.53125 high
-
-  // Switch axes for normal and waveshare displays
-  if(Inversed==0) // Tontec35 or Element14_7
-  {
-    scaledX = x/scaleXvalue;
-    scaledY = hscreen-y/scaleYvalue;
-  }
-  else //Waveshare (inversed)
-  {
-    scaledX = shiftX+wscreen-y/(scaleXvalue+factorX);
-
-    if(strcmp(DisplayType, "Waveshare4") != 0) //Check for Waveshare 4 inch
-    {
-      scaledY = shiftY+hscreen-x/(scaleYvalue+factorY);
-    }
-    else  // Waveshare 4 inch display so flip vertical axis
-    {
-      scaledY = shiftY+x/(scaleYvalue+factorY); // Vertical flip for 4 inch screen
-    }
-  }
+  scaledX = x / scaleXvalue;
+  scaledY = hscreen - y / scaleYvalue;
 }
 
 
@@ -1470,35 +1433,13 @@ void CalculateMarkers()
 
 }
 
-void Normalise()
-{
-  normleveloffset = 400 + normlevel * 5;  // 0 = screen bottom, 400 = screen top
-
-  finishednormalising = FALSE;            // Make sure that it is not normalising (ie measuring the baseline)
-
-  while (activescan == TRUE)              // Wait for the end of the current scan
-  {
-    usleep(10);
-  }
-
-  normalising = TRUE;                     // Set the flag for it to measure the baseline
-
-  while (finishednormalising == FALSE)    // Wait for the end of the measurement scan
-  {
-    usleep(10);
-  }
-
-  normalising = FALSE;                    // Stop it measuring
-
-  normalised = TRUE;                      // and start it calculating for subsequent scans
-}
 
 void SetSpanWidth(int button)
 {  
   char ValueToSave[63];
 
   // Stop the scan at the end of the current one and wait for it to stop
-  freeze = TRUE;
+  freeze = true;
   while(! frozen)
   {
     usleep(10);                                   // wait till the end of the scan
@@ -1536,7 +1477,7 @@ void SetSpanWidth(int button)
   NewSpan = true;
 
   DrawSettings();       // New labels
-  freeze = FALSE;
+  freeze = false;
 }
 
 
@@ -1545,7 +1486,7 @@ void SetLimeGain(int button)
   char ValueToSave[63];
 
   // Stop the scan at the end of the current one and wait for it to stop
-  freeze = TRUE;
+  freeze = true;
   while(! frozen)
   {
     usleep(10);                                   // wait till the end of the scan
@@ -1580,7 +1521,7 @@ void SetLimeGain(int button)
   NewGain = true;
 
   //DrawSettings();       // New labels
-  freeze = FALSE;
+  freeze = false;
 }
 
 
@@ -1598,7 +1539,7 @@ void SetFreqPreset(int button)
   if (CallingMenu == 7)
   {
     // Stop the scan at the end of the current one and wait for it to stop
-    freeze = TRUE;
+    freeze = true;
     while(! frozen)
     {
       usleep(10);                                   // wait till the end of the scan
@@ -1635,13 +1576,13 @@ void SetFreqPreset(int button)
     NewFreq = true;
 
     DrawSettings();       // New labels
-    freeze = FALSE;
+    freeze = false;
   }
   else if (CallingMenu == 10)  // Amend the preset frequency
   {
 
     // Stop the scan at the end of the current one and wait for it to stop
-    freeze = TRUE;
+    freeze = true;
     while(! frozen)
     {
       usleep(10);                                   // wait till the end of the scan
@@ -1751,7 +1692,7 @@ void SetFreqPreset(int button)
     DrawEmptyScreen();  // Required to set A value, which is not set in DrawTrace
     DrawYaxisLabels();  // dB calibration on LHS
     DrawSettings();     // Start, Stop RBW, Ref level and Title
-    freeze = FALSE;
+    freeze = false;
   }
 }
 
@@ -1761,7 +1702,7 @@ void ShiftFrequency(int button)
   char ValueToSave[63];
 
   // Stop the scan at the end of the current one and wait for it to stop
-  freeze = TRUE;
+  freeze = true;
   while(! frozen)
   {
     usleep(10);                                   // wait till the end of the scan
@@ -1789,7 +1730,7 @@ void ShiftFrequency(int button)
   NewFreq = true;
 
   DrawSettings();       // New labels
-  freeze = FALSE;
+  freeze = false;
 }
 
 void CalcSpan()    // takes centre frequency and span and calulates startfreq and stopfreq
@@ -1815,14 +1756,13 @@ void ChangeLabel(int button)
 {
   char RequestText[64];
   char InitText[63];
-  bool IsValid = FALSE;
   div_t div_10;
   div_t div_100;
   div_t div_1000;
   char ValueToSave[63];
   
   // Stop the scan at the end of the current one and wait for it to stop
-  freeze = TRUE;
+  freeze = true;
   while(! frozen)
   {
     usleep(10);                                   // wait till the end of the scan
@@ -1901,37 +1841,6 @@ void ChangeLabel(int button)
       SetConfigParam(PATH_CONFIG, "title", PlotTitle);
       printf("Plot Title set to: %s\n", KeyboardReturn);
       break;
-    case 7:                                                       // Set Normalise Level
-      // Define request string
-      strcpy(RequestText, "Enter new Normalise Level (Range 0 to -80)");
-
-      // Define initial value 
-      snprintf(InitText, 10, "%d", normlevel);
-
-      while (IsValid == FALSE)
-      {
-        Keyboard(RequestText, InitText, 4);
-        if (strlen(KeyboardReturn) == 0)
-        {
-          IsValid = FALSE;
-        }
-        else
-        {
-          normlevel = atoi(KeyboardReturn);
-          if ((normlevel >= -80) && (normlevel <= 0))
-          {
-            IsValid = TRUE;
-          }
-          else
-          {
-            IsValid = FALSE;
-          }
-        }
-      }
-      snprintf(ValueToSave, 63, "%d", normlevel);
-      SetConfigParam(PATH_CONFIG, "normlevel", ValueToSave);
-      printf("Normalisation Level set to: %d\n", normlevel);
-      break;
   }
 
   // Tidy up, paint around the screen and then unfreeze
@@ -1940,7 +1849,7 @@ void ChangeLabel(int button)
   DrawEmptyScreen();  // Required to set A value, which is not set in DrawTrace
   DrawYaxisLabels();  // dB calibration on LHS
   DrawSettings();     // Start, Stop RBW, Ref level and Title
-  freeze = FALSE;
+  freeze = false;
 }
 
 
@@ -1974,14 +1883,14 @@ void *WaitButtonEvent(void * arg)
       switch (i)
       {
         case 0:                                            // Capture Snap
-          freeze = TRUE; 
+          freeze = true; 
           SetButtonStatus(ButtonNumber(CurrentMenu, 0), 1);  // hide the capture button 
           UpdateWindow();                                    // paint the hide
           while(! frozen);                                   // wait till the end of the scan
           system("/home/pi/rpidatv/scripts/snap2.sh");
           SetButtonStatus(ButtonNumber(CurrentMenu, 0), 0);
           UpdateWindow();
-          freeze = FALSE;
+          freeze = false;
           break;
         case 2:                                            // Select Settings
           printf("Settings Menu 3 Requested\n");
@@ -2015,12 +1924,12 @@ void *WaitButtonEvent(void * arg)
           if (freeze)
           {
             SetButtonStatus(ButtonNumber(CurrentMenu, 8), 0);
-            freeze = FALSE;
+            freeze = false;
           }
           else
           {
             SetButtonStatus(ButtonNumber(CurrentMenu, 8), 1);
-            freeze = TRUE;
+            freeze = true;
           }
           UpdateWindow();
           break;
@@ -2037,32 +1946,32 @@ void *WaitButtonEvent(void * arg)
       switch (i)
       {
         case 0:                                            // Capture Snap
-          freeze = TRUE; 
+          freeze = true; 
           SetButtonStatus(ButtonNumber(CurrentMenu, 0), 1);
           UpdateWindow();
           while(! frozen);
           system("/home/pi/rpidatv/scripts/snap2.sh");
           SetButtonStatus(ButtonNumber(CurrentMenu, 0), 0);
           UpdateWindow();
-          freeze = FALSE;
+          freeze = false;
           break;
         case 2:                                            // Peak
-          if ((markeron == FALSE) || (markermode != 2))
+          if ((markeron == false) || (markermode != 2))
           {
             // Freeze the scan to prevent text corruption
-            freeze = TRUE;
+            freeze = true;
             while(! frozen)
             {
               usleep(10);                                   // wait till the end of the scan
             }
-            markeron = TRUE;
+            markeron = true;
             markermode = i;
             SetButtonStatus(ButtonNumber(CurrentMenu, 2), 1);
             SetButtonStatus(ButtonNumber(CurrentMenu, 4), 0);
           }
           else
           {
-            markeron = FALSE;
+            markeron = false;
             markermode = 7;
             SetButtonStatus(ButtonNumber(CurrentMenu, 2), 0);
             SetButtonStatus(ButtonNumber(CurrentMenu, 4), 0);
@@ -2074,7 +1983,7 @@ void *WaitButtonEvent(void * arg)
         if (PeakPlot == false)
           {
             // Freeze the scan to prevent text corruption
-            freeze = TRUE;
+            freeze = true;
             while(! frozen)
             {
               usleep(10);                                   // wait till the end of the scan
@@ -2092,22 +2001,22 @@ void *WaitButtonEvent(void * arg)
           freeze = false;
           break;
         case 4:                                            // Manual
-          if ((markeron == FALSE) || (markermode != 4))
+          if ((markeron == false) || (markermode != 4))
           {
             // Freeze the scan to prevent text corruption
-            freeze = TRUE;
+            freeze = true;
             while(! frozen)
             {
               usleep(10);                                   // wait till the end of the scan
             }
-            markeron = TRUE;
+            markeron = true;
             markermode = i;
             SetButtonStatus(ButtonNumber(CurrentMenu, 2), 0);
             SetButtonStatus(ButtonNumber(CurrentMenu, 4), 1);
           }
           else
           {
-            markeron = FALSE;
+            markeron = false;
             markermode = 7;
             SetButtonStatus(ButtonNumber(CurrentMenu, 2), 0);
             SetButtonStatus(ButtonNumber(CurrentMenu, 4), 0);
@@ -2128,7 +2037,7 @@ void *WaitButtonEvent(void * arg)
           }
           break;
         case 7:                                            // No Markers
-          markeron = FALSE;
+          markeron = false;
           markermode = i;
           PeakPlot = false;
           RequestPeakValueZero = true;
@@ -2146,12 +2055,12 @@ void *WaitButtonEvent(void * arg)
           if (freeze)
           {
             SetButtonStatus(ButtonNumber(CurrentMenu, 9), 0);
-            freeze = FALSE;
+            freeze = false;
           }
           else
           {
             SetButtonStatus(ButtonNumber(CurrentMenu, 9), 1);
-            freeze = TRUE;
+            freeze = true;
           }
           UpdateWindow();
           break;
@@ -2168,24 +2077,20 @@ void *WaitButtonEvent(void * arg)
       switch (i)
       {
         case 0:                                            // Capture Snap
-          freeze = TRUE; 
+          freeze = true; 
           SetButtonStatus(ButtonNumber(CurrentMenu, 0), 1);
           UpdateWindow();
           while(! frozen);
           system("/home/pi/rpidatv/scripts/snap2.sh");
           SetButtonStatus(ButtonNumber(CurrentMenu, 0), 0);
           UpdateWindow();
-          freeze = FALSE;
+          freeze = false;
           break;
         case 2:                                            // Centre Freq
           ChangeLabel(i);
           CurrentMenu = 3;
           UpdateWindow();          
           RequestPeakValueZero = true;
-          break;
-        case 6:                                            // Title
-          ChangeLabel(i);
-          UpdateWindow();          
           break;
         case 3:                                            // Frequency Presets
           printf("Frequency Preset Menu 7 Requested\n");
@@ -2208,6 +2113,10 @@ void *WaitButtonEvent(void * arg)
           UpdateWindow();
           RequestPeakValueZero = true;
           break;
+        case 6:                                            // Title
+          ChangeLabel(i);
+          UpdateWindow();          
+          break;
         case 7:                                            // Return to Main Menu
           printf("Main Menu 1 Requested\n");
           CurrentMenu=1;
@@ -2217,12 +2126,12 @@ void *WaitButtonEvent(void * arg)
           if (freeze)
           {
             SetButtonStatus(ButtonNumber(CurrentMenu, 8), 0);
-            freeze = FALSE;
+            freeze = false;
           }
           else
           {
             SetButtonStatus(ButtonNumber(CurrentMenu, 8), 1);
-            freeze = TRUE;
+            freeze = true;
           }
           UpdateWindow();
           break;
@@ -2239,18 +2148,18 @@ void *WaitButtonEvent(void * arg)
       switch (i)
       {
         case 0:                                            // Capture Snap
-          freeze = TRUE; 
+          freeze = true; 
           SetButtonStatus(ButtonNumber(CurrentMenu, 0), 1);
           UpdateWindow();
           while(! frozen);
           system("/home/pi/rpidatv/scripts/snap2.sh");
           SetButtonStatus(ButtonNumber(CurrentMenu, 0), 0);
           UpdateWindow();
-          freeze = FALSE;
+          freeze = false;
           break;
         case 2:                                            // Snap Viewer
-          freeze = TRUE;
-          while (frozen == FALSE)   // Stop writing to screen
+          freeze = true;
+          while (frozen == false)   // Stop writing to screen
           {
             usleep(10);
           }
@@ -2264,7 +2173,7 @@ void *WaitButtonEvent(void * arg)
           freeze = false;           // Restart the scan
           break;
         case 3:                                            // Restart BandView
-          freeze = TRUE;
+          freeze = true;
           usleep(100000);
           setBackColour(0, 0, 0);
           clearScreen();
@@ -2273,7 +2182,7 @@ void *WaitButtonEvent(void * arg)
           cleanexit(136);
           break;
         case 4:                                            // Exit to Portsdown
-          freeze = TRUE;
+          freeze = true;
           usleep(100000);
           setBackColour(0, 0, 0);
           clearScreen();
@@ -2296,12 +2205,12 @@ void *WaitButtonEvent(void * arg)
           if (freeze)
           {
             SetButtonStatus(ButtonNumber(CurrentMenu, 8), 0);
-            freeze = FALSE;
+            freeze = false;
           }
           else
           {
             SetButtonStatus(ButtonNumber(CurrentMenu, 8), 1);
-            freeze = TRUE;
+            freeze = true;
           }
           UpdateWindow();
           break;
@@ -2318,14 +2227,14 @@ void *WaitButtonEvent(void * arg)
       switch (i)
       {
         case 0:                                            // Capture Snap
-          freeze = TRUE; 
+          freeze = true; 
           SetButtonStatus(ButtonNumber(CurrentMenu, 0), 1);
           UpdateWindow();
           while(! frozen);
           system("/home/pi/rpidatv/scripts/snap2.sh");
           SetButtonStatus(ButtonNumber(CurrentMenu, 0), 0);
           UpdateWindow();
-          freeze = FALSE;
+          freeze = false;
           break;
         case 2:                                            // Classic SA Mode
           break;
@@ -2349,12 +2258,12 @@ void *WaitButtonEvent(void * arg)
           if (freeze)
           {
             SetButtonStatus(ButtonNumber(CurrentMenu, 8), 0);
-            freeze = FALSE;
+            freeze = false;
           }
           else
           {
             SetButtonStatus(ButtonNumber(CurrentMenu, 8), 1);
-            freeze = TRUE;
+            freeze = true;
           }
           UpdateWindow();
           break;
@@ -2371,7 +2280,7 @@ void *WaitButtonEvent(void * arg)
       switch (i)
       {
         case 0:                                            // Capture Snap
-          freeze = TRUE; 
+          freeze = true; 
           SetButtonStatus(ButtonNumber(CurrentMenu, 0), 1);
           UpdateWindow();
           while(! frozen);
@@ -2379,7 +2288,7 @@ void *WaitButtonEvent(void * arg)
           SetButtonStatus(ButtonNumber(CurrentMenu, 0), 0);
           Start_Highlights_Menu6();
           UpdateWindow();
-          freeze = FALSE;
+          freeze = false;
           break;
         case 2:                                            // 0.5
         case 3:                                            // 1
@@ -2399,12 +2308,12 @@ void *WaitButtonEvent(void * arg)
           if (freeze)
           {
             SetButtonStatus(ButtonNumber(CurrentMenu, 9), 0);
-            freeze = FALSE;
+            freeze = false;
           }
           else
           {
             SetButtonStatus(ButtonNumber(CurrentMenu, 9), 1);
-            freeze = TRUE;
+            freeze = true;
           }
           Start_Highlights_Menu6();
           UpdateWindow();
@@ -2422,14 +2331,14 @@ void *WaitButtonEvent(void * arg)
       switch (i)
       {
         case 0:                                            // Capture Snap
-          freeze = TRUE; 
+          freeze = true; 
           SetButtonStatus(ButtonNumber(CurrentMenu, 0), 1);
           UpdateWindow();
           while(! frozen);
           system("/home/pi/rpidatv/scripts/snap2.sh");
           SetButtonStatus(ButtonNumber(CurrentMenu, 0), 0);
           UpdateWindow();
-          freeze = FALSE;
+          freeze = false;
           break;
         case 2:                                            // pfreq1
         case 3:                                            // pfreq2 
@@ -2449,12 +2358,12 @@ void *WaitButtonEvent(void * arg)
           if (freeze)
           {
             SetButtonStatus(ButtonNumber(CurrentMenu, 8), 0);
-            freeze = FALSE;
+            freeze = false;
           }
           else
           {
             SetButtonStatus(ButtonNumber(CurrentMenu, 8), 1);
-            freeze = TRUE;
+            freeze = true;
           }
           UpdateWindow();
           break;
@@ -2471,7 +2380,7 @@ void *WaitButtonEvent(void * arg)
       switch (i)
       {
         case 0:                                            // Capture Snap
-          freeze = TRUE; 
+          freeze = true; 
           SetButtonStatus(ButtonNumber(CurrentMenu, 0), 1);
           UpdateWindow();
           while(! frozen);
@@ -2479,7 +2388,7 @@ void *WaitButtonEvent(void * arg)
           SetButtonStatus(ButtonNumber(CurrentMenu, 0), 0);
           Start_Highlights_Menu8();
           UpdateWindow();
-          freeze = FALSE;
+          freeze = false;
           break;
         case 2:                                            // 100%
         case 3:                                            // 90%
@@ -2499,12 +2408,12 @@ void *WaitButtonEvent(void * arg)
           if (freeze)
           {
             SetButtonStatus(ButtonNumber(CurrentMenu, 8), 0);
-            freeze = FALSE;
+            freeze = false;
           }
           else
           {
             SetButtonStatus(ButtonNumber(CurrentMenu, 8), 1);
-            freeze = TRUE;
+            freeze = true;
           }
           Start_Highlights_Menu8();
           UpdateWindow();
@@ -2522,14 +2431,14 @@ void *WaitButtonEvent(void * arg)
       switch (i)
       {
         case 0:                                            // Capture Snap
-          freeze = TRUE; 
+          freeze = true; 
           SetButtonStatus(ButtonNumber(CurrentMenu, 0), 1);
           UpdateWindow();
           while(! frozen);
           system("/home/pi/rpidatv/scripts/snap2.sh");
           SetButtonStatus(ButtonNumber(CurrentMenu, 0), 0);
           UpdateWindow();
-          freeze = FALSE;
+          freeze = false;
           break;
         case 2:                                            // Freq Presets
           printf("Freq Presets Menu 10 Requested\n");
@@ -2554,12 +2463,12 @@ void *WaitButtonEvent(void * arg)
           if (freeze)
           {
             SetButtonStatus(ButtonNumber(CurrentMenu, 8), 0);
-            freeze = FALSE;
+            freeze = false;
           }
           else
           {
             SetButtonStatus(ButtonNumber(CurrentMenu, 8), 1);
-            freeze = TRUE;
+            freeze = true;
           }
           UpdateWindow();
           break;
@@ -2576,14 +2485,14 @@ void *WaitButtonEvent(void * arg)
       switch (i)
       {
         case 0:                                            // Capture Snap
-          freeze = TRUE; 
+          freeze = true; 
           SetButtonStatus(ButtonNumber(CurrentMenu, 0), 1);
           UpdateWindow();
           while(! frozen);
           system("/home/pi/rpidatv/scripts/snap2.sh");
           SetButtonStatus(ButtonNumber(CurrentMenu, 0), 0);
           UpdateWindow();
-          freeze = FALSE;
+          freeze = false;
           break;
         case 2:                                            // pfreq1
         case 3:                                            // pfreq2 
@@ -2604,12 +2513,12 @@ void *WaitButtonEvent(void * arg)
           if (freeze)
           {
             SetButtonStatus(ButtonNumber(CurrentMenu, 8), 0);
-            freeze = FALSE;
+            freeze = false;
           }
           else
           {
             SetButtonStatus(ButtonNumber(CurrentMenu, 8), 1);
-            freeze = TRUE;
+            freeze = true;
           }
           UpdateWindow();
           break;
@@ -3782,7 +3691,7 @@ void DrawTrace(int xoffset, int prev2, int prev1, int current)
 
   // Draw the markers
 
-  if (markeron == TRUE)
+  if (markeron == true)
   {
     MarkerGrn(markerx, xpos, markery);
   }
@@ -3840,10 +3749,10 @@ int main(void)
   }
 
   // Set up wiringPi module
-  if (wiringPiSetup() < 0)
-  {
-    return 0;
-  }
+  //if (wiringPiSetup() < 0)
+  //{
+  //  return 0;
+  //}
 
   // Check for presence of touchscreen
   for(NoDeviceEvent = 0; NoDeviceEvent < 7; NoDeviceEvent++)
@@ -3886,13 +3795,9 @@ int main(void)
   // Create Wait Button thread
   pthread_create (&thbutton, NULL, &WaitButtonEvent, NULL);
 
-  //signal(SIGINT, sigint_handler);
-  //signal(SIGTERM, sigint_handler);
+  // Initialise screen and splash
 
-
-  /* Initialise screen and splash */
-
-  if (wfall == TRUE)
+  if (wfall == true)
   {
     if(!screen_init())
     {
@@ -3905,7 +3810,7 @@ int main(void)
     initScreen();
   }
 
-  MsgBox4("Starting the Band Viewer", "Profiling ffts on first use", "Please wait 80 seconds", "No delay next time");
+  MsgBox4("Starting the Band Viewer", "Profiling FFTs on first use", "Please wait 80 seconds", "No delay next time");
 
   printf("Profiling FFTs..\n");
   fftwf_import_wisdom_from_filename("/home/pi/.fftwf_wisdom");
@@ -3935,7 +3840,7 @@ int main(void)
   }
   pthread_setname_np(fft_thread_obj, "FFT");
 
-  if (wfall == TRUE)
+  if (wfall == true)
   {
     /* Screen Render (backbuffer -> screen) Thread */
     if(pthread_create(&screen_thread_obj, NULL, screen_thread, &app_exit))
@@ -3960,16 +3865,15 @@ int main(void)
 
     UpdateWindow();     // Draw the buttons
 
-    normalised = FALSE;
     while(true)
     {
       //do  // Wait here for refresh?
       //{
       //  usleep(1);
       //}
-      //while (ContScan == FALSE);
+      //while (ContScan == false);
 
-      activescan = TRUE;
+      activescan = true;
 
       for (pixel = 8; pixel < 507; pixel++)
       {
@@ -3988,18 +3892,13 @@ int main(void)
 
         while (freeze)
         {
-          frozen = TRUE;
+          frozen = true;
         }
-        frozen = FALSE;
+        frozen = false;
       }
-      activescan = FALSE;
+      activescan = false;
 
-      if (normalising == true)
-      {
-        finishednormalising = true;
-      }
-
-      if (markeron == TRUE)
+      if (markeron == true)
       {
         CalculateMarkers();
       }

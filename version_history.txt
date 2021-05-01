@@ -1,3 +1,8 @@
+202104270
+Add boot to Band Viewer option
+Tidy Band Viewer source and compile during install and update
+Use Raspios Buster Lite 2021-03-04 for new builds
+
 202104250
 Enable LimeSDR USB with bandViewer
 BandViewer Enhancements
