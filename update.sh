@@ -465,7 +465,16 @@ if ! grep -q tstimeout "$PATHSCRIPT"/longmynd_config.txt; then
   echo "rxmod=dvbs" >> "$PATHSCRIPT"/longmynd_config.txt
 fi
 
-# Add new aslo and adf4153 parameters to siggencal.txt if not included
+# Add adf4153 reference freq to siggenconfig.txt if not included
+if ! grep -q adf4153ref /home/pi/rpidatv/src/siggen/siggenconfig.txt; then
+  # File needs updating
+  # Delete any blank lines first
+  sed -i -e '/^$/d' /home/pi/rpidatv/src/siggen/siggenconfig.txt
+  # Add the new entry and a new line 
+  echo "adf4153ref=20000000" >> /home/pi/rpidatv/src/siggen/siggenconfig.txt
+fi
+
+# Add new slo and adf4153 parameters to siggencal.txt if not included
 if ! grep -q slopoints /home/pi/rpidatv/src/siggen/siggencal.txt; then
   # File needs updating
   # Delete any blank lines first
