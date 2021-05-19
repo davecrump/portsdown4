@@ -45,6 +45,7 @@ without them
 #include "touch.h"
 #include "Graphics.h"
 #include "/home/pi/libiio/iio.h"  // for Pluto
+#include "adf4153.h"
 
 #define KWHT  "\x1B[37m"
 #define KYEL  "\x1B[33m"
@@ -118,6 +119,8 @@ char osc_text[20] = "Pluto"; // Output device display text
 // elcom   Elcom
 // express DATV Express
 // lime    Lime Mini
+// slo     Nort SLO
+// adf4153 ADF4153
 
 int64_t DisplayFreq = 437000000;  // Input freq and display freq are the same
 int64_t OutputFreq = 0;           // Calculated output frequency
@@ -132,13 +135,16 @@ char AttenType[255] = "NONE";  // or PE4302 (0.5 dB steps) or HMC1119 (0.25dB) o
 char ref_freq_4351[63] = "25000000";        // read on startup from siggenconfig.txt
 char ref_freq_5355[63] = "26000000";        // read on startup from siggenconfig.txt
 int refin = 2600000;                        // adf5355 ref_freq/10
+char ref_freq_4153[63] = "20000000";        // read on startup from siggenconfig.txt
+int refin4153 = 20000000;                   // adf4153/SLO ref_freq
+
 uint64_t SourceUpperFreq = 13600000000;     // set every time an oscillator is selected
 uint64_t SourceLowerFreq = 54000000;        // set every time an oscillator is selected
 
 uint64_t CalFreq[50];
 int CalLevel[50];
 int CalPoints;
-uint32_t R[13];                  // ADF5355 Registers
+uint32_t R[13];                  // ADF5355 or ADF4153 Registers
 
 char UpdateStatus[31] = "NotAvailable";
 
@@ -201,6 +207,7 @@ void ShowTitle();
 void UpdateWindow();
 void adf4351On(int);
 void adf5355On(int);
+void adf4153On();
 void ElcomOn();
 int plutotx(bool);
 
@@ -677,6 +684,10 @@ void ReadSavedState()
   // ref_freq_5355 is initialised to 26000000 and stays as a string
   GetConfigParam(PATH_SGCONFIG,"adf5355ref", ref_freq_5355);
   refin = atoi(ref_freq_5355) / 10;
+
+  // ref_freq_4153 is initialised to 20000000 and stays as a string
+  GetConfigParam(PATH_SGCONFIG,"adf4153ref", ref_freq_4153);
+  refin4153 = atoi(ref_freq_4153);
 
   // Read Pluto IP from Portsdown Config file
   GetConfigParam(PATH_PCONFIG,"plutoip", PlutoIP);
@@ -2349,6 +2360,14 @@ void AdjustFreq(int button)
     {
       ElcomOn(); // Change Elcom Freq
     }
+    if (strcmp(osc, "slo")==0)
+    {
+      adf4153On(); // Change adf4153/SLO Freq
+    }
+    if (strcmp(osc, "adf4153")==0)
+    {
+      adf4153On(); // Change ADF4153 Freq
+    }
   }
 }
 
@@ -2574,7 +2593,7 @@ void CalcOPLevel()
       PointBelow = n - 1;
     }
   }
-   printf("PointAbove = %d \n", PointAbove);
+  // printf("PointAbove = %d \n", PointAbove);
 
   if (DisplayFreq == CalFreq[n])
   {
@@ -2583,11 +2602,11 @@ void CalcOPLevel()
   else
   {
     proportion = (float)(DisplayFreq - CalFreq[PointBelow])/(CalFreq[PointAbove]- CalFreq[PointBelow]);
-    printf("proportion = %f \n", proportion);
+    // printf("proportion = %f \n", proportion);
     DisplayLevel = CalLevel[PointBelow] + (CalLevel[PointAbove] - CalLevel[PointBelow]) * proportion;
   }
 
-   printf("Initial Display Level = %d\n", DisplayLevel);
+   //printf("Initial Display Level = %d\n", DisplayLevel);
 
   // Now correct for set oscillator level ******************************************
 
@@ -2701,6 +2720,22 @@ void ShowOPFreq()
   float hpos = 0.39;
   
   if ((strcmp(osc, "elcom") == 0) && (CurrentMenu == 11))
+  {
+      strcpy(OPFreqText, "Output Freq = ");
+      snprintf(FreqString, 12, "%lld", OutputFreq);
+      strcat(OPFreqText, FreqString);
+      Text2(hpos*wscreen, vpos*hscreen, OPFreqText, font_ptr);
+  }
+
+  if ((strcmp(osc, "slo") == 0) && (CurrentMenu == 11))
+  {
+      strcpy(OPFreqText, "Output Freq = ");
+      snprintf(FreqString, 12, "%lld", OutputFreq * 4);
+      strcat(OPFreqText, FreqString);
+      Text2(hpos*wscreen, vpos*hscreen, OPFreqText, font_ptr);
+  }
+
+  if ((strcmp(osc, "adf4153") == 0) && (CurrentMenu == 11))
   {
       strcpy(OPFreqText, "Output Freq = ");
       snprintf(FreqString, 12, "%lld", OutputFreq);
@@ -3425,6 +3460,287 @@ void adf5355off()
   adf5355write(0x32008BC4);
 }
 
+void adf4153write(uint32_t dataword)
+{
+  // Nominate pins using WiringPi numbers
+
+  // CLK  pin 29 wPi 21
+  // Data pin 31 wPi 22
+  // ADF4153 LE pin 8 wPi 15
+
+  uint8_t LE_4153_GPIO = 15;
+  uint8_t CLK_GPIO     = 21;
+  uint8_t DATA_GPIO    = 22;
+
+  // Set all nominated pins to outputs
+  pinMode(LE_4153_GPIO, OUTPUT);
+  pinMode(CLK_GPIO, OUTPUT);
+  pinMode(DATA_GPIO, OUTPUT);
+
+  // Set idle conditions
+  digitalWrite(LE_4153_GPIO, HIGH);
+  digitalWrite(CLK_GPIO, LOW);
+  digitalWrite(DATA_GPIO, LOW);
+
+  // Delay, select device LE low and delay again
+  usleep(10);
+  digitalWrite(LE_4153_GPIO, LOW);
+  usleep(10);
+
+  // Initialise loop
+
+  uint16_t i;
+
+  // Send all 24 bits
+
+  for (i = 0; i < 24; i++)
+  {
+    // Test 24th bit
+    if (dataword & 0x800000)
+    {
+      digitalWrite(DATA_GPIO, HIGH);
+      printf("1");
+    }
+    else
+    {
+      digitalWrite(DATA_GPIO, LOW);
+      printf("0");
+    }
+
+    // Pulse clock
+    usleep(10);
+    digitalWrite(CLK_GPIO, HIGH);
+    usleep(10);
+    digitalWrite(CLK_GPIO, LOW);
+    usleep(10);
+
+    // shift data left so next bit will be leftmost
+    dataword <<= 1;
+  }
+  printf("\n");
+
+  //Set ADF4153 LE high and delay before exit
+
+  digitalWrite(LE_4153_GPIO, HIGH);
+  usleep(10);
+}
+
+void adf4153On()
+{
+  // VCO Freq is 1/4 of DisplayFreq for a Nort
+  // refin4153 is ref freq
+
+  //Reference Input Frequency
+  uint32_t ref_in;
+  ref_in = refin4153;
+
+
+  // Ref input frequency limits
+  //uint32_t adf4153_rfin_min_frq = 10000000;   // 10 MHz
+  //uint32_t adf4153_rfin_max_frq = 250000000;  // 250 MHz
+
+  // Maximum PFD frequency
+  uint32_t adf4153_pfd_max_frq = 32000000;    // 32 MHz
+
+  // VCO out frequency limits
+  uint32_t adf4153_vco_min_frq = 500000000;   // 500 MHz
+  uint64_t adf4153_vco_max_frq = 4000000000u; // 4 GHz
+
+  // maximum interpolator modulus value
+  uint16_t adf4153_mod_max = 4095;            // the MOD is stored in 12 bits
+
+  // R0 DB23 When set to logic high fast-lock is enabled (low for SLO)
+  uint8_t fastlock = 0;
+
+  // R1 DB23 Not used, but When set to logic high the value being programmed in the modulus is not loaded into the modulus.
+  //  Instead, it sets the resync delay of the Sigma-Delta.
+  //uint8_t load_control = 1;
+
+  // R1 DB20-22 The on-chip multiplexer selection bits
+  uint8_t muxout = 1;
+
+  // R1 DB18 The dual-modulus prescaler, along with the INT, FRAC and MOD counters, determines the overall division ratio
+  // from the RFin to PFD input.  Calculated below, not defined here
+  //uint8_t prescaler = 1;
+
+  // R2 DB12 - 15.  Define the time between two resync, if it is zero, then the phase resync feature is disabled
+  uint8_t resync = 0;
+
+  // R2 DB11.  REFin Doubler, when the doubler is enabled, both the rising and falling edges of REFin become active edges at the PFD input
+  uint8_t ref_doubler = 0;
+
+  // R2 DB7 - 10.  Charge Pump Current settings, this should be set to the charge pump current that the loop filter is designed with
+  uint8_t cp_current = 7;
+
+  // R2 DB6.  phase detector polarity
+  uint8_t pd_polarity = 1;
+
+  // R2 DB5.  Lock detect precision.  Only affects indication, not signal
+  uint8_t ldp = 1;
+
+  // R2 DB4.  De-activate power down mode
+  uint8_t power_down = 0;
+
+  // R2 DB3.  Charge pump three-state mode when programmed to 1
+  uint8_t cp_three_state = 0;  // Correct setting for SLO
+
+  // Channel resolution or Channel spacing.  Starting value
+  uint32_t channel_spacing = 1000;
+
+  uint64_t vco_frequency = 0;     // VCO frequency
+  uint32_t pfd_frequency = 0;     // PFD frequency
+  uint64_t calculated_frequency = 0;     // Actual VCO frequency
+  uint32_t int_value = 0;     // INT value
+  uint32_t frac_value = 0;     // FRAC value
+  uint32_t mod_value = 0;     // MOD value
+  uint16_t r_counter = 1;     // R Counter
+  float buffer = 0;
+  uint8_t device_prescaler = 0;
+  uint8_t int_min = 0;
+  int64_t frequency;
+
+  if (strcmp(osc, "adf4153") == 0)
+  {
+    frequency = DisplayFreq;
+  }
+  else  // slo
+  {
+    frequency = DisplayFreq / 4;
+  }
+
+  // validate the frequency
+  if(frequency <= adf4153_vco_max_frq)
+  {
+    if(frequency >= adf4153_vco_min_frq) 
+    {
+      vco_frequency = frequency;
+    }
+    else
+    {
+      vco_frequency = adf4153_vco_min_frq;
+    }
+  }
+  else
+  {
+    vco_frequency = adf4153_vco_max_frq;
+  }
+
+  // Define the value of MOD
+  mod_value = ceil(ref_in / channel_spacing);
+
+  // If the mod_value is too high, increase the channel spacing
+  if(mod_value > adf4153_mod_max)
+  {
+    do
+    {
+      channel_spacing++;
+      mod_value = ceil(ref_in / channel_spacing);
+      //printf("Mod Value  = %d, Channel Spacing = %d\n", mod_value, channel_spacing);
+    }
+    while(mod_value > adf4153_mod_max);
+  }
+
+  printf("ADF4153 Calculations:\n");
+  printf("mod_value = %d\n", mod_value);
+  printf("channel spacing = %d\n", channel_spacing);
+
+  // Define prescaler
+  device_prescaler = (vco_frequency <= FREQ_2_GHZ) ? ADF4153_PRESCALER_4_5 : \
+			   ADF4153_PRESCALER_8_9;
+  int_min = (device_prescaler == ADF4153_PRESCALER_4_5) ? 31 : 91;
+
+  // Define the PFD frequency, R counter and INT value
+  do
+  {
+    // define the PFD frequency and R Counter
+    do
+    {
+      r_counter++;
+      pfd_frequency = ref_in * ((float)(1 + ref_doubler) / (r_counter));
+    }
+    while(pfd_frequency > adf4153_pfd_max_frq);
+
+    int_value = vco_frequency / pfd_frequency;
+  }
+  while(int_value < int_min);
+
+  printf("PFD frequency = %d Hz\n", pfd_frequency);
+
+  // Define FRAC value
+  do
+  {
+    frac_value++;
+    buffer = int_value + ((float)frac_value/mod_value);
+    calculated_frequency = (uint64_t)(buffer * pfd_frequency);
+  }
+  while(calculated_frequency <= vco_frequency);
+
+  frac_value--;
+
+  printf("frac value = %d\n", frac_value);
+  printf("int value = %d\n", int_value);
+  printf("R Counter = %d\n", r_counter);
+
+  // Find the actual VCO frequency
+  buffer = int_value + ((float)frac_value/mod_value);
+  calculated_frequency = (uint64_t)(buffer * pfd_frequency);
+  OutputFreq = calculated_frequency;
+
+  printf("Calculated Frequency = %lld\n", calculated_frequency);
+
+  // Write all zeros to the noise and spur register R3
+  adf4153write(ADF4153_CTRL_NOISE_SPUR | 0x0);
+
+  // Select the lowest noise mode by default in R3
+  adf4153write(ADF4153_CTRL_NOISE_SPUR | 0x3C7);
+
+  // Enable the Counter Reset R2
+  adf4153write(ADF4153_CTRL_CONTROL |
+			   ADF4153_R2_COUNTER_RST(ADF4153_CR_ENABLED) |
+			   ADF4153_R2_CP_3STATE(cp_three_state) |
+			   ADF4153_R2_POWER_DOWN(power_down) |
+			   ADF4153_R2_LDP(ldp) |
+			   ADF4153_R2_PD_POL(pd_polarity) |
+			   ADF4153_R2_CP_CURRENT(cp_current) |
+			   ADF4153_R2_REF_DOUBLER(ref_doubler) |
+			   ADF4153_R2_RESYNC(resync));
+
+  // Divider Register R1
+  adf4153write(ADF4153_CTRL_R_DIVIDER |
+			   ADF4153_R1_MOD(mod_value) |
+			   ADF4153_R1_RCOUNTER(r_counter) |
+			   ADF4153_R1_PRESCALE(device_prescaler) |
+			   ADF4153_R1_MUXOUT(muxout) |
+			   ADF4153_R1_LOAD(ADF4153_LOAD_NORMAL));
+
+  // Load the N divider register R0
+  adf4153write(ADF4153_CTRL_N_DIVIDER |
+			   ADF4153_R0_FRAC(frac_value) |
+			   ADF4153_R0_INT(int_value) |
+	           ADF4153_R0_FASTLOCK(fastlock));
+
+  // Disable the counter reset in the Control Register R2
+  adf4153write(ADF4153_CTRL_CONTROL |
+			   ADF4153_R2_COUNTER_RST(ADF4153_CR_DISABLED) |
+			   ADF4153_R2_CP_3STATE(cp_three_state) |
+			   ADF4153_R2_POWER_DOWN(power_down) |
+			   ADF4153_R2_LDP(ldp) |
+			   ADF4153_R2_PD_POL(pd_polarity) |
+			   ADF4153_R2_CP_CURRENT(cp_current) |
+			   ADF4153_R2_REF_DOUBLER(ref_doubler) |
+			   ADF4153_R2_RESYNC(resync));
+
+//  Test for 12024.1/4 GHz, 20 MHz ref:
+
+//  adf4153write(0x00000003); //                               R3
+//  adf4153write(0x000003C7); //                               R3
+//  adf4153write(0x00001BC6);           // 0001 1011 1100 0110 R2
+//  adf4153write(0x00145901); // 0001 0100 0101 1001 0000 0001 R1
+//  adf4153write(0x0012C3C4); // 0001 0010 1100 0011 1100 0100 R0
+//  adf4153write(0x00001BC2); //           0001 1011 1100 0010 R2
+}
+
+
 void ElcomOn()
 {
   int D[8]= {0, 0, 0, 0, 0, 0, 0, 0};
@@ -3543,11 +3859,11 @@ void InitOsc()
   int n;
   char PointNumber[255];
   ImposeBounds();
+
   if (strcmp(osc, "express") == 0)
   {
+    strcpy(osc_text, "DATV Express");
     printf("Starting DATV Express\n");
-    //MsgBox4("Please wait","Loading Firmware to DATV Express", "", "");
-    //system("/home/pi/rpidatv/src/siggen/startexpresssvr.sh");
     n = StartExpressServer();
     printf("Response from StartExpressServer was %d\n", n);
   }
@@ -3578,18 +3894,51 @@ void InitOsc()
       SetConfigParam(PATH_SGCONFIG, "osc", osc);
     }
   }
+
+  if (strcmp(osc, "adf4351") == 0)
+  {
+    strcpy(osc_text, "ADF4351");
+  }
+
+  if (strcmp(osc, "adf5355") == 0)
+  {
+    strcpy(osc_text, "ADF5355");
+  }
+
+  if (strcmp(osc, "elcom") == 0)
+  {
+    strcpy(osc_text, "Elcom");
+  }
+
+  if (strcmp(osc, "lime") == 0)
+  {
+    strcpy(osc_text, "Lime Mini");
+  }
+
+  if (strcmp(osc, "slo") == 0)
+  {
+    strcpy(osc_text, "Nort SLO");
+  }
+
+  if (strcmp(osc, "adf4153") == 0)
+  {
+    strcpy(osc_text, "ADF4153");
+  }
   
   // Turn off attenuator if not compatible with mode
-  if ((strcmp(osc, "pluto") == 0) || (strcmp(osc, "pluto5") == 0) || (strcmp(osc, "elcom") == 0)
-    ||(strcmp(osc, "express") == 0) || (strcmp(osc, "lime") == 0))
+  if ((strcmp(osc, "pluto") == 0) || (strcmp(osc, "pluto5") == 0) 
+   || (strcmp(osc, "elcom") == 0) || (strcmp(osc, "express") == 0) 
+   || (strcmp(osc, "lime") == 0)  || (strcmp(osc, "slo") == 0)
+   || (strcmp(osc, "adf4153") == 0))
   {
     AttenIn = 0;
     SetAtten(0);
   }
 
   // Turn off modulation if not compatible with mode
-  if ((strcmp(osc, "pluto") == 0) || (strcmp(osc, "pluto5") == 0) || (strcmp(osc, "elcom") == 0)
-    || (strcmp(osc, "adf4351") == 0) || (strcmp(osc, "adf5355") == 0))
+  if ((strcmp(osc, "pluto") == 0)   || (strcmp(osc, "pluto5") == 0)  || (strcmp(osc, "elcom") == 0)
+   || (strcmp(osc, "adf4351") == 0) || (strcmp(osc, "adf5355") == 0) || (strcmp(osc, "slo") == 0)
+   || (strcmp(osc, "adf4153") == 0))
   {
     ModOn = 0;
   }
@@ -3600,11 +3949,14 @@ void InitOsc()
     level = 3;
   }
 
+  printf("Reading Cal table\n");
+
   // Read in amplitude Cal table
   if (strcmp(osc, "pluto5") != 0)
   {
     strcpy(Param, osc);
     strcat(Param, "points");
+  printf("%s\n", Param);
     GetConfigParam(PATH_CAL, Param, Value);
     CalPoints = atoi(Value);
     //printf("CalPoints= %d \n", CalPoints);
@@ -3617,14 +3969,14 @@ void InitOsc()
       strcat(Param, PointNumber);
       GetConfigParam(PATH_CAL, Param, Value);
       CalFreq[n] = strtoull(Value, 0, 0);
-      //printf(" %lld \n", CalFreq[n]);
+      printf(" %lld \n", CalFreq[n]);
 
       strcpy(Param, osc);
       strcat(Param, "lev");
       strcat(Param, PointNumber);
       GetConfigParam(PATH_CAL, Param, Value);
       CalLevel[n] = atoi(Value);
-      //printf("CalLevel= %d \n", CalLevel[n]);
+      printf("CalLevel= %d \n", CalLevel[n]);
     }
   }
   else  // Pluto 5th harmonic
@@ -3675,7 +4027,7 @@ void InitOsc()
       SetButtonStatus(ButtonNumber(11, 5), 1);         // Hide increment 10s
       SetButtonStatus(ButtonNumber(11, 7), 1);         // Hide increment 10ths
     }
-    if (strcmp(osc, "elcom") == 0)
+    if ((strcmp(osc, "elcom") == 0) || (strcmp(osc, "slo") == 0) || (strcmp(osc, "adf4153") == 0))
     {
       SetButtonStatus(ButtonNumber(11, 0), 1);         // Hide decrement 10s
       SetButtonStatus(ButtonNumber(11, 1), 1);         // Hide decrement 1s
@@ -3855,8 +4207,17 @@ void SelectOsc(int NoButton)      // Output Oscillator
     strcpy(osc, "lime");
     strcpy(osc_text, "Lime Mini");  
     break;
+  case 8:
+    strcpy(osc, "slo");
+    strcpy(osc_text, "Nort SLO");  
+    break;
+  case 9:
+    strcpy(osc, "adf4153");
+    strcpy(osc_text, "ADF4153");  
+    break;
   }
   SetConfigParam(PATH_SGCONFIG, "osc", osc);
+  printf("SelectOsc Calling InitOsc\n");
   InitOsc();
 }
 
@@ -3912,6 +4273,20 @@ void ImposeBounds()  // Constrain DisplayFreq and level to physical limits
     strcpy(osc_text, "Elcom"); 
     SourceUpperFreq = 14000000000;
     SourceLowerFreq = 10000000000;
+  }
+
+  if (strcmp(osc, "slo")==0)
+  {
+    strcpy(osc_text, "Nort SLO"); 
+    SourceUpperFreq = 14000000000;
+    SourceLowerFreq = 10000000000;
+  }
+
+  if (strcmp(osc, "adf4153")==0)
+  {
+    strcpy(osc_text, "ADF4153"); 
+    SourceUpperFreq = 4000000000;
+    SourceLowerFreq = 500000000;
   }
 
   if (strcmp(osc, "lime")==0)
@@ -4000,6 +4375,11 @@ void OscStart()
     adf5355On(level);
   }
 
+  if ((strcmp(osc, "adf4153") == 0) || (strcmp(osc, "slo") == 0))
+  {
+    adf4153On();
+  }
+
   if (strcmp(osc, "express")==0)
   {
     if (ModOn == 0)  // Start Express without Mod
@@ -4046,6 +4426,18 @@ void OscStop()
   if ((strcmp(osc, "elcom") == 0) && (CurrentMenu == 11))
   {
     MsgBox4("Elcom oscillator will keep running", "until powered off", " ", "Touch screen to continue");
+    wait_touch();
+  }
+
+  if ((strcmp(osc, "slo") == 0) && (CurrentMenu == 11))
+  {
+    MsgBox4("SLO oscillator will keep running", "until powered off", " ", "Touch screen to continue");
+    wait_touch();
+  }
+
+  if ((strcmp(osc, "adf4153") == 0) && (CurrentMenu == 11))
+  {
+    MsgBox4("ADF4153 will keep running", "until powered off", " ", "Touch screen to continue");
     wait_touch();
   }
 
@@ -4721,12 +5113,35 @@ void ChangeADFRef(int NoButton)
     }
     strcpy(ref_freq_5355, KeyboardReturn);
     SetConfigParam(PATH_SGCONFIG, "adf5355ref", KeyboardReturn);
+    refin = atoi(ref_freq_5355) / 10;
+    break;
+  case 7:
+    snprintf(RequestText, 50, "Enter new ADF4153/SLO Reference Frequency in Hz");
+    strcpyn(InitText, ref_freq_4153, 10);
+    while (Spaces >= 1)
+    {
+      Keyboard(RequestText, InitText, 9);
+  
+      // Check that there are no spaces or other characters
+      Spaces = 0;
+      for (j = 0; j < strlen(KeyboardReturn); j = j + 1)
+      {
+        if ( !(isdigit(KeyboardReturn[j])) )
+        {
+          Spaces = Spaces + 1;
+        }
+      }
+    }
+    strcpy(ref_freq_4153, KeyboardReturn);
+    SetConfigParam(PATH_SGCONFIG, "adf4153ref", KeyboardReturn);
+    refin4153 = atoi(ref_freq_4153);
     break;
   default:
     break;
   }
   printf("ADF4351 Ref set to: %s\n", ref_freq_4351);
   printf("ADF5355 Ref set to: %s\n", ref_freq_5355);
+  printf("ADF4153/SLO Ref set to: %s\n", ref_freq_4153);
 }
 
 
@@ -4819,10 +5234,11 @@ void waituntil(int w, int h)
         case 1:   // Pluto 5th Harmonic
         case 2:   // DATV Express
         case 3:   // Elcom
-        // case 3:  // LimeSDR Mini
         case 5:   // ADF4351
         case 6:   // ADF5355
-        //case 7:  // LimeSDR Mini
+        //case 7: // LimeSDR Mini
+        case 8:   // Nort SLO
+        case 9:   // ADF4153
           SelectOsc(i); 
           break;
         default:
@@ -4893,6 +5309,7 @@ void waituntil(int w, int h)
           break;
         case 0:                               // Set ADF4351 Ref
         case 1:                               // Set ADF5355 Ref
+        case 7:                               // Set ADF4153/SLO Ref
           printf("Changing ADFRef\n");
           ChangeADFRef(i);
           Start_Highlights_Menu4();
@@ -5167,6 +5584,14 @@ void Define_Menu2()
   //button = CreateButton(2, 7);                         // lime
   //AddButtonStatus(button, "Lime Mini", &Blue);
   //AddButtonStatus(button, "Lime Mini", &Green);
+
+  button = CreateButton(2, 8);                           // slo
+  AddButtonStatus(button, "Nort SLO", &Blue);
+  AddButtonStatus(button, "Nort SLO", &Green);
+
+  button = CreateButton(2, 9);                           // adf4153
+  AddButtonStatus(button, "ADF4153", &Blue);
+  AddButtonStatus(button, "ADF4153", &Green);
 }
 
 void Start_Highlights_Menu2()
@@ -5175,37 +5600,47 @@ void Start_Highlights_Menu2()
   if (strcmp(osc, "pluto") == 0)
   {
     SelectInGroupOnMenu(2, 0, 3, 0, 1);
-    SelectInGroupOnMenu(2, 5, 6, 0, 1);
+    SelectInGroupOnMenu(2, 5, 9, 0, 1);
   }
   if (strcmp(osc, "pluto5") == 0)
   {
     SelectInGroupOnMenu(2, 0, 3, 1, 1);
-    SelectInGroupOnMenu(2, 5, 6, 1, 1);
+    SelectInGroupOnMenu(2, 5, 9, 1, 1);
   }
   if (strcmp(osc, "express") == 0)
   {
     SelectInGroupOnMenu(2, 0, 3, 2, 1);
-    SelectInGroupOnMenu(2, 5, 6, 2, 1);
+    SelectInGroupOnMenu(2, 5, 9, 2, 1);
   }
   if (strcmp(osc, "elcom") == 0)
   {
     SelectInGroupOnMenu(2, 0, 3, 3, 1);
-    SelectInGroupOnMenu(2, 5, 6, 3, 1);
+    SelectInGroupOnMenu(2, 5, 9, 3, 1);
   }
   if (strcmp(osc, "adf4351") == 0)
   {
     SelectInGroupOnMenu(2, 0, 3, 5, 1);
-    SelectInGroupOnMenu(2, 5, 6, 5, 1);
+    SelectInGroupOnMenu(2, 5, 9, 5, 1);
   }
   if (strcmp(osc, "adf5355") == 0)
   {
     SelectInGroupOnMenu(2, 0, 3, 6, 1);
-    SelectInGroupOnMenu(2, 5, 6, 6, 1);
+    SelectInGroupOnMenu(2, 5, 9, 6, 1);
   }
   if (strcmp(osc, "lime") == 0)
   {
     SelectInGroupOnMenu(2, 0, 3, 7, 1);
-    SelectInGroupOnMenu(2, 5, 6, 7, 1);
+    SelectInGroupOnMenu(2, 5, 9, 7, 1);
+  }
+  if (strcmp(osc, "slo") == 0)
+  {
+    SelectInGroupOnMenu(2, 0, 3, 8, 1);
+    SelectInGroupOnMenu(2, 5, 9, 8, 1);
+  }
+  if (strcmp(osc, "adf4153") == 0)
+  {
+    SelectInGroupOnMenu(2, 0, 3, 9, 1);
+    SelectInGroupOnMenu(2, 5, 9, 9, 1);
   }
 }
 
@@ -5300,6 +5735,9 @@ void Define_Menu4()
   button = CreateButton(4, 6);
   AddButtonStatus(button, "Reboot^Pluto", &Blue);
 
+  button = CreateButton(4, 7);
+  AddButtonStatus(button, "Set Ref^ADF4153/SLO", &Blue);
+
   button = CreateButton(4, 8);
   AddButtonStatus(button, " ", &Grey);
   AddButtonStatus(button, "Update Pluto^to AD9364", &Red);
@@ -5353,9 +5791,9 @@ void Define_Menu11()  // Control Panel
   }
 
   button = CreateButton(11, 30);
-  AddButtonStatus(button, "START", &Blue);
-  AddButtonStatus(button, "ON", &Red);
-  AddButtonStatus(button, "START", &Grey);
+  AddButtonStatus(button, "START^ ", &Blue);
+  AddButtonStatus(button, "  ^ON", &Red);
+  AddButtonStatus(button, "START^ ", &Grey);
 
   button = CreateButton(11, 31);
   AddButtonStatus(button, "OFF", &Blue);
@@ -5376,6 +5814,16 @@ void Define_Menu11()  // Control Panel
 
 void Start_Highlights_Menu11()
 {
+  char OnText[63];
+  char OffText[63];
+  char osc_caption[13];
+  strncpy(osc_caption, osc_text, 10);
+  snprintf(OffText, 20, "START^%s", osc_caption);
+  snprintf(OnText, 20, "%s^ON", osc_caption);
+  AmendButtonStatus(ButtonNumber(11, 30), 0, OffText, &Blue);
+  AmendButtonStatus(ButtonNumber(11, 30), 1, OnText, &Red);
+  AmendButtonStatus(ButtonNumber(11, 30), 2, OffText, &Grey);
+
   if ( !((strcmp(osc, "pluto") == 0) || (strcmp(osc, "pluto5") == 0)) || PlutoCalValid)
   {
     SetButtonStatus(ButtonNumber(11, 30), OutputStatus); // Off (blue), On (red)
