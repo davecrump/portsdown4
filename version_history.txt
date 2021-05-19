@@ -1,3 +1,6 @@
+202105190
+Add the NORT SLO and ADF4153 as output options for the Signal Generator
+
 202104270
 Add boot to Band Viewer option
 Tidy Band Viewer source and compile during install and update

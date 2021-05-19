@@ -3797,6 +3797,8 @@ int main(void)
 
   // Initialise screen and splash
 
+  screen_init();
+
   if (wfall == true)
   {
     if(!screen_init())
