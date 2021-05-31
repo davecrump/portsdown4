@@ -9,8 +9,8 @@
 #include <sys/ioctl.h>
 #include <linux/types.h>
 #include <linux/spi/spidev.h>
-
-//#include <wiringPi.h>
+#include <math.h>
+#include <wiringPi.h>
 #include <signal.h>
 #include <dirent.h>
 #include <pthread.h>
@@ -92,6 +92,7 @@ bool frozen = false;
 bool activescan = false;
 bool PeakPlot = false;
 //int y[501];               // Actual displayed values on the chart
+bool PortsdownExitRequested = false;
 
 int scaledadresult[501];  // Sensed AD Result
 int PeakValue[513] = {0};
@@ -123,6 +124,19 @@ int historycount = 0;
 int markerxhistory[10];
 int markeryhistory[10];
 int manualmarkerx = 250;
+bool MarkerRefresh = false;
+
+bool Range20dB = false;
+int BaseLine20dB = -80;
+
+bool NFMeter = false;
+bool NFCalibrated = false; // false measures system, true measures DUT
+bool NFCalRequested = false; // set true to initiate NF calibration
+int ScansforLevel = 10;
+float ENR = 15.0;
+float Tsoff = 290.0;
+float Tson;
+
 
 int tracecount = 0;  // Used for speed testing
 int exit_code;
@@ -168,11 +182,17 @@ void Define_Menu7();
 void Define_Menu8();
 void Define_Menu9();
 void Define_Menu10();
+void Define_Menu11();
+void Define_Menu12();
+void Define_Menu13();
 static void cleanexit(int);
+void Start_Highlights_Menu1();
+void Start_Highlights_Menu2();
 void Start_Highlights_Menu6();
 void Start_Highlights_Menu7();
 void Start_Highlights_Menu8();
 void Start_Highlights_Menu10();
+void RedrawDisplay();
 
 //////////////////////////////////////////// SA bits /////////////////////////////////////////
 
@@ -317,6 +337,9 @@ void ReadSavedParams()
 
   GetConfigParam(PATH_CONFIG, "pfreq5", response);
   pfreq5 = atoi(response);
+
+  GetConfigParam(PATH_CONFIG, "enr", response);
+  ENR = atof(response);
 
   strcpy(PlotTitle, "-");  // this is the "do not display" response
   GetConfigParam(PATH_CONFIG, "title", PlotTitle);
@@ -953,8 +976,8 @@ int CreateButton(int MenuIndex, int ButtonPosition)
   // Provide Menu number (int 1 - 46), Button Position (0 snap, 1 top, 8/9 bottom)
   // return button number
 
-  // Menus 1 - 10 are classic 15-button menus
-  // Menus 11 - 40 are undefined
+  // Menus 1 - 20 are classic 15-button menus
+  // Menus 21 - 40 are undefined and have no button numbers allocated
   // Menu 41 is a keyboard
   // Menu 42 only exists as a boundary for Menu 41
 
@@ -1305,6 +1328,9 @@ void UpdateWindow()    // Paint each defined button
     rectangle(620, 0, 160, 420, 0, 0, 0);
   }
 
+  // Don't draw buttons if the Markers are being refreshed.  Wait here
+
+
   // Draw each button in turn
   first = ButtonNumber(CurrentMenu, 0);
   last = ButtonNumber(CurrentMenu + 1 , 0) - 1;
@@ -1322,12 +1348,20 @@ void UpdateWindow()    // Paint each defined button
   {
     if (ButtonArray[first].IndexStatus > 0)  // If button needs to be drawn
     {
+      while (MarkerRefresh == true)          // Wait for marker refresh to prevent conflict
+      {
+        usleep(10);
+      }
       DrawButton(first);                     // Draw button 0, but not button 1
     }
     for(i = (first + 2); i <= last; i++)
     {
       if (ButtonArray[i].IndexStatus > 0)  // If button needs to be drawn
       {
+        while (MarkerRefresh == true)      // Wait for marker refresh to prevent conflict
+        {
+          usleep(10);
+        }
         DrawButton(i);                     // Draw the button
       }
     }
@@ -1390,11 +1424,24 @@ void CalculateMarkers()
 
     case 4:  // manual
       maxy = 0;
-      maxy = y[manualmarkerx + 6] + 1;
+      //maxy = y[manualmarkerx + 6] + 1;
+
+
+      for (i = (manualmarkerx - 5); i < (manualmarkerx + 6); i++)
+      {
+         if((y[i + 6] + 1) > maxy)
+         {
+           maxy = y[i + 6] + 1;
+           //xformaxy = i;
+         }
+      }
+
       xformaxy = manualmarkerx;
     break;
   }
 
+  MarkerRefresh = true;  // Prevent other text screen-writes
+                         // Do it early so as not to catch the tail end of text
 
   // Now smooth the marker 
   markerxhistory[historycount] = xformaxy;
@@ -1415,10 +1462,16 @@ void CalculateMarkers()
   markery = 410 - (ysum / markersamples);
 
   // And display it
-  markerlev = ((float)(410 - markery) / 5) - 80.0;
+  if (Range20dB == false)
+  {
+    markerlev = ((float)(410 - markery) / 5.0) - 80.0;  // in dB for a 0 to -80 screen
+  }
+  else
+  {
+    markerlev = ((float)(410 - markery) / 20.0) + (float)BaseLine20dB;  // in dB for a BaseLine20dB to 20 above screen
+  }
   rectangle(620, 420, 160, 60, 0, 0, 0);  // Blank the Menu title
   snprintf(markerlevel, 14, "Mkr %0.1f dB", markerlev);
-  //TextMid2(700, 450, markerlevel, &font_dejavu_sans_18);
   Text2(640, 450, markerlevel, &font_dejavu_sans_18);
 
   if((startfreq != -1 ) && (stopfreq != -1)) // "Do not display" values
@@ -1427,10 +1480,9 @@ void CalculateMarkers()
     markerf = (float)((((markerx - 100) * (stopfreq - startfreq)) / 500 + startfreq)) / 1000.0; 
     snprintf(markerfreq, 14, "%0.2f MHz", markerf);
     setBackColour(0, 0, 0);
-    //TextMid2(700, 425, markerfreq, &font_dejavu_sans_18);
     Text2(640, 425, markerfreq, &font_dejavu_sans_18);
   }
-
+  MarkerRefresh = false;  // Unlock screen writes
 }
 
 
@@ -1521,6 +1573,50 @@ void SetLimeGain(int button)
   NewGain = true;
 
   //DrawSettings();       // New labels
+  freeze = false;
+}
+
+void SetENR()
+{  
+  char ValueToSave[63];
+  char RequestText[64];
+  char InitText[63];
+  float newENR;
+
+  // Stop the scan at the end of the current one and wait for it to stop
+  freeze = true;
+  while(! frozen)
+  {
+    usleep(10);                                   // wait till the end of the scan
+  }
+
+  // Define request string
+  strcpy(RequestText, "Enter the new ENR (range 1 to 30) in dB");
+
+  // Define initial value
+  snprintf(InitText, 10, "%.2f", ENR);
+ 
+  // Ask for the new value
+  do
+  {
+    Keyboard(RequestText, InitText, 10);
+    newENR = atof(KeyboardReturn);
+  }
+  while ((newENR < 1.0) || (newENR > 30.0));
+
+  ENR = newENR;
+  snprintf(ValueToSave, 63, "%.2f", newENR);
+
+  // Store the new ENR and recalculate
+  SetConfigParam(PATH_CONFIG, "enr", ValueToSave);
+  printf("new ENR set to %.2f \n", ENR);
+  Tson = Tsoff * (1 + pow(10, (ENR / 10)));
+
+  // Tidy up, paint around the screen and then unfreeze
+  clearScreen();
+  DrawEmptyScreen();  // Required to set A value, which is not set in DrawTrace
+  DrawYaxisLabels();  // dB calibration on LHS
+  DrawSettings();     // Start, Stop RBW, Ref level and Title
   freeze = false;
 }
 
@@ -1750,6 +1846,30 @@ void CalcSpan()    // takes centre frequency and span and calulates startfreq an
     MAIN_SPECTRUM_TIME_SMOOTH =  0.90;
   }
 
+  // Set levelling time for NF Measurement
+  switch (span)
+  {
+    case 512:                                            // 500 kHz use 30
+      ScansforLevel = 30;
+      break;
+    case 1024:                                            // 1 MHz use 20
+      ScansforLevel = 20;
+      break;
+    case 2048:                                            // 2 MHz use 10
+      ScansforLevel = 10;
+      break;
+    case 5120:                                            // 5 MHz use 5
+      ScansforLevel = 5;
+      break;
+    case 10240:                                            // 10 MHz use 3
+      ScansforLevel = 3;
+      break;
+    case 20480:                                            // 20 MHz use 3
+      ScansforLevel = 3;
+      break;
+    default:
+      ScansforLevel = 10;
+  }
 }
 
 void ChangeLabel(int button)
@@ -1852,6 +1972,13 @@ void ChangeLabel(int button)
   freeze = false;
 }
 
+void RedrawDisplay()
+{
+  // Redraw the Y Axis
+  DrawYaxisLabels();
+
+}
+
 
 //////////////////////////////////////// DEAL WITH TOUCH EVENTS //////////////////////////////////////
 
@@ -1900,13 +2027,21 @@ void *WaitButtonEvent(void * arg)
         case 3:                                            // Markers
           printf("Markers Menu 2 Requested\n");
           CurrentMenu=2;
+          Start_Highlights_Menu2();
           UpdateWindow();
           break;
         case 4:                                            // Mode
-          printf("Settings Menu 5 Requested\n");
-          CurrentMenu=5;
+          if (Range20dB == false)
+          {
+            printf("Mode Menu 5 Requested\n");
+            CurrentMenu = 5;
+          }
+          else
+          {
+            printf("20dB Menu Requested\n");
+            CurrentMenu = 11;
+          }
           UpdateWindow();
-          break;
           break;
         case 5:                                            // Left Arrow
         case 6:                                            // Right Arrow
@@ -1919,6 +2054,24 @@ void *WaitButtonEvent(void * arg)
           printf("System Menu 4 Requested\n");
           CurrentMenu=4;
           UpdateWindow();
+          break;
+        case 8:                                            // Exit to Portsdown
+          if(PortsdownExitRequested)
+          {
+            freeze = true;
+            usleep(100000);
+            setBackColour(0, 0, 0);
+            clearScreen();
+            usleep(1000000);
+            closeScreen();
+            cleanexit(129);
+          }
+          else
+          {
+            PortsdownExitRequested = true;
+            Start_Highlights_Menu1();
+            UpdateWindow();
+          }
           break;
         case 9:
           if (freeze)
@@ -1935,6 +2088,12 @@ void *WaitButtonEvent(void * arg)
           break;
         default:
           printf("Menu 1 Error\n");
+      }
+      if(i != 8)
+      {
+        PortsdownExitRequested = false;
+        Start_Highlights_Menu1();
+        UpdateWindow();
       }
       continue;  // Completed Menu 1 action, go and wait for touch
     }
@@ -2021,17 +2180,18 @@ void *WaitButtonEvent(void * arg)
             SetButtonStatus(ButtonNumber(CurrentMenu, 2), 0);
             SetButtonStatus(ButtonNumber(CurrentMenu, 4), 0);
           }
+          Start_Highlights_Menu2();
           UpdateWindow();
           freeze = false;
           break;
         case 5:                                            // Left Arrow
-          if(manualmarkerx > 10)
+          if ((manualmarkerx > 10) && (markeron == true) && (markermode = 4))
           {
             manualmarkerx = manualmarkerx - 10;
           }
           break;
         case 6:                                            // Right Arrow
-          if(manualmarkerx < 490)
+          if ((manualmarkerx < 490) && (markeron == true) && (markermode = 4))
           {
             manualmarkerx = manualmarkerx + 10;
           }
@@ -2049,6 +2209,7 @@ void *WaitButtonEvent(void * arg)
         case 8:                                            // Return to Main Menu
           printf("Main Menu 1 Requested\n");
           CurrentMenu=1;
+          Start_Highlights_Menu1();
           UpdateWindow();
           break;
         case 9:
@@ -2119,6 +2280,7 @@ void *WaitButtonEvent(void * arg)
           break;
         case 7:                                            // Return to Main Menu
           printf("Main Menu 1 Requested\n");
+          Start_Highlights_Menu1();
           CurrentMenu=1;
           UpdateWindow();
           break;
@@ -2199,6 +2361,7 @@ void *WaitButtonEvent(void * arg)
         case 7:                                            // Return to Main Menu
           printf("Main Menu 1 Requested\n");
           CurrentMenu=1;
+          Start_Highlights_Menu1();
           UpdateWindow();
           break;
         case 8:
@@ -2237,12 +2400,36 @@ void *WaitButtonEvent(void * arg)
           freeze = false;
           break;
         case 2:                                            // Classic SA Mode
+          NFMeter = false;
+          Range20dB = false;
+          RedrawDisplay();
           break;
-        case 3:                                            // 
+        case 3:                                            // Show 20 dB range
+          NFMeter = false;
+          Range20dB = true;
+          RedrawDisplay();
+          printf("20dB Menu 11 Requested\n");
+          CurrentMenu = 11;
+          UpdateWindow();
           break;
         case 4:                                            // 
           break;
-        case 5:                                            // 
+        case 5:                                            // NF Meter
+          Range20dB = false;
+          RedrawDisplay();
+          NFMeter = true;
+          if (NFCalibrated == false)
+          {
+            CurrentMenu=12;
+            //Start_Highlights_Menu12();
+          }
+          else
+          {
+            CurrentMenu=13;
+            //Start_Highlights_Menu13();
+          }
+ 
+          UpdateWindow();
           break;
         case 6:                                            // 
           printf("Config Menu 9 Requested\n");
@@ -2252,6 +2439,7 @@ void *WaitButtonEvent(void * arg)
         case 7:                                            // Return to Main Menu
           printf("Main Menu 1 Requested\n");
           CurrentMenu=1;
+          Start_Highlights_Menu1();
           UpdateWindow();
           break;
         case 8:
@@ -2297,7 +2485,8 @@ void *WaitButtonEvent(void * arg)
         case 6:                                            // 10
         case 7:                                            // 20
           SetSpanWidth(i);
-          CurrentMenu = 3;
+          CurrentMenu = 6;
+          Start_Highlights_Menu6();
           UpdateWindow();
           break;
         case 8:                                            // Return to Settings Menu
@@ -2396,7 +2585,8 @@ void *WaitButtonEvent(void * arg)
         case 5:                                            // 50%
         case 6:                                            // 30%
           SetLimeGain(i);
-          CurrentMenu = 3;
+          Start_Highlights_Menu8();
+          CurrentMenu = 8;
           UpdateWindow();
           break;
         case 7:                                            // Return to Settings Menu
@@ -2527,7 +2717,177 @@ void *WaitButtonEvent(void * arg)
       }
       continue;  // Completed Menu 10 action, go and wait for touch
     }
+    if (CurrentMenu == 11)  // 20 dB range Menu
+    {
+      printf("Button Event %d, Entering Menu 11 Case Statement\n",i);
+      CallingMenu = 11;
+      switch (i)
+      {
+        case 0:                                            // Capture Snap
+          freeze = true; 
+          SetButtonStatus(ButtonNumber(CurrentMenu, 0), 1);
+          UpdateWindow();
+          while(! frozen);
+          system("/home/pi/rpidatv/scripts/snap2.sh");
+          SetButtonStatus(ButtonNumber(CurrentMenu, 0), 0);
+          UpdateWindow();
+          freeze = false;
+          break;
+        case 2:                                            // Back to Full Range
+          Range20dB = false;
+          RedrawDisplay();
+          CurrentMenu=1;
+          UpdateWindow();
+          break;
+        case 5:                                            // up
+          if (BaseLine20dB <= -25)
+          {
+            BaseLine20dB = BaseLine20dB + 5;
+            RedrawDisplay();
+          }
+          UpdateWindow();
+          break;
+        case 6:                                            // down
+          if (BaseLine20dB >= -75)
+          {
+            BaseLine20dB = BaseLine20dB - 5;
+            RedrawDisplay();
+          }
+          UpdateWindow();
+          break;
+        case 7:                                            // Return to Main Menu
+          printf("Settings Menu 1 requested\n");
+          CurrentMenu=1;
+          UpdateWindow();
+          break;
+        case 8:
+          if (freeze)
+          {
+            SetButtonStatus(ButtonNumber(CurrentMenu, 8), 0);
+            freeze = false;
+          }
+          else
+          {
+            SetButtonStatus(ButtonNumber(CurrentMenu, 8), 1);
+            freeze = true;
+          }
+          UpdateWindow();
+          break;
+        default:
+          printf("Menu 11 Error\n");
+      }
+      continue;  // Completed Menu 10 action, go and wait for touch
+    }
+    if (CurrentMenu == 12)  // System NF Menu
+    {
+      printf("Button Event %d, Entering Menu 12 Case Statement\n",i);
+      CallingMenu = 12;
+      switch (i)
+      {
+        case 0:                                            // Capture Snap
+          freeze = true; 
+          SetButtonStatus(ButtonNumber(CurrentMenu, 0), 1);
+          UpdateWindow();
+          while(! frozen);
+          system("/home/pi/rpidatv/scripts/snap2.sh");
+          SetButtonStatus(ButtonNumber(CurrentMenu, 0), 0);
+          UpdateWindow();
+          freeze = false;
+          break;
+        //case 3:                                            //   Cal System
+        //  NFCalRequested = true;
+        //  printf("Main Menu 13 Requested\n");
+        //  CurrentMenu=13;
+        //  UpdateWindow();
+        //  break;
+        case 5:                                            //    Set ENR
+          SetENR();
+          UpdateWindow();
+          break;
+        case 6:                                            //    Stop NF
+          NFMeter = false;
+          NFCalibrated = false;
+          printf("Main Menu 1 Requested\n");
+          CurrentMenu=1;
+          UpdateWindow();
+          break;
+        case 7:                                            // Return to Main Menu
+          printf("Main Menu 1 Requested\n");
+          CurrentMenu=1;
+          UpdateWindow();
+          break;
+        case 8:
+          if (freeze)
+          {
+            SetButtonStatus(ButtonNumber(CurrentMenu, 8), 0);
+            freeze = false;
+          }
+          else
+          {
+            SetButtonStatus(ButtonNumber(CurrentMenu, 8), 1);
+            freeze = true;
+          }
+          UpdateWindow();
+          break;
+        default:
+          printf("Menu 12 Error\n");
+      }
+      continue;  // Completed Menu 9 action, go and wait for touch
+    }
 
+    if (CurrentMenu == 13)  // DUT NF Menu
+    {
+      printf("Button Event %d, Entering Menu 13 Case Statement\n",i);
+      CallingMenu = 13;
+      switch (i)
+      {
+        case 0:                                            // Capture Snap
+          freeze = true; 
+          SetButtonStatus(ButtonNumber(CurrentMenu, 0), 1);
+          UpdateWindow();
+          while(! frozen);
+          system("/home/pi/rpidatv/scripts/snap2.sh");
+          SetButtonStatus(ButtonNumber(CurrentMenu, 0), 0);
+          UpdateWindow();
+          freeze = false;
+          break;
+        case 5:                                            // Uncalibrate
+          NFCalibrated = false;
+          printf("Main Menu 12 Requested\n");
+          CurrentMenu=12;
+          UpdateWindow();
+          break;
+          break;
+        case 6:                                            // Stop NF
+          NFMeter = false;
+          NFCalibrated = false;
+          printf("Main Menu 1 Requested\n");
+          CurrentMenu=1;
+          UpdateWindow();
+          break;
+        case 7:                                            // Return to Main Menu
+          printf("Main Menu 1 Requested\n");
+          CurrentMenu=1;
+          UpdateWindow();
+          break;
+        case 8:
+          if (freeze)
+          {
+            SetButtonStatus(ButtonNumber(CurrentMenu, 8), 0);
+            freeze = false;
+          }
+          else
+          {
+            SetButtonStatus(ButtonNumber(CurrentMenu, 8), 1);
+            freeze = true;
+          }
+          UpdateWindow();
+          break;
+        default:
+          printf("Menu 13 Error\n");
+      }
+      continue;  // Completed Menu 9 action, go and wait for touch
+    }
   }
   return NULL;
 }
@@ -2574,13 +2934,25 @@ void Define_Menu1()                                  // Main Menu
   AddButtonStatus(button, "System", &Blue);
   AddButtonStatus(button, " ", &Green);
 
-  //button = CreateButton(1, 8);
-  //AddButtonStatus(button, "7", &Blue);
-  //AddButtonStatus(button, " ", &Green);
+  button = CreateButton(1, 8);
+  AddButtonStatus(button, "Exit to^Portsdown", &DBlue);
+  AddButtonStatus(button, "Exit to^Portsdown", &Red);
 
   button = CreateButton(1, 9);
   AddButtonStatus(button, "Freeze", &Blue);
   AddButtonStatus(button, "Unfreeze", &Green);
+}
+
+void Start_Highlights_Menu1()
+{
+  if (PortsdownExitRequested)
+  {
+    SetButtonStatus(ButtonNumber(1, 8), 1);
+  }
+  else
+  {
+    SetButtonStatus(ButtonNumber(1, 8), 0);
+  }
 }
 
 void Define_Menu2()                                         // Marker Menu
@@ -2609,11 +2981,11 @@ void Define_Menu2()                                         // Marker Menu
 
   button = CreateButton(2, 5);
   AddButtonStatus(button, "<-", &Blue);
-  AddButtonStatus(button, " ", &Green);
+  AddButtonStatus(button, "<-", &Grey);
 
   button = CreateButton(2, 6);
   AddButtonStatus(button, "->", &Blue);
-  AddButtonStatus(button, " ", &Green);
+  AddButtonStatus(button, "->", &Grey);
 
   button = CreateButton(2, 7);
   AddButtonStatus(button, "Markers^Off", &Blue);
@@ -2626,6 +2998,21 @@ void Define_Menu2()                                         // Marker Menu
   AddButtonStatus(button, "Freeze", &Blue);
   AddButtonStatus(button, "Unfreeze", &Green);
 }
+
+void Start_Highlights_Menu2()
+{
+  if ((markeron == true) && (markermode == 4))  // Manual Markers
+  {
+    SetButtonStatus(ButtonNumber(2, 5), 0);
+    SetButtonStatus(ButtonNumber(2, 6), 0);
+  }
+  else
+  {
+    SetButtonStatus(ButtonNumber(2, 5), 1);
+    SetButtonStatus(ButtonNumber(2, 6), 1);
+  }
+}
+
 
 void Define_Menu3()                                           // Settings Menu
 {
@@ -2720,19 +3107,19 @@ void Define_Menu5()                                          // Mode Menu
   AddButtonStatus(button, " ", &Green);
 
   button = CreateButton(5, 2);
-  AddButtonStatus(button, "Classic^ SA Display", &Blue);
+  AddButtonStatus(button, "Classic^SA Display", &Blue);
   AddButtonStatus(button, " ", &Green);
 
-  //button = CreateButton(5, 3);
+  button = CreateButton(5, 3);
+  AddButtonStatus(button, "20 dB Range^SA Display", &Blue);
+  AddButtonStatus(button, " ", &Green);
+
+  //button = CreateButton(5, 4);
   //AddButtonStatus(button, "Y Plot", &Blue);
   //AddButtonStatus(button, " ", &Green);
 
-  //button = CreateButton(5, 4);
-  //AddButtonStatus(button, " ", &Blue);
-  //AddButtonStatus(button, " ", &Green);
-
-  //button = CreateButton(5, 5);
-  //AddButtonStatus(button, " ", &Blue);
+  button = CreateButton(5, 5);
+  AddButtonStatus(button, "Noise^Figure", &Blue);
   //AddButtonStatus(button, " ", &Green);
 
   button = CreateButton(5, 6);
@@ -2783,7 +3170,7 @@ void Define_Menu6()                                           // Span Menu
   AddButtonStatus(button, "20", &Green);
 
   button = CreateButton(6, 8);
-  AddButtonStatus(button, "Cancel", &DBlue);
+  AddButtonStatus(button, "Back to^Settings", &DBlue);
 
   button = CreateButton(6, 9);
   AddButtonStatus(button, "Freeze", &Blue);
@@ -2875,7 +3262,7 @@ void Define_Menu7()                                            //Presets Menu
   AddButtonStatus(button, "2409 MHz", &Green);
 
   button = CreateButton(7, 7);
-  AddButtonStatus(button, "Cancel", &DBlue);
+  AddButtonStatus(button, "Back to^Settings", &DBlue);
 
   button = CreateButton(7, 8);
   AddButtonStatus(button, "Freeze", &Blue);
@@ -2982,7 +3369,7 @@ void Define_Menu8()                                    // Lime Gain Menu
   AddButtonStatus(button, "30%", &Green);
 
   button = CreateButton(8, 7);
-  AddButtonStatus(button, "Cancel", &DBlue);
+  AddButtonStatus(button, "Back to^Settings", &DBlue);
 
   button = CreateButton(8, 8);
   AddButtonStatus(button, "Freeze", &Blue);
@@ -3033,7 +3420,7 @@ void Start_Highlights_Menu8()
   }
 }
 
-void Define_Menu9()                                          // Cnfig Menu
+void Define_Menu9()                                          // Config Menu
 {
   int button = 0;
 
@@ -3121,6 +3508,108 @@ void Start_Highlights_Menu10()
 
   snprintf(ButtText, 30, "Preset 5^%0.1f MHz", ((float)pfreq5) / 1000);
   AmendButtonStatus(ButtonNumber(CurrentMenu, 6), 0, ButtText, &Blue);
+}
+
+void Define_Menu11()                                          // 20db Range Menu
+{
+  int button = 0;
+
+  button = CreateButton(11, 0);
+  AddButtonStatus(button, "Capture^Snap", &DGrey);
+  AddButtonStatus(button, " ", &Black);
+
+  button = CreateButton(11, 1);
+  AddButtonStatus(button, "Control^20 dB Range", &Black);
+
+  button = CreateButton(11, 2);
+  AddButtonStatus(button, "Back to^Full Range", &Blue);
+
+  //button = CreateButton(11, 3);
+  //AddButtonStatus(button, "Preset 2", &Blue);
+
+  //button = CreateButton(11, 4);
+  //AddButtonStatus(button, "Preset 3", &Blue);
+
+  button = CreateButton(11, 5);
+  AddButtonStatus(button, "Up", &Blue);
+
+  button = CreateButton(11, 6);
+  AddButtonStatus(button, "Down", &Blue);
+
+  button = CreateButton(11, 7);
+  AddButtonStatus(button, "Return to^Main Menu", &DBlue);
+
+  button = CreateButton(11, 8);
+  AddButtonStatus(button, "Freeze", &Blue);
+  AddButtonStatus(button, "Unfreeze", &Green);
+}
+
+void Define_Menu12()                                          // System NF Menu
+{
+  int button = 0;
+
+  button = CreateButton(12, 0);
+  AddButtonStatus(button, "Capture^Snap", &DGrey);
+  AddButtonStatus(button, " ", &Black);
+
+  button = CreateButton(12, 1);
+  AddButtonStatus(button, "System^NF", &Black);
+
+  //button = CreateButton(12, 2);
+  //AddButtonStatus(button, "Back to^Full Range", &Blue);
+
+  //button = CreateButton(12, 3);
+  //AddButtonStatus(button, "Cal^System", &Blue);
+
+  //button = CreateButton(12, 4);
+  //AddButtonStatus(button, "Preset 3", &Blue);
+
+  button = CreateButton(12, 5);
+  AddButtonStatus(button, "Set^ENR", &Blue);
+
+  button = CreateButton(12, 6);
+  AddButtonStatus(button, "Stop^NF Meter", &Blue);
+
+  button = CreateButton(12, 7);
+  AddButtonStatus(button, "Return to^Main Menu", &DBlue);
+
+  button = CreateButton(12, 8);
+  AddButtonStatus(button, "Freeze", &Blue);
+  AddButtonStatus(button, "Unfreeze", &Green);
+}
+
+void Define_Menu13()                                          // DUT NF Menu
+{
+  int button = 0;
+
+  button = CreateButton(13, 0);
+  AddButtonStatus(button, "Capture^Snap", &DGrey);
+  AddButtonStatus(button, " ", &Black);
+
+  button = CreateButton(13, 1);
+  AddButtonStatus(button, "DUT^NF", &Black);
+
+  //button = CreateButton(13, 2);
+  //AddButtonStatus(button, "Back to^Full Range", &Blue);
+
+  button = CreateButton(13, 3);
+  AddButtonStatus(button, "DUT^Gain", &Black);
+
+  //button = CreateButton(13, 4);
+  //AddButtonStatus(button, "Preset 3", &Blue);
+
+  button = CreateButton(13, 5);
+  AddButtonStatus(button, "Recalibrate^ ", &Blue);
+
+  button = CreateButton(13, 6);
+  AddButtonStatus(button, "Stop^NF Meter", &Blue);
+
+  button = CreateButton(13, 7);
+  AddButtonStatus(button, "Return to^Main Menu", &DBlue);
+
+  button = CreateButton(13, 8);
+  AddButtonStatus(button, "Freeze", &Blue);
+  AddButtonStatus(button, "Unfreeze", &Green);
 }
 
 
@@ -3434,16 +3923,36 @@ void DrawYaxisLabels()
   setForeColour(255, 255, 255);                    // White text
   setBackColour(0, 0, 0);                          // on Black
   const font_t *font_ptr = &font_dejavu_sans_18;   // 18pt
+  char caption[15];
 
-  Text2(48, 463, "0 dB", font_ptr);
-  Text2(30, 416, "-10 dB", font_ptr);
-  Text2(30, 366, "-20 dB", font_ptr);
-  Text2(30, 316, "-30 dB", font_ptr);
-  Text2(30, 266, "-40 dB", font_ptr);
-  Text2(30, 216, "-50 dB", font_ptr);
-  Text2(30, 166, "-60 dB", font_ptr);
-  Text2(30, 116, "-70 dB", font_ptr);
-  Text2(30,  66, "-80 dB", font_ptr);
+  // Clear the previous scale first
+  rectangle(25, 63, 65, 417, 0, 0, 0);
+
+  if (Range20dB == false)
+  {
+    Text2(48, 463, "0 dB", font_ptr);
+    Text2(30, 416, "-10 dB", font_ptr);
+    Text2(30, 366, "-20 dB", font_ptr);
+    Text2(30, 316, "-30 dB", font_ptr);
+    Text2(30, 266, "-40 dB", font_ptr);
+    Text2(30, 216, "-50 dB", font_ptr);
+    Text2(30, 166, "-60 dB", font_ptr);
+    Text2(30, 116, "-70 dB", font_ptr);
+    Text2(30,  66, "-80 dB", font_ptr);
+  }
+  else
+  {
+    snprintf(caption, 14, "%d dB", BaseLine20dB + 20);
+    Text2(30, 463, caption, font_ptr);
+    snprintf(caption, 14, "%d dB", BaseLine20dB + 15);
+    Text2(30, 366, caption, font_ptr);
+    snprintf(caption, 14, "%d dB", BaseLine20dB + 10);
+    Text2(30, 266, caption, font_ptr);
+    snprintf(caption, 14, "%d dB", BaseLine20dB + 5);
+    Text2(30, 166, caption, font_ptr);
+    snprintf(caption, 14, "%d dB", BaseLine20dB);
+    Text2(30,  66, caption, font_ptr);
+  }
 }
 
 void DrawSettings()
@@ -3788,7 +4297,25 @@ int main(void)
   Define_Menu8();
   Define_Menu9();
   Define_Menu10();
+  Define_Menu11();
+  Define_Menu12();
+  Define_Menu13();
   Define_Menu41();
+
+
+  // Set up wiringPi module
+  if (wiringPiSetup() < 0)
+  {
+    return 0;
+  }
+  // Noise source pin 26 wPi 11
+  uint8_t NoiseSourceGPIO = 11;
+
+  // Set all nominated pins to outputs
+  pinMode(NoiseSourceGPIO, OUTPUT);
+
+  // Set idle conditions
+  digitalWrite(NoiseSourceGPIO, LOW);
 
   ReadSavedParams();
 
@@ -3867,6 +4394,20 @@ int main(void)
 
     UpdateWindow();     // Draw the buttons
 
+    int NFScans = 0;
+    int NFTotalCold = 0;
+    int NFTotalHot = 0;
+    int NFTotalHot2 = 0;
+    int SampleCount = 0;
+    float NoiseDiff;
+    float Y2;
+    Tson = Tsoff * (1 + pow(10, (ENR / 10)));
+    float T2;
+    printf("ENR = %f dB.  Tson = %f degrees K\n", ENR, Tson);
+    float NF;
+    char NFText[15];
+
+
     while(true)
     {
       //do  // Wait here for refresh?
@@ -3877,6 +4418,48 @@ int main(void)
 
       activescan = true;
 
+      NFTotalHot2 = 0;
+
+      if (NFMeter)
+      {
+        NFScans++;
+        if (NFScans <= (2 * ScansforLevel))
+        {
+          // Turn on
+          digitalWrite(NoiseSourceGPIO, HIGH);
+        }
+        else
+        {
+          // Turn off
+          digitalWrite(NoiseSourceGPIO, LOW);
+        }
+        if (NFScans == (4 * ScansforLevel))
+        {
+          MarkerRefresh = true;  // Prevent other text screen-writes during NF refresh
+          NFScans = 0;
+          NoiseDiff = (float)(NFTotalHot - NFTotalCold) * 0.4 / (float)SampleCount;  //  NoiseDiff 4 div/dB and 10 samples averaged
+          //printf("%d Samples. Hot Average = %d, Cold Average = %d\n", SampleCount, (2 * NFTotalHot) / SampleCount, (2 * NFTotalCold) / SampleCount);
+          Y2 = pow(10, (NoiseDiff / 10));
+
+          T2 = (Tson - Y2 * Tsoff)/(Y2 - 1);
+
+          NF = 10 * log10(1 + (T2 / 290));
+
+          if ((CurrentMenu == 12) || (CurrentMenu == 13))
+          {
+            rectangle(620, 360, 160, 60, 0, 0, 0);  // Blank Button 2 area
+            snprintf(NFText, 14, "%0.1f dB", NF);
+            setBackColour(0, 0, 0);
+            Text2(640, 370, NFText, &font_dejavu_sans_32);
+          }
+          MarkerRefresh = false;  // Unlock screen writes
+        
+          // printf("Noise Diff = %0.2f  Y2 =  %0.2f.  T2 = %0.1f, NF = %0.2f\n", NoiseDiff, Y2, T2, NF);
+          NFTotalHot = 0;
+          NFTotalCold = 0;
+          SampleCount = 0;
+        }
+      }
       for (pixel = 8; pixel < 507; pixel++)
       {
         DrawTrace((pixel - 6), y[pixel - 2], y[pixel - 1], y[pixel]);
@@ -3892,12 +4475,35 @@ int main(void)
           setPixelNoA(pixel + 93, 409 - PeakValue[pixel - 1], 255, 0, 63);
         }
 
+        if (NFMeter)
+        {
+          if (((pixel > 7) && (pixel < 248)) || ((pixel > 268) && (pixel < 507)))
+          {
+            NFTotalHot2 = NFTotalHot2 + y[pixel - 1];
+            if ((NFScans >= ScansforLevel) && (NFScans <= (2 * ScansforLevel)))
+            {
+              NFTotalHot = NFTotalHot + y[pixel - 1];
+              SampleCount++;            }
+            if (((NFScans >= (3 * ScansforLevel)) && (NFScans <= (4 * ScansforLevel - 1))) || (NFScans == 0))
+            {
+              NFTotalCold = NFTotalCold + y[pixel - 1];
+              SampleCount++;
+            }
+          }
+        }
+
         while (freeze)
         {
           frozen = true;
         }
         frozen = false;
       }
+
+      //if (NFMeter)
+      //{
+      //  printf("%d ", NFTotalHot2);
+      //}
+
       activescan = false;
 
       if (markeron == true)

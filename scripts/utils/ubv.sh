@@ -4,8 +4,10 @@
 
 # set -x
 
+sudo killall rpidatvgui >/dev/null 2>/dev/null
+
 # Kill the current process if it is running
-sudo killall bandview
+sudo killall bandview >/dev/null 2>/dev/null
 
 cd /home/pi/rpidatv/src/bandview
 touch bandview.c
@@ -17,7 +19,11 @@ if [ $? != "0" ]; then
   exit
 fi
 
+sudo killall rpidatvgui >/dev/null 2>/dev/null
+
 cp bandview /home/pi/rpidatv/bin/bandview
 cd /home/pi
+
+/home/pi/rpidatv/bin/bandview
 
 exit

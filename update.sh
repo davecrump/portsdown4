@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Updated by davecrump 202101310 for Portsdown 4 and Knucker
+# Updated by davecrump 202105310 for Portsdown 4
 
 DisplayUpdateMsg() {
   # Delete any old update message image
@@ -135,6 +135,9 @@ cp -f -r "$PATHSCRIPT"/limecalfreq.txt "$PATHUBACKUP"/limecalfreq.txt
 
 # Make a safe copy of the Band Viewer config
 cp -f -r /home/pi/rpidatv/src/bandview/bandview_config.txt "$PATHUBACKUP"/bandview_config.txt
+
+# Make a safe copy of the Contest Codes
+cp -f -r "$PATHSCRIPT"/portsdown_C_codes.txt "$PATHUBACKUP"/portsdown_C_codes.txt
 
 # Make a safe copy of the User Button scripts
 cp -f -r "$PATHSCRIPT"/user_button1.sh "$PATHUBACKUP"/user_button1.sh
@@ -380,10 +383,10 @@ DisplayUpdateMsg "Step 8 of 10\nRestoring Config\n\nXXXXXXXX--"
 cp -f -r "$PATHUBACKUP"/portsdown_config.txt "$PATHSCRIPT"/portsdown_config.txt
 cp -f -r "$PATHUBACKUP"/portsdown_presets.txt "$PATHSCRIPT"/portsdown_presets.txt
 
-# Restore the user's original siggencal.txt
+# Restore the user's original siggencal.txt (but not yet as it keeps changing)
 #cp -f -r "$PATHUBACKUP"/siggencal.txt /home/pi/rpidatv/src/siggen/siggencal.txt
 
-# Restore the user's original siggenconfig.txt
+# Restore the user's original siggenconfig.txt (but not yet as it keeps changing)
 #cp -f -r "$PATHUBACKUP"/siggenconfig.txt /home/pi/rpidatv/src/siggen/siggenconfig.txt
 
 # Restore the user's rtl-fm_presets.txt
@@ -407,9 +410,12 @@ cp -f -r "$PATHUBACKUP"/longmynd_config.txt "$PATHSCRIPT"/longmynd_config.txt
 # Restore the user's original Lime Calibration frequency or status
 cp -f -r "$PATHUBACKUP"/limecalfreq.txt "$PATHSCRIPT"/limecalfreq.txt
 
-# Restore the user's original Band Viewer config (but not yet)
-# cp -f -r "$PATHUBACKUP"/bandview_config.txt /home/pi/rpidatv/src/bandview/bandview_config.txt 
+# Restore the user's original Band Viewer config (but not yet as it keeps changing)
+# cp -f -r "$PATHUBACKUP"/bandview_config.txt /home/pi/rpidatv/src/bandview/bandview_config.txt
 
+# Restore the user's original Contest Codes
+cp -f -r "$PATHUBACKUP"/portsdown_C_codes.txt "$PATHSCRIPT"/portsdown_C_codes.txt 
+ 
 # Restore the user's original User Button scripts
 cp -f -r "$PATHUBACKUP"/user_button1.sh "$PATHSCRIPT"/user_button1.sh
 cp -f -r "$PATHUBACKUP"/user_button2.sh "$PATHSCRIPT"/user_button2.sh

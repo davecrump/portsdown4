@@ -55,6 +55,7 @@ Rewitten by Dave, G8GKQ
 #define PATH_JCONFIG "/home/pi/rpidatv/scripts/jetson_config.txt"
 #define PATH_LMCONFIG "/home/pi/rpidatv/scripts/longmynd_config.txt"
 #define PATH_LIME_CAL "/home/pi/rpidatv/scripts/limecalfreq.txt"
+#define PATH_C_NUMBERS "/home/pi/rpidatv/scripts/portsdown_C_codes.txt"
 
 #define PI 3.14159265358979323846
 #define deg2rad(DEG) ((DEG)*((PI)/(180.0)))
@@ -281,6 +282,17 @@ float Locator_To_Lon(char *);
 int CalcBearing(char *, char *);
 int CalcRange(char *, char *);
 bool CheckLocator(char *);
+
+// Contest Number Management
+char Site1Locator10[10];
+char Site2Locator10[10];
+char Site3Locator10[10];
+char Site4Locator10[10];
+char Site5Locator10[10];
+bool AwaitingContestNumberEditSeln = false;
+bool AwaitingContestNumberLoadSeln = false;
+bool AwaitingContestNumberSaveSeln = false;
+bool AwaitingContestNumberViewSeln = false;
 
 // Lime Control
 float LimeCalFreq = 0;  // -2 cal never, -1 = cal every time, 0 = cal next time, freq = no cal if no change
@@ -7156,7 +7168,7 @@ void DoFreqChange()
   strcpy(Param, "numbers");
   SetConfigParam(PATH_PCONFIG ,Param, Value);
 
-  // LimeRFE enable/diable
+  // LimeRFE enable/disable
   strcpy(Param, TabBand[CurrentBand]);
   strcat(Param, "limerfe");
   GetConfigParam(PATH_PPRESETS, Param, Value);
@@ -13307,6 +13319,399 @@ void ChangeLocator()
   strcpy(Locator, Locator6);
 }
 
+void ReadContestSites()
+{
+  GetConfigParam(PATH_C_NUMBERS, "site1locator", Site1Locator10);
+  GetConfigParam(PATH_C_NUMBERS, "site2locator", Site2Locator10);
+  GetConfigParam(PATH_C_NUMBERS, "site3locator", Site3Locator10);
+  GetConfigParam(PATH_C_NUMBERS, "site4locator", Site4Locator10);
+  GetConfigParam(PATH_C_NUMBERS, "site5locator", Site5Locator10);
+}
+
+void ManageContestCodes(int NoButton)
+{
+  setForeColour(255, 255, 255);    // White text
+  setBackColour(0, 0, 0);          // on Black
+  const font_t *font_ptr = &font_dejavu_sans_28;
+  int txtht =  font_ptr->ascent;
+  int linepitch = (14 * txtht) / 10;
+  int linenumber = 1;
+  char SiteText[7];
+  char BandLabel[43];
+  int band;
+  char Param[31];
+  char Value[25];
+  char EntryText[127];
+  char RequestText[64];
+  char InitText[64];
+  bool IsValid = FALSE;
+  char Locator10[10];
+  char Locator6[7];
+
+  switch(NoButton)
+  {
+  case 0:                                     // edit
+    if ((AwaitingContestNumberEditSeln) || (AwaitingContestNumberLoadSeln)
+     || (AwaitingContestNumberSaveSeln) || (AwaitingContestNumberViewSeln))
+    {                                                                        // hanging selection
+      AwaitingContestNumberEditSeln = false;
+      AwaitingContestNumberLoadSeln = false;
+      AwaitingContestNumberSaveSeln = false;
+      AwaitingContestNumberViewSeln = false;
+    }
+    else                                                                     // valid selection
+    {
+      AwaitingContestNumberEditSeln = true;
+    }
+    break;                         
+  case 1:                                     // load
+    if ((AwaitingContestNumberEditSeln) || (AwaitingContestNumberLoadSeln)
+     || (AwaitingContestNumberSaveSeln) || (AwaitingContestNumberViewSeln))
+    {                                                                        // hanging selection
+      AwaitingContestNumberEditSeln = false;
+      AwaitingContestNumberLoadSeln = false;
+      AwaitingContestNumberSaveSeln = false;
+      AwaitingContestNumberViewSeln = false;
+    }
+    else                                                                     // valid selection
+    {
+      AwaitingContestNumberLoadSeln = true;
+    }
+    break;                         
+  case 2:                                     // save
+    if ((AwaitingContestNumberEditSeln) || (AwaitingContestNumberLoadSeln)
+     || (AwaitingContestNumberSaveSeln))
+    {                                                                        // hanging selection
+      AwaitingContestNumberEditSeln = false;
+      AwaitingContestNumberLoadSeln = false;
+      AwaitingContestNumberSaveSeln = false;
+      AwaitingContestNumberViewSeln = false;
+    }
+    else                                                                     // valid selection
+    {
+      if (AwaitingContestNumberViewSeln == false)
+      {
+        AwaitingContestNumberSaveSeln = true;
+      }
+      else
+      {
+        snprintf(SiteText, 7, "site%d", NoButton - 4);    // create the base for the parameter label
+        clearScreen();
+
+        strcpy(Param, "locator");
+        GetConfigParam(PATH_PCONFIG, Param, Value);
+        snprintf(EntryText, 90, "Contest Numbers for Current Site at %s", Value);
+        TextMid2(wscreen / 2.0, hscreen - linenumber * linepitch, EntryText, font_ptr);
+        linenumber = linenumber + 2;
+
+        GetConfigParam(PATH_PPRESETS, "d1numbers", Value);                     // Band d1
+        GetConfigParam(PATH_PPRESETS, "d1label", BandLabel);
+        snprintf(EntryText, 90, "Band d1   Code %s    %s", Value, BandLabel);
+        Text2(wscreen/25, hscreen - linenumber * linepitch, EntryText, font_ptr);
+        linenumber = linenumber + 1;
+
+        GetConfigParam(PATH_PPRESETS, "d2numbers", Value);
+        GetConfigParam(PATH_PPRESETS, "d2label", BandLabel);
+        snprintf(EntryText, 90, "Band d2   Code %s    %s", Value, BandLabel);
+        Text2(wscreen/25, hscreen - linenumber * linepitch, EntryText, font_ptr);
+        linenumber = linenumber + 1;
+
+        GetConfigParam(PATH_PPRESETS, "d3numbers", Value);
+        GetConfigParam(PATH_PPRESETS, "d3label", BandLabel);
+        snprintf(EntryText, 90, "Band d3   Code %s    %s", Value, BandLabel);
+        Text2(wscreen/25, hscreen - linenumber * linepitch, EntryText, font_ptr);
+        linenumber = linenumber + 1;
+
+        GetConfigParam(PATH_PPRESETS, "d4numbers", Value);
+        GetConfigParam(PATH_PPRESETS, "d4label", BandLabel);
+        snprintf(EntryText, 90, "Band d4   Code %s    %s", Value, BandLabel);
+        Text2(wscreen/25, hscreen - linenumber * linepitch, EntryText, font_ptr);
+        linenumber = linenumber + 1;
+
+        GetConfigParam(PATH_PPRESETS, "d5numbers", Value);
+        GetConfigParam(PATH_PPRESETS, "d5label", BandLabel);
+        snprintf(EntryText, 90, "Band d5   Code %s    %s", Value, BandLabel);
+        Text2(wscreen/25, hscreen - linenumber * linepitch, EntryText, font_ptr);
+        linenumber = linenumber + 1;
+
+        GetConfigParam(PATH_PPRESETS, "t1numbers", Value);
+        GetConfigParam(PATH_PPRESETS, "t1label", BandLabel);
+        snprintf(EntryText, 90, "Band t1   Code %s    %s", Value, BandLabel);
+        Text2(wscreen/25, hscreen - linenumber * linepitch, EntryText, font_ptr);
+        linenumber = linenumber + 1;
+
+        GetConfigParam(PATH_PPRESETS, "t2numbers", Value);
+        GetConfigParam(PATH_PPRESETS, "t2label", BandLabel);
+        snprintf(EntryText, 90, "Band t2   Code %s    %s", Value, BandLabel);
+        Text2(wscreen/25, hscreen - linenumber * linepitch, EntryText, font_ptr);
+        linenumber = linenumber + 1;
+
+        GetConfigParam(PATH_PPRESETS, "t3numbers", Value);
+        GetConfigParam(PATH_PPRESETS, "t3label", BandLabel);
+        snprintf(EntryText, 90, "Band t3   Code %s    %s", Value, BandLabel);
+        Text2(wscreen/25, hscreen - linenumber * linepitch, EntryText, font_ptr);
+        linenumber = linenumber + 1;
+
+        strcpy(Param, SiteText);
+        strcat(Param, "t4numbers");
+        GetConfigParam(PATH_PPRESETS, "t4numbers", Value);
+        GetConfigParam(PATH_PPRESETS, "t4label", BandLabel);
+        snprintf(EntryText, 90, "Band t4   Code %s    %s", Value, BandLabel);
+        Text2(wscreen/25, hscreen - linenumber * linepitch, EntryText, font_ptr);
+        linenumber = linenumber + 2;
+
+        TextMid2(wscreen / 2, hscreen - linenumber * linepitch, "Touch Screen to Continue", font_ptr);
+
+        printf("Contest number Screen called and waiting for touch\n");
+        wait_touch();
+        AwaitingContestNumberViewSeln = false;
+      }
+    }
+    break;                         
+  case 3:                                     // show
+    if ((AwaitingContestNumberEditSeln) || (AwaitingContestNumberLoadSeln)
+     || (AwaitingContestNumberSaveSeln) || (AwaitingContestNumberViewSeln))
+    {                                                                        // hanging selection
+      AwaitingContestNumberEditSeln = false;
+      AwaitingContestNumberLoadSeln = false;
+      AwaitingContestNumberSaveSeln = false;
+      AwaitingContestNumberViewSeln = false;
+    }
+    else                                                                     // valid selection
+    {
+      AwaitingContestNumberViewSeln = true;
+    }
+    break;
+  case 5:                                     //Selected Site
+  case 6:
+  case 7:
+  case 8:
+  case 9:
+    snprintf(SiteText, 7, "site%d", NoButton - 4);    // create the base for the parameter label
+
+    if (AwaitingContestNumberViewSeln)
+    {
+      clearScreen();
+
+      strcpy(Param, SiteText);                          // Title Line
+      strcat(Param, "locator");
+      GetConfigParam(PATH_C_NUMBERS, Param, Value);
+      snprintf(EntryText, 90, "Contest Numbers for Site %d at %s", NoButton - 4, Value);
+      TextMid2(wscreen / 2.0, hscreen - linenumber * linepitch, EntryText, font_ptr);
+      linenumber = linenumber + 2;
+
+      strcpy(Param, SiteText);                         // Band d1
+      strcat(Param, "d1numbers");
+      GetConfigParam(PATH_C_NUMBERS, Param, Value);
+      snprintf(EntryText, 90, "Band d1   Code %s    %s", Value, TabBandLabel[0]);
+      Text2(wscreen/25, hscreen - linenumber * linepitch, EntryText, font_ptr);
+      linenumber = linenumber + 1;
+
+      strcpy(Param, SiteText);
+      strcat(Param, "d2numbers");
+      GetConfigParam(PATH_C_NUMBERS, Param, Value);
+      snprintf(EntryText, 90, "Band d2   Code %s    %s", Value, TabBandLabel[1]);
+      Text2(wscreen/25, hscreen - linenumber * linepitch, EntryText, font_ptr);
+      linenumber = linenumber + 1;
+
+      strcpy(Param, SiteText);
+      strcat(Param, "d3numbers");
+      GetConfigParam(PATH_C_NUMBERS, Param, Value);
+      snprintf(EntryText, 90, "Band d3   Code %s    %s", Value, TabBandLabel[2]);
+      Text2(wscreen/25, hscreen - linenumber * linepitch, EntryText, font_ptr);
+      linenumber = linenumber + 1;
+
+      strcpy(Param, SiteText);
+      strcat(Param, "d4numbers");
+      GetConfigParam(PATH_C_NUMBERS, Param, Value);
+      snprintf(EntryText, 90, "Band d4   Code %s    %s", Value, TabBandLabel[3]);
+      Text2(wscreen/25, hscreen - linenumber * linepitch, EntryText, font_ptr);
+      linenumber = linenumber + 1;
+
+      strcpy(Param, SiteText);
+      strcat(Param, "d5numbers");
+      GetConfigParam(PATH_C_NUMBERS, Param, Value);
+      snprintf(EntryText, 90, "Band d5   Code %s    %s", Value, TabBandLabel[4]);
+      Text2(wscreen/25, hscreen - linenumber * linepitch, EntryText, font_ptr);
+      linenumber = linenumber + 1;
+
+      strcpy(Param, SiteText);
+      strcat(Param, "t1numbers");
+      GetConfigParam(PATH_C_NUMBERS, Param, Value);
+      snprintf(EntryText, 90, "Band t1   Code %s    %s", Value, TabBandLabel[5]);
+      Text2(wscreen/25, hscreen - linenumber * linepitch, EntryText, font_ptr);
+      linenumber = linenumber + 1;
+
+      strcpy(Param, SiteText);
+      strcat(Param, "t2numbers");
+      GetConfigParam(PATH_C_NUMBERS, Param, Value);
+      snprintf(EntryText, 90, "Band t2   Code %s    %s", Value, TabBandLabel[6]);
+      Text2(wscreen/25, hscreen - linenumber * linepitch, EntryText, font_ptr);
+      linenumber = linenumber + 1;
+
+      strcpy(Param, SiteText);
+      strcat(Param, "t3numbers");
+      GetConfigParam(PATH_C_NUMBERS, Param, Value);
+      snprintf(EntryText, 90, "Band t3   Code %s    %s", Value, TabBandLabel[7]);
+      Text2(wscreen/25, hscreen - linenumber * linepitch, EntryText, font_ptr);
+      linenumber = linenumber + 1;
+
+      strcpy(Param, SiteText);
+      strcat(Param, "t4numbers");
+      GetConfigParam(PATH_C_NUMBERS, Param, Value);
+      snprintf(EntryText, 90, "Band t4   Code %s    %s", Value, TabBandLabel[8]);
+      Text2(wscreen/25, hscreen - linenumber * linepitch, EntryText, font_ptr);
+      linenumber = linenumber + 2;
+
+      TextMid2(wscreen / 2, hscreen - linenumber * linepitch, "Touch Screen to Continue", font_ptr);
+
+      printf("Contest number Screen called and waiting for touch\n");
+      wait_touch();
+      AwaitingContestNumberViewSeln = false;
+    }
+
+    if (AwaitingContestNumberEditSeln)
+    {
+      snprintf(RequestText, 63, "Enter or confirm locator for Site %d", NoButton - 4);
+      strcpy(Param, SiteText);
+      strcat(Param, "locator");
+      GetConfigParam(PATH_C_NUMBERS, Param, InitText);
+      while (IsValid == FALSE)
+      {
+        Keyboard(RequestText, InitText, 10);
+        // Check locator is valid
+        IsValid = CheckLocator(KeyboardReturn);
+      }
+
+      // Save Full locator to Contest Numbers file
+      SetConfigParam(PATH_C_NUMBERS, Param, KeyboardReturn);
+      // and save to Site*Locator10
+      switch(NoButton)
+      {
+      case 5:
+        strcpy(Site1Locator10, KeyboardReturn);
+        break;
+      case 6:
+        strcpy(Site2Locator10, KeyboardReturn);
+        break;
+      case 7:
+        strcpy(Site3Locator10, KeyboardReturn);
+        break;
+      case 8:
+        strcpy(Site4Locator10, KeyboardReturn);
+        break;
+      case 9:
+        strcpy(Site5Locator10, KeyboardReturn);
+        break;
+      }
+
+      for (band = 0; band <= 8; band++)
+      {
+        snprintf(RequestText, 63, "Enter or confirm Contest Numbers for the %s band:", TabBandLabel[band]);
+        strcpy(Param, SiteText);
+        strcat(Param, TabBand[band]);
+        strcat(Param, "numbers");
+        GetConfigParam(PATH_C_NUMBERS, Param, InitText);
+        strcpy(KeyboardReturn, "");
+        while (strlen(KeyboardReturn) < 1)
+        {
+          snprintf(RequestText, 63, "Enter Contest Numbers for the %s Band:", TabBandLabel[band]);
+          Keyboard(RequestText, InitText, 10);
+        }
+        SetConfigParam(PATH_C_NUMBERS, Param, KeyboardReturn);
+      }
+      AwaitingContestNumberEditSeln = false;
+    }
+
+    if (AwaitingContestNumberLoadSeln)
+    {
+      // Sort the locator first
+      strcpy(Param, SiteText);
+      strcat(Param, "locator");
+      GetConfigParam(PATH_C_NUMBERS, Param, Locator10);
+
+      // Save Full locator to Locators file
+      SetConfigParam(PATH_LOCATORS, "mylocator", Locator10);
+
+      //Truncate to 6 Characters for Contest display
+      strcpyn(Locator6, Locator10, 6);
+      SetConfigParam(PATH_PCONFIG, "locator", Locator6);
+      strcpy(Locator, Locator6);
+
+      // Contest Numbers
+      for (band = 0; band <= 8; band++)
+      {
+        // Read the value
+        strcpy(Param, SiteText);
+        strcat(Param, TabBand[band]);
+        strcat(Param, "numbers");
+        GetConfigParam(PATH_C_NUMBERS, Param, Value);
+
+        // And write it to the Presets file
+        strcpy(Param, TabBand[band]);
+        strcat(Param, "numbers");
+        SetConfigParam(PATH_PPRESETS, Param, Value);
+        strcpy(TabBandNumbers[band], Value);
+
+        if (band == CurrentBand) // Write to the current file
+        {
+          SetConfigParam(PATH_PCONFIG, "numbers", Value);
+        }
+      }
+      AwaitingContestNumberLoadSeln = false;
+    }
+
+    if (AwaitingContestNumberSaveSeln)
+    {
+      // Sort the locator first
+      // Get the Full locator from the Locators file
+      GetConfigParam(PATH_LOCATORS, "mylocator", Locator10);
+
+      // Write it to the Contest File
+      strcpy(Param, SiteText);
+      strcat(Param, "locator");
+      SetConfigParam(PATH_C_NUMBERS, Param, Locator10);
+
+      // and save it to Site*Locator10
+      switch(NoButton)
+      {
+      case 5:
+        strcpy(Site1Locator10, Locator10);
+        break;
+      case 6:
+        strcpy(Site2Locator10, Locator10);
+        break;
+      case 7:
+        strcpy(Site3Locator10, Locator10);
+        break;
+      case 8:
+        strcpy(Site4Locator10, Locator10);
+        break;
+      case 9:
+        strcpy(Site5Locator10, Locator10);
+        break;
+      }
+
+      // Contest Numbers
+      for (band = 0; band <= 8; band++)
+      {
+        // Read the value from the Presets file
+        strcpy(Param, TabBand[band]);
+        strcat(Param, "numbers");
+        GetConfigParam(PATH_PPRESETS, Param, Value);
+
+        // And write it to the Contests file
+        strcpy(Param, SiteText);
+        strcat(Param, TabBand[band]);
+        strcat(Param, "numbers");
+        SetConfigParam(PATH_C_NUMBERS, Param, Value);
+      }
+      AwaitingContestNumberSaveSeln = false;
+    }
+    break;                   
+  }
+}
+
 void ChangeStartApp(int NoButton)
 {
   switch(NoButton)
@@ -15396,107 +15801,35 @@ rawY = 0;
         CallingMenu = 13;
         switch (i)
         {
-        case 0:                                         // Output UDP IP
-          ChangeLMRXIP();
-          CurrentMenu=13;
-          setBackColour(0, 0, 0);
-          clearScreen();
-          Start_Highlights_Menu13();
-          UpdateWindow();
-          break;
-        case 1:                                         // Output UDP port 
-          ChangeLMRXPort();
-          CurrentMenu=13;
-          setBackColour(0, 0, 0);
-          clearScreen();
-          Start_Highlights_Menu13();
-          UpdateWindow();
-          break;
-        case 2:                                         // Change Receive Preset freqss
-          printf("MENU 27 \n");
-          CurrentMenu=27;
-          setBackColour(0, 0, 0);
-          clearScreen();
-          Start_Highlights_Menu27();
-          UpdateWindow();
-          break;
-        case 3:                                         // Change Receive Preset SRs 
-          printf("MENU 28 \n");
-          CurrentMenu=28;
-          setBackColour(0, 0, 0);
-          clearScreen();
-          Start_Highlights_Menu28();
-          UpdateWindow();
+        case 0:                                         // Edit Site
+        case 1:                                         // Load Site
+        case 2:                                         // save in-use site or show in-use site
+        case 3:                                         // Show Site
+        case 5:                                         // Site 1
+        case 6:                                         // Site 2
+        case 7:                                         // Site 3
+        case 8:                                         // Site 4
+        case 9:                                         // Site 5
+          ManageContestCodes(i);
+          Start_Highlights_Menu13();  // Update Menu appearance
+          UpdateWindow();             // 
           break;
         case 4:                                         // Cancel
           SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 1);
+          AwaitingContestNumberEditSeln = false;
+          AwaitingContestNumberLoadSeln = false;
+          AwaitingContestNumberSaveSeln = false;
+          AwaitingContestNumberViewSeln = false;
           printf("Menu 13 Cancel\n");
           Start_Highlights_Menu13();  // Update Menu appearance
           UpdateWindow();             // and display for half a second
           usleep(500000);
           SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 0); // Reset cancel (even if not selected)
-          printf("Returning to MENU 8 from Menu 13\n");
-          CurrentMenu=8;
+          printf("Returning to MENU 3 from Menu 13\n");
+          CurrentMenu=3;
           setBackColour(0, 0, 0);
           clearScreen();
-          Start_Highlights_Menu8();
-          UpdateWindow();
-          break;
-        case 5:                                         // QO-100 Offset
-          ChangeLMRXOffset();
-          CurrentMenu=13;
-          setBackColour(0, 0, 0);
-          clearScreen();
-          Start_Highlights_Menu13();
-          UpdateWindow();
-          break;
-        case 6:                                         // Autoset QO-100 Offset
-          if (strcmp(LMRXmode, "sat") == 0)
-          {
-            AutosetLMRXOffset();
-          }
-          CurrentMenu=13;
-          setBackColour(0, 0, 0);
-          clearScreen();
-          Start_Highlights_Menu13();
-          UpdateWindow();
-          break;
-        case 7:                                        // Input Socket
-          if (strcmp(LMRXinput, "a") == 0)
-          {
-            strcpy(LMRXinput, "b");
-          }
-          else
-          {
-            strcpy(LMRXinput, "a");
-          }
-          if (strcmp(LMRXmode, "sat") == 0)
-          {
-            SetConfigParam(PATH_LMCONFIG, "input", LMRXinput);
-          }
-          else
-          {
-            SetConfigParam(PATH_LMCONFIG, "input1", LMRXinput);
-          }
-          Start_Highlights_Menu13();
-          UpdateWindow();
-          break;
-        case 8:                                        // LNB Volts
-          CycleLNBVolts();
-          Start_Highlights_Menu13();
-          UpdateWindow();
-          break;
-        case 9:                                        // Audio Output
-          if (strcmp(LMRXaudio, "rpi") == 0)
-          {
-            strcpy(LMRXaudio, "usb");
-          }
-          else
-          {
-            strcpy(LMRXaudio, "rpi");
-          }
-          SetConfigParam(PATH_LMCONFIG, "audio", LMRXaudio);
-          Start_Highlights_Menu13();
+          Start_Highlights_Menu3();
           UpdateWindow();
           break;
         default:
@@ -16338,6 +16671,12 @@ rawY = 0;
           setBackColour(0, 0, 0);
           clearScreen();
           Start_Highlights_Menu29();
+          UpdateWindow();
+          break;
+        case 7:
+          printf("Going to MENU 13 from Menu 29\n");
+          CurrentMenu=13;
+          Start_Highlights_Menu13();
           UpdateWindow();
           break;
         default:
@@ -19156,25 +19495,26 @@ void Define_Menu13()
 {
   int button;
 
-  strcpy(MenuTitle[13], "Portsdown Receiver Configuration (13)"); 
+  strcpy(MenuTitle[13], "Manage Contest Codes (13)"); 
 
   // Bottom Row, Menu 13
 
   button = CreateButton(13, 0);
-  AddButtonStatus(button, "UDP^IP", &Blue);
-  AddButtonStatus(button, "UDP^IP", &Blue);
+  AddButtonStatus(button, "Edit^Site", &Blue);
+  AddButtonStatus(button, "Edit^Site", &Red);
 
   button = CreateButton(13, 1);
-  AddButtonStatus(button, "UDP^Port", &Blue);
-  AddButtonStatus(button, "UDP^Port", &Blue);
+  AddButtonStatus(button, "Load^Site", &Blue);
+  AddButtonStatus(button, "Load^Site", &Red);
 
   button = CreateButton(13, 2);
-  AddButtonStatus(button, "Set Preset^RX Freqs", &Blue);
-  AddButtonStatus(button, "Set Preset^RX Freqs", &Blue);
+  AddButtonStatus(button, "Save^In-use Site", &Blue);
+  AddButtonStatus(button, "Save^In-use Site", &Red);
+  AddButtonStatus(button, "Show^In-use Site", &Blue);
 
   button = CreateButton(13, 3);
-  AddButtonStatus(button, "Set Preset^RX SRs", &Blue);
-  AddButtonStatus(button, "Set Preset^RX SRs", &Blue);
+  AddButtonStatus(button, "Show^Site Codes", &Blue);
+  AddButtonStatus(button, "Show^Site Codes", &Red);
 
   button = CreateButton(13, 4);
   AddButtonStatus(button, "Exit", &DBlue);
@@ -19184,67 +19524,81 @@ void Define_Menu13()
   // 2nd Row, Menu 13
 
   button = CreateButton(13, 5);
-  AddButtonStatus(button, "Sat LNB^Offset", &Blue);
-  AddButtonStatus(button, "Sat LNB^Offset", &Blue);
+  AddButtonStatus(button, "Site 1", &Blue);
 
   button = CreateButton(13, 6);
-  AddButtonStatus(button, "Autoset^LNB Offset", &Blue);
-  AddButtonStatus(button, " ", &Grey);
+  AddButtonStatus(button, "Site 2", &Blue);
 
   button = CreateButton(13, 7);
-  AddButtonStatus(button, "Input^A", &Blue);
-  AddButtonStatus(button, "Input^A", &Blue);
+  AddButtonStatus(button, "Site 3", &Blue);
 
   button = CreateButton(13, 8);
-  AddButtonStatus(button, "LNB Volts^OFF", &Blue);
-  AddButtonStatus(button, "LNB Volts^18 Horiz", &Green);
-  AddButtonStatus(button, "LNB Volts^13 Vert", &Green);
+  AddButtonStatus(button, "Site 4", &Blue);
 
   button = CreateButton(13, 9);
-  AddButtonStatus(button, "Audio out^RPi Jack", &Blue);
-  AddButtonStatus(button, "Audio out^RPi Jack", &Blue);
+  AddButtonStatus(button, "Site 5", &Blue);
+
 }
 
 void Start_Highlights_Menu13()
 {
-  char LMBtext[63];
+  char buttontext[63];
 
-  if (strcmp(LMRXmode, "sat") == 0)
+  if (AwaitingContestNumberEditSeln)
   {
-    strcpy(LMBtext, "QO-100^Input ");
-    strcat(LMBtext, LMRXinput);
-    SetButtonStatus(ButtonNumber(CurrentMenu, 6), 0);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 0), 1);  // Red
   }
   else
   {
-    strcpy(LMBtext, "Terrestrial^Input ");
-    strcat(LMBtext, LMRXinput);
-    SetButtonStatus(ButtonNumber(CurrentMenu, 6), 1);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 0), 0);  // Blue
   }
-  AmendButtonStatus(ButtonNumber(13, 7), 0, LMBtext, &Blue);
 
-  if (strcmp(LMRXvolts, "off") == 0)
+  if (AwaitingContestNumberLoadSeln)
   {
-    SetButtonStatus(ButtonNumber(CurrentMenu, 8), 0);
-  }
-  if (strcmp(LMRXvolts, "h") == 0)
-  {
-    SetButtonStatus(ButtonNumber(CurrentMenu, 8), 1);
-  }
-  if (strcmp(LMRXvolts, "v") == 0)
-  {
-    SetButtonStatus(ButtonNumber(CurrentMenu, 8), 2);
-  }
- 
-
-  if (strcmp(LMRXaudio, "rpi") == 0)
-  {
-    AmendButtonStatus(ButtonNumber(13, 9), 0, "Audio out^RPi Jack", &Blue);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 1), 1);  // Red
   }
   else
   {
-    AmendButtonStatus(ButtonNumber(13, 9), 0, "Audio out^USB dongle", &Blue);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 1), 0);  // Blue
   }
+
+  if (AwaitingContestNumberViewSeln)
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 3), 1);  // Red
+    SetButtonStatus(ButtonNumber(CurrentMenu, 2), 2);  // Change Caption on button 2
+  }
+  else
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 3), 0);  // Blue
+    if (AwaitingContestNumberSaveSeln)
+    {
+      SetButtonStatus(ButtonNumber(CurrentMenu, 2), 1);  // Red
+    }
+    else
+    {
+      SetButtonStatus(ButtonNumber(CurrentMenu, 2), 0);  // Blue
+    }
+  }
+
+  strcpy(buttontext, "Site 1^");
+  strcat(buttontext, Site1Locator10);
+  AmendButtonStatus(ButtonNumber(13, 5), 0, buttontext, &Blue);
+
+  strcpy(buttontext, "Site 2^");
+  strcat(buttontext, Site2Locator10);
+  AmendButtonStatus(ButtonNumber(13, 6), 0, buttontext, &Blue);
+
+  strcpy(buttontext, "Site 3^");
+  strcat(buttontext, Site3Locator10);
+  AmendButtonStatus(ButtonNumber(13, 7), 0, buttontext, &Blue);
+
+  strcpy(buttontext, "Site 4^");
+  strcat(buttontext, Site4Locator10);
+  AmendButtonStatus(ButtonNumber(13, 8), 0, buttontext, &Blue);
+
+  strcpy(buttontext, "Site 5^");
+  strcat(buttontext, Site5Locator10);
+  AmendButtonStatus(ButtonNumber(13, 9), 0, buttontext, &Blue);
 }
 
 void Define_Menu14()
@@ -20465,6 +20819,9 @@ void Define_Menu29()
 
   button = CreateButton(29, 6);
   AddButtonStatus(button, "Locator", &Blue);
+
+  button = CreateButton(29, 7);
+  AddButtonStatus(button, "Set Contest^Codes", &Blue);
 }
 
 void Start_Highlights_Menu29()
@@ -22015,6 +22372,7 @@ int main(int argc, char **argv)
   ReadLMRXPresets();
   ReadLangstone();
   ReadTSConfig();
+  ReadContestSites();
 
   SetAudioLevels();
 
