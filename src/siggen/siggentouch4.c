@@ -39,7 +39,7 @@ without them
 #include <sys/types.h> 
 #include <time.h>
 #include <inttypes.h>
-
+#include <lime/LimeSuite.h>
 
 #include "font/font.h"
 #include "touch.h"
@@ -81,7 +81,7 @@ typedef struct
   color_t  Color;
 } status_t;
 
-#define MAX_STATUS 5
+#define MAX_STATUS 7
 typedef struct
 {
   int x, y, w, h;                // Position and size of button
@@ -102,7 +102,6 @@ color_t Red   = {.r = 255, .g = 0  , .b = 0  };
 #define MAX_BUTTON 350
 int IndexButtonInArray=0;
 button_t ButtonArray[MAX_BUTTON];
-#define TIME_ANTI_BOUNCE 500
 int CurrentMenu = 1;
 int CallingMenu = 1;
 
@@ -157,7 +156,7 @@ int GPIO_SPI_CLK = 21;
 int GPIO_SPI_DATA = 22;
 int GPIO_4351_LE = 23;   // Changed for RPi 4
 int GPIO_Atten_LE = 16;
-int GPIO_5355_LE = 15;   // Also Elcom LE
+int GPIO_5355_LE = 15;   // Also Elcom LE and Nort SLO LE
 int GPIO_Band_LSB = 26;  // Band D0, Changed for RPi 4
 int GPIO_Band_MSB = 24;  // Band D1
 int GPIO_Tverter = 7;    // Band D2
@@ -168,8 +167,19 @@ char MenuTitle[50][127];
 char KeyboardReturn[64];
 
 // Lime Control
-float LimeCalFreq = 0;  // -2 cal never, -1 = cal every time, 0 = cal next time, freq = no cal if no change
 int LimeRFEState = 0;   // 0 = disabled, 1 = enabled
+bool LimeCalibrated = false;
+bool LimeCalRequired = true;
+bool LimeOPOnRequested = false;
+bool LimeOPOn = false;
+bool LimeRun = false;
+bool DoLimeCal = false;
+uint64_t LimeCalFreq;
+int LimeGain = 88;
+
+//Lime SDR Device structure, should be initialized to NULL
+static lms_device_t* device = NULL;
+pthread_t thlimestream;        //
 
 // Langstone Integration variables
 char PlutoIP[16];             // Pluto IP address
@@ -209,7 +219,8 @@ void adf4351On(int);
 void adf5355On(int);
 void adf4153On();
 void ElcomOn();
-int plutotx(bool);
+void LimeOn();
+void LimeOff();
 
 // PLUTO Constants and declarations
 
@@ -225,6 +236,7 @@ struct iio_device *dds_core_lpc;
 struct iio_channel *tx_chain;
 struct iio_channel *tx_lo;
 bool PlutoCalValid = false;
+int plutotx(bool);
 
 /***************************************************************************//**
  * @brief Looks up the value of a Param in PathConfigFile and sets value
@@ -2369,6 +2381,15 @@ void AdjustFreq(int button)
       adf4153On(); // Change ADF4153 Freq
     }
   }
+
+  if ((strcmp(osc, "lime") == 0) && (LimeRun)) // Change Lime frequency even if in standby
+  {
+    if (LMS_SetLOFrequency(device, LMS_CH_TX, 0, (double)(DisplayFreq - 1000000))!=0)
+    {
+      printf("Error - unable to set Lime Frequency\n");
+    }
+  }
+
 }
 
 void SetAtten(float AttenValue)
@@ -2454,6 +2475,87 @@ void AdjustLevel(int Button)
     if (OutputStatus == 1)  // Change on Pluto
     {
       plutotx(false);
+    }
+  }
+
+  else if (strcmp(osc, "lime") == 0)
+  {
+    if (Button == 0)  // decrement level by 10
+    {
+      level = level - 10;
+    }
+    if (Button == 1)  // decrement level by 1
+    {
+      level = level - 1;
+    }
+    if (Button == 5)  // increment level by 10
+    {
+      level = level + 10;
+    }
+    if (Button == 6)  // increment level by 1
+    {
+      level = level + 1;
+    }
+    if (level > 0 )
+    {
+      level = 0;
+    }
+    if (level < -37 )
+    {
+      level = -37;
+    }
+
+    // Use levels from 0 downward (0 - -80?)
+    // Define lookup tables for Lime Gain (0 to 100) increments
+    int LGStep[40];
+    LGStep[0] = 100;
+    LGStep[1] = 98;
+    LGStep[2] = 96;
+    LGStep[3] = 94;
+    LGStep[4] = 91;
+    LGStep[5] = 88;
+    LGStep[6] = 84;
+    LGStep[7] = 83;
+    LGStep[8] = 81;
+    LGStep[9] = 80;
+    LGStep[10] = 79;
+    LGStep[11] = 77;
+    LGStep[12] = 76;
+    LGStep[13] = 75;
+    LGStep[14] = 74;
+    LGStep[15] = 72;
+    LGStep[16] = 70;
+    LGStep[17] = 66;
+    LGStep[18] = 64;
+    LGStep[19] = 62;
+    LGStep[20] = 59;
+    LGStep[21] = 56;
+    LGStep[22] = 54;
+    LGStep[23] = 51;
+    LGStep[24] = 48;
+    LGStep[25] = 46;
+    LGStep[26] = 43;
+    LGStep[27] = 41;
+    LGStep[28] = 38;
+    LGStep[29] = 35;
+    LGStep[30] = 33;
+    LGStep[31] = 30;
+    LGStep[32] = 27;
+    LGStep[33] = 25;
+    LGStep[34] = 22;
+    LGStep[35] = 20;
+    LGStep[36] = 14;
+    LGStep[37] = 0;
+
+    LimeGain = LGStep[-1 * level];
+
+    if (LimeOPOn)    //set TX gain
+    {
+      printf("Level is %d, LimeGain is %d\n", level, LimeGain);
+      if (LMS_SetNormalizedGain(device, LMS_CH_TX, 0, (float)LimeGain * 0.01) != 0)
+      {
+        printf("Error - unable to set Lime Gain\n");
+      }
     }
   }
 
@@ -2640,6 +2742,51 @@ void CalcOPLevel()
     }
   }
 
+  if (strcmp(osc, "lime") == 0)
+  {
+    // Use a lookup table for the 450 MHz output and then apply the frequency correction
+    int dBforLG[101];
+    dBforLG[100] = 167;
+    dBforLG[98] = 164;
+    dBforLG[96] = 156;
+    dBforLG[94] = 147;
+    dBforLG[91] = 130;
+    dBforLG[88] = 109;
+    dBforLG[84] = 70;
+    dBforLG[83] = 60;
+    dBforLG[81] = 50;
+    dBforLG[80] = 42;
+    dBforLG[79] = 28;
+    dBforLG[77] = 17;
+    dBforLG[76] = 6;
+    dBforLG[75] = -3;
+    dBforLG[74] = -13;
+    dBforLG[72] = -23;
+    dBforLG[70] = -33;
+    dBforLG[66] = -72;
+    dBforLG[64] = -72;
+    dBforLG[62] = -93;
+    dBforLG[59] = -113;
+    dBforLG[56] = -133;
+    dBforLG[54] = -153;
+    dBforLG[51] = -174;
+    dBforLG[48] = -214;
+    dBforLG[46] = -214;
+    dBforLG[43] = -236;
+    dBforLG[41] = -259;
+    dBforLG[38] = -278;
+    dBforLG[35] = -300;
+    dBforLG[33] = -315;
+    dBforLG[30] = -330;
+    dBforLG[27] = -350;
+    dBforLG[25] = -362;
+    dBforLG[22] = -375;
+    dBforLG[20] = -390;
+    dBforLG[14] = -405;
+    dBforLG[0] = -445;
+    DisplayLevel = DisplayLevel + dBforLG[LimeGain];
+  }
+
   // Now apply attenuation *********************************************************************
   if (AttenIn == 1)
   {
@@ -2704,6 +2851,13 @@ void ShowAtten()
   {
     strcpy(LevelText, "Pluto Level = ");
     snprintf(AttenSet, 4, "%d", level);
+    strcat(LevelText, AttenSet);
+    Text2(hpos*wscreen, vpos*hscreen, LevelText, font_ptr);
+  }
+  if (strcmp(osc, "lime") == 0)                                                  // Lime Text
+  {
+    strcpy(LevelText, "Lime Gain = ");
+    snprintf(AttenSet, 4, "%d", LimeGain);
     strcat(LevelText, AttenSet);
     Text2(hpos*wscreen, vpos*hscreen, LevelText, font_ptr);
   }
@@ -3015,6 +3169,216 @@ int PlutoOff()
   return 0;
 }
 
+void *LimeStream(void * arg)
+{
+  const double frequency = (double)(DisplayFreq - 1000000);  //
+  const double sample_rate = 5e6;    //sample rate to 5 MHz
+  const double tone_freq = 1e6; //tone frequency
+  const double f_ratio = tone_freq/sample_rate;
+
+  CheckLimeReady();
+
+  //Find devices
+  int n;
+  lms_info_str_t list[8]; //should be large enough to hold all detected devices
+  if ((n = LMS_GetDeviceList(list)) < 0) //NULL can be passed to only get number of devices
+  {
+    printf("Error - unable to find Lime Device\n");
+  }
+
+  //open the first device
+  if (LMS_Open(&device, list[0], NULL))
+  {
+    printf("Error - unable to open first Lime Device\n");
+  }
+
+  //Initialize device with default configuration
+  //Do not use if you want to keep existing configuration
+  //Use LMS_LoadConfig(device, "/path/to/file.ini") to load config from INI
+  if (LMS_Init(device)!=0)
+  {
+    printf("Error - unable to initialise Lime Device\n");
+  }
+
+  //Enable TX channel,Channels are numbered starting at 0
+  if (LMS_EnableChannel(device, LMS_CH_TX, 0, true)!=0)
+  {
+    printf("Error - unable to enable TX Channel\n");
+  }
+
+  //Set sample rate
+  if (LMS_SetSampleRate(device, sample_rate, 0)!=0)
+  {
+    printf("Error - unable to set Lime sample rate\n");
+  }
+
+  //Set inital center frequency
+  if (LMS_SetLOFrequency(device, LMS_CH_TX, 0, frequency)!=0)
+  {
+    printf("Error - unable to set Lime Frequency\n");
+  }
+
+  //set TX gain for calibration
+  if (LMS_SetNormalizedGain(device, LMS_CH_TX, 0, 0.7) != 0)
+  {
+    printf("Error - unable to set Lime Gain\n");
+  }
+
+  //calibrate Tx, continue on failure
+  LMS_Calibrate(device, LMS_CH_TX, 0, sample_rate, 0);
+  LimeCalibrated = true;
+  LimeCalRequired = false;
+
+  // Refresh the display
+  Start_Highlights_Menu11();
+  UpdateWindow();
+  ShowLevel(DisplayLevel);
+  ShowFreq(DisplayFreq);
+  ShowAtten();
+  ShowOPFreq();
+
+  if (LMS_SetNormalizedGain(device, LMS_CH_TX, 0, 0.01) != 0)  // set gain to low lwevel
+  {
+    printf("Error - unable to set Lime Gain\n");
+  }
+    
+    //Streaming Setup 
+    lms_stream_t tx_stream;                 //stream structure
+    tx_stream.channel = 0;                  //channel number
+    tx_stream.fifoSize = 256*1024;          //fifo size in samples
+    tx_stream.throughputVsLatency = 0.5;    //0 min latency, 1 max throughput
+    tx_stream.dataFmt = LMS_FMT_F32;      //floating point samples
+    tx_stream.isTx = true;                  //TX channel
+    LMS_SetupStream(device, &tx_stream);
+
+    //Initialize data buffers
+    const int buffer_size = 1024*8;
+    float tx_buffer[2*buffer_size];     //buffer to hold complex values (2*samples))
+    int i;
+
+    for (i = 0; i <buffer_size; i++)       //generate TX tone
+    {
+      const double pi = acos(-1);
+      double w = 2*pi*i*f_ratio;
+      tx_buffer[2*i] = cos(w);
+      tx_buffer[2*i+1] = sin(w);
+    }  
+
+    float null_buffer[2 * buffer_size];
+    for (i = 0; i < (2 * buffer_size); i++)       // Initialise null array
+    {
+      null_buffer[i] = 0.0;
+    }  
+
+
+    const int send_cnt = (int)(buffer_size*f_ratio) / f_ratio; 
+
+    LMS_StartStream(&tx_stream);         // Start streaming
+
+    while (LimeRun) 
+    {
+      int ret;
+      if (LimeOPOnRequested != LimeOPOn)   // Change of state
+      {
+        if (LimeOPOnRequested)             // Set the Lime Gain to the requested Level
+        {
+          if (LMS_SetNormalizedGain(device, LMS_CH_TX, 0, (float)LimeGain * 0.01) != 0)
+          {
+            printf("Error - unable to set Lime Gain\n");
+          }
+          LimeOPOn = true;
+        }
+        else
+        {
+          if (LMS_SetNormalizedGain(device, LMS_CH_TX, 0, 0.01) != 0)
+          {
+            printf("Error - unable to set Lime Gain\n");
+          }
+          LimeOPOn = false;
+        }
+      }
+      if (DoLimeCal)
+      {
+        if (LMS_SetNormalizedGain(device, LMS_CH_TX, 0, 0.7) != 0)  // set gain to enable cal
+        {
+          printf("Error - unable to set Lime Gain\n");
+        }
+
+        LMS_Calibrate(device, LMS_CH_TX, 0, sample_rate, 0);       // calibrate
+
+        if (LimeOPOn)                                              // If output is on
+        {
+          if (LMS_SetNormalizedGain(device, LMS_CH_TX, 0, (float)LimeGain * 0.01) != 0)  // set gain to output level
+          {
+            printf("Error - unable to set Lime Gain\n");
+          }
+        }
+        else 
+        {
+          if (LMS_SetNormalizedGain(device, LMS_CH_TX, 0, 0.01) != 0)  // set gain to low level
+          {
+            printf("Error - unable to set Lime Gain\n");
+          }
+        }
+        DoLimeCal = false;
+        LimeCalibrated = true;
+        LimeCalRequired = false;
+      }
+      if (LimeOPOn)
+      {
+        //Transmit USB samples
+        ret = LMS_SendStream(&tx_stream, tx_buffer, send_cnt, NULL, 1000);
+      }
+      else
+      {
+        //Transmit null samples
+        ret = LMS_SendStream(&tx_stream, null_buffer, send_cnt, NULL, 1000);
+      }
+   
+      if (ret != send_cnt)
+      {
+        printf("error: samples sent: error: %d samples sent\n", ret);
+      }
+    }
+
+    //Stop streaming
+    LMS_StopStream(&tx_stream);
+    LMS_DestroyStream(device, &tx_stream);
+
+    //Disable TX channel
+    if (LMS_EnableChannel(device, LMS_CH_TX, 0, false) != 0)
+    {
+      printf("Error - unable to Disable Lime TX Channel\n");
+    }
+
+  //Close device
+  if (LMS_Close(device)==0)
+  {
+    printf("LimeSDR Device Closed\n");
+  }
+  return NULL;
+}
+
+void LimeOn()
+{
+  LimeRun = true;
+  pthread_create (&thlimestream, NULL, &LimeStream, NULL);
+}
+
+void LimeOff()
+{
+  if (LimeRun)
+  {
+    LimeRun = false;
+    pthread_join(thlimestream, NULL);
+  }
+  LimeCalibrated = false;
+  LimeCalRequired = true;
+  LimeOPOnRequested = false;
+  LimeOPOn = false;
+  DoLimeCal = false;
+  system("/home/pi/rpidatv/bin/limesdr_stopchannel");
+}
 
 
 void ExpressOn()
@@ -3586,6 +3950,8 @@ void adf4153On()
 
   // Channel resolution or Channel spacing.  Starting value
   uint32_t channel_spacing = 1000;
+  channel_spacing = ref_in / 4000;  // Gives a more logical step normally
+
 
   uint64_t vco_frequency = 0;     // VCO frequency
   uint32_t pfd_frequency = 0;     // PFD frequency
@@ -3594,7 +3960,6 @@ void adf4153On()
   uint32_t frac_value = 0;     // FRAC value
   uint32_t mod_value = 0;     // MOD value
   uint16_t r_counter = 1;     // R Counter
-  float buffer = 0;
   uint8_t device_prescaler = 0;
   uint8_t int_min = 0;
   int64_t frequency;
@@ -3640,10 +4005,6 @@ void adf4153On()
     while(mod_value > adf4153_mod_max);
   }
 
-  printf("ADF4153 Calculations:\n");
-  printf("mod_value = %d\n", mod_value);
-  printf("channel spacing = %d\n", channel_spacing);
-
   // Define prescaler
   device_prescaler = (vco_frequency <= FREQ_2_GHZ) ? ADF4153_PRESCALER_4_5 : \
 			   ADF4153_PRESCALER_8_9;
@@ -3664,28 +4025,27 @@ void adf4153On()
   }
   while(int_value < int_min);
 
-  printf("PFD frequency = %d Hz\n", pfd_frequency);
-
   // Define FRAC value
   do
   {
     frac_value++;
-    buffer = int_value + ((float)frac_value/mod_value);
-    calculated_frequency = (uint64_t)(buffer * pfd_frequency);
+    calculated_frequency = (uint64_t)(int_value * pfd_frequency) + (uint64_t)(((float)frac_value/mod_value) * pfd_frequency);
   }
   while(calculated_frequency <= vco_frequency);
-
   frac_value--;
 
-  printf("frac value = %d\n", frac_value);
-  printf("int value = %d\n", int_value);
-  printf("R Counter = %d\n", r_counter);
-
   // Find the actual VCO frequency
-  buffer = int_value + ((float)frac_value/mod_value);
-  calculated_frequency = (uint64_t)(buffer * pfd_frequency);
+  calculated_frequency = (uint64_t)(int_value * pfd_frequency) + (uint64_t)(((float)frac_value/mod_value) * pfd_frequency);
+
   OutputFreq = calculated_frequency;
 
+  printf("ADF4153 Calculations:\n");
+  printf("channel spacing = %d\n", channel_spacing);
+  printf("int value = %d\n", int_value);
+  printf("frac value = %d\n", frac_value);
+  printf("mod_value = %d\n", mod_value);
+  printf("PFD frequency = %d Hz\n", pfd_frequency);
+  printf("R Counter = %d\n", r_counter);
   printf("Calculated Frequency = %lld\n", calculated_frequency);
 
   // Write all zeros to the noise and spur register R3
@@ -3895,6 +4255,20 @@ void InitOsc()
     }
   }
 
+  if (strcmp(osc, "lime") == 0)
+  {
+    strcpy(osc_text, "Lime Mini");
+    LimeRun = false;
+    LimeCalibrated = false;
+    LimeCalRequired = true;
+    LimeOPOnRequested = false;
+    LimeOPOn = false;
+  }
+  else
+  {
+    LimeOff();
+  }
+
   if (strcmp(osc, "adf4351") == 0)
   {
     strcpy(osc_text, "ADF4351");
@@ -3912,7 +4286,6 @@ void InitOsc()
 
   if (strcmp(osc, "lime") == 0)
   {
-    strcpy(osc_text, "Lime Mini");
   }
 
   if (strcmp(osc, "slo") == 0)
@@ -3938,7 +4311,7 @@ void InitOsc()
   // Turn off modulation if not compatible with mode
   if ((strcmp(osc, "pluto") == 0)   || (strcmp(osc, "pluto5") == 0)  || (strcmp(osc, "elcom") == 0)
    || (strcmp(osc, "adf4351") == 0) || (strcmp(osc, "adf5355") == 0) || (strcmp(osc, "slo") == 0)
-   || (strcmp(osc, "adf4153") == 0))
+   || (strcmp(osc, "adf4153") == 0) || (strcmp(osc, "lime") == 0))
   {
     ModOn = 0;
   }
@@ -3956,7 +4329,7 @@ void InitOsc()
   {
     strcpy(Param, osc);
     strcat(Param, "points");
-  printf("%s\n", Param);
+    //printf("%s\n", Param);
     GetConfigParam(PATH_CAL, Param, Value);
     CalPoints = atoi(Value);
     //printf("CalPoints= %d \n", CalPoints);
@@ -4036,7 +4409,8 @@ void InitOsc()
       SetButtonStatus(ButtonNumber(11, 6), 1);         // Hide decrement 1s
       SetButtonStatus(ButtonNumber(11, 7), 1);         // Hide increment 10ths
     }
-    if ((strcmp(osc, "express") == 0) || (strcmp(osc, "pluto") == 0) || (strcmp(osc, "pluto5") == 0))
+    if ((strcmp(osc, "express") == 0) || (strcmp(osc, "pluto") == 0) 
+     || (strcmp(osc, "pluto5") == 0) || (strcmp(osc, "lime") == 0))
     {
       SetButtonStatus(ButtonNumber(11, 2), 1);         // Hide decrement 10ths
       SetButtonStatus(ButtonNumber(11, 7), 1);         // Hide increment 10ths
@@ -4293,7 +4667,7 @@ void ImposeBounds()  // Constrain DisplayFreq and level to physical limits
   {
     strcpy(osc_text, "Lime Mini"); 
     SourceUpperFreq = 3500000000;
-    SourceLowerFreq =   70000000;
+    SourceLowerFreq =   50000000;
   }
 
   if (strcmp(osc, "adf4351")==0)
@@ -4402,6 +4776,13 @@ void OscStart()
     printf("\nStarting Elcom Output\n");
     ElcomOn();
   }
+
+  if ((strcmp(osc, "lime") == 0) && (LimeCalibrated))
+  {
+    printf("\nStarting Lime Output\n");
+    //LimeOn();
+    LimeOPOnRequested = true;
+  }
   SetButtonStatus(ButtonNumber(11, 30), 1);
   OutputStatus = 1;
 }
@@ -4450,11 +4831,18 @@ void OscStop()
     system("sudo killall netcat >/dev/null 2>/dev/null");
     printf("\nStopping Express output\n");
   }
+  printf("Oscillator %s selected \n", osc);
 
   if ((strcmp(osc, "pluto") == 0) || (strcmp(osc, "pluto5") == 0))
   {
     PlutoOff();
     printf("\nStopping Pluto output\n");
+  }
+
+  if (strcmp(osc, "lime") == 0)
+  {
+    LimeOPOnRequested = false;
+    printf("\nReducing Lime output to near zero\n");
   }
 
   if (strcmp(osc, "adf5355")==0)
@@ -5236,7 +5624,7 @@ void waituntil(int w, int h)
         case 3:   // Elcom
         case 5:   // ADF4351
         case 6:   // ADF5355
-        //case 7: // LimeSDR Mini
+        case 7:   // LimeSDR Mini
         case 8:   // Nort SLO
         case 9:   // ADF4153
           SelectOsc(i); 
@@ -5462,9 +5850,21 @@ void waituntil(int w, int h)
             PlutoCalValid = true;
             SetButtonStatus(ButtonNumber(11, 32), 3);
           }
+          if (strcmp(osc, "lime") == 0)
+          {
+            DoLimeCal = true;
+            if (LimeRun == false)  // Start Lime thread
+            {
+              LimeOn();
+            }
+            SetButtonStatus(ButtonNumber(11, 32), 6);
+            Start_Highlights_Menu11();
+            UpdateWindow();
+          }
           break;
         case 33:                                   // Exit
           OscStop();
+          LimeOff();
           printf("MENU 1 \n"); 
           CurrentMenu=1;
           Start_Highlights_Menu1();
@@ -5581,9 +5981,9 @@ void Define_Menu2()
   AddButtonStatus(button, "ADF5355", &Blue);
   AddButtonStatus(button, "ADF5355", &Green);
 
-  //button = CreateButton(2, 7);                         // lime
-  //AddButtonStatus(button, "Lime Mini", &Blue);
-  //AddButtonStatus(button, "Lime Mini", &Green);
+  button = CreateButton(2, 7);                           // lime
+  AddButtonStatus(button, "Lime Mini", &Blue);
+  AddButtonStatus(button, "Lime Mini", &Green);
 
   button = CreateButton(2, 8);                           // slo
   AddButtonStatus(button, "Nort SLO", &Blue);
@@ -5800,11 +6200,13 @@ void Define_Menu11()  // Control Panel
   AddButtonStatus(button, "OFF", &Blue);
 
   button = CreateButton(11, 32);
-  AddButtonStatus(button, "QPSK Mod", &Blue);
+  AddButtonStatus(button, "QPSK Mod", &Blue); //0
   AddButtonStatus(button, "QPSK Mod", &Red);
   AddButtonStatus(button, "QPSK Mod", &Grey);
   AddButtonStatus(button, "Cal Pluto", &Blue);
   AddButtonStatus(button, "Cal Pluto" ,&Red);
+  AddButtonStatus(button, "Cal Lime", &Blue);
+  AddButtonStatus(button, "Cal Lime" ,&Red);  //6
 
   button = CreateButton(11, 33);
   AddButtonStatus(button, "Exit", &Blue);
@@ -5824,13 +6226,15 @@ void Start_Highlights_Menu11()
   AmendButtonStatus(ButtonNumber(11, 30), 1, OnText, &Red);
   AmendButtonStatus(ButtonNumber(11, 30), 2, OffText, &Grey);
 
-  if ( !((strcmp(osc, "pluto") == 0) || (strcmp(osc, "pluto5") == 0)) || PlutoCalValid)
+  if (( !((strcmp(osc, "pluto") == 0) || (strcmp(osc, "pluto5") == 0)) || PlutoCalValid)
+     && (!(strcmp(osc, "lime") == 0) || LimeCalibrated))
+
   {
     SetButtonStatus(ButtonNumber(11, 30), OutputStatus); // Off (blue), On (red)
   }
   else
   {
-    SetButtonStatus(ButtonNumber(11, 30), 2); // Grey because Pluto Cal required
+    SetButtonStatus(ButtonNumber(11, 30), 2); // Grey because Lime or Pluto Cal required
   }
   
   if (strcmp(osc, "express") == 0)                     // QPSK or Pluto Cal
@@ -5842,6 +6246,17 @@ void Start_Highlights_Menu11()
     if (GetButtonStatus(ButtonNumber(11, 32)) != 4)
     {
       SetButtonStatus(ButtonNumber(11, 32), 3);
+    }
+  }
+  else if (strcmp(osc, "lime") == 0)
+  {
+    if ((LimeCalibrated) && !(LimeCalRequired))
+    {
+      SetButtonStatus(ButtonNumber(11, 32), 5);  // Blue
+    }
+    else
+    {
+      SetButtonStatus(ButtonNumber(11, 32), 6);  // Red requires Cal
     }
   }
   else
@@ -6110,6 +6525,7 @@ static void terminate(int dummy)
 {
   char Commnd[255];
   OscStop();
+  LimeOff();
   printf("Terminate\n");
   setBackColour(0, 0, 0);
   clearScreen();
@@ -6199,6 +6615,8 @@ int main(int argc, char **argv)
 
   Define_Menu11();
   Define_Menu12();
+
+printf("Menus defined\n");
 
   // Initialise direct access to the 7 inch screen
   initScreen();

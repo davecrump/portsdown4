@@ -1,3 +1,8 @@
+202105310
+Add Contest Number Management for multiple Sites
+Add LimeSDR Mini to SigGen output devices
+BandViewer GUI improvements and early version of NF Indicator
+
 202105190
 Add the NORT SLO and ADF4153 as output options for the Signal Generator
 
