@@ -18934,13 +18934,16 @@ void Start_Highlights_Menu8()
       SetButtonStatus(ButtonNumber(CurrentMenu, 4), 3);
     }
   }
-  else
+  else     // QO-100
   {
-    SetButtonStatus(ButtonNumber(CurrentMenu, 4), 0);
-  }
-  if (strcmp(RXmod, "DVB-T") == 0)
-  {
-    SetButtonStatus(ButtonNumber(CurrentMenu, 4), 1);
+    if (strcmp(RXmod, "DVB-T") == 0)  // Grey out for DVB-T
+    {
+      SetButtonStatus(ButtonNumber(CurrentMenu, 4), 1);
+    }
+    else                             // DVB-S or S2
+    {
+      SetButtonStatus(ButtonNumber(CurrentMenu, 4), 0);
+    }
   }
 
   // Freq buttons

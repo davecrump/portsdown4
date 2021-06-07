@@ -1,3 +1,6 @@
+202106061
+Minor Receive Menu Correction
+
 202106060
 Add direct entry to BandViewer on RX frequency from terrestrial receive menu
 
