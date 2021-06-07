@@ -24,6 +24,11 @@ extern lime_fft_buffer_t lime_fft_buffer;
 
 extern bool wfall;
 extern bool NewSettings;
+
+extern bool Range20dB;
+extern int BaseLine20dB;
+extern bool NFMeter;
+
 //extern double bandwidth;
 
 #define FFT_SIZE    512 //2048
@@ -150,9 +155,9 @@ void *fft_thread(void *arg)
             }
             pwr = pwr_scale * (pt[0] * pt[0]) + (pt[1] * pt[1]);
             lpwr = 10.f * log10(pwr + 1.0e-20);
-            
+
             fft_data_staging[i] = (lpwr * (1.f - FFT_TIME_SMOOTH)) + (fft_data_staging[i] * FFT_TIME_SMOOTH);
-            
+
             if (wfall == true)
             {
 
@@ -174,9 +179,17 @@ void *fft_thread(void *arg)
               // Set the scaling and vertical offset
               fft_scaled_data[i] = 5 * (fft_data_staging[i] + 88);
 
-              // Apply some time smoothing
-              main_spectrum_smooth_buffer[i] = ((fft_scaled_data[i]) * (1.f - MAIN_SPECTRUM_TIME_SMOOTH))
-                + (main_spectrum_smooth_buffer[i] * MAIN_SPECTRUM_TIME_SMOOTH);
+              // Apply some time smoothing if not NF Measuring
+
+              if (NFMeter == false)
+              {
+                main_spectrum_smooth_buffer[i] = ((fft_scaled_data[i]) * (1.f - MAIN_SPECTRUM_TIME_SMOOTH))
+                  + (main_spectrum_smooth_buffer[i] * MAIN_SPECTRUM_TIME_SMOOTH);
+              }
+              else
+              {
+                main_spectrum_smooth_buffer[i] = fft_scaled_data[i];
+              }
 
               // Correct for the roll-off at the ends of the fft
               if (i < 46)
@@ -192,6 +205,12 @@ void *fft_thread(void *arg)
                 fft_scaled_data[i] = main_spectrum_smooth_buffer[i];
               }
 
+              if (Range20dB) // Range20dB
+              {
+                
+                fft_scaled_data[i] = fft_scaled_data[i] - 5 * (80 + BaseLine20dB);  
+                fft_scaled_data[i] = 4 * fft_scaled_data[i];
+              }
               // Make sure that the data is within bounds
               if(fft_scaled_data[i] < 1) fft_scaled_data[i] = 1;
               if(fft_scaled_data[i] > 399) fft_scaled_data[i] = 399;
