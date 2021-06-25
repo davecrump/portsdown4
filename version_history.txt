@@ -1,3 +1,8 @@
+202107010
+Enter Transverter IF Drive Freq, not TX freq, at keyboard
+Implement new Band Switching
+Error-check config file lookups
+
 202106061
 Minor Receive Menu Correction
 

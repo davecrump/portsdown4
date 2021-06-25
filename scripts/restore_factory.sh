@@ -50,3 +50,7 @@ cp -f $PATHSCRIPT"/configs/longmynd_config.txt.factory" $PATHSCRIPT"/longmynd_co
 cp -f $PATHSCRIPT"/portsdown_C_codes.txt" $PATHSCRIPT"/portsdown_C_codes.txt.bak"
 cp -f $PATHSCRIPT"/configs/portsdown_C_codes.txt.factory" $PATHSCRIPT"/portsdown_C_codes.txt"
 
+# bandview_config.txt
+cp -f /home/pi/rpidatv/src/bandview/bandview_config.txt /home/pi/rpidatv/src/bandview/bandview_config.txt.bak
+cp -f /home/pi/rpidatv/src/bandview/bandview_config.txt.factory /home/pi/rpidatv/src/bandview/bandview_config.txt
+

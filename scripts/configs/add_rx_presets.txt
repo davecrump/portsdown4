@@ -1,0 +1,8 @@
+d0lo=0
+d6lo=0
+t0lo=0
+t5lo=0
+t6lo=0
+t7lo=0
+t8lo=0
+
