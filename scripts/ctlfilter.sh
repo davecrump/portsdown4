@@ -195,6 +195,8 @@ else
 
   if [ "$EXPPORTS" -gt "7" ]; then 
     gpio -g write $band_bit3 1;
+  else
+    gpio -g write $band_bit3 0;
   fi
 fi
 
