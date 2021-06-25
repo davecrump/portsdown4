@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Updated by davecrump 202105310 for Portsdown 4
+# Updated by davecrump 202107000 for Portsdown 4
 
 DisplayUpdateMsg() {
   # Delete any old update message image
@@ -497,6 +497,41 @@ if ! grep -q slopoints /home/pi/rpidatv/src/siggen/siggencal.txt; then
   echo "adf4153freq2=4000000000" >> /home/pi/rpidatv/src/siggen/siggencal.txt
   echo "adf4153lev2=0" >> /home/pi/rpidatv/src/siggen/siggencal.txt
 fi
+
+# Add LimeRFE controls to config file if not included  202107010
+if ! grep -q limerfeport= "$PATHSCRIPT"/portsdown_config.txt; then
+  # File needs updating
+  # Delete any blank lines first
+  sed -i -e '/^$/d' "$PATHSCRIPT"/portsdown_config.txt
+  # Add the new entry and a new line 
+  echo "limerfeport=txrx" >> "$PATHSCRIPT"/portsdown_config.txt
+  echo "limerferxatt=0" >> "$PATHSCRIPT"/portsdown_config.txt
+fi
+
+# Add New presets and LimeRFE controls to presets file if not included  202107010
+if ! grep -q d0label= "$PATHSCRIPT"/portsdown_presets.txt; then
+  # File needs updating
+  # Delete any blank lines first
+  sed -i -e '/^$/d' "$PATHSCRIPT"/portsdown_presets.txt
+  # Add the new entries to the end 
+  cat "$PATHSCRIPT"/configs/add_portsdown_presets.txt >> "$PATHSCRIPT"/portsdown_presets.txt
+fi
+
+# Add New RX LO presets to RX presets file if not included  202107010
+if ! grep -q t8lo= "$PATHSCRIPT"/rx_presets.txt; then
+  # File needs updating
+  # Delete any blank lines first
+  sed -i -e '/^$/d' "$PATHSCRIPT"/rx_presets.txt
+  # Add the new entries to the end 
+  cat "$PATHSCRIPT"/configs/add_rx_presets.txt >> "$PATHSCRIPT"/rx_presets.txt
+fi
+
+# Write new factory Contest Numbers File if required  202107010
+if ! grep -q site1d0numbers= "$PATHSCRIPT"/portsdown_C_codes.txt; then
+  # File needs updating
+  cp "$PATHSCRIPT"/configs/portsdown_C_codes.txt.factory "$PATHSCRIPT"/portsdown_C_codes.txt
+fi
+
 
 DisplayUpdateMsg "Step 9 of 10\nFinishing Off\n\nXXXXXXXXX-"
 

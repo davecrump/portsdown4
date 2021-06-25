@@ -62,6 +62,9 @@ band_bit0=12
 #band_bit_1 MSB of band switching word = BCM 19 / Header 35
 band_bit1=19
 
+#band_bit_3 MSB of band switching word = BCM 25 / Header 22
+band_bit3=25
+
 #tverter_bit: 0 for direct, 1 for transverter = BCM 4 / Header 7
 tverter_bit=4
 
@@ -75,6 +78,7 @@ gpio -g mode $filter_bit2 out
 gpio -g mode $band_bit0 out
 gpio -g mode $band_bit1 out
 gpio -g mode $tverter_bit out
+gpio -g mode $band_bit3 out
 gpio -g mode $pdown_bit out
 
 # Set Portsdown id bit low
@@ -133,137 +137,66 @@ else
                 gpio -g write $filter_bit2 1;
 fi
 
-############### Check if GPIOs are to be set directly, or by band ##############
+############### Set band GPIOs ##############
 
 EXPPORTS=$(get_config_var expports $PCONFIGFILE)
-if [ "$EXPPORTS" -gt "15" ]; then  # Set directly
-  case "$EXPPORTS" in
-  "16" | "24" )
-    gpio -g write $band_bit0 0;
-    gpio -g write $band_bit1 0;
-    gpio -g write $tverter_bit 0;
-  ;;
-  "17" | "25" )
-    gpio -g write $band_bit0 1;
-    gpio -g write $band_bit1 0;
-    gpio -g write $tverter_bit 0;
-  ;;
-  "18" | "26" )
-    gpio -g write $band_bit0 0;
-    gpio -g write $band_bit1 1;
-    gpio -g write $tverter_bit 0;
-  ;;
-  "19" | "27" )
-    gpio -g write $band_bit0 1;
-    gpio -g write $band_bit1 1;
-    gpio -g write $tverter_bit 0;
-  ;;
-  "20" | "28" )
-    gpio -g write $band_bit0 0;
-    gpio -g write $band_bit1 0;
-    gpio -g write $tverter_bit 1;
-  ;;
-  "21" | "29" )
-    gpio -g write $band_bit0 1;
-    gpio -g write $band_bit1 0;
-    gpio -g write $tverter_bit 1;
-  ;;
-  "22" | "30" )
-    gpio -g write $band_bit0 0;
-    gpio -g write $band_bit1 1;
-    gpio -g write $tverter_bit 1;
-  ;;
-  "23" | "31" )
-    gpio -g write $band_bit0 1;
-    gpio -g write $band_bit1 1;
-    gpio -g write $tverter_bit 1;
-  ;;
-  esac
+if [ "$EXPPORTS" -gt "15" ]; then  # Set in range 0 - 15.  16 to 31 was used in the past
+    let EXPPORTS=$EXPPORTS-16
+fi
 
-  let EXPPORTS=$EXPPORTS-16
-
+# In Keyed TX modes, Band D2 is used to indicate TX, so don't set the band.
+MODE_STARTUP=$(get_config_var startup $PCONFIGFILE)
+if [ "$MODE_STARTUP" == "Keyed_TX_boot" ] || [ "$MODE_STARTUP" == "Keyed_Stream_boot" ]\
+   || [ "$MODE_STARTUP" == "Cont_Stream_boot" ]; then
+      : # Do nothing
 else
-
-  ############### Read Frequency and Band #########################
-
-  FREQ_OUTPUT=$(get_config_var freqoutput $PCONFIGFILE)
-  INT_FREQ_OUTPUT=${FREQ_OUTPUT%.*}
-  BAND=$(get_config_var band $PCONFIGFILE)
-  DIRECT=TRUE
-
-  case "$BAND" in
-  d1)
-    DIRECT=TRUE
+  case "$EXPPORTS" in
+  "0" | "0" )
+    gpio -g write $band_bit0 0;
+    gpio -g write $band_bit1 0;
+    gpio -g write $tverter_bit 0;
   ;;
-  d2)
-    DIRECT=TRUE
+  "1" | "9" )
+    gpio -g write $band_bit0 1;
+    gpio -g write $band_bit1 0;
+    gpio -g write $tverter_bit 0;
   ;;
-  d3)
-    DIRECT=TRUE
+  "2" | "10" )
+    gpio -g write $band_bit0 0;
+    gpio -g write $band_bit1 1;
+    gpio -g write $tverter_bit 0;
   ;;
-  d4)
-    DIRECT=TRUE
+  "3" | "11" )
+    gpio -g write $band_bit0 1;
+    gpio -g write $band_bit1 1;
+    gpio -g write $tverter_bit 0;
   ;;
-  d5)
-    DIRECT=TRUE
-  ;;
-  t1)
-    DIRECT=FALSE
+  "4" | "12" )
     gpio -g write $band_bit0 0;
     gpio -g write $band_bit1 0;
     gpio -g write $tverter_bit 1;
   ;;
-  t2)
-    DIRECT=FALSE
+  "5" | "13" )
     gpio -g write $band_bit0 1;
     gpio -g write $band_bit1 0;
     gpio -g write $tverter_bit 1;
   ;;
-  t3)
-    DIRECT=FALSE
+  "6" | "14" )
     gpio -g write $band_bit0 0;
     gpio -g write $band_bit1 1;
     gpio -g write $tverter_bit 1;
   ;;
-  t4)
-    DIRECT=FALSE
+  "7" | "15" )
     gpio -g write $band_bit0 1;
     gpio -g write $band_bit1 1;
     gpio -g write $tverter_bit 1;
   ;;
   esac
 
-  if [ "$DIRECT" == "TRUE" ]; then
-
-  # Switch GPIOs based on Frequency #
-
-    if (( $INT_FREQ_OUTPUT \< 100 )); then
-      gpio -g write $band_bit0 0;
-      gpio -g write $band_bit1 0;
-    elif (( $INT_FREQ_OUTPUT \< 250 )); then
-      gpio -g write $band_bit0 1;
-      gpio -g write $band_bit1 0;
-    elif (( $INT_FREQ_OUTPUT \< 950 )); then
-      gpio -g write $band_bit0 0;
-      gpio -g write $band_bit1 1;
-    elif (( $INT_FREQ_OUTPUT \< 4400 )); then
-      gpio -g write $band_bit0 1;
-      gpio -g write $band_bit1 1;
-    else
-      gpio -g write $band_bit0 0;
-      gpio -g write $band_bit1 0;
-    fi
-
-    # Set the transverter bit low but first, read the start-up behaviour
-    #  so we don't mess up the TX indication which shares a GPIO pin
-
-    MODE_STARTUP=$(get_config_var startup $PCONFIGFILE)
-    if [ "$MODE_STARTUP" == "Keyed_TX_boot" ] || [ "$MODE_STARTUP" == "Keyed_Stream_boot" ]\
-      || [ "$MODE_STARTUP" == "Cont_Stream_boot" ]; then
-      :
-    else
-      gpio -g write $tverter_bit 0;
-    fi
+  if [ "$EXPPORTS" -gt "7" ]; then 
+    gpio -g write $band_bit3 1;
+  else
+    gpio -g write $band_bit3 0;
   fi
 fi
 
