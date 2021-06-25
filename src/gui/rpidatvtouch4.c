@@ -7012,7 +7012,7 @@ void ChangeBandDetails(int NoButton)
   }
 
   // Label
-  snprintf(Prompt, 63, "Enter the title for Band with GPIO Code %d", band);
+  snprintf(Prompt, 63, "Enter the title for Band with GPIO Code %d", TabBandExpPorts[band]);
   Keyboard(Prompt, TabBandLabel[band], 15);
   strcpy(Param, TabBand[band]);
   strcat(Param, "label");
