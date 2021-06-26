@@ -151,7 +151,7 @@ if [ "$MODE_STARTUP" == "Keyed_TX_boot" ] || [ "$MODE_STARTUP" == "Keyed_Stream_
       : # Do nothing
 else
   case "$EXPPORTS" in
-  "0" | "0" )
+  "0" | "8" )
     gpio -g write $band_bit0 0;
     gpio -g write $band_bit1 0;
     gpio -g write $tverter_bit 0;

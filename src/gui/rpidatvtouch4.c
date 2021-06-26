@@ -7310,6 +7310,7 @@ void DoFreqChange()
   SetConfigParam(PATH_PCONFIG ,Param, Value);
 
   // Set the Band (and filter) Switching
+  printf("CTLfilter called\n");
   system ("sudo /home/pi/rpidatv/scripts/ctlfilter.sh");
   // And wait for it to finish using portsdown_config.txt
   usleep(100000);
@@ -20711,12 +20712,14 @@ void MakeFreqText(int index)
   {
     if (index == 8)
     {
-      strcpy(FreqBtext, "Keyboard^TX:");
-      TvtrFreq = atof(TabFreq[index]) + TabBandLO[CurrentBand];
-      if (TvtrFreq < 0)
-      {
-        TvtrFreq = TvtrFreq * -1;
-      }
+      //strcpy(FreqBtext, "Keyboard^TX:");
+      //TvtrFreq = atof(TabFreq[index]) + TabBandLO[CurrentBand];
+      //if (TvtrFreq < 0)
+      //{
+      //  TvtrFreq = TvtrFreq * -1;
+      //}
+      strcpy(FreqBtext, "Keyboard^IF:");
+      TvtrFreq = atof(TabFreq[index]); // 
       snprintf(Value, 10, "%.2f", TvtrFreq);
       strcat(FreqBtext, Value);
     }
