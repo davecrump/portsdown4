@@ -7609,10 +7609,26 @@ void SetReceiveLOFreq(int NoButton)
   int band;
 
   // Convert button number to band number
-  band = NoButton + 5;  // this is correct only for lower line of buttons
-  if (NoButton > 4)     // Upper line of buttons
+  switch (NoButton)
   {
-    band = NoButton - 5;
+    case 0:                               //   50 MHz
+      band = 14;
+      break;
+    case 1:                               //   71 MHz
+      band = 0;
+      break;
+    case 2:                               //   146 MHz
+      band = 1;
+      break;
+    case 3:                               //   70 cm
+      band = 2;
+      break;
+    case 5:                               //   50 MHz T
+      band = 9;
+      break;
+    case 6:                               //   Spare
+      band = 13;
+      break;
   }
 
   // Compose the prompt
@@ -7620,7 +7636,7 @@ void SetReceiveLOFreq(int NoButton)
   strcat(Param, "label");
   GetConfigParam(PATH_PPRESETS, Param, Value);
   strcpyn(Value14, Value, 14);
-  snprintf(Prompt, 63, "Enter LO Freq (MHz) for %s Band (0 for off)", Value14);
+  snprintf(Prompt, 63, "Enter RX LO Freq (MHz) for %s Band (0 for off)", Value14);
   
   // Look up the current value
   strcpy(Param, TabBand[band]);
@@ -16886,29 +16902,15 @@ void waituntil(int w,int h)
         case 3:
         case 5:
         case 6:
-        case 7:
-        case 8:
-        case 9:
-          if(CallingMenu == 301) // Set Band Details
-          {
-            printf("Changing Band Details %d\n", i);
-            ChangeBandDetails(i);
-            CurrentMenu=26;
-            setBackColour(0, 0, 0);
-            clearScreen();
-            Start_Highlights_Menu26();
-          }
-          else  // 302, Set Receive LO
-          {
-            SetReceiveLOFreq(i);      // Set the LO frequency
-            ReceiveLOStart();         // Start the LO if it is required
-            printf("Returning to MENU 1 from Menu 26\n");
-            CurrentMenu=1;
-            setBackColour(255, 255, 255);
-            clearScreen();
-            setBackColour(0, 0, 0);
-            Start_Highlights_Menu1();
-          }
+          // Set Receive LO
+          SetReceiveLOFreq(i);      // Set the LO frequency
+          ReceiveLOStart();         // Start the LO if it is required
+          printf("Returning to MENU 1 from Menu 26\n");
+          CurrentMenu=1;
+          setBackColour(255, 255, 255);
+          clearScreen();
+          setBackColour(0, 0, 0);
+          Start_Highlights_Menu1();
           UpdateWindow();
           break;
         default:
@@ -21460,30 +21462,27 @@ void Define_Menu26()
 {
   int button;
   char BandLabel[31];
+  strcpy(MenuTitle[26], "Receiver LO Setting Menu (26)");
 
   // Bottom Row, Menu 26
 
   button = CreateButton(26, 0);
-  strcpy(BandLabel, "Transvtr^");
-  strcat(BandLabel, TabBandLabel[5]);
+  strcpy(BandLabel, TabBandLabel[14]);
   AddButtonStatus(button, BandLabel, &Blue);
   AddButtonStatus(button, BandLabel, &Green);
 
   button = CreateButton(26, 1);
-  strcpy(BandLabel, "Transvtr^");
-  strcat(BandLabel, TabBandLabel[6]);
+  strcpy(BandLabel, TabBandLabel[0]);
   AddButtonStatus(button, BandLabel, &Blue);
   AddButtonStatus(button, BandLabel, &Green);
 
   button = CreateButton(26, 2);
-  strcpy(BandLabel, "Transvtr^");
-  strcat(BandLabel, TabBandLabel[7]);
+  strcpy(BandLabel, TabBandLabel[1]);
   AddButtonStatus(button, BandLabel, &Blue);
   AddButtonStatus(button, BandLabel, &Green);
 
   button = CreateButton(26, 3);
-  strcpy(BandLabel, "Transvtr^");
-  strcat(BandLabel, TabBandLabel[8]);
+  strcpy(BandLabel, TabBandLabel[2]);
   AddButtonStatus(button, BandLabel, &Blue);
   AddButtonStatus(button, BandLabel, &Green);
 
@@ -21494,55 +21493,46 @@ void Define_Menu26()
   // 2nd Row, Menu 26
 
   button = CreateButton(26, 5);
-  AddButtonStatus(button, TabBandLabel[0], &Blue);
-  AddButtonStatus(button, TabBandLabel[0], &Green);
+  strcpy(BandLabel, TabBandLabel[9]);
+  AddButtonStatus(button, BandLabel, &Blue);
+  AddButtonStatus(button, BandLabel, &Green);
 
   button = CreateButton(26, 6);
-  AddButtonStatus(button, TabBandLabel[1], &Blue);
-  AddButtonStatus(button, TabBandLabel[1], &Green);
-
-  button = CreateButton(26, 7);
-  AddButtonStatus(button, TabBandLabel[2], &Blue);
-  AddButtonStatus(button, TabBandLabel[2], &Green);
-
-  button = CreateButton(26, 8);
-  AddButtonStatus(button, TabBandLabel[3], &Blue);
-  AddButtonStatus(button, TabBandLabel[3], &Green);
-
-  button = CreateButton(26, 9);
-  AddButtonStatus(button, TabBandLabel[4], &Blue);
-  AddButtonStatus(button, TabBandLabel[4], &Green);
+  strcpy(BandLabel, TabBandLabel[13]);
+  AddButtonStatus(button, BandLabel, &Blue);
+  AddButtonStatus(button, BandLabel, &Green);
 }
 
 void Start_Highlights_Menu26()
 {
   // Set Band Select Labels
-  int NoButton;
   char BandLabel[31];
-
-  if(CallingMenu == 301)
-  {
-    strcpy(MenuTitle[26], "Band Details Setting Menu (26)");
-  }
-  else
-  {
-    strcpy(MenuTitle[26], "Receiver LO Setting Menu (26)");
-  }
 
   printf("Entering Start Highlights Menu26\n");
 
-  for (NoButton = 0; NoButton < 4; NoButton = NoButton + 1)
-  {
-    strcpy(BandLabel, "Transvtr^");
-    strcat(BandLabel, TabBandLabel[NoButton + 5]);
-    AmendButtonStatus(ButtonNumber(26, NoButton), 0, BandLabel, &Blue);
-    AmendButtonStatus(ButtonNumber(26, NoButton), 1, BandLabel, &Green);
-  }
-  for (NoButton = 5; NoButton < 10; NoButton = NoButton + 1)
-  {
-    AmendButtonStatus(ButtonNumber(26, NoButton), 0, TabBandLabel[NoButton - 5], &Blue);
-    AmendButtonStatus(ButtonNumber(26, NoButton), 1, TabBandLabel[NoButton - 5], &Green);
-  }
+  strcpy(BandLabel, TabBandLabel[14]);
+  AmendButtonStatus(ButtonNumber(26, 0), 0, BandLabel, &Blue);
+  AmendButtonStatus(ButtonNumber(26, 0), 1, BandLabel, &Green);
+
+  strcpy(BandLabel, TabBandLabel[0]);
+  AmendButtonStatus(ButtonNumber(26, 1), 0, BandLabel, &Blue);
+  AmendButtonStatus(ButtonNumber(26, 1), 1, BandLabel, &Green);
+
+  strcpy(BandLabel, TabBandLabel[1]);
+  AmendButtonStatus(ButtonNumber(26, 2), 0, BandLabel, &Blue);
+  AmendButtonStatus(ButtonNumber(26, 2), 1, BandLabel, &Green);
+
+  strcpy(BandLabel, TabBandLabel[2]);
+  AmendButtonStatus(ButtonNumber(26, 3), 0, BandLabel, &Blue);
+  AmendButtonStatus(ButtonNumber(26, 3), 1, BandLabel, &Green);
+
+  strcpy(BandLabel, TabBandLabel[9]);
+  AmendButtonStatus(ButtonNumber(26, 5), 0, BandLabel, &Blue);
+  AmendButtonStatus(ButtonNumber(26, 5), 1, BandLabel, &Green);
+
+  strcpy(BandLabel, TabBandLabel[13]);
+  AmendButtonStatus(ButtonNumber(26, 6), 0, BandLabel, &Blue);
+  AmendButtonStatus(ButtonNumber(26, 6), 1, BandLabel, &Green);
 }
 
 void Define_Menu27()
