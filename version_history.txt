@@ -1,4 +1,4 @@
-202107010
+202107011
 Enter Transverter IF Drive Freq, not TX freq, at keyboard
 Implement new Band Switching
 Error-check config file lookups
