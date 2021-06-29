@@ -226,7 +226,7 @@ uint8_t stv0910_read_ber(uint8_t demod, uint32_t *ber) {
 }
 
 /* -------------------------------------------------------------------------------------------------- */
-uint8_t stv0910_read_mer(uint8_t demod, uint32_t *mer) {
+uint8_t stv0910_read_mer(uint8_t demod, int32_t *mer) {
 /* -------------------------------------------------------------------------------------------------- */
 /*    demod: STV0910_DEMOD_TOP | STV0910_DEMOD_BOTTOM: which demodulator is being read                */
 /*      mer: place to store the result                                                                */
@@ -237,11 +237,20 @@ uint8_t stv0910_read_mer(uint8_t demod, uint32_t *mer) {
 
                          err=stv0910_read_reg(demod==STV0910_DEMOD_TOP ? RSTV0910_P2_NOSRAMPOS : RSTV0910_P1_NOSRAMPOS, &high);
     if (err==ERROR_NONE) err=stv0910_read_reg(demod==STV0910_DEMOD_TOP ? RSTV0910_P2_NOSRAMVAL : RSTV0910_P1_NOSRAMVAL, &low);
-    
+
     if(((high >> 2) & 0x01) == 1)
     {
         /* Px_NOSRAM_CNRVAL is valid */
-        *mer = ((high & 0x03) << 8) | low;
+        if(((high >> 1) & 0x01) == 1)
+        {
+            /* Negative */
+            *mer = (((high & 0x01) << 8) | low) - 512;
+        }
+        else
+        {
+            *mer = ((high & 0x01) << 8) | low;
+        }
+        
     }
     else
     {
@@ -438,7 +447,7 @@ uint8_t stv0910_setup_equalisers(uint8_t demod) {
 
 
 /* -------------------------------------------------------------------------------------------------- */
-uint8_t stv0910_setup_carrier_loop(uint8_t demod) {
+uint8_t stv0910_setup_carrier_loop(uint8_t demod, uint32_t halfscan_sr) {
 /* -------------------------------------------------------------------------------------------------- */
 /* 3 stages:                                                                                          */
 /*   course:                                                                                          */
@@ -460,12 +469,30 @@ uint8_t stv0910_setup_carrier_loop(uint8_t demod) {
 /*  return: error code                                                                                */
 /* -------------------------------------------------------------------------------------------------- */
     uint8_t err;
+    int64_t temp;
 
     printf("Flow: Setup carrier loop %i\n", demod);
 
     /* start at 0 offset */
                          err=stv0910_write_reg((demod==STV0910_DEMOD_TOP ? RSTV0910_P2_CFRINIT0 : RSTV0910_P1_CFRINIT0), 0);
     if (err==ERROR_NONE) err=stv0910_write_reg((demod==STV0910_DEMOD_TOP ? RSTV0910_P2_CFRINIT1 : RSTV0910_P1_CFRINIT1), 0);
+
+    // 0.6 * SR seems to give +/- 0.5 SR lock
+    temp = halfscan_sr * 65536 / 135000;
+
+    // Upper Limit
+    if (err==ERROR_NONE)
+    {
+        err = stv0910_write_reg( (demod==STV0910_DEMOD_TOP ? RSTV0910_P2_CFRUP0 : RSTV0910_P1_CFRUP0), (uint8_t) (temp & 0xff));
+        err = stv0910_write_reg( (demod==STV0910_DEMOD_TOP ? RSTV0910_P2_CFRUP1 : RSTV0910_P1_CFRUP1), (uint8_t) ((temp >> 8) & 0xff));
+    }
+    // the lower value is the negative of the upper value
+    temp = -temp;
+    if (err==ERROR_NONE)
+    {
+        err = stv0910_write_reg( (demod==STV0910_DEMOD_TOP ? RSTV0910_P2_CFRLOW0 : RSTV0910_P1_CFRLOW0), (uint8_t) (temp & 0xff));
+        err = stv0910_write_reg( (demod==STV0910_DEMOD_TOP ? RSTV0910_P2_CFRLOW1 : RSTV0910_P1_CFRLOW1), (uint8_t) ((temp >> 8) & 0xff));
+    }
  
     return err;
 }
@@ -636,7 +663,7 @@ uint8_t stv0910_init_regs() {
 }
 
 /* -------------------------------------------------------------------------------------------------- */
-uint8_t stv0910_init(uint32_t sr1, uint32_t sr2) {
+uint8_t stv0910_init(uint32_t sr1, uint32_t sr2, float halfscan_ratio1, float halfscan_ratio2) {
 /* -------------------------------------------------------------------------------------------------- */
 /* demodulator search sequence is:                                                                    */
 /*   setup the carrier loop                                                                           */
@@ -667,13 +694,13 @@ uint8_t stv0910_init(uint32_t sr1, uint32_t sr2) {
     /* now we do the inits for each specific demodulator */
     if (sr1!=0) {
         if (err==ERROR_NONE) err=stv0910_setup_equalisers(STV0910_DEMOD_TOP);
-        if (err==ERROR_NONE) err=stv0910_setup_carrier_loop(STV0910_DEMOD_TOP);
+        if (err==ERROR_NONE) err=stv0910_setup_carrier_loop(STV0910_DEMOD_TOP, sr1 * halfscan_ratio1);
         if (err==ERROR_NONE) err=stv0910_setup_timing_loop(STV0910_DEMOD_TOP, sr1);
     }
 
     if (sr2!=0) {
         if (err==ERROR_NONE) err=stv0910_setup_equalisers(STV0910_DEMOD_BOTTOM);
-        if (err==ERROR_NONE) err=stv0910_setup_carrier_loop(STV0910_DEMOD_BOTTOM);
+        if (err==ERROR_NONE) err=stv0910_setup_carrier_loop(STV0910_DEMOD_BOTTOM, sr2 * halfscan_ratio2);
         if (err==ERROR_NONE) err=stv0910_setup_timing_loop(STV0910_DEMOD_BOTTOM, sr2);
     }
 

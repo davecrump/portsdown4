@@ -1,3 +1,7 @@
+202107040
+Update LongMynd to latest version
+Add VLC reset and scan width setting to LongMynd receiver control
+
 202107011
 Enter Transverter IF Drive Freq, not TX freq, at keyboard
 Implement new Band Switching

@@ -6,6 +6,7 @@ longmynd \- Outputs transport streams from the Minitiouner DVB-S/S2 demodulator
          [\fB\-i\fR \fIMAIN_IP_ADDR\fR  \fIMAIN_PORT\fR | \fB\-t\fR \fIMAIN_TS_FIFO\fR]
          [\fB\-I\fR \fISTATUS_IP_ADDR\fR  \fISTATUS_PORT\fR | \fB\-s\fR \fIMAIN_STATUS_FIFO\fR]
          [\fB\-w\fR] [\fB\-b\fR] [\fB\-p\fR \fIh\fR | \fB\-p\fR \fIv\fR] [\fB\-r\fR \fITS_TIMEOUT_PERIOD\fR]
+         [\fB\-S\fR \fIHALFSCAN_WIDTH\fR]
       \fIMAIN_FREQ\fR[\fI,ALT_FREQ\fR] \fIMAIN_SR\fR[\fI,ALT_SR\fR]
 .IR 
 .SH DESCRIPTION
@@ -52,6 +53,10 @@ By default the RT5047A output is disabled.
 Resets and reconfigures the NIM after this period in milliseconds without any valid TS packets (including Nulls.), or since last reset cycle. If multiple frequencies or multiple symbolrates are specified then these will be cycled through on each reset. When multiple frequencies and symbolrates are given, each frequency will be scanned for each symbolrate before moving on to the next frequency.
 Set to -1 to disable.
 By default this is 5000 milliseconds.
+.TP
+.BR \-S " " \fIHALFSCAN_WIDTH\fR
+Sets the frequency scan half-width in ratio of the Symbol Rate. For example a value of '0.6' configures a ratio of +/-0.6. A value of  approx. 20% greater than the intended functional width appears to work well.
+By default this is +/-1.5 * Symbol Rate.
 .TP
 .BR \fIMAIN_FREQ\fR[\fI,ALT_FREQ\fR]
 specifies the starting frequency (in KHz) of the Main TS Stream search algorithm, and up to 3 alternative frequencies that will be scanned. The TS TIMEOUT must not be disabled to enable scanning functionality. When multiple frequencies and symbolrates are given, each frequency will be scanned for each symbolrate before moving on to the next frequency.
