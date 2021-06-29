@@ -6,7 +6,7 @@ Copyright 2019 Heather Lomond
 
 ## Dependencies
 
-    sudo apt-get install libusb-1.0-0-dev libasound2-dev
+    sudo apt-get install make gcc libusb-1.0-0-dev libasound2-dev
 
 To run longmynd without requiring root, unplug the minitiouner and then install the udev rules file with:
 
@@ -18,32 +18,56 @@ To run longmynd without requiring root, unplug the minitiouner and then install 
 
 ## Run
 
-Please refer to the longmynd manual page via:
+For example, to run longmynd using the Top NIM input socket with an IF input of 1296.5MHz, Symbol Rate of 2MS/s, and configure a connected RT5047A LNB Regulator for Vertical Polarisation LNB Bias (`-p v`):
+
+```
+./longmynd -p v 1296500 2000
+```
+
+With a few more options, this also outputs the Status Information on UDP to localhost on port 4002 (`-I 127.0.0.1 4002`), MPEG Transport Stream on UDP to another machine (192.168.2.34) on port 4003 (`-i 192.168.2.34 4003`), and selects the other (Bottom) NIM input socket (`-w`).
+
+```
+./longmynd -i 192.168.2.34 4003 -I 127.0.0.1 4002 -w -p v 1296500 2000
+```
+
+For more details on the available options please refer to the supplied longmynd manual page via:
 
 ```
 man -l longmynd.1
 ```
 
-## Standalone
+## Status & TS Output interfaces
 
-If running longmynd standalone (i.e. not integrated with the Portsdown software), you must create the status FIFO and (if you plan to use it) the TS FIFO:
+If running longmynd standalone (i.e. not integrated with the Portsdown software), the software will use FIFO files by default but can also be configured to use UDP sockets instead.
+
+### FIFO Files
+
+By default the application will look for a Status FIFO called `longmynd_main_status` and a TS FIFO called `longmynd_main_ts`.
+
+You can create these by:
 
 ```
 mkfifo longmynd_main_status
 mkfifo longmynd_main_ts
 ```
 
-The test harness `fake_read` or a similar process must be running to consume the output of the status FIFO:
+You can also change the name of the FIFO files used with: `-s STATUS_FIFO` and/or `-t TS_FIFO`.
 
-```
-./fake_read &
-```
+For testing, the `fake_read` application can be used in another terminal to read and print the Status FIFO: `./fake_read`
 
-A video player (e.g. VLC) must be running to consume the output of the TS FIFO. 
+A video player (e.g. VLC) can be used to consume the output of the TS FIFO with: `vlc longmynd_main_ts`
 
-## Output
+### UDP Sockets
 
-    The status fifo is filled with status information as and when it becomes available.
+To use UDP outputs instead you must set the target address and port for the outputs with: `-I STATUS_ADDRESS STATUS_PORT` and/or `-i MPEGTS_ADDRESS MPEGTS_PORT`.
+
+For example to view the UDP status output you can point it at localhost with: `-I 127.0.0.1 4002` and listen in another terminal with netcat: `nc -u -l -k -p 4002`
+
+A video player (e.g. VLC) can be set to listen for the incoming MPEG-TS UDP, on localhost or another machine on the network with: `vlc udp://@:4003`
+
+## Status Output Interface
+
+    The status fifo / socket is filled with status information as and when it becomes available.
     The format of the status information is:
     
          $n,m<cr>

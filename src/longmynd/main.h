@@ -69,6 +69,7 @@
 typedef struct {
     bool port_swap;
     uint8_t port;
+    float halfscan_ratio;
     uint8_t freq_index;
     uint8_t sr_index;
     uint32_t freq_requested[4];
@@ -113,7 +114,7 @@ typedef struct {
     uint32_t symbolrate;
     uint32_t viterbi_error_rate; // DVB-S1
     uint32_t bit_error_rate; // DVB-S2
-    uint32_t modulation_error_rate; // DVB-S2
+    int32_t modulation_error_rate; // DVB-S2
     bool errors_bch_uncorrected;
     uint32_t errors_bch_count;
     uint32_t errors_ldpc_count;
