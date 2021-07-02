@@ -1,3 +1,6 @@
+202107050
+Correct DVB-T Transmit Frequency Calculation
+
 202107040
 Update LongMynd to latest version
 Add VLC reset and scan width setting to LongMynd receiver control
