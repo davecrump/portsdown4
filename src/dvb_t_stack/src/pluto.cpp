@@ -334,6 +334,7 @@ int pluto_start_tx_stream(void){
     pluto_transmit();  // Pluto PTT on
 	return 0;
 }
+
 void pluto_stop_tx_stream(void){
 	printf("* Disabling AD9361 IIO TX streaming channels\n");
 	if (m_tx0_i) { iio_channel_disable(m_tx0_i); }
@@ -342,11 +343,11 @@ void pluto_stop_tx_stream(void){
     //power off TX local oscillator
 	struct iio_channel *chn = NULL;
 	if (!get_lo_chan(m_ctx, TX, &chn)) { return; }
-    iio_channel_attr_write_bool(chn, "powerdown", true);
+	iio_channel_attr_write_bool(chn, "powerdown", true);
 
     pluto_receive();  // Pluto PTT off
-
 }
+
 int pluto_start_rx_stream(void){
 	printf("* Initializing AD9361 IIO streaming channels\n");
 	FMC_ERROR(get_ad9361_stream_ch(m_ctx, RX, m_rx, 0, &m_rx0_i),"RX chan i not found");

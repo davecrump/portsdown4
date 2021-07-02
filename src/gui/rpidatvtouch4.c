@@ -95,6 +95,7 @@ color_t LBlue = {.r = 64 , .g = 64 , .b = 192};
 color_t DBlue = {.r = 0  , .g = 0  , .b = 64 };
 color_t Grey  = {.r = 127, .g = 127, .b = 127};
 color_t Red   = {.r = 255, .g = 0  , .b = 0  };
+color_t Black = {.r = 0  , .g = 0  , .b = 0  };
 
 #define MAX_BUTTON 675
 int IndexButtonInArray=0;
@@ -149,18 +150,20 @@ int MicLevel = 26;   // 1 to 30.  default 26
 char ScreenState[255] = "NormalMenu";  // NormalMenu SpecialMenu TXwithMenu TXwithImage RXwithImage VideoOut SnapView VideoView Snap SigGen
 char MenuTitle[50][127];
 
-// Values for buttons
-// May be over-written by values from from portsdown_config.txt:
-char TabBand[9][3]={"d1", "d2", "d3", "d4", "d5", "t1", "t2", "t3", "t4"};
-char TabBandLabel[9][15]={"71_MHz", "146_MHz", "70_cm", "23_cm", "13_cm", "9_cm", "6_cm", "3_cm", "1.2_cm"};
-char TabPresetLabel[4][15]={"-", "-", "-", "-"};
-float TabBandAttenLevel[9]={-10, -10, -10, -10, -10, -10, -10, -10, -10};
-int TabBandExpLevel[9]={30, 30, 30, 30, 30, 30, 30, 30, 30};
-int TabBandLimeGain[9]={90, 90, 90, 90, 90, 90, 90, 90, 90};
-int TabBandPlutoLevel[9]={0, 0, 0, 0, 0, 0, 0, 0, 0};
-int TabBandExpPorts[9]={2, 2, 2, 2, 2, 2, 2, 2, 2};
-float TabBandLO[9]={0, 0, 0, 0, 0, 3024, 5328, 9936, 23616};
-char TabBandNumbers[9][10]={"1111", "2222", "3333", "4444", "5555", "6666", "7777", "8888", "9999"};
+// Band details to be over-written by values from from portsdown_config.txt:
+char TabBand[16][3] = {"d1", "d2", "d3", "d4", "d5", "t1", "t2", "t3", "t4", "t0", "t5", "t6", "t7", "t8", "d0", "d6"};
+char TabBandLabel[16][15] = {"71_MHz", "146_MHz", "70_cm", "23_cm", "13_cm", "9_cm_T", "6_cm_T", "3_cm_T",
+     "24_GHz_T", "50_MHz_T", "13_cm_T", "47_GHz_T", "76_GHz_T", "Spare_T", "50_MHz", "9_cm"};
+float TabBandAttenLevel[16] = {-10, -10, -10, -10, -10, -10, -10, -10, -10, -10, -10, -10, -10, -10, -10, -10};
+int TabBandExpLevel[16] = {30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30};
+int TabBandLimeGain[16]  = {90, 90, 90, 90, 90, 90, 90, 90, 90, 90, 90, 90, 90, 90, 90, 90};
+int TabBandPlutoLevel[16] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+int TabBandExpPorts[16] = {0, 1, 2, 3, 11, 4, 5, 6, 7, 12, 15, 9, 10, 14, 8, 13};
+float TabBandLO[16] = {0, 0, 0, 0, 0, 2970, 5330, 9930, 23610, -94.8, 2248.5, 469440, 758320, 0, 0, 0};
+char TabBandNumbers[16][10]={"1111", "2222", "3333", "4444", "5555", "2111", "0222", "2333",
+                             "2444", "2000", "2555", "2666", "2777", "2888", "0000", "6666"};
+
+// Defaults for Menus
 int TabSR[9]={125,333,1000,2000,4000, 88, 250, 500, 3000};
 char SRLabel[9][255]={"SR 125","SR 333","SR1000","SR2000","SR4000", "SR 88", "SR 250", "SR 500", "SR3000"};
 int TabFec[5]={1, 2, 3, 5, 7};
@@ -168,6 +171,7 @@ int TabS2Fec[9]={14, 13, 12, 35, 23, 34, 56, 89, 91};
 char S2FECLabel[9][7]={"1/4", "1/3", "1/2", "3/5", "2/3", "3/4", "5/6", "8/9", "9/10"};
 char TabFreq[9][255]={"71", "146.5", "437", "1249", "1255", "436", "436.5", "437.5", "438"};
 char FreqLabel[31][255];
+char TabPresetLabel[4][15]={"-", "-", "-", "-"};
 char TabModeAudio[6][15]={"auto", "mic", "video", "bleeps", "no_audio", "webcam"};
 char TabModeSTD[2][7]={"6","0"};
 char TabModeVidIP[2][7]={"0","1"};
@@ -192,7 +196,7 @@ char CurrentFormat[15] = "4:3";
 char CurrentCaptionState[15] = "on";
 char CurrentAudioState[255] = "auto";
 char CurrentAtten[255] = "NONE";
-int CurrentBand = 2; // 0 thru 8
+int  CurrentBand = 2; // 0 thru 15
 char KeyboardReturn[64];
 char FreqBtext[31];
 char MenuText[5][63];
@@ -254,7 +258,8 @@ char LMRXudpport[10];       // UDP IP port
 char LMRXmode[10];          // sat or terr
 char LMRXaudio[15];         // rpi or usb
 char LMRXvolts[7];          // off, v or h
-char RXmod[7];              // DVB-S or DVB-T                      
+char RXmod[7];              // DVB-S or DVB-T
+bool VLCResetRequest = false; // Set on touchsscreen request for VLC to be reset                     
 
 // LongMynd RX Received Parameters for display
 
@@ -298,6 +303,8 @@ bool AwaitingContestNumberViewSeln = false;
 // Lime Control
 float LimeCalFreq = 0;  // -2 cal never, -1 = cal every time, 0 = cal next time, freq = no cal if no change
 int LimeRFEState = 0;   // 0 = disabled, 1 = enabled
+int LimeRFEPort  = 1;   // 1 = txrx, 2 = tx, 3 = 30MHz
+int LimeRFERXAtt = 0;   // 0, 2, 4, 6, 8, 10 12 or 14
 int LimeNETMicroDet = 0;  // 0 = Not detected, 1 = detected.  Tested on entry to Lime Config menu
 
 // QO-100 Transmit Freqs
@@ -331,6 +338,7 @@ void Start_Highlights_Menu5();
 void Start_Highlights_Menu6();
 void Start_Highlights_Menu7();
 void Start_Highlights_Menu8();
+void Start_Highlights_Menu9();
 void Start_Highlights_Menu10();
 void Start_Highlights_Menu11();
 void Start_Highlights_Menu12();
@@ -409,8 +417,10 @@ void GetConfigParam(char *PathConfigFile, char *Param, char *Value)
   size_t len = 0;
   int read;
   char ParamWithEquals[255];
+  char ErrorMessage1[255];
   strcpy(ParamWithEquals, Param);
   strcat(ParamWithEquals, "=");
+  
 
   //printf("Get Config reads %s for %s ", PathConfigFile , Param);
 
@@ -437,6 +447,14 @@ void GetConfigParam(char *PathConfigFile, char *Param, char *Value)
     printf("Config file not found \n");
   }
   fclose(fp);
+
+  if (strlen(Value) == 0)  // Display error if parameter undefined
+  {
+    snprintf(ErrorMessage1, 63, "ERROR:  Undefined parameter \"%s\" in file:", Param);
+    MsgBox4(ErrorMessage1, PathConfigFile, "Restore manually or by factory reset", 
+            "Touch Screen to Continue");
+    wait_touch();
+  }
 }
 
 /***************************************************************************//**
@@ -1749,6 +1767,25 @@ void ReadModeOutput(char Moutput[256])
     LimeRFEState = 0;
   }
 
+  // LimeRFE TX Port
+  GetConfigParam(PATH_PCONFIG, "limerfeport", LimeRFEStateText);
+  if (strcmp(LimeRFEStateText, "txrx") == 0)
+  {
+    LimeRFEPort = 1;
+  }
+  else if (strcmp(LimeRFEStateText, "tx") == 0)
+  {
+    LimeRFEPort = 2;
+  }
+  else
+  {
+    LimeRFEPort = 3;
+  }
+
+  // LimeRFE RX Attenuator
+  GetConfigParam(PATH_PCONFIG, "limerferxatt", LimeRFEStateText);
+  LimeRFERXAtt = atoi(LimeRFEStateText);
+
   // Read DVB-T Guard Interval and QAM
   GetConfigParam(PATH_PCONFIG, "guard", Guard);
   GetConfigParam(PATH_PCONFIG, "qam", DVBTQAM);
@@ -1841,6 +1878,7 @@ void ReadAttenState()
 
 void ReadBand()
 {
+  int i;
   char Param[15];
   char Value[15]="";
   char BandFromFile[15];
@@ -1852,35 +1890,29 @@ void ReadBand()
   CurrentFreq = atof(Value);
   strcpy(Value,"");
 
-  // Look up the current band
+  // Look up the current band designator and derive current band index
   strcpy(Param, "band");
   GetConfigParam(PATH_PCONFIG, Param, Value);
   strcpy(BandFromFile, Value);
 
-  if (strcmp(Value, "t1") == 0)
+  for (i = 0; i < 16; i++)
   {
-    CurrentBand = 5;
-  }
-  if (strcmp(Value, "t2") == 0)
-  {
-    CurrentBand = 6;
-  }
-  if (strcmp(Value, "t3") == 0)
-  {
-    CurrentBand = 7;
-  }
-  if (strcmp(Value, "t4") == 0)
-  {
-    CurrentBand = 8;
+    if (strcmp(Value, TabBand[i]) == 0)
+    {
+      CurrentBand = i;
+    }
   }
 
-  if ((strcmp(Value, TabBand[0]) == 0) || (strcmp(Value, TabBand[1]) == 0)
-   || (strcmp(Value, TabBand[2]) == 0) || (strcmp(Value, TabBand[3]) == 0)
-   || (strcmp(Value, TabBand[4]) == 0))
+  if ((TabBandLO[CurrentBand] < 0.5) && (TabBandLO[CurrentBand] > -0.5)) // LO freq = 0 so not a transverter
   {
-    // Not a transverter, so set band based on the current frequency
+    // Set band based on the current frequency
 
-    if (CurrentFreq < 100)                            // 71 MHz
+    if (CurrentFreq < 60)                            // 50 MHz
+    {
+       CurrentBand = 14;
+       strcpy(Value, "d0");
+    }
+    if ((CurrentFreq >= 60) && (CurrentFreq < 100))  // 71 MHz
     {
        CurrentBand = 0;
        strcpy(Value, "d1");
@@ -1895,15 +1927,20 @@ void ReadBand()
       CurrentBand = 2;
       strcpy(Value, "d3");
     }
-    if ((CurrentFreq >= 950) && (CurrentFreq <2000))  // 1255 MHz
+    if ((CurrentFreq >= 950) && (CurrentFreq < 2000))  // 1255 MHz
     {
       CurrentBand = 3;
       strcpy(Value, "d4");
     }
-    if (CurrentFreq >= 2000)                          // 2400 MHz
+    if ((CurrentFreq >= 2000) && (CurrentFreq < 3000))  // 2400 MHz
     {
       CurrentBand = 4;
       strcpy(Value, "d5");
+    }
+    if (CurrentFreq >= 3000)                          // 3400 MHz
+    {
+      CurrentBand = 15;
+      strcpy(Value, "d6");
     }
 
     // And set the band correctly if required
@@ -1917,7 +1954,7 @@ void ReadBand()
 }
 
 /***************************************************************************//**
- * @brief Reads the current band details from portsdown_presets.txt
+ * @brief Reads all 16 band details from portsdown_presets.txt
  *        
  * @param nil
  *
@@ -1928,7 +1965,7 @@ void ReadBandDetails()
   int i;
   char Param[31];
   char Value[31]="";
-  for( i = 0; i < 9; i = i + 1)
+  for( i = 0; i < 16; i = i + 1)
   {
     strcpy(Param, TabBand[i]);
     strcat(Param, "label");
@@ -1969,6 +2006,7 @@ void ReadBandDetails()
     strcat(Param, "numbers");
     GetConfigParam(PATH_PPRESETS, Param, Value);
     strcpy(TabBandNumbers[i], Value);
+    //printf("Index = %d, Band = %s, Name = %s, LO = %f\n", i, TabBand[i], TabBandLabel[i], TabBandLO[i]);
   }
 }
 
@@ -3058,17 +3096,17 @@ int DetectLimeNETMicro()
 
   if (r == 0)
   {
-    printf("LimeNET Micro detected\n");
+    // printf("LimeNET Micro detected\n");
     return 1;
   }
   else if (r == 1)
   {
-    printf("LimeNET Micro not detected\n");
+    // printf("LimeNET Micro not detected\n");
     return 0;
   } 
   else 
   {
-    printf("LimeNET Micro unexpected exit status %d\n", r);
+    // printf("LimeNET Micro unexpected exit status %d\n", r);
     return 2;
   }
 }
@@ -3447,12 +3485,12 @@ void ChangeLMSW()
   if (strcmp(LMRXmode, "sat") == 0)
   {
     GetConfigParam(PATH_LMCONFIG, "scanwidth", LMSW);
-    strcpy(RequestText, "Enter scan width as % of SR for QO-100 in ms");
+    strcpy(RequestText, "Enter scan half-width as % of SR for QO-100");
   }
   else  //Terrestrial
   {
     GetConfigParam(PATH_LMCONFIG, "scanwidth1", LMSW);
-    strcpy(RequestText, "Enter scan width as % of SR for terrestrial in ms");
+    strcpy(RequestText, "Enter scan half-width as % of SR for terrestrial");
   }
 
   while (IsValid == FALSE)
@@ -5227,8 +5265,11 @@ void DrawButton(int ButtonIndex)
   setBackColour(Button->Status[Button->NoStatus].Color.r,
                 Button->Status[Button->NoStatus].Color.g,
                 Button->Status[Button->NoStatus].Color.b);
-
-
+  
+  if (label[0] == '\0')  // Deal with empty string
+  {
+    strcpy(label, " ");
+  }
 
   // Separate button text into 2 lines if required  
   char find = '^';                                  // Line separator is ^
@@ -6646,7 +6687,7 @@ void SelectFreq(int NoButton)  //Frequency
   {
     strcpy(freqtxt, QOFreq[NoButton - 10]);
   }
-  printf("CallingMenu = %d/n", CallingMenu);
+  printf("CallingMenu = %d\n", CallingMenu);
 
   printf ("freqtxt = %s\n", freqtxt);
 
@@ -6913,28 +6954,74 @@ void ChangeBandDetails(int NoButton)
   char Numbers[10] ="";
   //char PromptBand[15];
   char ActualValue[31];
-  int band;
+  int band = 0;
 
   // Convert button number to band number
-  band = NoButton + 5;  // this is correct only for lower line of buttons
-  if (NoButton > 4)     // Upper line of buttons
+  switch (NoButton)
   {
-    band = NoButton - 5;
+    case 0:                               //   24 GHz T
+      band = 8;
+      break;
+    case 1:                               //   47 GHz T
+      band = 11;
+      break;
+    case 2:                               //   76 GHz T
+      band = 12;
+      break;
+    case 3:                               //   Spare
+      band = 13;
+      break;
+    case 5:                               //   50 MHz T
+      band = 9;
+      break;
+    case 6:                               //   13 cm T
+      band = 10;
+      break;
+    case 7:                               //   9 cm T
+      band = 5;
+      break;
+    case 8:                               //   6 cm T
+      band = 6;
+      break;
+    case 9:                               //   10 GHz T
+      band = 7;
+      break;
+    case 10:                               //   50 MHz
+      band = 14;
+      break;
+    case 11:                               //   Invalid Selection
+      return;
+      break;
+    case 14:                               //   9 cm
+      band = 15;
+      break;
+    case 15:                               //   71 MHz
+      band = 0;
+      break;
+    case 16:                               //   146 MHz
+      band = 1;
+      break;
+    case 17:                               //   70 cm
+      band = 2;
+      break;
+    case 18:                               //   23 cm
+      band = 3;
+      break;
+    case 19:                               //   13 cm
+      band = 4;
+      break;
   }
 
   // Label
+  snprintf(Prompt, 63, "Enter the title for Band with GPIO Code %d", TabBandExpPorts[band]);
+  Keyboard(Prompt, TabBandLabel[band], 15);
   strcpy(Param, TabBand[band]);
   strcat(Param, "label");
-  GetConfigParam(PATH_PPRESETS, Param, Value);
-  snprintf(Prompt, 63, "Enter the title for Band %d (no spaces!):", band + 1);
-  Keyboard(Prompt, Value, 15);
   SetConfigParam(PATH_PPRESETS ,Param, KeyboardReturn);
   strcpy(TabBandLabel[band], KeyboardReturn);
 
   // Attenuator Level
-  strcpy(Param, TabBand[band]);
-  strcat(Param, "attenlevel");
-  GetConfigParam(PATH_PPRESETS, Param, Value);
+  snprintf(Value, 30, "%.2f", TabBandAttenLevel[band]);
   while ((AttenLevel > 0) || (AttenLevel < -31.75))
   {
     snprintf(Prompt, 63, "Set the Attenuator Level for the %s Band:", TabBandLabel[band]);
@@ -6942,12 +7029,12 @@ void ChangeBandDetails(int NoButton)
     AttenLevel = atof(KeyboardReturn);
   }
   TabBandAttenLevel[band] = AttenLevel;
+  strcpy(Param, TabBand[band]);
+  strcat(Param, "attenlevel");
   SetConfigParam(PATH_PPRESETS ,Param, KeyboardReturn);
 
   // Express Level
-  strcpy(Param, TabBand[band]);
-  strcat(Param, "explevel");
-  GetConfigParam(PATH_PPRESETS, Param, Value);
+  snprintf(Value, 30, "%d", TabBandExpLevel[band]);
   while ((ExpLevel < 0) || (ExpLevel > 44))
   {
     snprintf(Prompt, 63, "Set the Express Level for the %s Band:", TabBandLabel[band]);
@@ -6955,25 +7042,25 @@ void ChangeBandDetails(int NoButton)
     ExpLevel = atoi(KeyboardReturn);
   }
   TabBandExpLevel[band] = ExpLevel;
+  strcpy(Param, TabBand[band]);
+  strcat(Param, "explevel");
   SetConfigParam(PATH_PPRESETS ,Param, KeyboardReturn);
 
-  // Express ports
-  strcpy(Param, TabBand[band]);
-  strcat(Param, "expports");
-  GetConfigParam(PATH_PPRESETS, Param, Value);
+  // GPIO ports
+  snprintf(Value, 30, "%d", TabBandExpPorts[band]);
   while ((ExpPorts < 0) || (ExpPorts > 31))
   {
-    snprintf(Prompt, 63, "Enter the Express & Lime Port Settings for %s:", TabBandLabel[band]);
+    snprintf(Prompt, 63, "Enter the GPIO Port Settings for %s:", TabBandLabel[band]);
     Keyboard(Prompt, Value, 2);
     ExpPorts = atoi(KeyboardReturn);
   }
   TabBandExpPorts[band] = ExpPorts;
+  strcpy(Param, TabBand[band]);
+  strcat(Param, "expports");
   SetConfigParam(PATH_PPRESETS ,Param, KeyboardReturn);
 
   // Lime Gain
-  strcpy(Param, TabBand[band]);
-  strcat(Param, "limegain");
-  GetConfigParam(PATH_PPRESETS, Param, Value);
+  snprintf(Value, 30, "%d", TabBandLimeGain[band]);
   while ((LimeGain < 0) || (LimeGain > 100))
   {
     snprintf(Prompt, 63, "Set the Lime Gain for the %s Band:", TabBandLabel[band]);
@@ -6981,14 +7068,12 @@ void ChangeBandDetails(int NoButton)
     LimeGain = atoi(KeyboardReturn);
   }
   TabBandLimeGain[band] = LimeGain;
+  strcpy(Param, TabBand[band]);
+  strcat(Param, "limegain");
   SetConfigParam(PATH_PPRESETS ,Param, KeyboardReturn);
 
   // Pluto Power
-  strcpy(Param, TabBand[band]);
-  strcat(Param, "plutopwr");
-  GetConfigParam(PATH_PPRESETS, Param, Value);
-  strcpy(ActualValue, "-");
-  strcat(ActualValue, Value);
+  snprintf(ActualValue, 30, "%d", TabBandPlutoLevel[band]);
   while ((PlutoLevel < -71) || (PlutoLevel > 0))
   {
     snprintf(Prompt, 63, "Set the Pluto Power for the %s Band (0 to -71):", TabBandLabel[band]);
@@ -6997,12 +7082,12 @@ void ChangeBandDetails(int NoButton)
   }
   TabBandPlutoLevel[band] = PlutoLevel;
   snprintf(Value, 3, "%d", -1 * PlutoLevel);
+  strcpy(Param, TabBand[band]);
+  strcat(Param, "plutopwr");
   SetConfigParam(PATH_PPRESETS, Param, Value);
 
   // LO frequency
-  strcpy(Param, TabBand[band]);
-  strcat(Param, "lo");
-  GetConfigParam(PATH_PPRESETS, Param, Value);
+  snprintf(Value, 30, "%.2f", TabBandLO[band]);
   while (LO > 1000000)
   {
     snprintf(Prompt, 63, "Enter LO frequency in MHz for the %s Band:", TabBandLabel[band]);
@@ -7010,19 +7095,20 @@ void ChangeBandDetails(int NoButton)
     LO = atof(KeyboardReturn);
   }
   TabBandLO[band] = LO;
+  strcpy(Param, TabBand[band]);
+  strcat(Param, "lo");
   SetConfigParam(PATH_PPRESETS ,Param, KeyboardReturn);
 
   // Contest Numbers
-  strcpy(Param, TabBand[band]);
-  strcat(Param, "numbers");
-  GetConfigParam(PATH_PPRESETS, Param, Value);
   while (strlen(Numbers) < 1)
   {
     snprintf(Prompt, 63, "Enter Contest Numbers for the %s Band:", TabBandLabel[band]);
-    Keyboard(Prompt, Value, 10);
+    Keyboard(Prompt, TabBandNumbers[band], 10);
     strcpy(Numbers, KeyboardReturn);
   }
   strcpy(TabBandNumbers[band], Numbers);
+  strcpy(Param, TabBand[band]);
+  strcat(Param, "numbers");
   SetConfigParam(PATH_PPRESETS ,Param, Numbers);
 
   // Then, if it is the current band, call DoFreqChange
@@ -7031,6 +7117,7 @@ void ChangeBandDetails(int NoButton)
     DoFreqChange();
   }
 }
+
 
 void DoFreqChange()
 {
@@ -7044,12 +7131,7 @@ void DoFreqChange()
   //char Freqtext[255];
   float CurrentFreq;
 
-  // Look up the current band
-  strcpy(Param,"band");
-  GetConfigParam(PATH_PCONFIG, Param, Value);
-  if ((strcmp(Value, TabBand[0]) == 0) || (strcmp(Value, TabBand[1]) == 0)
-   || (strcmp(Value, TabBand[2]) == 0) || (strcmp(Value, TabBand[3]) == 0)
-   || (strcmp(Value, TabBand[4]) == 0))   // Not a transverter
+  if ((TabBandLO[CurrentBand] < 0.5) && (TabBandLO[CurrentBand] > -0.5)) // LO freq = 0 so not a transverter
   {
     // So look up the current frequency
     strcpy(Param,"freqoutput");
@@ -7058,32 +7140,49 @@ void DoFreqChange()
 
     printf("DoFreqChange thinks freq is %f\n", CurrentFreq);
 
-    if (CurrentFreq < 100)                            // 71 MHz
+    // Set band based on the current frequency
+
+    if (CurrentFreq < 60)                            // 50 MHz
+    {
+       CurrentBand = 14;
+       strcpy(Value, "d0");
+    }
+    if ((CurrentFreq >= 60) && (CurrentFreq < 100))  // 71 MHz
     {
        CurrentBand = 0;
+       strcpy(Value, "d1");
     }
     if ((CurrentFreq >= 100) && (CurrentFreq < 250))  // 146 MHz
     {
       CurrentBand = 1;
+      strcpy(Value, "d2");
     }
     if ((CurrentFreq >= 250) && (CurrentFreq < 950))  // 437 MHz
     {
       CurrentBand = 2;
+      strcpy(Value, "d3");
     }
-    if ((CurrentFreq >= 950) && (CurrentFreq <2000))  // 1255 MHz
+    if ((CurrentFreq >= 950) && (CurrentFreq < 2000))  // 1255 MHz
     {
       CurrentBand = 3;
+      strcpy(Value, "d4");
     }
-    if (CurrentFreq >= 2000)                          // 2400 MHz
+    if ((CurrentFreq >= 2000) && (CurrentFreq < 3000))  // 2400 MHz
     {
       CurrentBand = 4;
+      strcpy(Value, "d5");
     }
-  }
-  // CurrentBand now holds the in-use band 
+    if (CurrentFreq >= 3000)                          // 3400 MHz
+    {
+      CurrentBand = 15;
+      strcpy(Value, "d6");
+    }
 
-  // Set the correct band in portsdown_config.txt
-  strcpy(Param,"band");    
-  SetConfigParam(PATH_PCONFIG, Param, TabBand[CurrentBand]);
+    // Set the correct band in portsdown_config.txt
+    SetConfigParam(PATH_PCONFIG, "band", Value);
+  }
+
+  // CurrentBand now holds the in-use band 
 
   // Read each Band value in turn from PPresets
   // Then set Current variables and
@@ -7173,7 +7272,6 @@ void DoFreqChange()
   strcpy(Param, TabBand[CurrentBand]);
   strcat(Param, "limerfe");
   GetConfigParam(PATH_PPRESETS, Param, Value);
-
   if (strcmp(Value, "enabled") == 0)
   {
     LimeRFEState = 1;
@@ -7182,11 +7280,38 @@ void DoFreqChange()
   {
     LimeRFEState = 0;
   }
-
   strcpy(Param, "limerfe");
   SetConfigParam(PATH_PCONFIG ,Param, Value);
 
+  // LimeRFE TX Port
+  strcpy(Param, TabBand[CurrentBand]);
+  strcat(Param, "limerfeport");
+  GetConfigParam(PATH_PPRESETS, Param, Value);
+  if (strcmp(Value, "txrx") == 0)
+  {
+    LimeRFEPort = 1;
+  }
+  else if (strcmp(Value, "tx") == 0)
+  {
+    LimeRFEPort = 2;
+  }
+  else
+  {
+    LimeRFEPort = 3;
+  }
+  strcpy(Param, "limerfeport");
+  SetConfigParam(PATH_PCONFIG ,Param, Value);
+
+  // LimeRFE RX Attenuator
+  strcpy(Param, TabBand[CurrentBand]);
+  strcat(Param, "limerferxatt");
+  GetConfigParam(PATH_PPRESETS, Param, Value);
+  LimeRFERXAtt = atoi(Value);
+  strcpy(Param, "limerferxatt");
+  SetConfigParam(PATH_PCONFIG ,Param, Value);
+
   // Set the Band (and filter) Switching
+  printf("CTLfilter called\n");
   system ("sudo /home/pi/rpidatv/scripts/ctlfilter.sh");
   // And wait for it to finish using portsdown_config.txt
   usleep(100000);
@@ -7195,7 +7320,7 @@ void DoFreqChange()
   ReceiveLOStart();  
 }
 
-void SelectBand(int NoButton)  // Set the Band
+void SelectBand(int NoButton)  // Set the Band  Now from Menu 9
 {
   char Param[15];
   char Value[15];
@@ -7203,43 +7328,122 @@ void SelectBand(int NoButton)  // Set the Band
   strcpy(Param,"freqoutput");
   GetConfigParam(PATH_PCONFIG,Param,Value);
   CurrentFreq = atof(Value);
+  int band;
+  bool direct = false;
 
-  SelectInGroupOnMenu(CurrentMenu, 0, 9, NoButton, 1);
-
-  // Translate Button number to band index
-  if (NoButton == 5)
+  // Convert button number to band number
+  switch (NoButton)
   {
-    if (CurrentFreq < 100)                            // 71 MHz
+    case 0:                               //   24 GHz T
+      band = 8;
+      break;
+    case 1:                               //   47 GHz T
+      band = 11;
+      break;
+    case 2:                               //   76 GHz T
+      band = 12;
+      break;
+    case 3:                               //   Spare
+      band = 13;
+      break;
+    case 5:                               //   50 MHz T
+      band = 9;
+      break;
+    case 6:                               //   13 cm T
+      band = 10;
+      break;
+    case 7:                               //   9 cm T
+      band = 5;
+      break;
+    case 8:                               //   6 cm T
+      band = 6;
+      break;
+    case 9:                               //   10 GHz T
+      band = 7;
+      break;
+    case 10:                               //   50 MHz
+      band = 14;
+      break;
+    case 11:                               //   Direct Button
+      direct = true;
+      break;
+    case 14:                               //   9 cm
+      band = 15;
+      break;
+    case 15:                               //   71 MHz
+      band = 0;
+      break;
+    case 16:                               //   146 MHz
+      band = 1;
+      break;
+    case 17:                               //   70 cm
+      band = 2;
+      break;
+    case 18:                               //   23 cm
+      band = 3;
+      break;
+    case 19:                               //   13 cm
+      band = 4;
+      break;
+  }
+
+  if (((TabBandLO[band] < 0.5) && (TabBandLO[band] > -0.5)) && (NoButton != 11))// LO freq = 0 so not a transverter
+  {
+    // Hidden button pressed, so do nothing
+    return;
+  }
+
+  if (direct == true)  //Look up correct band
+  {
+    // Set band based on the current frequency
+
+    if (CurrentFreq < 60)                            // 50 MHz
     {
-       CurrentBand = 0;
+       band = 14;
+       strcpy(Value, "d0");
+    }
+    if ((CurrentFreq >= 60) && (CurrentFreq < 100))  // 71 MHz
+    {
+       band = 0;
+       strcpy(Value, "d1");
     }
     if ((CurrentFreq >= 100) && (CurrentFreq < 250))  // 146 MHz
     {
-      CurrentBand = 1;
+      band = 1;
+      strcpy(Value, "d2");
     }
     if ((CurrentFreq >= 250) && (CurrentFreq < 950))  // 437 MHz
     {
-      CurrentBand = 2;
+      band = 2;
+      strcpy(Value, "d3");
     }
-    if ((CurrentFreq >= 950) && (CurrentFreq <2000))  // 1255 MHz
+    if ((CurrentFreq >= 950) && (CurrentFreq < 2000))  // 1255 MHz
     {
-      CurrentBand = 3;
+      band = 3;
+      strcpy(Value, "d4");
     }
-    if (CurrentFreq >= 2000)                          // 2400 MHz
+    if ((CurrentFreq >= 2000) && (CurrentFreq < 3000))  // 2400 MHz
     {
-      CurrentBand = 4;
+      band = 4;
+      strcpy(Value, "d5");
     }
+    if (CurrentFreq >= 3000)                          // 3400 MHz
+    {
+      band = 15;
+      strcpy(Value, "d6");
+    }
+
+    // Set the correct band in portsdown_config.txt
+    SetConfigParam(PATH_PCONFIG, "band", Value);
   }
-  else
-  {
-    CurrentBand = NoButton + 5;
-  }
+
+  CurrentBand = band;
 
   // Look up the name of the new Band
   strcpy(Value, TabBand[CurrentBand]);
 
   // Store the new band
-  strcpy(Param,"band");
+  strcpy(Param, "band");
   SetConfigParam(PATH_PCONFIG, Param, Value);
 
   // Make all the changes required after a band change
@@ -7406,10 +7610,26 @@ void SetReceiveLOFreq(int NoButton)
   int band;
 
   // Convert button number to band number
-  band = NoButton + 5;  // this is correct only for lower line of buttons
-  if (NoButton > 4)     // Upper line of buttons
+  switch (NoButton)
   {
-    band = NoButton - 5;
+    case 0:                               //   50 MHz
+      band = 14;
+      break;
+    case 1:                               //   71 MHz
+      band = 0;
+      break;
+    case 2:                               //   146 MHz
+      band = 1;
+      break;
+    case 3:                               //   70 cm
+      band = 2;
+      break;
+    case 5:                               //   50 MHz T
+      band = 9;
+      break;
+    case 6:                               //   Spare
+      band = 13;
+      break;
   }
 
   // Compose the prompt
@@ -7417,7 +7637,7 @@ void SetReceiveLOFreq(int NoButton)
   strcat(Param, "label");
   GetConfigParam(PATH_PPRESETS, Param, Value);
   strcpyn(Value14, Value, 14);
-  snprintf(Prompt, 63, "Enter LO Freq (MHz) for %s Band (0 for off)", Value14);
+  snprintf(Prompt, 63, "Enter RX LO Freq (MHz) for %s Band (0 for off)", Value14);
   
   // Look up the current value
   strcpy(Param, TabBand[band]);
@@ -7630,6 +7850,7 @@ void ReceiveLOStart()
   {
     strcpy(bashCall, "sudo /home/pi/rpidatv/bin/adf4351 off");
   }
+  //printf("bash:-%s\n", bashCall);
   system(bashCall);
 }
 
@@ -8233,7 +8454,17 @@ void *WaitButtonLMRX(void * arg)
 
     TransformTouchMap(rawX, rawY);  // Sorts out orientation and approx scaling of the touch map
 
-    if((scaledX <= 15 * wscreen / 40) && (scaledX >= wscreen / 40) && (scaledY <= hscreen) && (scaledY >= 2 * hscreen / 12))
+    if((scaledX <= 5 * wscreen / 40)  && (scaledY <= hscreen) && (scaledY <= 2 * hscreen / 12)) // Bottom left
+    {
+      printf("In snap zone, so take snap.\n");
+      system("/home/pi/rpidatv/scripts/snap2.sh");
+    }
+    else if((scaledX <= 5 * wscreen / 40)  && (scaledY >= 10 * hscreen / 12))  // Top left
+    {
+      printf("In restart VLC zone, so set for reset.\n");
+      VLCResetRequest = true;
+    }
+    else if((scaledX <= 15 * wscreen / 40) && (scaledX >= wscreen / 40) && (scaledY <= hscreen) && (scaledY >= 2 * hscreen / 12))
     {
       printf("In parameter zone, so toggle parameter view.\n");
       if (FinishedButton == 2)  // Toggle parameters on/off 
@@ -8244,11 +8475,6 @@ void *WaitButtonLMRX(void * arg)
       {
         FinishedButton = 2; // graphics off
       }
-    }
-    else if((scaledX <= 5 * wscreen / 40)  && (scaledY <= hscreen) && (scaledY <= 2 * hscreen / 12))
-    {
-      printf("In snap zone, so take snap.\n");
-      system("/home/pi/rpidatv/scripts/snap2.sh");
     }
     else
     {
@@ -8693,8 +8919,9 @@ void LMRX(int NoButton)
   #define PATH_SCRIPT_LMRXMER "/home/pi/rpidatv/scripts/lmmer.sh 2>&1"
   #define PATH_SCRIPT_LMRXUDP "/home/pi/rpidatv/scripts/lmudp.sh 2>&1"
   #define PATH_SCRIPT_LMRXOMX "/home/pi/rpidatv/scripts/lmomx.sh 2>&1"
-  #define PATH_SCRIPT_LMRXVLC "/home/pi/rpidatv/scripts/lmvlc.sh" // 2>&1"
-  #define PATH_SCRIPT_LMRXVLCFF "/home/pi/rpidatv/scripts/lmvlcff.sh" // 2>&1"
+  //#define PATH_SCRIPT_LMRXVLC "/home/pi/rpidatv/scripts/lmvlc.sh"
+  #define PATH_SCRIPT_LMRXVLCFF "/home/pi/rpidatv/scripts/lmvlcff.sh"
+  #define PATH_SCRIPT_LMRXVLCFFUDP "/home/pi/rpidatv/scripts/lmvlcffudp.sh"
 
   //Local parameters:
 
@@ -8759,6 +8986,7 @@ void LMRX(int NoButton)
 
   // Set globals
   FinishedButton = 1;
+  VLCResetRequest = false;
 
   // Display the correct background
   if ((NoButton == 0) || (NoButton == 1) || (NoButton == 2) || (NoButton == 5))   // Picture and LNB autoset modes
@@ -8809,7 +9037,490 @@ void LMRX(int NoButton)
 
   switch (NoButton)
   {
+
   case 0:
+    fp=popen(PATH_SCRIPT_LMRXVLCFFUDP, "r");
+    if(fp==NULL) printf("Process error\n");
+
+    printf("STARTING VLC with FFMPEG RX\n");
+
+    /* Open status FIFO for read only  */
+    //mkfifo("longmynd_status_fifo", 0666);
+    ret = mkfifo("longmynd_status_fifo", 0666);
+    fd_status_fifo = open("longmynd_status_fifo", O_RDONLY); 
+
+    // Set the status fifo to be non-blocking on empty reads
+    fcntl(fd_status_fifo, F_SETFL, O_NONBLOCK);
+
+    if (fd_status_fifo < 0)
+    {
+      printf("Failed to open status fifo\n");
+    }
+    printf("Listening, ret = %d\n", ret);
+
+    while ((FinishedButton == 1) || (FinishedButton == 2)) // 1 is captions on, 2 is off
+    {
+      if (VLCResetRequest == true)
+      {
+        system("/home/pi/rpidatv/scripts/lmvlcreset.sh &");
+        VLCResetRequest = false;
+                  FirstLock = 2;
+FinishedButton = 1;
+//previousMER = 0;
+      }
+
+      num = read(fd_status_fifo, status_message_char, 1);
+
+      if (num < 0)  // no character to read
+      {
+        usleep(500);
+        if (TunerFound == FALSE)
+        {
+          TunerPollCount = TunerPollCount + 1;
+
+          if (TunerPollCount > 15)
+          {
+            strcpy(line5, "Waiting for MiniTiouner to Respond");
+            Text2(wscreen * 1 / 40, hscreen - 1 * linepitch, line5, font_ptr);
+            TunerPollCount = 0;
+          }
+        }
+      }
+      else // there was a character to read
+      {
+        status_message_char[num]='\0';
+        // if (num>0) printf("%s\n",status_message_char);
+        
+        if (strcmp(status_message_char, "$") == 0)
+        {
+          TunerFound = TRUE;
+
+          if ((stat_string[0] == '1') && (stat_string[1] == ','))  // Decoder State
+          {
+            strcpy(STATEtext, stat_string);
+            chopN(STATEtext, 2);
+            STATE = atoi(STATEtext);
+            switch(STATE)
+            {
+              case 0:
+              strcpy(STATEtext, "Initialising");
+              break;
+              case 1:
+              strcpy(STATEtext, "Searching");
+              break;
+              case 2:
+              strcpy(STATEtext, "Found Headers");
+              break;
+              case 3:
+              strcpy(STATEtext, "DVB-S Lock");
+              break;
+              case 4:
+              strcpy(STATEtext, "DVB-S2 Lock");
+              break;
+              default:
+              snprintf(STATEtext, 10, "%d", STATE);
+            }
+          }
+
+          if ((stat_string[0] == '6') && (stat_string[1] == ','))  // Frequency
+          {
+            strcpy(FREQtext, stat_string);
+            chopN(FREQtext, 2);
+            FREQ = atof(FREQtext);
+            if (strcmp(LMRXmode, "sat") == 0)
+            {
+              FREQ = FREQ + LMRXqoffset;
+            }
+            FREQ = FREQ / 1000;
+            snprintf(FREQtext, 15, "%.3f MHz", FREQ);
+          }
+
+          if ((stat_string[0] == '9') && (stat_string[1] == ','))  // SR in S
+          {
+            strcpy(SRtext, stat_string);
+            chopN(SRtext, 2);
+            SR = atoi(SRtext) / 1000;
+            snprintf(SRtext, 15, "%d kS", SR);
+          }
+
+          if ((stat_string[0] == '1') && (stat_string[1] == '3'))  // Service Provider
+          {
+            strcpy(ServiceProvidertext, stat_string);
+            chopN(ServiceProvidertext, 3);
+          }
+
+          if ((stat_string[0] == '1') && (stat_string[1] == '4'))  // Service
+          {
+            strcpy(Servicetext, stat_string);
+            chopN(Servicetext, 3);
+          }
+
+          if ((stat_string[0] == '1') && (stat_string[1] == '8'))  // MODCOD
+          {
+            strcpy(MODCODtext, stat_string);
+            chopN(MODCODtext, 3);
+            MODCOD = atoi(MODCODtext);
+            //STATE = 4;
+            if (STATE == 3)                                        // DVB-S
+            {
+              switch(MODCOD)
+              {
+                case 0:
+                  strcpy(FECtext, "FEC 1/2");
+                  MERThreshold = 1.7; //
+                break;
+                case 1:
+                  strcpy(FECtext, "FEC 2/3");
+                  MERThreshold = 3.3; //
+                break;
+                case 2:
+                  strcpy(FECtext, "FEC 3/4");
+                  MERThreshold = 4.2; //
+                break;
+                case 3:
+                  strcpy(FECtext, "FEC 5/6");
+                  MERThreshold = 5.1; //
+                break;
+                case 4:
+                  strcpy(FECtext, "FEC 6/7");
+                  MERThreshold = 5.5; //
+                break;
+                case 5:
+                  strcpy(FECtext, "FEC 7/8");
+                  MERThreshold = 5.8; //
+                break;
+                default:
+                  strcpy(FECtext, "FEC -");
+                  MERThreshold = 0; //
+                  strcat(FECtext, MODCODtext);
+                break;
+              }
+              strcpy(Modulationtext, "QPSK");
+            }
+            if (STATE == 4)                                        // DVB-S2
+            {
+              switch(MODCOD)
+              {
+                case 1:
+                  strcpy(FECtext, "FEC 1/4");
+                  MERThreshold = -2.3; //
+                break;
+                case 2:
+                  strcpy(FECtext, "FEC 1/3");
+                  MERThreshold = -1.2; //
+                break;
+                case 3:
+                  strcpy(FECtext, "FEC 2/5");
+                  MERThreshold = -0.3; //
+                break;
+                case 4:
+                  strcpy(FECtext, "FEC 1/2");
+                  MERThreshold = 1.0; //
+                break;
+                case 5:
+                  strcpy(FECtext, "FEC 3/5");
+                  MERThreshold = 2.3; //
+                break;
+                case 6:
+                  strcpy(FECtext, "FEC 2/3");
+                  MERThreshold = 3.1; //
+                break;
+                case 7:
+                  strcpy(FECtext, "FEC 3/4");
+                  MERThreshold = 4.1; //
+                break;
+                case 8:
+                  strcpy(FECtext, "FEC 4/5");
+                  MERThreshold = 4.7; //
+                break;
+                case 9:
+                  strcpy(FECtext, "FEC 5/6");
+                  MERThreshold = 5.2; //
+                break;
+                case 10:
+                  strcpy(FECtext, "FEC 8/9");
+                  MERThreshold = 6.2; //
+                break;
+                case 11:
+                  strcpy(FECtext, "FEC 9/10");
+                  MERThreshold = 6.5; //
+                break;
+                case 12:
+                  strcpy(FECtext, "FEC 3/5");
+                  MERThreshold = 5.5; //
+                break;
+                case 13:
+                  strcpy(FECtext, "FEC 2/3");
+                  MERThreshold = 6.6; //
+                break;
+                case 14:
+                  strcpy(FECtext, "FEC 3/4");
+                  MERThreshold = 7.9; //
+                break;
+                case 15:
+                  strcpy(FECtext, "FEC 5/6");
+                  MERThreshold = 9.4; //
+                break;
+                case 16:
+                  strcpy(FECtext, "FEC 8/9");
+                  MERThreshold = 10.7; //
+                break;
+                case 17:
+                  strcpy(FECtext, "FEC 9/10");
+                  MERThreshold = 11.0; //
+                break;
+                case 18:
+                  strcpy(FECtext, "FEC 2/3");
+                  MERThreshold = 9.0; //
+                break;
+                case 19:
+                  strcpy(FECtext, "FEC 3/4");
+                  MERThreshold = 10.2; //
+                break;
+                case 20:
+                  strcpy(FECtext, "FEC 4/5");
+                  MERThreshold = 11.0; //
+                break;
+                case 21:
+                  strcpy(FECtext, "FEC 5/6");
+                  MERThreshold = 11.6; //
+                break;
+                case 22:
+                  strcpy(FECtext, "FEC 8/9");
+                  MERThreshold = 12.9; //
+                break;
+                case 23:
+                  strcpy(FECtext, "FEC 9/10");
+                  MERThreshold = 13.2; //
+                break;
+                case 24:
+                  strcpy(FECtext, "FEC 3/4");
+                  MERThreshold = 12.8; //
+                break;
+                case 25:
+                  strcpy(FECtext, "FEC 4/5");
+                  MERThreshold = 13.7; //
+                break;
+                case 26:
+                  strcpy(FECtext, "FEC 5/6");
+                  MERThreshold = 14.3; //
+                break;
+                case 27:
+                  strcpy(FECtext, "FEC 8/9");
+                  MERThreshold = 15.7; //
+                break;
+                case 28:
+                  strcpy(FECtext, "FEC 9/10");
+                  MERThreshold = 16.1; //
+                break;
+                default:
+                  strcpy(FECtext, "FEC -");
+                  MERThreshold = 0; //
+                break;
+              }
+              if ((MODCOD >= 1) && (MODCOD <= 11 ))
+              {
+                strcpy(Modulationtext, "QPSK");
+              }
+              if ((MODCOD >= 12) && (MODCOD <= 17 ))
+              {
+                strcpy(Modulationtext, "8PSK");
+              }
+              if ((MODCOD >= 18) && (MODCOD <= 23 ))
+              {
+                strcpy(Modulationtext, "16APSK");
+              }
+              if ((MODCOD >= 24) && (MODCOD <= 28 ))
+              {
+                strcpy(Modulationtext, "32APSK");
+              }
+            }
+          }
+
+          if ((stat_string[0] == '1') && (stat_string[1] == '7'))  // Video and audio encoding
+          {
+            strcpy(Encodingtext, stat_string);
+            chopN(Encodingtext, 3);
+            EncodingCode = atoi(Encodingtext);
+            switch(EncodingCode)
+            {
+              case 2:
+                strcpy(VidEncodingtext, "MPEG-2");
+              break;
+              case 3:
+                strcpy(AudEncodingtext, " MPA");
+              break;
+              case 4:
+                strcpy(AudEncodingtext, " MPA");
+              break;
+              case 15:
+                strcpy(AudEncodingtext, " AAC");
+              break;
+              case 16:
+                strcpy(VidEncodingtext, "H263");
+              break;
+              case 27:
+                strcpy(VidEncodingtext, "H264");
+              break;
+              case 32:
+                strcpy(AudEncodingtext, " MPA");
+              break;
+              case 36:
+                strcpy(VidEncodingtext, "H265");
+              break;
+              default:
+                printf("New Encoding Code = %d\n", EncodingCode);
+              break;
+            }
+            strcpy(Encodingtext, VidEncodingtext);
+            strcat(Encodingtext, AudEncodingtext);
+          }
+
+          if ((stat_string[0] == '1') && (stat_string[1] == '2'))  // MER
+          {
+            if (FinishedButton == 1)  // Parameters requested to be displayed
+            {
+
+              // If they weren't displayed before, set the previousMER to 0 
+              // so they get displayed and don't have to wait for an MER change
+              if (Parameters_currently_displayed != 1)
+              {
+                previousMER = 0;
+              }
+              Parameters_currently_displayed = 1;
+              strcpy(MERtext, stat_string);
+              chopN(MERtext, 3);
+              MER = atof(MERtext)/10;
+              if (MER > 51)  // Trap spurious MER readings
+              {
+                MER = 0;
+              }
+              snprintf(MERtext, 24, "MER %.1f (%.1f needed)", MER, MERThreshold);
+
+              rectangle(wscreen * 1 / 40, hscreen - 1 * linepitch - txtdesc, wscreen * 30 / 40, txttot, 0, 0, 0);
+              Text2(wscreen * 1 / 40, hscreen - 1 * linepitch, STATEtext, font_ptr);
+              rectangle(wscreen * 1 / 40, hscreen - 2 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
+              Text2(wscreen * 1 / 40, hscreen - 2 * linepitch, FREQtext, font_ptr);
+              rectangle(wscreen * 1 / 40, hscreen - 3 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
+              Text2(wscreen * 1 / 40, hscreen - 3 * linepitch, SRtext, font_ptr);
+              rectangle(wscreen * 1 / 40, hscreen - 4 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
+              Text2(wscreen * 1 / 40, hscreen - 4 * linepitch, Modulationtext, font_ptr);
+              rectangle(wscreen * 1 / 40, hscreen - 5 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
+              Text2(wscreen * 1 / 40, hscreen - 5 * linepitch, FECtext, font_ptr);
+              rectangle(wscreen * 1 / 40, hscreen - 6 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
+              Text2(wscreen * 1 / 40, hscreen - 6 * linepitch, ServiceProvidertext, font_ptr);
+              rectangle(wscreen * 1 / 40, hscreen - 7 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
+              Text2(wscreen * 1 / 40, hscreen - 7 * linepitch, Servicetext, font_ptr);
+              rectangle(wscreen * 1 / 40, hscreen - 8 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
+              Text2(wscreen * 1 / 40, hscreen - 8 * linepitch, Encodingtext, font_ptr);
+
+              if (MER < MERThreshold + 0.1)
+              {
+                setForeColour(255, 63, 63); // Set foreground colour to red
+              }
+              else  // Auto-hide the parameter display after 5 seconds
+              {
+                if (FirstLock == 0) // This is the first time MER has exceeded threshold
+                {
+                  FirstLock = 1;
+                  LockTime = clock();  // Set first lock time
+                }
+                if ((clock() > LockTime + 600000) && (FirstLock == 1))  // About 5s since first lock
+                {
+                  FinishedButton = 2; // Hide parameters
+                  FirstLock = 2;      // and stop it trying to hide them again
+                }
+              }
+
+              rectangle(wscreen * 1 / 40, hscreen - 9 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
+              Text2(wscreen * 1 / 40, hscreen - 9 * linepitch, MERtext, font_ptr);
+
+              // Only change VLC overlayfile if MER has changed
+              if (MER != previousMER)
+              {
+
+                // Strip trailing line feeds from text strings
+                ServiceProvidertext[strlen(ServiceProvidertext) - 1] = '\0';
+                Servicetext[strlen(Servicetext) - 1] = '\0';
+
+                // Build string for VLC
+                strcpy(vlctext, STATEtext);
+                strcat(vlctext, "%n");
+                strcat(vlctext, FREQtext);
+                strcat(vlctext, "%n");
+                strcat(vlctext, SRtext);
+                strcat(vlctext, "%n");
+                strcat(vlctext, Modulationtext);
+                strcat(vlctext, "%n");
+                strcat(vlctext, FECtext);
+                strcat(vlctext, "%n");
+                strcat(vlctext, SRtext);
+                strcat(vlctext, "%n");
+                strcat(vlctext, ServiceProvidertext);
+                strcat(vlctext, "%n");
+                strcat(vlctext, Servicetext);
+                strcat(vlctext, "%n");
+                strcat(vlctext, Encodingtext);
+                strcat(vlctext, "%n");
+                strcat(vlctext, MERtext);
+                strcat(vlctext, "%n.%nTouch Left to Hide Overlay%nTouch Right to Exit");
+
+                FILE *fw=fopen("/home/pi/tmp/vlc_temp_overlay.txt","w+");
+                if(fw!=0)
+                {
+                  fprintf(fw, "%s\n", vlctext);
+                }
+                fclose(fw);
+
+                // Copy temp file to file to be read by VLC to prevent file collisions
+                system("cp /home/pi/tmp/vlc_temp_overlay.txt /home/pi/tmp/vlc_overlay.txt");
+
+                previousMER = MER;
+              }
+
+              setForeColour(255, 255, 255);  // Set foreground colour to white
+              Text2(wscreen * 1 / 40, hscreen - 11 * linepitch, "Touch Right side to exit", font_ptr);
+              Text2(wscreen * 1 / 40, hscreen - 12 * linepitch, "Touch Lower left for image capture", font_ptr);
+            }
+            else
+            {
+              if (Parameters_currently_displayed == 1)
+              {
+                setBackColour(0, 0, 0);
+                clearScreen();
+                Parameters_currently_displayed = 0;
+
+                FILE *fw=fopen("/home/pi/tmp/vlc_overlay.txt","w+");
+                if(fw!=0)
+                {
+                  fprintf(fw, " ");
+                }
+                fclose(fw);
+              }
+            }
+          }
+          stat_string[0] = '\0';
+        }
+        else
+        {
+          strcat(stat_string, status_message_char);
+        }
+      }
+    }
+    // Shutdown VLC if it has not stolen the graphics
+    system("/home/pi/rpidatv/scripts/lmvlcsd.sh &");
+
+    close(fd_status_fifo); 
+    usleep(1000);
+
+    printf("Stopping receive process\n");
+    pclose(fp);
+    system("sudo killall lmvlcffudp.sh >/dev/null 2>/dev/null");
+    touch_response = 0; 
+    break;
+
+
+  case 2:
     fp=popen(PATH_SCRIPT_LMRXVLCFF, "r");
     if(fp==NULL) printf("Process error\n");
 
@@ -10262,14 +10973,14 @@ void LMRX(int NoButton)
     system("sudo killall lmomx.sh >/dev/null 2>/dev/null");
     touch_response = 0; 
     break;
-
+/*         Redundant Code for Plain VLC playback to be deleted at next update
   case 2:
     fp=popen(PATH_SCRIPT_LMRXVLC, "r");
     if(fp==NULL) printf("Process error\n");
 
     printf("STARTING VLC RX\n");
 
-    /* Open status FIFO for read only  */
+    // Open status FIFO for read only
     ret=mkfifo("longmynd_status_fifo", 0666);
     fd_status_fifo = open("longmynd_status_fifo", O_RDONLY); 
     if (fd_status_fifo < 0)
@@ -10645,7 +11356,8 @@ void LMRX(int NoButton)
     system("sudo killall lmvlc.sh >/dev/null 2>/dev/null");
     touch_response = 0; 
     break;
-
+    // End of redundant LMVLC code
+*/
   case 3:
     snprintf(udp_string, 63, "UDP Output to %s:%s", LMRXudpip, LMRXudpport);
     fp=popen(PATH_SCRIPT_LMRXUDP, "r");
@@ -12909,8 +13621,8 @@ void ChangePresetFreq(int NoButton)
   char InitText[64];
   char PresetNo[2];
   int FreqIndex;
-  float TvtrFreq;
-  float PDfreq;
+  //float TvtrFreq;
+  //float PDfreq;
   char Param[15] = "pfreq";
 
   // Convert button number to frequency array index
@@ -12930,47 +13642,47 @@ void ChangePresetFreq(int NoButton)
   }
   else
   {
-    strcpy(RequestText, "Enter new transmit frequency for Button ");
+    strcpy(RequestText, "Enter new IF Drive frequency for Button ");
   }
   snprintf(PresetNo, 2, "%d", FreqIndex + 1);
   strcat(RequestText, PresetNo);
   strcat(RequestText, " in MHz:");
 
   // Calculate initial value
-  if (((TabBandLO[CurrentBand] < 0.1) && (TabBandLO[CurrentBand] > -0.1)) || (CallingMenu == 5))
-  {
+  //if (((TabBandLO[CurrentBand] < 0.1) && (TabBandLO[CurrentBand] > -0.1)) || (CallingMenu == 5))
+  //{
     //snprintf(InitText, 10, "%s", TabFreq[FreqIndex]);
     strcpyn(InitText, TabFreq[FreqIndex], 10);
-  }
-  else
-  {
-    TvtrFreq = atof(TabFreq[FreqIndex]) + TabBandLO[CurrentBand];
-    if (TvtrFreq < 0)
-    {
-      TvtrFreq = TvtrFreq * -1;
-    }
-    snprintf(InitText, 10, "%.2f", TvtrFreq);
-  }
+  //}
+  //else
+  //{
+  //  TvtrFreq = atof(TabFreq[FreqIndex]) + TabBandLO[CurrentBand];
+  //  if (TvtrFreq < 0)
+  //  {
+  //    TvtrFreq = TvtrFreq * -1;
+  //  }
+  //  snprintf(InitText, 10, "%.2f", TvtrFreq);
+  //}
   
   Keyboard(RequestText, InitText, 10);
 
   // Correct freq for transverter offset
-  if (((TabBandLO[CurrentBand] < 0.1) && (TabBandLO[CurrentBand] > -0.1)) || (CallingMenu == 5))
-  {
-    ; // No transverter offset required
-  }
-  else  // Calculate transverter offset
-  {
-    if (TabBandLO[CurrentBand] > 0)  // Low side LO
-    {
-      PDfreq = atof(KeyboardReturn) - TabBandLO[CurrentBand];
-    }
-    else  // High side LO
-    {
-      PDfreq = -1 * (atof(KeyboardReturn) + TabBandLO[CurrentBand]);
-    }
-    snprintf(KeyboardReturn, 10, "%.2f", PDfreq);
-  }
+  //if (((TabBandLO[CurrentBand] < 0.1) && (TabBandLO[CurrentBand] > -0.1)) || (CallingMenu == 5))
+  //{
+  //  ; // No transverter offset required
+  //}
+  //else  // Calculate transverter offset
+  //{
+  //  if (TabBandLO[CurrentBand] > 0)  // Low side LO
+  //  {
+  //    PDfreq = atof(KeyboardReturn) - TabBandLO[CurrentBand];
+  //  }
+  //  else  // High side LO
+  //  {
+  //    PDfreq = -1 * (atof(KeyboardReturn) + TabBandLO[CurrentBand]);
+  //  }
+  //  snprintf(KeyboardReturn, 10, "%.2f", PDfreq);
+  //}
   
   // Write freq to tabfreq
   strcpy(TabFreq[FreqIndex], KeyboardReturn);
@@ -13338,7 +14050,6 @@ void ManageContestCodes(int NoButton)
   int linepitch = (14 * txtht) / 10;
   int linenumber = 1;
   char SiteText[7];
-  char BandLabel[43];
   int band;
   char Param[31];
   char Value[25];
@@ -13405,59 +14116,110 @@ void ManageContestCodes(int NoButton)
         TextMid2(wscreen / 2.0, hscreen - linenumber * linepitch, EntryText, font_ptr);
         linenumber = linenumber + 2;
 
-        GetConfigParam(PATH_PPRESETS, "d1numbers", Value);                     // Band d1
-        GetConfigParam(PATH_PPRESETS, "d1label", BandLabel);
-        snprintf(EntryText, 90, "Band d1   Code %s    %s", Value, BandLabel);
+        GetConfigParam(PATH_PPRESETS, "d0numbers", Value);                         // Band d0 50 MHz
+        snprintf(EntryText, 90, "%d", TabBandExpPorts[14]);
         Text2(wscreen/25, hscreen - linenumber * linepitch, EntryText, font_ptr);
+        Text2(3 * wscreen/25, hscreen - linenumber * linepitch, TabBandLabel[14], font_ptr);
+        Text2(8 * wscreen/25, hscreen - linenumber * linepitch, Value, font_ptr);
+
+        GetConfigParam(PATH_PPRESETS, "t0numbers", Value);                         // Band t0 50 MHz
+        snprintf(EntryText, 90, "%d", TabBandExpPorts[9]);
+        Text2(14 * wscreen/25, hscreen - linenumber * linepitch, EntryText, font_ptr);
+        Text2(16 * wscreen/25, hscreen - linenumber * linepitch, TabBandLabel[9], font_ptr);
+        Text2(21 * wscreen/25, hscreen - linenumber * linepitch, Value, font_ptr);
         linenumber = linenumber + 1;
 
-        GetConfigParam(PATH_PPRESETS, "d2numbers", Value);
-        GetConfigParam(PATH_PPRESETS, "d2label", BandLabel);
-        snprintf(EntryText, 90, "Band d2   Code %s    %s", Value, BandLabel);
+        GetConfigParam(PATH_PPRESETS, "d1numbers", Value);                         // Band d1 71 MHz
+        snprintf(EntryText, 90, "%d", TabBandExpPorts[0]);
         Text2(wscreen/25, hscreen - linenumber * linepitch, EntryText, font_ptr);
+        Text2(3 * wscreen/25, hscreen - linenumber * linepitch, TabBandLabel[0], font_ptr);
+        Text2(8 * wscreen/25, hscreen - linenumber * linepitch, Value, font_ptr);
+
+        GetConfigParam(PATH_PPRESETS, "t5numbers", Value);                         // Band t5 13 cm
+        snprintf(EntryText, 90, "%d", TabBandExpPorts[10]);
+        Text2(14 * wscreen/25, hscreen - linenumber * linepitch, EntryText, font_ptr);
+        Text2(16 * wscreen/25, hscreen - linenumber * linepitch, TabBandLabel[10], font_ptr);
+        Text2(21 * wscreen/25, hscreen - linenumber * linepitch, Value, font_ptr);
         linenumber = linenumber + 1;
 
-        GetConfigParam(PATH_PPRESETS, "d3numbers", Value);
-        GetConfigParam(PATH_PPRESETS, "d3label", BandLabel);
-        snprintf(EntryText, 90, "Band d3   Code %s    %s", Value, BandLabel);
+        GetConfigParam(PATH_PPRESETS, "d2numbers", Value);                         // Band d2 146 MHz
+        snprintf(EntryText, 90, "%d", TabBandExpPorts[1]);
         Text2(wscreen/25, hscreen - linenumber * linepitch, EntryText, font_ptr);
+        Text2(3 * wscreen/25, hscreen - linenumber * linepitch, TabBandLabel[1], font_ptr);
+        Text2(8 * wscreen/25, hscreen - linenumber * linepitch, Value, font_ptr);
+
+        GetConfigParam(PATH_PPRESETS, "t1numbers", Value);                         // Band t1 9 cm
+        snprintf(EntryText, 90, "%d", TabBandExpPorts[5]);
+        Text2(14 * wscreen/25, hscreen - linenumber * linepitch, EntryText, font_ptr);
+        Text2(16 * wscreen/25, hscreen - linenumber * linepitch, TabBandLabel[5], font_ptr);
+        Text2(21 * wscreen/25, hscreen - linenumber * linepitch, Value, font_ptr);
         linenumber = linenumber + 1;
 
-        GetConfigParam(PATH_PPRESETS, "d4numbers", Value);
-        GetConfigParam(PATH_PPRESETS, "d4label", BandLabel);
-        snprintf(EntryText, 90, "Band d4   Code %s    %s", Value, BandLabel);
+        GetConfigParam(PATH_PPRESETS, "d3numbers", Value);                         // Band d3 437 MHz
+        snprintf(EntryText, 90, "%d", TabBandExpPorts[2]);
         Text2(wscreen/25, hscreen - linenumber * linepitch, EntryText, font_ptr);
+        Text2(3 * wscreen/25, hscreen - linenumber * linepitch, TabBandLabel[2], font_ptr);
+        Text2(8 * wscreen/25, hscreen - linenumber * linepitch, Value, font_ptr);
+
+        GetConfigParam(PATH_PPRESETS, "t2numbers", Value);                         // Band t2 6 cm
+        snprintf(EntryText, 90, "%d", TabBandExpPorts[6]);
+        Text2(14 * wscreen/25, hscreen - linenumber * linepitch, EntryText, font_ptr);
+        Text2(16 * wscreen/25, hscreen - linenumber * linepitch, TabBandLabel[6], font_ptr);
+        Text2(21 * wscreen/25, hscreen - linenumber * linepitch, Value, font_ptr);
         linenumber = linenumber + 1;
 
-        GetConfigParam(PATH_PPRESETS, "d5numbers", Value);
-        GetConfigParam(PATH_PPRESETS, "d5label", BandLabel);
-        snprintf(EntryText, 90, "Band d5   Code %s    %s", Value, BandLabel);
+        GetConfigParam(PATH_PPRESETS, "d4numbers", Value);                         // Band d4 1255 MHz
+        snprintf(EntryText, 90, "%d", TabBandExpPorts[3]);
         Text2(wscreen/25, hscreen - linenumber * linepitch, EntryText, font_ptr);
+        Text2(3 * wscreen/25, hscreen - linenumber * linepitch, TabBandLabel[3], font_ptr);
+        Text2(8 * wscreen/25, hscreen - linenumber * linepitch, Value, font_ptr);
+
+        GetConfigParam(PATH_PPRESETS, "t3numbers", Value);                         // Band t3 3 cm
+        snprintf(EntryText, 90, "%d", TabBandExpPorts[7]);
+        Text2(14 * wscreen/25, hscreen - linenumber * linepitch, EntryText, font_ptr);
+        Text2(16 * wscreen/25, hscreen - linenumber * linepitch, TabBandLabel[7], font_ptr);
+        Text2(21 * wscreen/25, hscreen - linenumber * linepitch, Value, font_ptr);
         linenumber = linenumber + 1;
 
-        GetConfigParam(PATH_PPRESETS, "t1numbers", Value);
-        GetConfigParam(PATH_PPRESETS, "t1label", BandLabel);
-        snprintf(EntryText, 90, "Band t1   Code %s    %s", Value, BandLabel);
+        GetConfigParam(PATH_PPRESETS, "d5numbers", Value);                         // Band d5 2400 MHz
+        snprintf(EntryText, 90, "%d", TabBandExpPorts[4]);
         Text2(wscreen/25, hscreen - linenumber * linepitch, EntryText, font_ptr);
+        Text2(3 * wscreen/25, hscreen - linenumber * linepitch, TabBandLabel[4], font_ptr);
+        Text2(8 * wscreen/25, hscreen - linenumber * linepitch, Value, font_ptr);
+
+        GetConfigParam(PATH_PPRESETS, "t4numbers", Value);                         // Band t4 24 GHz
+        snprintf(EntryText, 90, "%d", TabBandExpPorts[8]);
+        Text2(14 * wscreen/25, hscreen - linenumber * linepitch, EntryText, font_ptr);
+        Text2(16 * wscreen/25, hscreen - linenumber * linepitch, TabBandLabel[8], font_ptr);
+        Text2(21 * wscreen/25, hscreen - linenumber * linepitch, Value, font_ptr);
         linenumber = linenumber + 1;
 
-        GetConfigParam(PATH_PPRESETS, "t2numbers", Value);
-        GetConfigParam(PATH_PPRESETS, "t2label", BandLabel);
-        snprintf(EntryText, 90, "Band t2   Code %s    %s", Value, BandLabel);
+        GetConfigParam(PATH_PPRESETS, "d6numbers", Value);                         // Band d6 3400 MHz
+        snprintf(EntryText, 90, "%d", TabBandExpPorts[15]);
         Text2(wscreen/25, hscreen - linenumber * linepitch, EntryText, font_ptr);
+        Text2(3 * wscreen/25, hscreen - linenumber * linepitch, TabBandLabel[15], font_ptr);
+        Text2(8 * wscreen/25, hscreen - linenumber * linepitch, Value, font_ptr);
+
+        GetConfigParam(PATH_PPRESETS, "t6numbers", Value);                         // Band t6 47 GHz
+        snprintf(EntryText, 90, "%d", TabBandExpPorts[11]);
+        Text2(14 * wscreen/25, hscreen - linenumber * linepitch, EntryText, font_ptr);
+        Text2(16 * wscreen/25, hscreen - linenumber * linepitch, TabBandLabel[11], font_ptr);
+        Text2(21 * wscreen/25, hscreen - linenumber * linepitch, Value, font_ptr);
         linenumber = linenumber + 1;
 
-        GetConfigParam(PATH_PPRESETS, "t3numbers", Value);
-        GetConfigParam(PATH_PPRESETS, "t3label", BandLabel);
-        snprintf(EntryText, 90, "Band t3   Code %s    %s", Value, BandLabel);
-        Text2(wscreen/25, hscreen - linenumber * linepitch, EntryText, font_ptr);
+        GetConfigParam(PATH_PPRESETS, "t7numbers", Value);                         // Band t7 76 GHz
+        snprintf(EntryText, 90, "%d", TabBandExpPorts[12]);
+        Text2(14 * wscreen/25, hscreen - linenumber * linepitch, EntryText, font_ptr);
+        Text2(16 * wscreen/25, hscreen - linenumber * linepitch, TabBandLabel[12], font_ptr);
+        Text2(21 * wscreen/25, hscreen - linenumber * linepitch, Value, font_ptr);
         linenumber = linenumber + 1;
 
-        GetConfigParam(PATH_PPRESETS, "t4numbers", Value);
-        GetConfigParam(PATH_PPRESETS, "t4label", BandLabel);
-        snprintf(EntryText, 90, "Band t4   Code %s    %s", Value, BandLabel);
-        Text2(wscreen/25, hscreen - linenumber * linepitch, EntryText, font_ptr);
-        linenumber = linenumber + 2;
+        GetConfigParam(PATH_PPRESETS, "t8numbers", Value);                         // Band t8 Spare
+        snprintf(EntryText, 90, "%d", TabBandExpPorts[13]);
+        Text2(14 * wscreen/25, hscreen - linenumber * linepitch, EntryText, font_ptr);
+        Text2(16 * wscreen/25, hscreen - linenumber * linepitch, TabBandLabel[13], font_ptr);
+        Text2(21 * wscreen/25, hscreen - linenumber * linepitch, Value, font_ptr);
+        linenumber = linenumber + 1;
 
         TextMid2(wscreen / 2, hscreen - linenumber * linepitch, "Touch Screen to Continue", font_ptr);
 
@@ -13499,68 +14261,142 @@ void ManageContestCodes(int NoButton)
       TextMid2(wscreen / 2.0, hscreen - linenumber * linepitch, EntryText, font_ptr);
       linenumber = linenumber + 2;
 
-      strcpy(Param, SiteText);                         // Band d1
+      strcpy(Param, SiteText);                         // Band d0 50 MHz
+      strcat(Param, "d0numbers");
+      GetConfigParam(PATH_C_NUMBERS, Param, Value);
+      snprintf(EntryText, 90, "%d", TabBandExpPorts[14]);
+      Text2(wscreen/25, hscreen - linenumber * linepitch, EntryText, font_ptr);
+      Text2(3 * wscreen/25, hscreen - linenumber * linepitch, TabBandLabel[14], font_ptr);
+      Text2(8 * wscreen/25, hscreen - linenumber * linepitch, Value, font_ptr);
+
+      strcpy(Param, SiteText);                         // Band t0 50 MHz
+      strcat(Param, "t0numbers");
+      GetConfigParam(PATH_C_NUMBERS, Param, Value);
+      snprintf(EntryText, 90, "%d", TabBandExpPorts[9]);
+      Text2(14 * wscreen/25, hscreen - linenumber * linepitch, EntryText, font_ptr);
+      Text2(16 * wscreen/25, hscreen - linenumber * linepitch, TabBandLabel[9], font_ptr);
+      Text2(21 * wscreen/25, hscreen - linenumber * linepitch, Value, font_ptr);
+      linenumber = linenumber + 1;
+
+      strcpy(Param, SiteText);                         // Band d1 71 MHz
       strcat(Param, "d1numbers");
       GetConfigParam(PATH_C_NUMBERS, Param, Value);
-      snprintf(EntryText, 90, "Band d1   Code %s    %s", Value, TabBandLabel[0]);
+      snprintf(EntryText, 90, "%d", TabBandExpPorts[0]);
       Text2(wscreen/25, hscreen - linenumber * linepitch, EntryText, font_ptr);
+      Text2(3 * wscreen/25, hscreen - linenumber * linepitch, TabBandLabel[0], font_ptr);
+      Text2(8 * wscreen/25, hscreen - linenumber * linepitch, Value, font_ptr);
+
+      strcpy(Param, SiteText);                         // Band t5 13 cm
+      strcat(Param, "t5numbers");
+      GetConfigParam(PATH_C_NUMBERS, Param, Value);
+      snprintf(EntryText, 90, "%d", TabBandExpPorts[10]);
+      Text2(14 * wscreen/25, hscreen - linenumber * linepitch, EntryText, font_ptr);
+      Text2(16 * wscreen/25, hscreen - linenumber * linepitch, TabBandLabel[10], font_ptr);
+      Text2(21 * wscreen/25, hscreen - linenumber * linepitch, Value, font_ptr);
       linenumber = linenumber + 1;
 
-      strcpy(Param, SiteText);
+      strcpy(Param, SiteText);                         // Band d2 146 MHz
       strcat(Param, "d2numbers");
       GetConfigParam(PATH_C_NUMBERS, Param, Value);
-      snprintf(EntryText, 90, "Band d2   Code %s    %s", Value, TabBandLabel[1]);
+      snprintf(EntryText, 90, "%d", TabBandExpPorts[1]);
       Text2(wscreen/25, hscreen - linenumber * linepitch, EntryText, font_ptr);
-      linenumber = linenumber + 1;
+      Text2(3 * wscreen/25, hscreen - linenumber * linepitch, TabBandLabel[1], font_ptr);
+      Text2(8 * wscreen/25, hscreen - linenumber * linepitch, Value, font_ptr);
 
-      strcpy(Param, SiteText);
-      strcat(Param, "d3numbers");
-      GetConfigParam(PATH_C_NUMBERS, Param, Value);
-      snprintf(EntryText, 90, "Band d3   Code %s    %s", Value, TabBandLabel[2]);
-      Text2(wscreen/25, hscreen - linenumber * linepitch, EntryText, font_ptr);
-      linenumber = linenumber + 1;
-
-      strcpy(Param, SiteText);
-      strcat(Param, "d4numbers");
-      GetConfigParam(PATH_C_NUMBERS, Param, Value);
-      snprintf(EntryText, 90, "Band d4   Code %s    %s", Value, TabBandLabel[3]);
-      Text2(wscreen/25, hscreen - linenumber * linepitch, EntryText, font_ptr);
-      linenumber = linenumber + 1;
-
-      strcpy(Param, SiteText);
-      strcat(Param, "d5numbers");
-      GetConfigParam(PATH_C_NUMBERS, Param, Value);
-      snprintf(EntryText, 90, "Band d5   Code %s    %s", Value, TabBandLabel[4]);
-      Text2(wscreen/25, hscreen - linenumber * linepitch, EntryText, font_ptr);
-      linenumber = linenumber + 1;
-
-      strcpy(Param, SiteText);
+      strcpy(Param, SiteText);                         // Band t1 9 cm
       strcat(Param, "t1numbers");
       GetConfigParam(PATH_C_NUMBERS, Param, Value);
-      snprintf(EntryText, 90, "Band t1   Code %s    %s", Value, TabBandLabel[5]);
-      Text2(wscreen/25, hscreen - linenumber * linepitch, EntryText, font_ptr);
+      snprintf(EntryText, 90, "%d", TabBandExpPorts[5]);
+      Text2(14 * wscreen/25, hscreen - linenumber * linepitch, EntryText, font_ptr);
+      Text2(16 * wscreen/25, hscreen - linenumber * linepitch, TabBandLabel[5], font_ptr);
+      Text2(21 * wscreen/25, hscreen - linenumber * linepitch, Value, font_ptr);
       linenumber = linenumber + 1;
 
-      strcpy(Param, SiteText);
+      strcpy(Param, SiteText);                         // Band d3 437 MHz
+      strcat(Param, "d3numbers");
+      GetConfigParam(PATH_C_NUMBERS, Param, Value);
+      snprintf(EntryText, 90, "%d", TabBandExpPorts[2]);
+      Text2(wscreen/25, hscreen - linenumber * linepitch, EntryText, font_ptr);
+      Text2(3 * wscreen/25, hscreen - linenumber * linepitch, TabBandLabel[2], font_ptr);
+      Text2(8 * wscreen/25, hscreen - linenumber * linepitch, Value, font_ptr);
+
+      strcpy(Param, SiteText);                         // Band t2 6 cm
       strcat(Param, "t2numbers");
       GetConfigParam(PATH_C_NUMBERS, Param, Value);
-      snprintf(EntryText, 90, "Band t2   Code %s    %s", Value, TabBandLabel[6]);
-      Text2(wscreen/25, hscreen - linenumber * linepitch, EntryText, font_ptr);
+      snprintf(EntryText, 90, "%d", TabBandExpPorts[6]);
+      Text2(14 * wscreen/25, hscreen - linenumber * linepitch, EntryText, font_ptr);
+      Text2(16 * wscreen/25, hscreen - linenumber * linepitch, TabBandLabel[6], font_ptr);
+      Text2(21 * wscreen/25, hscreen - linenumber * linepitch, Value, font_ptr);
       linenumber = linenumber + 1;
 
-      strcpy(Param, SiteText);
+      strcpy(Param, SiteText);                         // Band d4 1255 MHz
+      strcat(Param, "d4numbers");
+      GetConfigParam(PATH_C_NUMBERS, Param, Value);
+      snprintf(EntryText, 90, "%d", TabBandExpPorts[3]);
+      Text2(wscreen/25, hscreen - linenumber * linepitch, EntryText, font_ptr);
+      Text2(3 * wscreen/25, hscreen - linenumber * linepitch, TabBandLabel[3], font_ptr);
+      Text2(8 * wscreen/25, hscreen - linenumber * linepitch, Value, font_ptr);
+
+      strcpy(Param, SiteText);                         // Band t3 3 cm
       strcat(Param, "t3numbers");
       GetConfigParam(PATH_C_NUMBERS, Param, Value);
-      snprintf(EntryText, 90, "Band t3   Code %s    %s", Value, TabBandLabel[7]);
-      Text2(wscreen/25, hscreen - linenumber * linepitch, EntryText, font_ptr);
+      snprintf(EntryText, 90, "%d", TabBandExpPorts[7]);
+      Text2(14 * wscreen/25, hscreen - linenumber * linepitch, EntryText, font_ptr);
+      Text2(16 * wscreen/25, hscreen - linenumber * linepitch, TabBandLabel[7], font_ptr);
+      Text2(21 * wscreen/25, hscreen - linenumber * linepitch, Value, font_ptr);
       linenumber = linenumber + 1;
 
-      strcpy(Param, SiteText);
+      strcpy(Param, SiteText);                         // Band d5 2400 MHz
+      strcat(Param, "d5numbers");
+      GetConfigParam(PATH_C_NUMBERS, Param, Value);
+      snprintf(EntryText, 90, "%d", TabBandExpPorts[4]);
+      Text2(wscreen/25, hscreen - linenumber * linepitch, EntryText, font_ptr);
+      Text2(3 * wscreen/25, hscreen - linenumber * linepitch, TabBandLabel[4], font_ptr);
+      Text2(8 * wscreen/25, hscreen - linenumber * linepitch, Value, font_ptr);
+
+      strcpy(Param, SiteText);                         // Band t4 24 GHz
       strcat(Param, "t4numbers");
       GetConfigParam(PATH_C_NUMBERS, Param, Value);
-      snprintf(EntryText, 90, "Band t4   Code %s    %s", Value, TabBandLabel[8]);
+      snprintf(EntryText, 90, "%d", TabBandExpPorts[8]);
+      Text2(14 * wscreen/25, hscreen - linenumber * linepitch, EntryText, font_ptr);
+      Text2(16 * wscreen/25, hscreen - linenumber * linepitch, TabBandLabel[8], font_ptr);
+      Text2(21 * wscreen/25, hscreen - linenumber * linepitch, Value, font_ptr);
+      linenumber = linenumber + 1;
+
+      strcpy(Param, SiteText);                         // Band d6 3400 MHz
+      strcat(Param, "d6numbers");
+      GetConfigParam(PATH_C_NUMBERS, Param, Value);
+      snprintf(EntryText, 90, "%d", TabBandExpPorts[15]);
       Text2(wscreen/25, hscreen - linenumber * linepitch, EntryText, font_ptr);
-      linenumber = linenumber + 2;
+      Text2(3 * wscreen/25, hscreen - linenumber * linepitch, TabBandLabel[15], font_ptr);
+      Text2(8 * wscreen/25, hscreen - linenumber * linepitch, Value, font_ptr);
+
+      strcpy(Param, SiteText);                         // Band t6 47 GHz
+      strcat(Param, "t6numbers");
+      GetConfigParam(PATH_C_NUMBERS, Param, Value);
+      snprintf(EntryText, 90, "%d", TabBandExpPorts[11]);
+      Text2(14 * wscreen/25, hscreen - linenumber * linepitch, EntryText, font_ptr);
+      Text2(16 * wscreen/25, hscreen - linenumber * linepitch, TabBandLabel[11], font_ptr);
+      Text2(21 * wscreen/25, hscreen - linenumber * linepitch, Value, font_ptr);
+      linenumber = linenumber + 1;
+
+      strcpy(Param, SiteText);                         // Band t7 76 GHz
+      strcat(Param, "t7numbers");
+      GetConfigParam(PATH_C_NUMBERS, Param, Value);
+      snprintf(EntryText, 90, "%d", TabBandExpPorts[12]);
+      Text2(14 * wscreen/25, hscreen - linenumber * linepitch, EntryText, font_ptr);
+      Text2(16 * wscreen/25, hscreen - linenumber * linepitch, TabBandLabel[12], font_ptr);
+      Text2(21 * wscreen/25, hscreen - linenumber * linepitch, Value, font_ptr);
+      linenumber = linenumber + 1;
+
+      strcpy(Param, SiteText);                         // Band t8 Spare
+      strcat(Param, "t8numbers");
+      GetConfigParam(PATH_C_NUMBERS, Param, Value);
+      snprintf(EntryText, 90, "%d", TabBandExpPorts[13]);
+      Text2(14 * wscreen/25, hscreen - linenumber * linepitch, EntryText, font_ptr);
+      Text2(16 * wscreen/25, hscreen - linenumber * linepitch, TabBandLabel[13], font_ptr);
+      Text2(21 * wscreen/25, hscreen - linenumber * linepitch, Value, font_ptr);
+      linenumber = linenumber + 1;
 
       TextMid2(wscreen / 2, hscreen - linenumber * linepitch, "Touch Screen to Continue", font_ptr);
 
@@ -13604,7 +14440,7 @@ void ManageContestCodes(int NoButton)
         break;
       }
 
-      for (band = 0; band <= 8; band++)
+      for (band = 0; band < 16; band++)
       {
         snprintf(RequestText, 63, "Enter or confirm Contest Numbers for the %s band:", TabBandLabel[band]);
         strcpy(Param, SiteText);
@@ -13638,7 +14474,7 @@ void ManageContestCodes(int NoButton)
       strcpy(Locator, Locator6);
 
       // Contest Numbers
-      for (band = 0; band <= 8; band++)
+      for (band = 0; band < 16; band++)
       {
         // Read the value
         strcpy(Param, SiteText);
@@ -13692,7 +14528,7 @@ void ManageContestCodes(int NoButton)
       }
 
       // Contest Numbers
-      for (band = 0; band <= 8; band++)
+      for (band = 0; band < 16; band++)
       {
         // Read the value from the Presets file
         strcpy(Param, TabBand[band]);
@@ -14662,11 +15498,12 @@ void waituntil(int w,int h)
           UpdateWindow();
           break;
         case 13:                      // Transverter
-          printf("MENU 19 \n");
-          CurrentMenu=19;
+          CallingMenu = 113;
+          printf("MENU 9 \n");
+          CurrentMenu = 9;
           setBackColour(0, 0, 0);
           clearScreen();
-          Start_Highlights_Menu19();
+          Start_Highlights_Menu9();
           UpdateWindow();
           break;
         case 14:                         // Lime/Express/Pluto Level
@@ -15077,12 +15914,12 @@ void waituntil(int w,int h)
           UpdateWindow();
           break;
         case 15:                              // Set Band Details
-          CallingMenu = 301;
-          printf("MENU 26 \n"); 
-          CurrentMenu=26;
+          CallingMenu = 315;
+          printf("MENU 9 \n"); 
+          CurrentMenu = 9;
           setBackColour(0, 0, 0);
           clearScreen();
-          Start_Highlights_Menu26();
+          Start_Highlights_Menu9();
           UpdateWindow();
           break;
         case 16:                              // Set Preset Frequencies
@@ -15625,6 +16462,76 @@ void waituntil(int w,int h)
           printf("Menu 8 Error\n");
         }
         continue;   // Completed Menu 8 action, go and wait for touch
+      }
+
+      if (CurrentMenu == 9)  // Menu 9 Band Details
+      {
+        printf("Button Event %d, Entering Menu 9 Case Statement\n",i);
+        switch (i)
+        {
+        case 4:                               // Cancel
+          SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 1);
+          printf("Set Band Details Cancel\n");
+          UpdateWindow();
+          usleep(500000);
+          SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 0); // Reset cancel (even if not selected)
+          printf("Returning to MENU 1 from Menu 9\n");
+          CurrentMenu=1;
+          setBackColour(255, 255, 255);
+          clearScreen();
+          setBackColour(0, 0, 0);
+          Start_Highlights_Menu1();
+          UpdateWindow();
+          break;
+        case 0:
+        case 1:
+        case 2:
+        case 3:
+        case 5:
+        case 6:
+        case 7:
+        case 8:
+        case 9:
+        case 10:
+        case 11:
+        case 14:
+        case 15:
+        case 16:
+        case 17:
+        case 18:
+        case 19:
+          if (CallingMenu == 315)
+          {
+            printf("Changing Band Details %d\n", i);
+            ChangeBandDetails(i);
+            CurrentMenu=9;
+            setBackColour(0, 0, 0);
+            clearScreen();
+            Start_Highlights_Menu9();
+          }
+          else
+          {
+            printf("Selecting Band %d\n", i);
+            SelectBand(i);
+            CurrentMenu=9;
+            setBackColour(0, 0, 0);
+            clearScreen();
+            Start_Highlights_Menu9();
+            UpdateWindow();
+            usleep(500000);
+            printf("Returning to MENU 1 from Menu 9\n");
+            CurrentMenu = 1;
+            setBackColour(255, 255, 255);
+            clearScreen();
+            //setBackColour(0, 0, 0);
+            Start_Highlights_Menu1();
+          }
+          UpdateWindow();
+          break;
+        default:
+          printf("Menu 9 Error\n");
+        }
+        continue;   // Completed Menu 9 action, go and wait for touch
       }
 
       if (CurrentMenu == 10)  // Menu 10 New TX Frequency
@@ -16487,29 +17394,15 @@ void waituntil(int w,int h)
         case 3:
         case 5:
         case 6:
-        case 7:
-        case 8:
-        case 9:
-          if(CallingMenu == 301) // Set Band Details
-          {
-            printf("Changing Band Details %d\n", i);
-            ChangeBandDetails(i);
-            CurrentMenu=26;
-            setBackColour(0, 0, 0);
-            clearScreen();
-            Start_Highlights_Menu26();
-          }
-          else  // 302, Set Receive LO
-          {
-            SetReceiveLOFreq(i);      // Set the LO frequency
-            ReceiveLOStart();         // Start the LO if it is required
-            printf("Returning to MENU 1 from Menu 26\n");
-            CurrentMenu=1;
-            setBackColour(255, 255, 255);
-            clearScreen();
-            setBackColour(0, 0, 0);
-            Start_Highlights_Menu1();
-          }
+          // Set Receive LO
+          SetReceiveLOFreq(i);      // Set the LO frequency
+          ReceiveLOStart();         // Start the LO if it is required
+          printf("Returning to MENU 1 from Menu 26\n");
+          CurrentMenu=1;
+          setBackColour(255, 255, 255);
+          clearScreen();
+          setBackColour(0, 0, 0);
+          Start_Highlights_Menu1();
           UpdateWindow();
           break;
         default:
@@ -17998,9 +18891,9 @@ void Start_Highlights_Menu1()
     }
     else                                                   // Transverter
     {
-      strcpy(Freqtext, "F: ");
+      strcpy(Freqtext, "IF: ");
       strcat(Freqtext, Value);
-      strcat(Freqtext, "^T:");
+      strcat(Freqtext, "^TX:");
       TvtrFreq = atof(Value) + TabBandLO[CurrentBand];
       if (TvtrFreq < 0)
       {
@@ -18072,47 +18965,8 @@ void Start_Highlights_Menu1()
   AmendButtonStatus(12, 2, FECtext, &Grey);
 
   // Band, Button 13
-  char Bandtext[31]="Band/Tvtr^";
-  strcpy(Param,"band");
-  strcpy(Value,"");
-  GetConfigParam(PATH_PCONFIG, Param, Value);
-  printf("Value=%s %s\n",Value,"Band");
-  if (strcmp(Value, "d1") == 0)
-  {
-    strcat(Bandtext, TabBandLabel[0]);
-  }
-  if (strcmp(Value, "d2") == 0)
-  {
-    strcat(Bandtext, TabBandLabel[1]);
-  }
-  if (strcmp(Value, "d3") == 0)
-  {
-    strcat(Bandtext, TabBandLabel[2]);
-  }
-  if (strcmp(Value, "d4") == 0)
-  {
-    strcat(Bandtext, TabBandLabel[3]);
-  }
-  if (strcmp(Value, "d5") == 0)
-  {
-    strcat(Bandtext, TabBandLabel[4]);
-  }
-  if (strcmp(Value, "t1") == 0)
-  {
-    strcat(Bandtext, TabBandLabel[5]);
-  }
-  if (strcmp(Value, "t2") == 0)
-  {
-    strcat(Bandtext, TabBandLabel[6]);
-  }
-  if (strcmp(Value, "t3") == 0)
-  {
-    strcat(Bandtext, TabBandLabel[7]);
-  }
-  if (strcmp(Value, "t4") == 0)
-  {
-    strcat(Bandtext, TabBandLabel[8]);
-  }
+  char Bandtext[31] = "Band/Tvtr^";
+  strcat(Bandtext, TabBandLabel[CurrentBand]);
   AmendButtonStatus(13, 0, Bandtext, &Blue);
   AmendButtonStatus(13, 1, Bandtext, &Green);
   AmendButtonStatus(13, 2, Bandtext, &Grey);
@@ -18782,16 +19636,16 @@ void Define_Menu8()
   // Bottom Row, Menu 8
 
   button = CreateButton(8, 0);
-  AddButtonStatus(button, "Play with^ffmpeg VLC", &Blue);
-  AddButtonStatus(button, "Play with^ffmpeg VLC", &Grey);
+  AddButtonStatus(button, "RECEIVE", &Blue);
+  AddButtonStatus(button, "RECEIVE", &Grey);
 
   button = CreateButton(8, 1);
   AddButtonStatus(button, "Play with^OMX Player", &Blue);
   AddButtonStatus(button, "Play with^OMX Player", &Grey);
 
   button = CreateButton(8, 2);
-  AddButtonStatus(button, "Play with^VLC", &Blue);
-  AddButtonStatus(button, "Play with^VLC", &Grey);
+  AddButtonStatus(button, "Play with^ffmpeg VLC", &Blue);
+  AddButtonStatus(button, "Play with^ffmpeg VLC", &Grey);
 
   button = CreateButton(8, 3);
   AddButtonStatus(button, "Play to^UDP Stream", &Blue);
@@ -19166,6 +20020,562 @@ void Start_Highlights_Menu8()
     AmendButtonStatus(ButtonNumber(8, 21), 0, LMBStext, &Blue);
   }
 }
+
+void Define_Menu9()
+{
+  int button;
+  char BandLabel[31];
+
+  // Bottom Row, Menu 9
+
+  button = CreateButton(9, 0);                  // 24G T
+  strcpy(BandLabel, "Transvtr^");
+  strcat(BandLabel, TabBandLabel[8]);
+  AddButtonStatus(button, BandLabel, &Blue);
+  AddButtonStatus(button, BandLabel, &Green);
+  AddButtonStatus(button, " ", &Black);
+
+  button = CreateButton(9, 1);                  // 47G T
+  strcpy(BandLabel, "Transvtr^");
+  strcat(BandLabel, TabBandLabel[11]);
+  AddButtonStatus(button, BandLabel, &Blue);
+  AddButtonStatus(button, BandLabel, &Green);
+  AddButtonStatus(button, " ", &Black);
+
+  button = CreateButton(9, 2);                  // 76G T
+  strcpy(BandLabel, "Transvtr^");
+  strcat(BandLabel, TabBandLabel[12]);
+  AddButtonStatus(button, BandLabel, &Blue);
+  AddButtonStatus(button, BandLabel, &Green);
+  AddButtonStatus(button, " ", &Black);
+
+  button = CreateButton(9, 3);                  // Spare T
+  strcpy(BandLabel, "Transvtr^");
+  strcat(BandLabel, TabBandLabel[13]);
+  AddButtonStatus(button, BandLabel, &Blue);
+  AddButtonStatus(button, BandLabel, &Green);
+  AddButtonStatus(button, " ", &Black);
+
+  button = CreateButton(9, 4);
+  AddButtonStatus(button, "Exit", &DBlue);
+  AddButtonStatus(button, "Exit", &LBlue);
+
+  // 2nd Row, Menu 9
+
+  button = CreateButton(9, 5);                  // 50 T
+  strcpy(BandLabel, "Transvtr^");
+  strcat(BandLabel, TabBandLabel[9]);
+  AddButtonStatus(button, TabBandLabel[0], &Blue);
+  AddButtonStatus(button, TabBandLabel[0], &Green);
+  AddButtonStatus(button, " ", &Black);
+
+  button = CreateButton(9, 6);                  // 13cm T
+  strcpy(BandLabel, "Transvtr^");
+  strcat(BandLabel, TabBandLabel[10]);
+  AddButtonStatus(button, TabBandLabel[1], &Blue);
+  AddButtonStatus(button, TabBandLabel[1], &Green);
+  AddButtonStatus(button, " ", &Black);
+
+  button = CreateButton(9, 7);                  // 9 cm T
+  strcpy(BandLabel, "Transvtr^");
+  strcat(BandLabel, TabBandLabel[5]);
+  AddButtonStatus(button, TabBandLabel[2], &Blue);
+  AddButtonStatus(button, TabBandLabel[2], &Green);
+  AddButtonStatus(button, "", &Black);
+
+  button = CreateButton(9, 8);                  // 6 cm T
+  strcpy(BandLabel, "Transvtr^");
+  strcat(BandLabel, TabBandLabel[6]);
+  AddButtonStatus(button, TabBandLabel[3], &Blue);
+  AddButtonStatus(button, TabBandLabel[3], &Green);
+  AddButtonStatus(button, " ", &Black);
+
+  button = CreateButton(9, 9);                  // 3 cm T
+  strcpy(BandLabel, "Transvtr^");
+  strcat(BandLabel, TabBandLabel[7]);
+  AddButtonStatus(button, TabBandLabel[4], &Blue);
+  AddButtonStatus(button, TabBandLabel[4], &Green);
+  AddButtonStatus(button, " ", &Black);
+
+  // 3rd Row, Menu 9
+
+  button = CreateButton(9, 10);                  // 50 MHz
+  AddButtonStatus(button, TabBandLabel[14], &Blue);
+  AddButtonStatus(button, TabBandLabel[14], &Green);
+  AddButtonStatus(button, " ", &Black);
+
+  button = CreateButton(9, 11);                  // 50 MHz
+  AddButtonStatus(button, "Direct", &Blue);
+  AddButtonStatus(button, "Direct", &Green);
+  AddButtonStatus(button, " ", &Black);
+
+  button = CreateButton(9, 14);                  // 9 cm
+  AddButtonStatus(button, TabBandLabel[15], &Blue);
+  AddButtonStatus(button, TabBandLabel[15], &Green);
+  AddButtonStatus(button, " ", &Black);
+
+  // 4th Row Menu 9
+
+  button = CreateButton(9, 15);                  // 71 MHz
+  AddButtonStatus(button, TabBandLabel[0], &Blue);
+  AddButtonStatus(button, TabBandLabel[0], &Green);
+  AddButtonStatus(button, " ", &Black);
+
+  button = CreateButton(9, 16);                  // 146 MHz
+  AddButtonStatus(button, TabBandLabel[1], &Blue);
+  AddButtonStatus(button, TabBandLabel[1], &Green);
+  AddButtonStatus(button, "", &Black);
+
+  button = CreateButton(9, 17);                  // 70 cm
+  AddButtonStatus(button, TabBandLabel[2], &Blue);
+  AddButtonStatus(button, TabBandLabel[2], &Green);
+  AddButtonStatus(button, " ", &Black);
+
+  button = CreateButton(9, 18);                  // 23 cm
+  AddButtonStatus(button, TabBandLabel[3], &Blue);
+  AddButtonStatus(button, TabBandLabel[3], &Green);
+  AddButtonStatus(button, " ", &Black);
+
+  button = CreateButton(9, 19);                  // 13cm
+  AddButtonStatus(button, TabBandLabel[4], &Blue);
+  AddButtonStatus(button, TabBandLabel[4], &Green);
+  AddButtonStatus(button, " ", &Black);
+}
+
+
+void Start_Highlights_Menu9()
+{
+  // Set Band Select Labels
+  char BandLabel[31];
+  int i;
+  printf("Entering Start Highlights Menu 9\n");
+
+  if (CallingMenu == 315)
+  {
+    strcpy(MenuTitle[9], "Band Details Setting Menu (9)");
+    //SetButtonStatus(ButtonNumber(9, 11), 2);                      // Hide direct button
+    AmendButtonStatus(ButtonNumber(9, 11), 2, " ", &Black);
+    SetButtonStatus(ButtonNumber(9, 11), 2);
+    // Put a loop in here to show hide or highlight
+    for (i = 0; i < 4 ; i++)
+    {
+      SetButtonStatus(ButtonNumber(9, i), 0);
+    }
+
+    for (i = 5; i < 11 ; i++)
+    {
+      SetButtonStatus(ButtonNumber(9, i), 0);
+    }
+
+    for (i = 14; i < 20 ; i++)
+    {
+      SetButtonStatus(ButtonNumber(9, i), 0);
+    }
+  }
+  else
+  {
+    strcpy(MenuTitle[9], "Band/Transverter Selection Menu (9)");
+
+    for (i = 0; i < 12 ; i++)  // Set buttons to blue (including direct)
+    {
+      SetButtonStatus(ButtonNumber(9, i), 0);
+    }
+    for (i = 14; i < 20 ; i++)  // Set buttons to blue
+    {
+      SetButtonStatus(ButtonNumber(9, i), 0);
+    }
+    if ((TabBandLO[CurrentBand] < 0.5) && (TabBandLO[CurrentBand] > -0.5))  // If not a transverter
+    {
+      SetButtonStatus(ButtonNumber(9, 11), 1);  // Set Direct Button Green
+    }
+
+  }
+
+  strcpy(BandLabel, "Transvtr^");                                  // 24G T
+  if ((TabBandLO[8] < 0.5) && (TabBandLO[8] > -0.5))  // If not a transverter
+  {
+    strcpy(BandLabel, "");
+    if (CallingMenu == 113)
+    {
+      SetButtonStatus(ButtonNumber(9, 0), 2);        // set button to black
+    }
+  }
+  else  // is a transverter
+  {
+    if (CurrentBand == 8)                           // This band selected
+    {
+      SetButtonStatus(ButtonNumber(9, 0), 1);        // set button to green
+    }
+  }
+  if ((TabBandLO[8] > 0.5) || (TabBandLO[8] < -0.5) || (CallingMenu == 315))
+  {
+    strcat(BandLabel, TabBandLabel[8]);
+  }
+  AmendButtonStatus(ButtonNumber(9, 0), 0, BandLabel, &Blue);
+  AmendButtonStatus(ButtonNumber(9, 0), 1, BandLabel, &Green);
+  AmendButtonStatus(ButtonNumber(9, 0), 2, BandLabel, &Black);
+
+  strcpy(BandLabel, "Transvtr^");                                  // 47G T
+  if ((TabBandLO[11] < 0.5) && (TabBandLO[11] > -0.5))
+  {
+    strcpy(BandLabel, "");
+    if (CallingMenu == 113)
+    {
+      SetButtonStatus(ButtonNumber(9, 1), 2);
+    }
+  }
+  else  // is a transverter
+  {
+    if (CurrentBand == 11)                           // This band selected
+    {
+      SetButtonStatus(ButtonNumber(9, 1), 1);        // set button to green
+    }
+  }
+  if ((TabBandLO[11] > 0.5) || (TabBandLO[11] < -0.5) || (CallingMenu == 315))
+  {
+    strcat(BandLabel, TabBandLabel[11]);
+  }
+  AmendButtonStatus(ButtonNumber(9, 1), 0, BandLabel, &Blue);
+  AmendButtonStatus(ButtonNumber(9, 1), 1, BandLabel, &Green);
+  AmendButtonStatus(ButtonNumber(9, 1), 2, BandLabel, &Black);
+
+  strcpy(BandLabel, "Transvtr^");                                  // 76G T
+  if ((TabBandLO[12] < 0.5) && (TabBandLO[12] > -0.5))
+  {
+    strcpy(BandLabel, "");
+    if (CallingMenu == 113)
+    {
+      SetButtonStatus(ButtonNumber(9, 2), 2);
+    }
+  }
+  else  // is a transverter
+  {
+    if (CurrentBand == 12)                           // This band selected
+    {
+      SetButtonStatus(ButtonNumber(9, 2), 1);        // set button to green
+    }
+  }
+  if ((TabBandLO[12] > 0.5) || (TabBandLO[12] < -0.5) || (CallingMenu == 315))
+  {
+    strcat(BandLabel, TabBandLabel[12]);
+  }
+  AmendButtonStatus(ButtonNumber(9, 2), 0, BandLabel, &Blue);
+  AmendButtonStatus(ButtonNumber(9, 2), 1, BandLabel, &Green);
+  AmendButtonStatus(ButtonNumber(9, 2), 2, BandLabel, &Black);
+
+  strcpy(BandLabel, "Transvtr^");                                  // Spare T
+  if ((TabBandLO[13] < 0.5) && (TabBandLO[13] > -0.5))
+  {
+    strcpy(BandLabel, "");
+    if (CallingMenu == 113)
+    {
+      SetButtonStatus(ButtonNumber(9, 3), 2);
+    }
+  }
+  else  // is a transverter
+  {
+    if (CurrentBand == 13)                           // This band selected
+    {
+      SetButtonStatus(ButtonNumber(9, 3), 1);        // set button to green
+    }
+  }
+  if ((TabBandLO[13] > 0.5) || (TabBandLO[13] < -0.5) || (CallingMenu == 315))
+  {
+    strcat(BandLabel, TabBandLabel[13]);
+  }
+  AmendButtonStatus(ButtonNumber(9, 3), 0, BandLabel, &Blue);
+  AmendButtonStatus(ButtonNumber(9, 3), 1, BandLabel, &Green);
+  AmendButtonStatus(ButtonNumber(9, 3), 2, BandLabel, &Black);
+
+  strcpy(BandLabel, "Transvtr^");                                  // 50 T
+  if ((TabBandLO[9] < 0.5) && (TabBandLO[9] > -0.5))
+  {
+    strcpy(BandLabel, "");
+    if (CallingMenu == 113)
+    {
+      SetButtonStatus(ButtonNumber(9, 5), 2);
+    }
+  }
+  else  // is a transverter
+  {
+    if (CurrentBand == 9)                           // This band selected
+    {
+      SetButtonStatus(ButtonNumber(9, 5), 1);        // set button to green
+    }
+  }
+  if ((TabBandLO[9] > 0.5) || (TabBandLO[9] < -0.5) || (CallingMenu == 315))
+  {
+    strcat(BandLabel, TabBandLabel[9]);
+  }
+  AmendButtonStatus(ButtonNumber(9, 5), 0, BandLabel, &Blue);
+  AmendButtonStatus(ButtonNumber(9, 5), 1, BandLabel, &Green);
+  AmendButtonStatus(ButtonNumber(9, 5), 2, BandLabel, &Black);
+
+  strcpy(BandLabel, "Transvtr^");                                  // 13cm T
+  if ((TabBandLO[10] < 0.5) && (TabBandLO[10] > -0.5))
+  {
+    strcpy(BandLabel, "");
+    if (CallingMenu == 113)
+    {
+      SetButtonStatus(ButtonNumber(9, 6), 2);
+    }
+  }
+  else  // is a transverter
+  {
+    if (CurrentBand == 10)                           // This band selected
+    {
+      SetButtonStatus(ButtonNumber(9, 6), 1);        // set button to green
+    }
+  }
+  if ((TabBandLO[10] > 0.5) || (TabBandLO[10] < -0.5) || (CallingMenu == 315))
+  {
+    strcat(BandLabel, TabBandLabel[10]);
+  }
+  AmendButtonStatus(ButtonNumber(9, 6), 0, BandLabel, &Blue);
+  AmendButtonStatus(ButtonNumber(9, 6), 1, BandLabel, &Green);
+  AmendButtonStatus(ButtonNumber(9, 6), 2, BandLabel, &Black);
+
+  strcpy(BandLabel, "Transvtr^");                                  // 9cm T
+  if ((TabBandLO[5] < 0.5) && (TabBandLO[5] > -0.5))
+  {
+    strcpy(BandLabel, "");
+    if (CallingMenu == 113)
+    {
+      SetButtonStatus(ButtonNumber(9, 7), 2);
+    }
+  }
+  else  // is a transverter
+  {
+    if (CurrentBand == 5)                           // This band selected
+    {
+      SetButtonStatus(ButtonNumber(9, 7), 1);        // set button to green
+    }
+  }
+  if ((TabBandLO[5] > 0.5) || (TabBandLO[5] < -0.5) || (CallingMenu == 315))
+  {
+    strcat(BandLabel, TabBandLabel[5]);
+  }
+  AmendButtonStatus(ButtonNumber(9, 7), 0, BandLabel, &Blue);
+  AmendButtonStatus(ButtonNumber(9, 7), 1, BandLabel, &Green);
+  AmendButtonStatus(ButtonNumber(9, 7), 2, BandLabel, &Black);
+
+  strcpy(BandLabel, "Transvtr^");                                  // 6cm T
+  if ((TabBandLO[6] < 0.5) && (TabBandLO[6] > -0.5))
+  {
+    strcpy(BandLabel, "");
+    if (CallingMenu == 113)
+    {
+      SetButtonStatus(ButtonNumber(9, 8), 2);
+    }
+  }
+  else  // is a transverter
+  {
+    if (CurrentBand == 6)                           // This band selected
+    {
+      SetButtonStatus(ButtonNumber(9, 8), 1);        // set button to green
+    }
+  }
+  if ((TabBandLO[6] > 0.5) || (TabBandLO[6] < -0.5) || (CallingMenu == 315))
+  {
+    strcat(BandLabel, TabBandLabel[6]);
+  }
+  AmendButtonStatus(ButtonNumber(9, 8), 0, BandLabel, &Blue);
+  AmendButtonStatus(ButtonNumber(9, 8), 1, BandLabel, &Green);
+  AmendButtonStatus(ButtonNumber(9, 8), 2, BandLabel, &Black);
+ 
+  strcpy(BandLabel, "Transvtr^");                                  // 3cm T
+  if ((TabBandLO[7] < 0.5) && (TabBandLO[7] > -0.5))
+  {
+    strcpy(BandLabel, "");
+    if (CallingMenu == 113)
+    {
+      SetButtonStatus(ButtonNumber(9, 9), 2);
+    }
+  }
+  else  // is a transverter
+  {
+    if (CurrentBand == 7)                           // This band selected
+    {
+      SetButtonStatus(ButtonNumber(9, 9), 1);        // set button to green
+    }
+  }
+  if ((TabBandLO[7] > 0.5) || (TabBandLO[7] < -0.5) || (CallingMenu == 315))
+  {
+    strcat(BandLabel, TabBandLabel[7]);
+  }
+  AmendButtonStatus(ButtonNumber(9, 9), 0, BandLabel, &Blue);
+  AmendButtonStatus(ButtonNumber(9, 9), 1, BandLabel, &Green);
+  AmendButtonStatus(ButtonNumber(9, 9), 2, BandLabel, &Black);
+
+  strcpy(BandLabel, "Transvtr^");                                  // 50 MHz
+  if ((TabBandLO[14] < 0.5) && (TabBandLO[14] > -0.5))
+  {
+    strcpy(BandLabel, "");
+    if (CallingMenu == 113)
+    {
+      SetButtonStatus(ButtonNumber(9, 10), 2);
+    }
+  }
+  else  // is a transverter
+  {
+    if (CurrentBand == 14)                           // This band selected
+    {
+      SetButtonStatus(ButtonNumber(9, 10), 1);        // set button to green
+    }
+  }
+  if ((TabBandLO[14] > 0.5) || (TabBandLO[14] < -0.5) || (CallingMenu == 315))
+  {
+    strcat(BandLabel, TabBandLabel[14]);
+  }
+  AmendButtonStatus(ButtonNumber(9, 10), 0, BandLabel, &Blue);
+  AmendButtonStatus(ButtonNumber(9, 10), 1, BandLabel, &Green);
+  AmendButtonStatus(ButtonNumber(9, 10), 2, BandLabel, &Black);
+
+  strcpy(BandLabel, "Transvtr^");                                  // 9 cm
+  if ((TabBandLO[15] < 0.5) && (TabBandLO[15] > -0.5))
+  {
+    strcpy(BandLabel, "");
+    if (CallingMenu == 113)
+    {
+      SetButtonStatus(ButtonNumber(9, 14), 2);
+    }
+  }
+  else  // is a transverter
+  {
+    if (CurrentBand == 15)                           // This band selected
+    {
+      SetButtonStatus(ButtonNumber(9, 14), 1);        // set button to green
+    }
+  }
+  if ((TabBandLO[15] > 0.5) || (TabBandLO[15] < -0.5) || (CallingMenu == 315))
+  {
+    strcat(BandLabel, TabBandLabel[15]);
+  }
+  AmendButtonStatus(ButtonNumber(9, 14), 0, BandLabel, &Blue);
+  AmendButtonStatus(ButtonNumber(9, 14), 1, BandLabel, &Green);
+  AmendButtonStatus(ButtonNumber(9, 14), 2, BandLabel, &Black);
+ 
+  strcpy(BandLabel, "Transvtr^");                                  // 71 MHz
+  if ((TabBandLO[0] < 0.5) && (TabBandLO[0] > -0.5))
+  {
+    strcpy(BandLabel, "");
+    if (CallingMenu == 113)
+    {
+      SetButtonStatus(ButtonNumber(9, 15), 2);
+    }
+  }
+  else  // is a transverter
+  {
+    if (CurrentBand == 0)                           // This band selected
+    {
+      SetButtonStatus(ButtonNumber(9, 15), 1);        // set button to green
+    }
+  }
+  if ((TabBandLO[0] > 0.5) || (TabBandLO[0] < -0.5) || (CallingMenu == 315))
+  {
+    strcat(BandLabel, TabBandLabel[0]);
+  }
+  AmendButtonStatus(ButtonNumber(9, 15), 0, BandLabel, &Blue);
+  AmendButtonStatus(ButtonNumber(9, 15), 1, BandLabel, &Green);
+  AmendButtonStatus(ButtonNumber(9, 15), 2, BandLabel, &Black);
+ 
+  strcpy(BandLabel, "Transvtr^");                                  // 146 MHz
+  if ((TabBandLO[1] < 0.5) && (TabBandLO[1] > -0.5))
+  {
+    strcpy(BandLabel, " ");
+  }
+    if (CallingMenu == 113)
+    {
+      SetButtonStatus(ButtonNumber(9, 16), 2);
+    }
+  else  // is a transverter
+  {
+    if (CurrentBand == 1)                           // This band selected
+    {
+      SetButtonStatus(ButtonNumber(9, 16), 1);        // set button to green
+    }
+  }
+  if ((TabBandLO[1] > 0.5) || (TabBandLO[1] < -0.5) || (CallingMenu == 315))
+  {
+    strcat(BandLabel, TabBandLabel[1]);
+  }
+  AmendButtonStatus(ButtonNumber(9, 16), 0, BandLabel, &Blue);
+  AmendButtonStatus(ButtonNumber(9, 16), 1, BandLabel, &Green);
+  AmendButtonStatus(ButtonNumber(9, 16), 2, BandLabel, &Black);
+ 
+  strcpy(BandLabel, "Transvtr^");                                  // 70 cm
+  if ((TabBandLO[2] < 0.5) && (TabBandLO[2] > -0.5))
+  {
+    strcpy(BandLabel, "");
+    if (CallingMenu == 113)
+    {
+      SetButtonStatus(ButtonNumber(9, 17), 2);
+    }
+  }
+  else  // is a transverter
+  {
+    if (CurrentBand == 2)                           // This band selected
+    {
+      SetButtonStatus(ButtonNumber(9, 17), 1);        // set button to green
+    }
+  }
+  if ((TabBandLO[2] > 0.5) || (TabBandLO[2] < -0.5) || (CallingMenu == 315))
+  {
+    strcat(BandLabel, TabBandLabel[2]);
+  }
+  AmendButtonStatus(ButtonNumber(9, 17), 0, BandLabel, &Blue);
+  AmendButtonStatus(ButtonNumber(9, 17), 1, BandLabel, &Green);
+  AmendButtonStatus(ButtonNumber(9, 17), 2, BandLabel, &Black);
+ 
+  strcpy(BandLabel, "Transvtr^");                                  // 23 cm
+  if ((TabBandLO[3] < 0.5) && (TabBandLO[3] > -0.5))
+  {
+    strcpy(BandLabel, "");
+    if (CallingMenu == 113)
+    {
+      SetButtonStatus(ButtonNumber(9, 18), 2);
+    }
+  }
+  else  // is a transverter
+  {
+    if (CurrentBand == 3)                           // This band selected
+    {
+      SetButtonStatus(ButtonNumber(9, 18), 1);        // set button to green
+    }
+  }
+  if ((TabBandLO[3] > 0.5) || (TabBandLO[3] < -0.5) || (CallingMenu == 315))
+  {
+    strcat(BandLabel, TabBandLabel[3]);
+  }
+  AmendButtonStatus(ButtonNumber(9, 18), 0, BandLabel, &Blue);
+  AmendButtonStatus(ButtonNumber(9, 18), 1, BandLabel, &Green);
+  AmendButtonStatus(ButtonNumber(9, 18), 2, BandLabel, &Black);
+
+  strcpy(BandLabel, "Transvtr^");                                  // 13 cm
+  if ((TabBandLO[4] < 0.5) && (TabBandLO[4] > -0.5))
+  {
+    strcpy(BandLabel, "");
+    if (CallingMenu == 113)
+    {
+      SetButtonStatus(ButtonNumber(9, 19), 2);
+    }
+  }
+  else  // is a transverter
+  {
+    if (CurrentBand == 4)                           // This band selected
+    {
+      SetButtonStatus(ButtonNumber(9, 19), 1);        // set button to green
+    }
+  }
+  if (! ((TabBandLO[4] < 0.5) && (TabBandLO[4] > -0.5) && (CallingMenu == 113)))
+  {
+    strcat(BandLabel, TabBandLabel[4]);
+  }
+  AmendButtonStatus(ButtonNumber(9, 19), 0, BandLabel, &Blue);
+  AmendButtonStatus(ButtonNumber(9, 19), 1, BandLabel, &Green);
+  AmendButtonStatus(ButtonNumber(9, 19), 2, BandLabel, &Black);
+}
+
 
 void Define_Menu10()
 {
@@ -19796,20 +21206,22 @@ void MakeFreqText(int index)
   {
     if (index == 8)
     {
-      strcpy(FreqBtext, "Keyboard^T");
-      TvtrFreq = atof(TabFreq[index]) + TabBandLO[CurrentBand];
-      if (TvtrFreq < 0)
-      {
-        TvtrFreq = TvtrFreq * -1;
-      }
+      //strcpy(FreqBtext, "Keyboard^TX:");
+      //TvtrFreq = atof(TabFreq[index]) + TabBandLO[CurrentBand];
+      //if (TvtrFreq < 0)
+      //{
+      //  TvtrFreq = TvtrFreq * -1;
+      //}
+      strcpy(FreqBtext, "Keyboard^IF:");
+      TvtrFreq = atof(TabFreq[index]); // 
       snprintf(Value, 10, "%.2f", TvtrFreq);
       strcat(FreqBtext, Value);
     }
     else
     {
-      strcpy(FreqBtext, "F: ");
+      strcpy(FreqBtext, "IF: ");
       strcat(FreqBtext, TabFreq[index]);
-      strcat(FreqBtext, "^T:");
+      strcat(FreqBtext, "^TX:");
       TvtrFreq = atof(TabFreq[index]) + TabBandLO[CurrentBand];
       if (TvtrFreq < 0)
       {
@@ -20542,30 +21954,27 @@ void Define_Menu26()
 {
   int button;
   char BandLabel[31];
+  strcpy(MenuTitle[26], "Receiver LO Setting Menu (26)");
 
   // Bottom Row, Menu 26
 
   button = CreateButton(26, 0);
-  strcpy(BandLabel, "Transvtr^");
-  strcat(BandLabel, TabBandLabel[5]);
+  strcpy(BandLabel, TabBandLabel[14]);
   AddButtonStatus(button, BandLabel, &Blue);
   AddButtonStatus(button, BandLabel, &Green);
 
   button = CreateButton(26, 1);
-  strcpy(BandLabel, "Transvtr^");
-  strcat(BandLabel, TabBandLabel[6]);
+  strcpy(BandLabel, TabBandLabel[0]);
   AddButtonStatus(button, BandLabel, &Blue);
   AddButtonStatus(button, BandLabel, &Green);
 
   button = CreateButton(26, 2);
-  strcpy(BandLabel, "Transvtr^");
-  strcat(BandLabel, TabBandLabel[7]);
+  strcpy(BandLabel, TabBandLabel[1]);
   AddButtonStatus(button, BandLabel, &Blue);
   AddButtonStatus(button, BandLabel, &Green);
 
   button = CreateButton(26, 3);
-  strcpy(BandLabel, "Transvtr^");
-  strcat(BandLabel, TabBandLabel[8]);
+  strcpy(BandLabel, TabBandLabel[2]);
   AddButtonStatus(button, BandLabel, &Blue);
   AddButtonStatus(button, BandLabel, &Green);
 
@@ -20576,55 +21985,46 @@ void Define_Menu26()
   // 2nd Row, Menu 26
 
   button = CreateButton(26, 5);
-  AddButtonStatus(button, TabBandLabel[0], &Blue);
-  AddButtonStatus(button, TabBandLabel[0], &Green);
+  strcpy(BandLabel, TabBandLabel[9]);
+  AddButtonStatus(button, BandLabel, &Blue);
+  AddButtonStatus(button, BandLabel, &Green);
 
   button = CreateButton(26, 6);
-  AddButtonStatus(button, TabBandLabel[1], &Blue);
-  AddButtonStatus(button, TabBandLabel[1], &Green);
-
-  button = CreateButton(26, 7);
-  AddButtonStatus(button, TabBandLabel[2], &Blue);
-  AddButtonStatus(button, TabBandLabel[2], &Green);
-
-  button = CreateButton(26, 8);
-  AddButtonStatus(button, TabBandLabel[3], &Blue);
-  AddButtonStatus(button, TabBandLabel[3], &Green);
-
-  button = CreateButton(26, 9);
-  AddButtonStatus(button, TabBandLabel[4], &Blue);
-  AddButtonStatus(button, TabBandLabel[4], &Green);
+  strcpy(BandLabel, TabBandLabel[13]);
+  AddButtonStatus(button, BandLabel, &Blue);
+  AddButtonStatus(button, BandLabel, &Green);
 }
 
 void Start_Highlights_Menu26()
 {
   // Set Band Select Labels
-  int NoButton;
   char BandLabel[31];
-
-  if(CallingMenu == 301)
-  {
-    strcpy(MenuTitle[26], "Band Details Setting Menu (26)");
-  }
-  else
-  {
-    strcpy(MenuTitle[26], "Receiver LO Setting Menu (26)");
-  }
 
   printf("Entering Start Highlights Menu26\n");
 
-  for (NoButton = 0; NoButton < 4; NoButton = NoButton + 1)
-  {
-    strcpy(BandLabel, "Transvtr^");
-    strcat(BandLabel, TabBandLabel[NoButton + 5]);
-    AmendButtonStatus(ButtonNumber(26, NoButton), 0, BandLabel, &Blue);
-    AmendButtonStatus(ButtonNumber(26, NoButton), 1, BandLabel, &Green);
-  }
-  for (NoButton = 5; NoButton < 10; NoButton = NoButton + 1)
-  {
-    AmendButtonStatus(ButtonNumber(26, NoButton), 0, TabBandLabel[NoButton - 5], &Blue);
-    AmendButtonStatus(ButtonNumber(26, NoButton), 1, TabBandLabel[NoButton - 5], &Green);
-  }
+  strcpy(BandLabel, TabBandLabel[14]);
+  AmendButtonStatus(ButtonNumber(26, 0), 0, BandLabel, &Blue);
+  AmendButtonStatus(ButtonNumber(26, 0), 1, BandLabel, &Green);
+
+  strcpy(BandLabel, TabBandLabel[0]);
+  AmendButtonStatus(ButtonNumber(26, 1), 0, BandLabel, &Blue);
+  AmendButtonStatus(ButtonNumber(26, 1), 1, BandLabel, &Green);
+
+  strcpy(BandLabel, TabBandLabel[1]);
+  AmendButtonStatus(ButtonNumber(26, 2), 0, BandLabel, &Blue);
+  AmendButtonStatus(ButtonNumber(26, 2), 1, BandLabel, &Green);
+
+  strcpy(BandLabel, TabBandLabel[2]);
+  AmendButtonStatus(ButtonNumber(26, 3), 0, BandLabel, &Blue);
+  AmendButtonStatus(ButtonNumber(26, 3), 1, BandLabel, &Green);
+
+  strcpy(BandLabel, TabBandLabel[9]);
+  AmendButtonStatus(ButtonNumber(26, 5), 0, BandLabel, &Blue);
+  AmendButtonStatus(ButtonNumber(26, 5), 1, BandLabel, &Green);
+
+  strcpy(BandLabel, TabBandLabel[13]);
+  AmendButtonStatus(ButtonNumber(26, 6), 0, BandLabel, &Blue);
+  AmendButtonStatus(ButtonNumber(26, 6), 1, BandLabel, &Green);
 }
 
 void Define_Menu27()
@@ -21485,11 +22885,11 @@ void Define_Menu42()
   AddButtonStatus(button, "Cancel", &DBlue);
   AddButtonStatus(button, "Cancel", &LBlue);
 
-  //button = CreateButton(42, 0);                        // Comp Vid
+  //button = CreateButton(42, 0);                        // Was Comp Vid
   //AddButtonStatus(button, TabModeOPtext[5], &Blue);
   //AddButtonStatus(button, TabModeOPtext[5], &Green);
 
-  //button = CreateButton(42, 1);
+  //button = CreateButton(42, 1);                        // Was DTX-1
   //AddButtonStatus(button, TabModeOPtext[6], &Blue);
   //AddButtonStatus(button, TabModeOPtext[6], &Green);
 
@@ -21505,11 +22905,11 @@ void Define_Menu42()
   // 2nd Row, Menu 42
 
   //button = CreateButton(42, 5);
-  //AddButtonStatus(button, TabModeOPtext[0], &Blue);
+  //AddButtonStatus(button, TabModeOPtext[0], &Blue);    // Was IQ
   //AddButtonStatus(button, TabModeOPtext[0], &Green);
 
   //button = CreateButton(42, 6);
-  //AddButtonStatus(button, TabModeOPtext[1], &Blue);
+  //AddButtonStatus(button, TabModeOPtext[1], &Blue);    // Was QPSK RF
   //AddButtonStatus(button, TabModeOPtext[1], &Green);
 
   button = CreateButton(42, 7);                          // Express
@@ -21547,16 +22947,7 @@ void Define_Menu42()
 void Start_Highlights_Menu42()
 {
   GreyOutReset42();
-  //if(strcmp(CurrentModeOP, TabModeOP[0]) == 0) // IQ
-  //{
-  //  SelectInGroupOnMenu(42, 5, 14, 5, 1);
-  //  SelectInGroupOnMenu(42, 0, 3, 5, 1);
-  //}
-  //if(strcmp(CurrentModeOP, TabModeOP[1]) == 0)  //QPSKRF
-  //{
-  //  SelectInGroupOnMenu(42, 5, 14, 6, 1);
-  //  SelectInGroupOnMenu(42, 0, 3, 6, 1);
-  //}
+
   if(strcmp(CurrentModeOP, TabModeOP[2]) == 0)  //DATVEXPRESS
   {
     SelectInGroupOnMenu(42, 5, 14, 7, 1);
@@ -21572,16 +22963,6 @@ void Start_Highlights_Menu42()
     SelectInGroupOnMenu(42, 5, 14, 9, 1);
     SelectInGroupOnMenu(42, 0, 3, 9, 1);
   }
-  //if(strcmp(CurrentModeOP, TabModeOP[5]) == 0)  // COMPVID
-  //{
-  //  SelectInGroupOnMenu(42, 5, 14, 0, 1);
-  //  SelectInGroupOnMenu(42, 0, 3, 0, 1);
-  //}
-  //if(strcmp(CurrentModeOP, TabModeOP[6]) == 0)  // DTX1
-  //{
-  //  SelectInGroupOnMenu(42, 5, 14, 1, 1);
-  //  SelectInGroupOnMenu(42, 0, 3, 1, 1);
-  //}
   if(strcmp(CurrentModeOP, TabModeOP[7]) == 0)  // IPTS Out
   {
     SelectInGroupOnMenu(42, 5, 14, 2, 1);
@@ -21602,7 +22983,7 @@ void Start_Highlights_Menu42()
     SelectInGroupOnMenu(42, 5, 14, 13, 1);
     SelectInGroupOnMenu(42, 0, 3, 13, 1);
   }
-  if(strcmp(CurrentModeOP, TabModeOP[13]) == 0)  //pluto
+  if(strcmp(CurrentModeOP, TabModeOP[13]) == 0)  //Pluto
   {
     SelectInGroupOnMenu(42, 5, 14, 14, 1);
     SelectInGroupOnMenu(42, 0, 3, 14, 1);
@@ -21933,11 +23314,9 @@ void Define_Menu46()
 
   button = CreateButton(46, 10);
   AddButtonStatus(button, "Tuner^Timeout", &Blue);
-  AddButtonStatus(button, "Tuner^Timeout", &Blue);
 
   button = CreateButton(46, 11);
-  AddButtonStatus(button, "Tuner Scan^Width", &Grey);
-  AddButtonStatus(button, "Tuner Scan^Width", &Grey);
+  AddButtonStatus(button, "Tuner Scan^Width", &Blue);
 
   button = CreateButton(46, 12);
   AddButtonStatus(button, "TS Video^Channel", &Blue);
@@ -22415,6 +23794,7 @@ int main(int argc, char **argv)
   Define_Menu6();
   Define_Menu7();
   Define_Menu8();
+  Define_Menu9();
 
   Define_Menu10();
   Define_Menu11();

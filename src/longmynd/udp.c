@@ -57,13 +57,14 @@ int sockfd_ts;
 /* -------------------------------------------------------------------------------------------------- */
 
 /* -------------------------------------------------------------------------------------------------- */
-uint8_t udp_ts_write(uint8_t *buffer, uint32_t len) {
+uint8_t udp_ts_write(uint8_t *buffer, uint32_t len, bool *output_ready) {
 /* -------------------------------------------------------------------------------------------------- */
 /* takes a buffer and writes out the contents to udp socket                                           */
 /* *buffer: the buffer that contains the data to be sent                                              */
 /*     len: the length (number of bytes) of data to be sent                                           */
 /*  return: error code                                                                                */
 /* -------------------------------------------------------------------------------------------------- */
+    (void)output_ready;
     uint8_t err=ERROR_NONE;
     int32_t remaining_len; /* note it is signed so can go negative */
     uint32_t write_size;
@@ -99,16 +100,18 @@ uint8_t udp_ts_write(uint8_t *buffer, uint32_t len) {
 }
 
 /* -------------------------------------------------------------------------------------------------- */
-uint8_t udp_status_write(uint8_t message, uint32_t data) {
+uint8_t udp_status_write(uint8_t message, uint32_t data, bool *output_ready) {
 /* -------------------------------------------------------------------------------------------------- */
 /* takes a buffer and writes out the contents to udp socket                                           */
 /* *buffer: the buffer that contains the data to be sent                                              */
 /*     len: the length (number of bytes) of data to be sent                                           */
 /*  return: error code                                                                                */
 /* -------------------------------------------------------------------------------------------------- */
+    (void)output_ready;
     uint8_t err=ERROR_NONE;
     char status_message[30];
 
+    /* WARNING: This currently prints as signed integer (int32_t), even though function appears to expect unsigned (uint32_t) */
     sprintf(status_message, "$%i,%i\n", message, data);
 
     sendto(sockfd_status, status_message, strlen(status_message), 0, (const struct sockaddr *)&servaddr_status,  sizeof(struct sockaddr)); 
@@ -117,13 +120,14 @@ uint8_t udp_status_write(uint8_t message, uint32_t data) {
 }
 
 /* -------------------------------------------------------------------------------------------------- */
-uint8_t udp_status_string_write(uint8_t message, char *data) {
+uint8_t udp_status_string_write(uint8_t message, char *data, bool *output_ready) {
 /* -------------------------------------------------------------------------------------------------- */
 /* takes a buffer and writes out the contents to udp socket                                           */
 /* *buffer: the buffer that contains the data to be sent                                              */
 /*     len: the length (number of bytes) of data to be sent                                           */
 /*  return: error code                                                                                */
 /* -------------------------------------------------------------------------------------------------- */
+    (void)output_ready;
     uint8_t err=ERROR_NONE;
     char status_message[5+128];
 
