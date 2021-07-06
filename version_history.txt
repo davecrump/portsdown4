@@ -1,3 +1,6 @@
+202107060
+Report Config File Errors on-screen
+
 202107050
 Correct DVB-T Transmit Frequency Calculation
 
