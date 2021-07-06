@@ -398,7 +398,7 @@ int LimeGWRev();
 void LMRX(int);
 void MakeFreqText(int);
 void IPTSConfig(int);
-
+int file_exist(char *);
 
 /***************************************************************************//**
  * @brief Looks up the value of a Param in PathConfigFile and sets value
@@ -420,7 +420,19 @@ void GetConfigParam(char *PathConfigFile, char *Param, char *Value)
   char ErrorMessage1[255];
   strcpy(ParamWithEquals, Param);
   strcat(ParamWithEquals, "=");
-  
+  int file_test = 0;
+
+  file_test = file_exist(PathConfigFile);  // Display error if file does not exist
+  if (file_test == 1)
+  {
+    usleep(100000);           // Pause to let screen initialise
+    setBackColour(0, 0, 0);   // Overwrite Portsdown Logo
+    MsgBox4("Error: Config File not found:", PathConfigFile, "Restore manually or by factory reset", 
+            "Touch Screen to Continue");
+    wait_touch();
+    strcpy(Value, " ");
+    return;
+  }
 
   //printf("Get Config reads %s for %s ", PathConfigFile , Param);
 
@@ -449,8 +461,12 @@ void GetConfigParam(char *PathConfigFile, char *Param, char *Value)
   fclose(fp);
 
   if (strlen(Value) == 0)  // Display error if parameter undefined
-  {
-    snprintf(ErrorMessage1, 63, "ERROR:  Undefined parameter \"%s\" in file:", Param);
+  {  
+    usleep(100000);           // Pause to let screen initialise
+    setBackColour(0, 0, 0);   // Overwrite Portsdown Logo
+
+    snprintf(ErrorMessage1, 63, "Error: Undefined parameter %s in file:", Param);
+
     MsgBox4(ErrorMessage1, PathConfigFile, "Restore manually or by factory reset", 
             "Touch Screen to Continue");
     wait_touch();
@@ -1802,7 +1818,7 @@ void ReadModeOutput(char Moutput[256])
 
 int file_exist (char *filename)
 {
-  if ( access( filename, R_OK ) != -1 ) 
+  if (access(filename, R_OK) == 0) 
   {
     // file exists
     return 0;
@@ -6952,7 +6968,7 @@ void ChangeBandDetails(int NoButton)
   int PlutoLevel = 1;
   float LO = 1000001;
   char Numbers[10] ="";
-  //char PromptBand[15];
+  char TexttoSave[63];
   char ActualValue[31];
   int band = 0;
 
@@ -7055,13 +7071,14 @@ void ChangeBandDetails(int NoButton)
     ExpPorts = atoi(KeyboardReturn);
   }
   TabBandExpPorts[band] = ExpPorts;
+  snprintf(TexttoSave, 30, "%d", TabBandExpPorts[band]);
   strcpy(Param, TabBand[band]);
   strcat(Param, "expports");
-  SetConfigParam(PATH_PPRESETS ,Param, KeyboardReturn);
+  SetConfigParam(PATH_PPRESETS ,Param, TexttoSave);
 
   // Lime Gain
   snprintf(Value, 30, "%d", TabBandLimeGain[band]);
-  while ((LimeGain < 0) || (LimeGain > 100))
+  while ((LimeGain < 1) || (LimeGain > 100))    // Do not allow zero or blank Lime Gain
   {
     snprintf(Prompt, 63, "Set the Lime Gain for the %s Band:", TabBandLabel[band]);
     Keyboard(Prompt, Value, 3);
@@ -23760,6 +23777,9 @@ int main(int argc, char **argv)
   wbuttonsize=(wscreen-25)/5;
   hbuttonsize=hscreen/6;
 
+  // Initialise direct access to the 7 inch screen
+  initScreen();
+
   // Read in the presets from the Config files
   ReadPresets();
   ReadModeInput(vcoding, vsource);
@@ -23795,7 +23815,6 @@ int main(int argc, char **argv)
   Define_Menu7();
   Define_Menu8();
   Define_Menu9();
-
   Define_Menu10();
   Define_Menu11();
   Define_Menu12();
@@ -23833,9 +23852,6 @@ int main(int argc, char **argv)
   Define_Menu44();
   Define_Menu45();
   Define_Menu46();
-
-  // Initialise direct access to the 7 inch screen
-  initScreen();
 
   // Check if DATV Express Server required and, if so, start it
   CheckExpress();
