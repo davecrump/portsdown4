@@ -1,3 +1,8 @@
+202107100
+Enable 16:9 Streaming from Comp Vid
+Increase keyboard input error-checking
+Enable Pluto IP Address entry for Langstone
+
 202107060
 Report Config File Errors on-screen
 
