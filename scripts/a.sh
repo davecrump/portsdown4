@@ -1464,23 +1464,11 @@ fi
       let DIGITAL_GAIN=6  # To equalise levels with normal DVB-S2 +/- 2 dB
       $PATHRPI"/limesdr_dvb" -s 1000000 -f carrier -r 1 -m DVBS2 -c QPSK \
         -t "$FREQ_OUTPUT"e6 -g $LIME_GAINF -q $CAL $CUSTOM_FPGA -D $DIGITAL_GAIN -e $BAND_GPIO &
-
       ;;
-      *)
-        # sudo $PATHRPI"/rpidatv" -i videots -s $SYMBOLRATE_K -c "carrier" -f $FREQUENCY_OUT -p $GAIN -m $MODE -x $PIN_I -y $PIN_Q &
-
-        # Temporary fix for swapped carrier and test modes:   
-        sudo $PATHRPI"/rpidatv" -i videots -s $SYMBOLRATE_K -c "tesmode" -f $FREQUENCY_OUT -p $GAIN -m $MODE -x $PIN_I -y $PIN_Q &
+      "PLUTO")
+        # Put Pluto carrier code here
       ;;
     esac
-  ;;
-
-  # *********************************** TESTMODE  ******************************************
-  "TESTMODE")
-    # sudo $PATHRPI"/rpidatv" -i videots -s $SYMBOLRATE_K -c "tesmode" -f $FREQUENCY_OUT -p $GAIN -m $MODE -x $PIN_I -y $PIN_Q &
-
-    # Temporary fix for swapped carrier and test modes:
-    sudo $PATHRPI"/rpidatv" -i videots -s $SYMBOLRATE_K -c "carrier" -f $FREQUENCY_OUT -p $GAIN -m $MODE -x $PIN_I -y $PIN_Q &
   ;;
 
   #============================================ ANALOG AND WEBCAM MPEG-2 INPUT MODES ======================================================
@@ -1613,6 +1601,9 @@ fi
         if [ "$VIDEO_WIDTH" -lt 720 ]; then
           VIDEO_WIDTH=720
           VIDEO_HEIGHT=576
+        fi
+        if [ "$FORMAT" == "16:9" ]; then
+          SCALE="scale=1024:576,"
         fi
         if [ "$AUDIO_CARD" == "0" ]; then
           # No audio
