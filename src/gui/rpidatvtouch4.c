@@ -314,7 +314,9 @@ char QOFreqButts[10][31] = {"10494.75^2405.25", "10495.25^2405.75", "10495.75^24
 
 // Langstone Integration variables
 char StartApp[63];            // Startup app on boot
-char PlutoIP[63];             // Pluto IP address
+char PlutoIP[63];             // Portsdown Pluto IP address
+char LangstonePlutoIP[63];    // Langstone Pluto IP address
+
 
 // Touch display variables
 int Inversed=0;               //Display is inversed (Waveshare=1)
@@ -491,18 +493,30 @@ void SetConfigParam(char *PathConfigFile, char *Param, char *Value)
   int read;
   char Command[511];
   char BackupConfigName[240];
-  strcpy(BackupConfigName,PathConfigFile);
-  strcat(BackupConfigName,".bak");
-  FILE *fp=fopen(PathConfigFile,"r");
-  FILE *fw=fopen(BackupConfigName,"w+");
   char ParamWithEquals[255];
-  strcpy(ParamWithEquals, Param);
-  strcat(ParamWithEquals, "=");
+  char ErrorMessage1[255];
 
   if (debug_level == 2)
   {
     printf("Set Config called %s %s %s\n", PathConfigFile , ParamWithEquals, Value);
   }
+
+  if (strlen(Value) == 0)  // Don't write empty values
+  {
+    setBackColour(0, 0, 0);   // Overwrite Portsdown Logo
+    snprintf(ErrorMessage1, 63, "Error: Parameter %s in file:", Param);
+    MsgBox4(ErrorMessage1, PathConfigFile, "Would have no value. Try again.", 
+            "Touch Screen to Continue");
+    wait_touch();
+    return;
+  }
+
+  strcpy(BackupConfigName, PathConfigFile);
+  strcat(BackupConfigName, ".bak");
+  FILE *fp=fopen(PathConfigFile, "r");
+  FILE *fw=fopen(BackupConfigName, "w+");
+  strcpy(ParamWithEquals, Param);
+  strcat(ParamWithEquals, "=");
 
   if(fp!=0)
   {
@@ -2646,6 +2660,46 @@ int CheckC920Type()
     {
       pclose(fp);
       return 2;
+    }
+  }
+  pclose(fp);
+  return 0;
+}
+
+/***************************************************************************//**
+ * @brief Looks Up the IP address that the Langstone is using for Pluto
+ *
+ * @param LangstonePlutoIP
+ *
+ * @return 0 if successful, 1 if not found
+*******************************************************************************/
+
+int CheckLangstonePlutoIP()
+{
+  FILE *fp;
+  char response_line[255];
+
+  if (file_exist("/home/pi/Langstone/run") != 0)
+  {
+    MsgBox2("Langstone not installed", "Please install Langstone, then set Pluto IP");
+    wait_touch();
+    return 1;
+  }
+
+  fp = popen("grep '^export PLUTO_IP=' /home/pi/Langstone/run | cut -c17-", "r");
+  if (fp == NULL)
+  {
+    printf("Failed to run command\n" );
+    return 1;
+  }
+
+  /* Read the output a line at a time - output it. */
+  while (fgets(response_line, 250, fp) != NULL)
+  {
+    if (strlen(response_line) > 1)
+    {
+      response_line[strlen(response_line) - 1] = '\0';  // Strip trailing cr
+      strcpy(LangstonePlutoIP, response_line);
     }
   }
   pclose(fp);
@@ -7030,7 +7084,11 @@ void ChangeBandDetails(int NoButton)
 
   // Label
   snprintf(Prompt, 63, "Enter the title for Band with GPIO Code %d", TabBandExpPorts[band]);
-  Keyboard(Prompt, TabBandLabel[band], 15);
+  KeyboardReturn[0] = '\0';
+  while (strlen(KeyboardReturn) < 1)
+  {
+    Keyboard(Prompt, TabBandLabel[band], 15);
+  }
   strcpy(Param, TabBand[band]);
   strcat(Param, "label");
   SetConfigParam(PATH_PPRESETS ,Param, KeyboardReturn);
@@ -7038,7 +7096,7 @@ void ChangeBandDetails(int NoButton)
 
   // Attenuator Level
   snprintf(Value, 30, "%.2f", TabBandAttenLevel[band]);
-  while ((AttenLevel > 0) || (AttenLevel < -31.75))
+  while ((AttenLevel > 0) || (AttenLevel < -31.75) || (strlen(KeyboardReturn) < 1))  // AttenLevel init at 1
   {
     snprintf(Prompt, 63, "Set the Attenuator Level for the %s Band:", TabBandLabel[band]);
     Keyboard(Prompt, Value, 6);
@@ -7051,7 +7109,7 @@ void ChangeBandDetails(int NoButton)
 
   // Express Level
   snprintf(Value, 30, "%d", TabBandExpLevel[band]);
-  while ((ExpLevel < 0) || (ExpLevel > 44))
+  while ((ExpLevel < 0) || (ExpLevel > 44) || (strlen(KeyboardReturn) < 1))  // ExpLevel init at -1
   {
     snprintf(Prompt, 63, "Set the Express Level for the %s Band:", TabBandLabel[band]);
     Keyboard(Prompt, Value, 2);
@@ -7064,7 +7122,7 @@ void ChangeBandDetails(int NoButton)
 
   // GPIO ports
   snprintf(Value, 30, "%d", TabBandExpPorts[band]);
-  while ((ExpPorts < 0) || (ExpPorts > 31))
+  while ((ExpPorts < 0) || (ExpPorts > 31) || (strlen(KeyboardReturn) < 1))  // ExpPorts init at -1
   {
     snprintf(Prompt, 63, "Enter the GPIO Port Settings for %s:", TabBandLabel[band]);
     Keyboard(Prompt, Value, 2);
@@ -7091,7 +7149,7 @@ void ChangeBandDetails(int NoButton)
 
   // Pluto Power
   snprintf(ActualValue, 30, "%d", TabBandPlutoLevel[band]);
-  while ((PlutoLevel < -71) || (PlutoLevel > 0))
+  while ((PlutoLevel < -71) || (PlutoLevel > 0) || (strlen(KeyboardReturn) < 1))  // PlutoLevel init at 1
   {
     snprintf(Prompt, 63, "Set the Pluto Power for the %s Band (0 to -71):", TabBandLabel[band]);
     Keyboard(Prompt, ActualValue, 3);
@@ -7105,7 +7163,7 @@ void ChangeBandDetails(int NoButton)
 
   // LO frequency
   snprintf(Value, 30, "%.2f", TabBandLO[band]);
-  while (LO > 1000000)
+  while ((LO > 1000000) || (strlen(KeyboardReturn) < 1))  // LO init at 1000001
   {
     snprintf(Prompt, 63, "Enter LO frequency in MHz for the %s Band:", TabBandLabel[band]);
     Keyboard(Prompt, Value, 10);
@@ -7530,7 +7588,7 @@ void SetAttenLevel()
 
   if (strcmp(CurrentAtten, "NONE") !=0)
   {
-    while ((AttenLevel > 0) || (AttenLevel < -31.75))
+    while ((AttenLevel > 0) || (AttenLevel < -31.75) || (strlen(KeyboardReturn) < 1))
     {
       snprintf(Prompt, 62, "Set the Attenuator Level for the %s Band:", TabBandLabel[CurrentBand]);
       snprintf(Value, 7, "%.2f", TabBandAttenLevel[CurrentBand]);
@@ -7561,7 +7619,7 @@ void SetDeviceLevel()
 
   if (strcmp(CurrentModeOP, TabModeOP[2]) == 0)  // DATV Express
   {
-    while ((ExpLevel < 0) || (ExpLevel > 44))
+    while ((ExpLevel < 0) || (ExpLevel > 44) || (strlen(KeyboardReturn) < 1))
     {
       snprintf(Prompt, 62, "Set the Express Output Level for the %s Band:", TabBandLabel[CurrentBand]);
       snprintf(Value, 3, "%d", TabBandExpLevel[CurrentBand]);
@@ -7579,7 +7637,7 @@ void SetDeviceLevel()
         || (strcmp(CurrentModeOP, TabModeOP[9]) == 0) || (strcmp(CurrentModeOP, TabModeOP[12]) == 0))  
         // Lime Mini or USB or JLIME or LIMEDVB
   {
-    while ((LimeGain < 0) || (LimeGain > 100))
+    while ((LimeGain < 0) || (LimeGain > 100) || (strlen(KeyboardReturn) < 1))
     {
       snprintf(Prompt, 62, "Set the Lime Gain for the %s Band:", TabBandLabel[CurrentBand]);
       snprintf(Value, 4, "%d", TabBandLimeGain[CurrentBand]);
@@ -7595,7 +7653,7 @@ void SetDeviceLevel()
   }
   else if (strcmp(CurrentModeOP, "PLUTO") == 0)  // Pluto
   {
-    while ((PlutoLevel < -71) || (PlutoLevel > 0))
+    while ((PlutoLevel < -71) || (PlutoLevel > 0) || (strlen(KeyboardReturn) < 1))
     {
       snprintf(Prompt, 62, "Set the Pluto Power for the %s Band (0 to -71):", TabBandLabel[CurrentBand]);
       snprintf(Value, 5, "%d", TabBandPlutoLevel[CurrentBand]);
@@ -14588,7 +14646,7 @@ void ChangeStartApp(int NoButton)
   }
 }
 
-void ChangePlutoIP()
+void ChangePlutoIP()  // For Portsdown
 {
   char RequestText[64];
   char InitText[64];
@@ -14597,7 +14655,7 @@ void ChangePlutoIP()
 
   while (IsValid == FALSE)
   {
-    strcpy(RequestText, "Enter IP address for Pluto");
+    strcpy(RequestText, "Enter IP address for Portsdown Pluto");
     strcpyn(InitText, PlutoIP, 17);
     Keyboard(RequestText, InitText, 17);
   
@@ -14607,11 +14665,61 @@ void ChangePlutoIP()
       IsValid = TRUE;
     }
   }
-  printf("Pluto IP set to: %s\n", KeyboardReturn);
+  printf("portsdown Pluto IP set to: %s\n", KeyboardReturn);
 
   // Save IP to config file
   SetConfigParam(PATH_PCONFIG, "plutoip", KeyboardReturn);
   strcpy(PlutoIP, KeyboardReturn);
+}
+
+void ChangePlutoIPLangstone()  // For Langstone
+{
+  char RequestText[64];
+  char InitText[64];
+  bool IsValid = FALSE;
+  char PlutoIPCopy[31];
+  char LinuxCommand[255];
+
+  // Check that Langstone is loaded
+  if (file_exist("/home/pi/Langstone/run") != 0)
+  {
+    MsgBox2("Langstone not installed", "Please install Langstone, then set Pluto IP");
+    wait_touch();
+    return;
+  }
+  // then need to read in Pluto Langstone IP
+  CheckLangstonePlutoIP();
+
+  while (IsValid == FALSE)
+  {
+    strcpy(RequestText, "Enter IP address for Pluto");
+    strcpyn(InitText, LangstonePlutoIP, 17);
+    Keyboard(RequestText, InitText, 17);
+  
+    strcpy(PlutoIPCopy, KeyboardReturn);
+    if((is_valid_ip(PlutoIPCopy) == 1) || (strcmp(KeyboardReturn, "pluto.local") == 0))
+    {
+      IsValid = TRUE;
+    }
+  }
+
+  if(strcmp(LangstonePlutoIP, KeyboardReturn) == 0)   // Unchanged
+  {
+    printf("Langstone Pluto IP unchanged as %s\n", KeyboardReturn);
+  }
+  else                                              // Changed
+  {
+    printf("Langstone Pluto IP set to: %s\n", KeyboardReturn);
+    strcpy(LangstonePlutoIP, KeyboardReturn);
+  
+    // Save IP to Langstone/run file
+    snprintf(LinuxCommand, 254, "sed -i \"s/^export PLUTO_IP=.*/export PLUTO_IP=%s/\" /home/pi/Langstone/run", LangstonePlutoIP);
+    system(LinuxCommand);
+
+    // Save IP to Langstone/stop file
+    snprintf(LinuxCommand, 254, "sed -i \"s/PLUTO_IP=.*/PLUTO_IP=%s/\" /home/pi/Langstone/stop", LangstonePlutoIP);
+    system(LinuxCommand);
+  }
 }
 
 void ChangePlutoXO()
@@ -16884,6 +16992,13 @@ void waituntil(int w,int h)
           }
           UpdateWindow();
           break;
+        case 9:                               // Enter Pluto IP for Langstone
+          ChangePlutoIPLangstone();
+          setBackColour(0, 0, 0);
+          clearScreen();
+          Start_Highlights_Menu15();
+          UpdateWindow();
+          break;
         default:
           printf("Menu 15 Error\n");
         }
@@ -17968,8 +18083,15 @@ void waituntil(int w,int h)
         printf("Button Event %d, Entering Menu 39 Case Statement\n",i);
         switch (i)
         {
-        case 0:                               // Enter Pluto IP
+        case 0:                               // Enter Pluto IP for Portsdown
           ChangePlutoIP();
+          setBackColour(0, 0, 0);
+          clearScreen();
+          Start_Highlights_Menu39();
+          UpdateWindow();
+          break;
+        case 1:                               // Enter Pluto IP for Langstone
+          ChangePlutoIPLangstone();
           setBackColour(0, 0, 0);
           clearScreen();
           Start_Highlights_Menu39();
@@ -21119,7 +21241,7 @@ void Define_Menu15()
   // Bottom Row, Menu 15
 
   button = CreateButton(15, 0);
-  AddButtonStatus(button, "Enter^Pluto IP", &Blue);
+  AddButtonStatus(button, "Set Pluto IP^for Portsdown", &Blue);
 
   button = CreateButton(15, 1);
   AddButtonStatus(button, "Reboot^Pluto", &Blue);
@@ -21149,6 +21271,10 @@ void Define_Menu15()
   button = CreateButton(15, 8);
   AddButtonStatus(button, " ", &Grey);
   AddButtonStatus(button, "Update Pluto^to AD9364", &Red);
+
+  button = CreateButton(15, 9);
+  AddButtonStatus(button, "Set Pluto IP^for Langstone", &Blue);
+
 }
 
 void Start_Highlights_Menu15()
@@ -22828,7 +22954,10 @@ void Define_Menu39()
   // Bottom Row, Menu 39
 
   button = CreateButton(39, 0);
-  AddButtonStatus(button, "Enter^Pluto IP", &Blue);
+  AddButtonStatus(button, "Set Pluto IP^for Portsdown", &Blue);
+
+  button = CreateButton(39, 1);
+  AddButtonStatus(button, "Set Pluto IP^for Langstone", &Blue);
 
   button = CreateButton(39, 2);
   AddButtonStatus(button,"Update^Langstone",&Blue);

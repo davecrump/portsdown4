@@ -1168,6 +1168,48 @@ do_output_standard()
   fi
 }
 
+do_output_format()
+{
+#################################################################{"4:3", "16:9", "720p", "1080p"};
+##########GetConfigParam(PATH_PCONFIG,"format", CurrentFormat)
+  FORMAT=$(get_config_var format $PCONFIGFILE)
+  Radio1=OFF
+  Radio2=OFF
+  Radio3=OFF
+  Radio4=OFF
+
+  case "$FORMAT" in
+  4:3)
+    Radio1=ON
+  ;;
+  16:9)
+    Radio2=ON
+  ;;
+  720p)
+    Radio3=ON
+  ;;
+  1080p)
+    Radio4=ON
+  ;;
+  *)
+    Radio1=ON
+  ;;
+  esac
+
+  FORMAT=$(whiptail --title "SET VIDEO FORMAT" --radiolist \
+    "Select one" 20 78 5 \
+    "4:3" "Aspect ratio 4:3" $Radio1 \
+    "16:9" "Aspect Ratio 16:9" $Radio2 \
+    "720p" "720p Definition" $Radio3 \
+    "11080p" "1080p Definition" $Radio4 \
+    3>&2 2>&1 1>&3)
+
+  if [ $? -eq 0 ]; then                     ## If the selection has changed
+    set_config_var format "$FORMAT" $PCONFIGFILE
+  fi
+}
+
+
 do_modulation()
 {
   MODULATION=$(get_config_var modulation $PCONFIGFILE)
@@ -1201,10 +1243,10 @@ do_modulation()
   MODULATION=$(whiptail --title "SET MODULATION" --radiolist \
     "Select one" 20 78 8 \
     "DVB-S" "DVB-S" $Radio1 \
-    "S2QPSK" "DVB-S2 QPSK (Lime only)" $Radio2 \
-    "8PSK" "DVB-S2 8PSK (Lime only)" $Radio3 \
-    "16APSK" "DVB-S2 16APSK (Lime only)" $Radio4 \
-    "32APSK" "DVB-S2 32APSK (Lime only)" $Radio5 \
+    "S2QPSK" "DVB-S2 QPSK (Lime/Pluto only)" $Radio2 \
+    "8PSK" "DVB-S2 8PSK (Lime/Pluto only)" $Radio3 \
+    "16APSK" "DVB-S2 16APSK (Lime/Pluto only)" $Radio4 \
+    "32APSK" "DVB-S2 32APSK (Lime/pluto only)" $Radio5 \
     3>&2 2>&1 1>&3)
 
   if [ $? -eq 0 ]; then                     ## If the selection has changed
@@ -1214,7 +1256,7 @@ do_modulation()
 
 
 do_output_setup() {
-menuchoice=$(whiptail --title "$StrOutputTitle" --menu "$StrOutputContext" 16 78 8 \
+menuchoice=$(whiptail --title "$StrOutputTitle" --menu "$StrOutputContext" 16 78 9 \
   "1 SymbolRate" "$StrOutputSR"  \
   "2 FEC" "$StrOutputFEC" \
   "3 Output mode" "$StrOutputMode" \
@@ -1222,18 +1264,20 @@ menuchoice=$(whiptail --title "$StrOutputTitle" --menu "$StrOutputContext" 16 78
   "5 Frequency" "$StrOutputRFFreqContext" \
   "6 Caption" "Callsign Caption in MPEG-2 on/off" \
   "7 Standard" "Output 576PAL or 480NTSC" \
-  "8 Modulation" "DVB-S or DVB-S2 modes" \
+  "8 Format" "4:3, 16:9, 720p or 1080p" \
+  "9 Modulation" "DVB-S or DVB-S2 modes" \
 	3>&2 2>&1 1>&3)
 	case "$menuchoice" in
-            1\ *) do_symbolrate_setup ;;
-            2\ *) do_fec_setup   ;;
-	    3\ *) do_output_setup_mode ;;
-	    4\ *) do_PID_setup ;;
-	    5\ *) do_freq_setup ;;
-	    6\ *) do_caption_setup ;;
-	    7\ *) do_output_standard ;;
-	    8\ *) do_modulation ;;
-        esac
+      1\ *) do_symbolrate_setup ;;
+      2\ *) do_fec_setup   ;;
+	  3\ *) do_output_setup_mode ;;
+	  4\ *) do_PID_setup ;;
+	  5\ *) do_freq_setup ;;
+	  6\ *) do_caption_setup ;;
+	  7\ *) do_output_standard ;;
+	  8\ *) do_output_format ;;
+	  9\ *) do_modulation ;;
+    esac
 }
 
 
@@ -2853,19 +2897,19 @@ menuchoice=$(whiptail --title "$StrSystemTitle" --menu "$StrSystemContext" 20 78
     "12 Update" "Check for Updated Portsdown Software"  \
     3>&2 2>&1 1>&3)
     case "$menuchoice" in
-        1\ *) do_autostart_setup ;;
-        2\ *) do_display_setup   ;;
-	3\ *) do_IP_setup ;;
-        4\ *) do_WiFi_setup ;;
-        5\ *) do_WiFi_Off   ;;
-        6\ *) do_Enable_DigiThin ;;
-        7\ *) do_EasyCap ;;
-        8\ *) do_audio_switch;;
-        9\ *) do_attenuator;;
-        10\ *) do_LimeStatus;;
-        11\ *) do_LimeUpdate;;
-        12\ *) do_Update ;;
-     esac
+      1\ *) do_autostart_setup ;;
+      2\ *) do_display_setup   ;;
+	  3\ *) do_IP_setup ;;
+      4\ *) do_WiFi_setup ;;
+      5\ *) do_WiFi_Off   ;;
+      6\ *) do_Enable_DigiThin ;;
+      7\ *) do_EasyCap ;;
+      8\ *) do_audio_switch;;
+      9\ *) do_attenuator;;
+      10\ *) do_LimeStatus;;
+      11\ *) do_LimeUpdate;;
+      12\ *) do_Update ;;
+    esac
 }
 
 do_system_setup_2()
@@ -2959,30 +3003,6 @@ do_uddvb()
   fi
 }
 
-#do_limecal()
-#{
-#  LIMECALFREQ=$(get-config_var limecalfreq $PATH_LIME_CAL)
-
-#  if [[ "$LIMECALFREQ" == "2.0" ]]; then
-#    CAL_MSG="LIME Set to Never Calibrate.  Select new option"
-#  elif [[ "$LIMECALFREQ" == "1.0" ]]; then
-#    CAL_MSG="LIME Set to Calibrate every transmission.  Select new option"
-#  else
-#    CAL_MSG="LIME Set to Calibrate on Frequency Change only.  Select new option"
-#  fi
-  
-#  menuchoice=$(whiptail --title "LimeSDR Calibration Menu" --menu "$CAL_MSG" 20 78 4 \
-#    "1 Never Calibrate" "No Calibration"  \
-#    "2 Always Calibrate" "Calibrate at the Start of Every Transmission"  \
-#    "3 Cal as Required" "Calibrate only on frequency change" \
-#    3>&2 2>&1 1>&3)
-#  case "$menuchoice" in
-#    1\ *) set_config_var limecalfreq "-2.0" $PATH_LIME_CAL ;;
-#    2\ *) set_config_var limecalfreq "-1.0" $PATH_LIME_CAL ;;
-#    3\ *) set_config_var limecalfreq "0.0" $PATH_LIME_CAL ;;
-#  esac
-#}
-
 
 do_lg()
 {
@@ -3018,9 +3038,7 @@ do_lg()
   ;;
   esac
 
-# "$BAND_NAME"
-
-  LIMEGAIN=$(whiptail --inputbox "Current gain = "$LIMEGAIN".  Enter 0 to 100" 8 78 $LIMEGAIN0 --title "SET LIME GAIN FOR THE "$BAND_NAME" BAND" 3>&1 1>&2 2>&3)
+  LIMEGAIN=$(whiptail --inputbox "Current gain = "$LIMEGAIN".  Enter 0 to 100" 8 78 $LIMEGAIN --title "SET LIME GAIN FOR THE "$BAND_NAME" BAND" 3>&1 1>&2 2>&3)
   if [ $? -eq 0 ]; then
  
   set_config_var limegain "$LIMEGAIN" $PCONFIGFILE
@@ -3305,29 +3323,29 @@ while [ "$status" -eq 0 ]
 
     menuchoice=$(whiptail --title "$StrMainMenuTitle" --menu "$INFO" 16 82 10 \
 	"0 Transmit" $FREQ_OUTPUT" MHz, "$SYMBOLRATEK" KS, "$MODULATION", FEC "$FECNUM"/"$FECDEN"" \
-        "1 Source" "$StrMainMenuSource"" ("$MODE_INPUT" selected)" \
+    "1 Source" "$StrMainMenuSource"" ("$MODE_INPUT" selected)" \
 	"2 Output" "$StrMainMenuOutput"" ("$MODE_OUTPUT" selected)" \
 	"3 Station" "$StrMainMenuCall" \
 	"4 Receive" "$StrMainMenuReceive" \
 	"5 System" "$StrMainMenuSystem" \
-        "6 System 2" "$StrMainMenuSystem2" \
-        "7 Lime Config  " "LimeSDR Mini Info and Configuration" \
+    "6 System 2" "$StrMainMenuSystem2" \
+    "7 Lime Config  " "LimeSDR Mini Info and Configuration" \
 	"8 Language" "$StrMainMenuLanguage" \
-        "9 Shutdown" "$StrMainMenuShutdown" \
+    "9 Shutdown" "$StrMainMenuShutdown" \
  	3>&2 2>&1 1>&3)
 
         case "$menuchoice" in
 	    0\ *) do_transmit   ;;
-            1\ *) do_input_setup   ;;
+        1\ *) do_input_setup   ;;
 	    2\ *) do_output_setup ;;
    	    3\ *) do_station_setup ;;
 	    4\ *) do_receive_menu ;;
 	    5\ *) do_system_setup ;;
 	    6\ *) do_system_setup_2 ;;
 	    7\ *) do_lime_setup ;;
-            8\ *) do_language_setup ;;
-            9\ *) do_shutdown_menu ;;
-               *)
+        8\ *) do_language_setup ;;
+        9\ *) do_shutdown_menu ;;
+           *)
 
         # Display exit message if user jumps out of menu
         whiptail --title "$StrMainMenuExitTitle" --msgbox "$StrMainMenuExitContext" 8 78

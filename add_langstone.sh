@@ -2,6 +2,13 @@
 
 # Install script to add Langstone to Portsdown 4
 
+# First, update packages to the latest standard
+
+sudo dpkg --configure -a     # Make sure that all the packages are properly configured
+sudo apt-get clean           # Clean up the old archived packages
+sudo apt-get update          # Update the package list
+sudo apt-get -y dist-upgrade # Upgrade all the installed packages to their latest version
+
 # Langstone packages to install
 sudo apt-get -y install libxml2 libxml2-dev bison flex libcdk5-dev
 sudo apt-get -y install libaio-dev libserialport-dev libxml2-dev libavahi-client-dev 
@@ -19,8 +26,6 @@ echo
 if [ ! -d  /home/pi/libiio ]; then
   echo "Installing libiio"
   echo
-  sudo apt-get -y install libxml2 libxml2-dev bison flex libcdk5-dev
-  sudo apt-get -y install libaio-dev libserialport-dev libxml2-dev libavahi-client-dev
   cd /home/pi
   git clone https://github.com/analogdevicesinc/libiio.git
   cd libiio
@@ -32,6 +37,9 @@ else
   echo "Found libiio installed"
   echo
 fi
+
+# Enable i2c support
+sudo raspi-config nonint do_i2c 0
 
 echo "#################################"
 echo "##     Installing Langstone    ##"
