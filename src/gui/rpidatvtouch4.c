@@ -10052,8 +10052,6 @@ void LMRX(int NoButton)
                 strcat(vlctext, "%n");
                 strcat(vlctext, FECtext);
                 strcat(vlctext, "%n");
-                strcat(vlctext, SRtext);
-                strcat(vlctext, "%n");
                 strcat(vlctext, ServiceProvidertext);
                 strcat(vlctext, "%n");
                 strcat(vlctext, Servicetext);
