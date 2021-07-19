@@ -1,5 +1,6 @@
-202107220
+202107221
 Display MiniTiouner RF Input Level on Receive
+Display exact received SR
 
 202107100
 Enable 16:9 Streaming from Comp Vid
