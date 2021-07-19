@@ -41,6 +41,7 @@ Rewitten by Dave, G8GKQ
 #include "font/font.h"
 #include "touch.h"
 #include "Graphics.h"
+#include "lmrx_utils.h"
 
 #define KWHT  "\x1B[37m"
 #define KYEL  "\x1B[33m"
@@ -9033,6 +9034,11 @@ void LMRX(int NoButton)
   char AudEncodingtext[63] = " ";
   char Encodingtext[63] = " ";
   char vlctext[255];
+  char AGCtext[255];
+  char AGC1text[255];
+  char AGC2text[255];
+  uint16_t AGC1 = 0;
+  uint16_t AGC2 = 3200;
   float MERThreshold = 0;
   int EncodingCode = 0;
   int MODCOD;
@@ -9139,9 +9145,8 @@ void LMRX(int NoButton)
       {
         system("/home/pi/rpidatv/scripts/lmvlcreset.sh &");
         VLCResetRequest = false;
-                  FirstLock = 2;
-FinishedButton = 1;
-//previousMER = 0;
+        FirstLock = 2;
+        FinishedButton = 1;
       }
 
       num = read(fd_status_fifo, status_message_char, 1);
@@ -9451,6 +9456,20 @@ FinishedButton = 1;
             strcat(Encodingtext, AudEncodingtext);
           }
 
+          if ((stat_string[0] == '3') && (stat_string[1] == '5'))  // AGC1 Setting
+          {
+            strcpy(AGC1text, stat_string);
+            chopN(AGC1text, 3);
+            AGC1 = atoi(AGC1text);
+          }
+
+          if ((stat_string[0] == '3') && (stat_string[1] == '7'))  // AGC2 Setting
+          {
+            strcpy(AGC2text, stat_string);
+            chopN(AGC2text, 3);
+            AGC2 = atoi(AGC2text);
+          }
+
           if ((stat_string[0] == '1') && (stat_string[1] == '2'))  // MER
           {
             if (FinishedButton == 1)  // Parameters requested to be displayed
@@ -9471,6 +9490,7 @@ FinishedButton = 1;
                 MER = 0;
               }
               snprintf(MERtext, 24, "MER %.1f (%.1f needed)", MER, MERThreshold);
+              snprintf(AGCtext, 24, "RF Input Level %d dB", CalcInputPwr(AGC1, AGC2));
 
               rectangle(wscreen * 1 / 40, hscreen - 1 * linepitch - txtdesc, wscreen * 30 / 40, txttot, 0, 0, 0);
               Text2(wscreen * 1 / 40, hscreen - 1 * linepitch, STATEtext, font_ptr);
@@ -9488,6 +9508,13 @@ FinishedButton = 1;
               Text2(wscreen * 1 / 40, hscreen - 7 * linepitch, Servicetext, font_ptr);
               rectangle(wscreen * 1 / 40, hscreen - 8 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
               Text2(wscreen * 1 / 40, hscreen - 8 * linepitch, Encodingtext, font_ptr);
+              if (AGC1 < 1)  // Low input level
+              {
+                setForeColour(255, 63, 63); // Set foreground colour to red
+              }
+              rectangle(wscreen * 1 / 40, hscreen - 10 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
+              Text2(wscreen * 1 / 40, hscreen - 10 * linepitch, AGCtext, font_ptr);
+              setForeColour(255, 255, 255);  // Set foreground colour to white
 
               if (MER < MERThreshold + 0.1)
               {
@@ -9509,6 +9536,7 @@ FinishedButton = 1;
 
               rectangle(wscreen * 1 / 40, hscreen - 9 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
               Text2(wscreen * 1 / 40, hscreen - 9 * linepitch, MERtext, font_ptr);
+              setForeColour(255, 255, 255);  // Set foreground colour to white
 
               // Only change VLC overlayfile if MER has changed
               if (MER != previousMER)
@@ -9529,8 +9557,6 @@ FinishedButton = 1;
                 strcat(vlctext, "%n");
                 strcat(vlctext, FECtext);
                 strcat(vlctext, "%n");
-                strcat(vlctext, SRtext);
-                strcat(vlctext, "%n");
                 strcat(vlctext, ServiceProvidertext);
                 strcat(vlctext, "%n");
                 strcat(vlctext, Servicetext);
@@ -9538,6 +9564,9 @@ FinishedButton = 1;
                 strcat(vlctext, Encodingtext);
                 strcat(vlctext, "%n");
                 strcat(vlctext, MERtext);
+                strcat(vlctext, "%n");
+                strcat(vlctext, AGCtext);
+
                 strcat(vlctext, "%n.%nTouch Left to Hide Overlay%nTouch Right to Exit");
 
                 FILE *fw=fopen("/home/pi/tmp/vlc_temp_overlay.txt","w+");
@@ -9553,7 +9582,6 @@ FinishedButton = 1;
                 previousMER = MER;
               }
 
-              setForeColour(255, 255, 255);  // Set foreground colour to white
               Text2(wscreen * 1 / 40, hscreen - 11 * linepitch, "Touch Right side to exit", font_ptr);
               Text2(wscreen * 1 / 40, hscreen - 12 * linepitch, "Touch Lower left for image capture", font_ptr);
             }
@@ -9924,6 +9952,20 @@ FinishedButton = 1;
             strcat(Encodingtext, AudEncodingtext);
           }
 
+          if ((stat_string[0] == '3') && (stat_string[1] == '5'))  // AGC1 Setting
+          {
+            strcpy(AGC1text, stat_string);
+            chopN(AGC1text, 3);
+            AGC1 = atoi(AGC1text);
+          }
+
+          if ((stat_string[0] == '3') && (stat_string[1] == '7'))  // AGC2 Setting
+          {
+            strcpy(AGC2text, stat_string);
+            chopN(AGC2text, 3);
+            AGC2 = atoi(AGC2text);
+          }
+
           if ((stat_string[0] == '1') && (stat_string[1] == '2'))  // MER
           {
             if (FinishedButton == 1)  // Parameters requested to be displayed
@@ -9944,6 +9986,7 @@ FinishedButton = 1;
                 MER = 0;
               }
               snprintf(MERtext, 24, "MER %.1f (%.1f needed)", MER, MERThreshold);
+              snprintf(AGCtext, 24, "RF Input Level %d dB", CalcInputPwr(AGC1, AGC2));
 
               rectangle(wscreen * 1 / 40, hscreen - 1 * linepitch - txtdesc, wscreen * 30 / 40, txttot, 0, 0, 0);
               Text2(wscreen * 1 / 40, hscreen - 1 * linepitch, STATEtext, font_ptr);
@@ -9961,6 +10004,13 @@ FinishedButton = 1;
               Text2(wscreen * 1 / 40, hscreen - 7 * linepitch, Servicetext, font_ptr);
               rectangle(wscreen * 1 / 40, hscreen - 8 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
               Text2(wscreen * 1 / 40, hscreen - 8 * linepitch, Encodingtext, font_ptr);
+              if (AGC1 < 1)  // Low input level
+              {
+                setForeColour(255, 63, 63); // Set foreground colour to red
+              }
+              rectangle(wscreen * 1 / 40, hscreen - 10 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
+              Text2(wscreen * 1 / 40, hscreen - 10 * linepitch, AGCtext, font_ptr);
+              setForeColour(255, 255, 255);  // Set foreground colour to white
 
               if (MER < MERThreshold + 0.1)
               {
@@ -10002,8 +10052,6 @@ FinishedButton = 1;
                 strcat(vlctext, "%n");
                 strcat(vlctext, FECtext);
                 strcat(vlctext, "%n");
-                strcat(vlctext, SRtext);
-                strcat(vlctext, "%n");
                 strcat(vlctext, ServiceProvidertext);
                 strcat(vlctext, "%n");
                 strcat(vlctext, Servicetext);
@@ -10011,6 +10059,8 @@ FinishedButton = 1;
                 strcat(vlctext, Encodingtext);
                 strcat(vlctext, "%n");
                 strcat(vlctext, MERtext);
+                strcat(vlctext, "%n");
+                strcat(vlctext, AGCtext);
                 strcat(vlctext, "%n.%nTouch Left to Hide Overlay%nTouch Right to Exit");
 
                 FILE *fw=fopen("/home/pi/tmp/vlc_temp_overlay.txt","w+");
@@ -10978,6 +11028,20 @@ FinishedButton = 1;
             strcat(Encodingtext, AudEncodingtext);
           }
 
+          if ((stat_string[0] == '3') && (stat_string[1] == '5'))  // AGC1 Setting
+          {
+            strcpy(AGC1text, stat_string);
+            chopN(AGC1text, 3);
+            AGC1 = atoi(AGC1text);
+          }
+
+          if ((stat_string[0] == '3') && (stat_string[1] == '7'))  // AGC2 Setting
+          {
+            strcpy(AGC2text, stat_string);
+            chopN(AGC2text, 3);
+            AGC2 = atoi(AGC2text);
+          }
+
           if ((stat_string[0] == '1') && (stat_string[1] == '2'))  // MER
           {
             if (FinishedButton == 1)  // Parameters displayed
@@ -10991,6 +11055,7 @@ FinishedButton = 1;
                 MER = 0;
               }
               snprintf(MERtext, 24, "MER %.1f (%.1f needed)", MER, MERThreshold);
+              snprintf(AGCtext, 24, "RF Input Level %d dB", CalcInputPwr(AGC1, AGC2));
 
               rectangle(wscreen * 1 / 40, hscreen - 1 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
               Text2(wscreen * 1 / 40, hscreen - 1 * linepitch, STATEtext, font_ptr);
@@ -11008,6 +11073,13 @@ FinishedButton = 1;
               Text2(wscreen * 1 / 40, hscreen - 7 * linepitch, Servicetext, font_ptr);
               rectangle(wscreen * 1 / 40, hscreen - 8 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
               Text2(wscreen * 1 / 40, hscreen - 8 * linepitch, Encodingtext, font_ptr);
+              if (AGC1 < 1)  // Low input level
+              {
+                setForeColour(255, 63, 63); // Set foreground colour to red
+              }
+              rectangle(wscreen * 1 / 40, hscreen - 10 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
+              Text2(wscreen * 1 / 40, hscreen - 10 * linepitch, AGCtext, font_ptr);
+              setForeColour(255, 255, 255);  // Set foreground colour to white
               if (MER < MERThreshold + 0.1)
               {
                 setForeColour(255, 63, 63); // Set foreground colour to red
@@ -11048,392 +11120,8 @@ FinishedButton = 1;
     system("sudo killall lmomx.sh >/dev/null 2>/dev/null");
     touch_response = 0; 
     break;
-/*         Redundant Code for Plain VLC playback to be deleted at next update
-  case 2:
-    fp=popen(PATH_SCRIPT_LMRXVLC, "r");
-    if(fp==NULL) printf("Process error\n");
 
-    printf("STARTING VLC RX\n");
-
-    // Open status FIFO for read only
-    ret=mkfifo("longmynd_status_fifo", 0666);
-    fd_status_fifo = open("longmynd_status_fifo", O_RDONLY); 
-    if (fd_status_fifo < 0)
-    {
-      printf("Failed to open status fifo\n");
-    }
-
-    printf("Listening\n");
-
-    while ((FinishedButton == 1) || (FinishedButton == 2)) 
-    {
-      num = read(fd_status_fifo, status_message_char, 1);
-      // printf("%s Num= %d \n", "End Read", num);
-      if (num >= 0 )
-      {
-        status_message_char[num]='\0';
-        //if (num>0) printf("%s\n",status_message_char);
-        
-        if (strcmp(status_message_char, "$") == 0)
-        {
-
-          if ((stat_string[0] == '1') && (stat_string[1] == ','))  // Decoder State
-          {
-            strcpy(STATEtext, stat_string);
-            chopN(STATEtext, 2);
-            STATE = atoi(STATEtext);
-            switch(STATE)
-            {
-              case 0:
-              strcpy(STATEtext, "Initialising");
-              break;
-              case 1:
-              strcpy(STATEtext, "Searching");
-              break;
-              case 2:
-              strcpy(STATEtext, "Found Headers");
-              break;
-              case 3:
-              strcpy(STATEtext, "DVB-S Lock");
-              break;
-              case 4:
-              strcpy(STATEtext, "DVB-S2 Lock");
-              break;
-              default:
-              snprintf(STATEtext, 10, "%d", STATE);
-            }
-          }
-
-          if ((stat_string[0] == '6') && (stat_string[1] == ','))  // Frequency
-          {
-            strcpy(FREQtext, stat_string);
-            chopN(FREQtext, 2);
-            FREQ = atof(FREQtext);
-            if (strcmp(LMRXmode, "sat") == 0)
-            {
-              FREQ = FREQ + LMRXqoffset;
-            }
-            FREQ = FREQ / 1000;
-            snprintf(FREQtext, 15, "%.3f MHz", FREQ);
-          }
-
-          if ((stat_string[0] == '9') && (stat_string[1] == ','))  // SR in S
-          {
-            strcpy(SRtext, stat_string);
-            chopN(SRtext, 2);
-            SR = atoi(SRtext) / 1000;
-            snprintf(SRtext, 15, "%d kS", SR);
-          }
-
-          if ((stat_string[0] == '1') && (stat_string[1] == '3'))  // Service Provider
-          {
-            strcpy(ServiceProvidertext, stat_string);
-            chopN(ServiceProvidertext, 3);
-          }
-
-          if ((stat_string[0] == '1') && (stat_string[1] == '4'))  // Service
-          {
-            strcpy(Servicetext, stat_string);
-            chopN(Servicetext, 3);
-          }
-
-          if ((stat_string[0] == '1') && (stat_string[1] == '8'))  // MODCOD
-          {
-            strcpy(MODCODtext, stat_string);
-            chopN(MODCODtext, 3);
-            MODCOD = atoi(MODCODtext);
-            //STATE = 4;
-            if (STATE == 3)                                        // DVB-S
-            {
-              switch(MODCOD)
-              {
-                case 0:
-                  strcpy(FECtext, "FEC 1/2");
-                  MERThreshold = 1.7; //
-                break;
-                case 1:
-                  strcpy(FECtext, "FEC 2/3");
-                  MERThreshold = 3.3; //
-                break;
-                case 2:
-                  strcpy(FECtext, "FEC 3/4");
-                  MERThreshold = 4.2; //
-                break;
-                case 3:
-                  strcpy(FECtext, "FEC 5/6");
-                  MERThreshold = 5.1; //
-                break;
-                case 4:
-                  strcpy(FECtext, "FEC 6/7");
-                  MERThreshold = 5.5; //
-                break;
-                case 5:
-                  strcpy(FECtext, "FEC 7/8");
-                  MERThreshold = 5.8; //
-                break;
-                default:
-                  strcpy(FECtext, "FEC -");
-                  MERThreshold = 0; //
-                  strcat(FECtext, MODCODtext);
-                break;
-              }
-              strcpy(Modulationtext, "QPSK");
-            }
-            if (STATE == 4)                                        // DVB-S2
-            {
-              switch(MODCOD)
-              {
-                case 1:
-                  strcpy(FECtext, "FEC 1/4");
-                  MERThreshold = -2.3; //
-                break;
-                case 2:
-                  strcpy(FECtext, "FEC 1/3");
-                  MERThreshold = -1.2; //
-                break;
-                case 3:
-                  strcpy(FECtext, "FEC 2/5");
-                  MERThreshold = -0.3; //
-                break;
-                case 4:
-                  strcpy(FECtext, "FEC 1/2");
-                  MERThreshold = 1.0; //
-                break;
-                case 5:
-                  strcpy(FECtext, "FEC 3/5");
-                  MERThreshold = 2.3; //
-                break;
-                case 6:
-                  strcpy(FECtext, "FEC 2/3");
-                  MERThreshold = 3.1; //
-                break;
-                case 7:
-                  strcpy(FECtext, "FEC 3/4");
-                  MERThreshold = 4.1; //
-                break;
-                case 8:
-                  strcpy(FECtext, "FEC 4/5");
-                  MERThreshold = 4.7; //
-                break;
-                case 9:
-                  strcpy(FECtext, "FEC 5/6");
-                  MERThreshold = 5.2; //
-                break;
-                case 10:
-                  strcpy(FECtext, "FEC 8/9");
-                  MERThreshold = 6.2; //
-                break;
-                case 11:
-                  strcpy(FECtext, "FEC 9/10");
-                  MERThreshold = 6.5; //
-                break;
-                case 12:
-                  strcpy(FECtext, "FEC 3/5");
-                  MERThreshold = 5.5; //
-                break;
-                case 13:
-                  strcpy(FECtext, "FEC 2/3");
-                  MERThreshold = 6.6; //
-                break;
-                case 14:
-                  strcpy(FECtext, "FEC 3/4");
-                  MERThreshold = 7.9; //
-                break;
-                case 15:
-                  strcpy(FECtext, "FEC 5/6");
-                  MERThreshold = 9.4; //
-                break;
-                case 16:
-                  strcpy(FECtext, "FEC 8/9");
-                  MERThreshold = 10.7; //
-                break;
-                case 17:
-                  strcpy(FECtext, "FEC 9/10");
-                  MERThreshold = 11.0; //
-                break;
-                case 18:
-                  strcpy(FECtext, "FEC 2/3");
-                  MERThreshold = 9.0; //
-                break;
-                case 19:
-                  strcpy(FECtext, "FEC 3/4");
-                  MERThreshold = 10.2; //
-                break;
-                case 20:
-                  strcpy(FECtext, "FEC 4/5");
-                  MERThreshold = 11.0; //
-                break;
-                case 21:
-                  strcpy(FECtext, "FEC 5/6");
-                  MERThreshold = 11.6; //
-                break;
-                case 22:
-                  strcpy(FECtext, "FEC 8/9");
-                  MERThreshold = 12.9; //
-                break;
-                case 23:
-                  strcpy(FECtext, "FEC 9/10");
-                  MERThreshold = 13.2; //
-                break;
-                case 24:
-                  strcpy(FECtext, "FEC 3/4");
-                  MERThreshold = 12.8; //
-                break;
-                case 25:
-                  strcpy(FECtext, "FEC 4/5");
-                  MERThreshold = 13.7; //
-                break;
-                case 26:
-                  strcpy(FECtext, "FEC 5/6");
-                  MERThreshold = 14.3; //
-                break;
-                case 27:
-                  strcpy(FECtext, "FEC 8/9");
-                  MERThreshold = 15.7; //
-                break;
-                case 28:
-                  strcpy(FECtext, "FEC 9/10");
-                  MERThreshold = 16.1; //
-                break;
-                default:
-                  strcpy(FECtext, "FEC -");
-                  MERThreshold = 0; //
-                break;
-              }
-              if ((MODCOD >= 1) && (MODCOD <= 11 ))
-              {
-                strcpy(Modulationtext, "QPSK");
-              }
-              if ((MODCOD >= 12) && (MODCOD <= 17 ))
-              {
-                strcpy(Modulationtext, "8PSK");
-              }
-              if ((MODCOD >= 18) && (MODCOD <= 23 ))
-              {
-                strcpy(Modulationtext, "16APSK");
-              }
-              if ((MODCOD >= 24) && (MODCOD <= 28 ))
-              {
-                strcpy(Modulationtext, "32APSK");
-              }
-            }
-          }
-
-          if ((stat_string[0] == '1') && (stat_string[1] == '7'))  // Video and audio encoding
-          {
-            strcpy(Encodingtext, stat_string);
-            chopN(Encodingtext, 3);
-            EncodingCode = atoi(Encodingtext);
-            switch(EncodingCode)
-            {
-              case 2:
-                strcpy(VidEncodingtext, "MPEG-2");
-              break;
-              case 3:
-                strcpy(AudEncodingtext, " MPA");
-              break;
-              case 4:
-                strcpy(AudEncodingtext, " MPA");
-              break;
-              case 15:
-                strcpy(AudEncodingtext, " AAC");
-              break;
-              case 16:
-                strcpy(VidEncodingtext, "H263");
-              break;
-              case 27:
-                strcpy(VidEncodingtext, "H264");
-              break;
-              case 32:
-                strcpy(AudEncodingtext, " MPA");
-              break;
-              case 36:
-                strcpy(VidEncodingtext, "H265");
-              break;
-              default:
-                printf("New Encoding Code = %d\n", EncodingCode);
-              break;
-            }
-            strcpy(Encodingtext, VidEncodingtext);
-            strcat(Encodingtext, AudEncodingtext);
-          }
-
-          if ((stat_string[0] == '1') && (stat_string[1] == '2'))  // MER
-          {
-            if (FinishedButton == 1)  // Parameters displayed
-            {
-              Parameters_currently_displayed = 1;
-              strcpy(MERtext, stat_string);
-              chopN(MERtext, 3);
-              MER = atof(MERtext)/10;
-              if (MER > 51)  // Trap spurious MER readings
-              {
-                MER = 0;
-              }
-              snprintf(MERtext, 24, "MER %.1f (%.1f needed)", MER, MERThreshold);
-
-              rectangle(wscreen * 1 / 40, hscreen - 1 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
-              Text2(wscreen * 1 / 40, hscreen - 1 * linepitch, STATEtext, font_ptr);
-              rectangle(wscreen * 1 / 40, hscreen - 2 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
-              Text2(wscreen * 1 / 40, hscreen - 2 * linepitch, FREQtext, font_ptr);
-              rectangle(wscreen * 1 / 40, hscreen - 3 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
-              Text2(wscreen * 1 / 40, hscreen - 3 * linepitch, SRtext, font_ptr);
-              rectangle(wscreen * 1 / 40, hscreen - 4 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
-              Text2(wscreen * 1 / 40, hscreen - 4 * linepitch, Modulationtext, font_ptr);
-              rectangle(wscreen * 1 / 40, hscreen - 5 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
-              Text2(wscreen * 1 / 40, hscreen - 5 * linepitch, FECtext, font_ptr);
-              rectangle(wscreen * 1 / 40, hscreen - 6 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
-              Text2(wscreen * 1 / 40, hscreen - 6 * linepitch, ServiceProvidertext, font_ptr);
-              rectangle(wscreen * 1 / 40, hscreen - 7 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
-              Text2(wscreen * 1 / 40, hscreen - 7 * linepitch, Servicetext, font_ptr);
-              rectangle(wscreen * 1 / 40, hscreen - 8 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
-              Text2(wscreen * 1 / 40, hscreen - 8 * linepitch, Encodingtext, font_ptr);
-              if (MER < MERThreshold + 0.1)
-              {
-                setForeColour(255, 63, 63); // Set foreground colour to red
-              }
-              rectangle(wscreen * 1 / 40, hscreen - 9 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
-              Text2(wscreen * 1 / 40, hscreen - 9 * linepitch, MERtext, font_ptr);
-              setForeColour(255, 255, 255);  // Set foreground colour to white
-              Text2(wscreen * 1 / 40, hscreen - 11 * linepitch, "Touch Right side to exit", font_ptr);
-              Text2(wscreen * 1 / 40, hscreen - 12 * linepitch, "Touch Lower left for image capture", font_ptr);
-            }
-            else
-            {
-              if (Parameters_currently_displayed == 1)
-              {
-                setBackColour(0, 0, 0);
-                clearScreen();
-                Parameters_currently_displayed = 0;
-              }
-            }
-          }
-          stat_string[0] = '\0';
-        }
-        else
-        {
-          strcat(stat_string, status_message_char);
-        }
-      }
-      else
-      {
-        FinishedButton = 0;
-      }
-    }
-    // Shutdown VLC if it has not stolen the graphics
-    system("/home/pi/rpidatv/scripts/lmvlcsd.sh");
-
-    close(fd_status_fifo); 
-    usleep(1000);
-
-    printf("Stopping receive process\n");
-    pclose(fp);
-    system("sudo killall lmvlc.sh >/dev/null 2>/dev/null");
-    touch_response = 0; 
-    break;
-    // End of redundant LMVLC code
-*/
-  case 3:
+  case 3:  // DVB-S/S2 UDP Output
     snprintf(udp_string, 63, "UDP Output to %s:%s", LMRXudpip, LMRXudpport);
     fp=popen(PATH_SCRIPT_LMRXUDP, "r");
     if(fp==NULL) printf("Process error\n");
@@ -11745,6 +11433,20 @@ FinishedButton = 1;
             strcat(Encodingtext, AudEncodingtext);
           }
 
+          if ((stat_string[0] == '3') && (stat_string[1] == '5'))  // AGC1 Setting
+          {
+            strcpy(AGC1text, stat_string);
+            chopN(AGC1text, 3);
+            AGC1 = atoi(AGC1text);
+          }
+
+          if ((stat_string[0] == '3') && (stat_string[1] == '7'))  // AGC2 Setting
+          {
+            strcpy(AGC2text, stat_string);
+            chopN(AGC2text, 3);
+            AGC2 = atoi(AGC2text);
+          }
+
           if ((stat_string[0] == '1') && (stat_string[1] == '2'))  // MER
           {
             strcpy(MERtext, stat_string);
@@ -11765,6 +11467,7 @@ FinishedButton = 1;
               snprintf(MERNtext, 10, "%.1f  ", MER);
             }
             snprintf(MERtext, 24, "MER %.1f (%.1f needed)", MER, MERThreshold);
+            snprintf(AGCtext, 24, "RF Input Level %d dB", CalcInputPwr(AGC1, AGC2));
 
             rectangle(wscreen * 1 / 40, hscreen - 1 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
             Text2(wscreen * 1 / 40, hscreen - 1 * linepitch, STATEtext, font_ptr);
@@ -11782,6 +11485,13 @@ FinishedButton = 1;
             Text2(wscreen * 1 / 40, hscreen - 7 * linepitch, Servicetext, font_ptr);
             rectangle(wscreen * 1 / 40, hscreen - 8 * linepitch - txtdesc, wscreen * 17 / 40, txttot, 0, 0, 0);
             Text2(wscreen * 1 / 40, hscreen - 8 * linepitch, Encodingtext, font_ptr);
+            if (AGC1 < 1)  // Low input level
+            {
+              setForeColour(255, 63, 63); // Set foreground colour to red
+            }
+            rectangle(wscreen * 1 / 40, hscreen - 10 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
+            Text2(wscreen * 1 / 40, hscreen - 10 * linepitch, AGCtext, font_ptr);
+            setForeColour(255, 255, 255);  // Set foreground colour to white
             if (MER < MERThreshold + 0.1)
             {
               setForeColour(255, 63, 63); // Set foreground colour to red
@@ -11789,7 +11499,7 @@ FinishedButton = 1;
             rectangle(wscreen * 1 / 40, hscreen - 9 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
             Text2(wscreen * 1 / 40, hscreen - 9 * linepitch, MERtext, font_ptr);
             setForeColour(255, 255, 255);  // Set foreground colour to white
-            Text2(wscreen * 1 / 40, hscreen - 11 * linepitch, "UDP Output", font_ptr);
+            Text2(wscreen * 1 / 40, hscreen - 11 * linepitch, udp_string, font_ptr);
             Text2(wscreen * 1 / 40, hscreen - 12 * linepitch, "Touch Right Side to Exit", font_ptr);
 
             // Display large MER number
@@ -11817,7 +11527,7 @@ FinishedButton = 1;
     touch_response = 0; 
     break;
 
-  case 4:
+  case 4:  // MER Display
     snprintf(udp_string, 63, "UDP Output to %s:%s", LMRXudpip, LMRXudpport);
     fp=popen(PATH_SCRIPT_LMRXMER, "r");
     if(fp==NULL) printf("Process error\n");
@@ -11870,6 +11580,20 @@ FinishedButton = 1;
             strcat(STATEtext, " MER:");
           }
 
+          if ((stat_string[0] == '3') && (stat_string[1] == '5'))  // AGC1 Setting
+          {
+            strcpy(AGC1text, stat_string);
+            chopN(AGC1text, 3);
+            AGC1 = atoi(AGC1text);
+          }
+
+          if ((stat_string[0] == '3') && (stat_string[1] == '7'))  // AGC2 Setting
+          {
+            strcpy(AGC2text, stat_string);
+            chopN(AGC2text, 3);
+            AGC2 = atoi(AGC2text);
+          }
+
           if ((stat_string[0] == '1') && (stat_string[1] == '2'))  // MER
           {
             strcpy(MERtext, stat_string);
@@ -11889,6 +11613,8 @@ FinishedButton = 1;
               snprintf(MERtext, 10, "%.1f  ", MER);
             }
 
+            snprintf(AGCtext, 24, "RF Input Level %d dB", CalcInputPwr(AGC1, AGC2));
+
             // Set up for the tuning bar
 
             if ((MER > 0.2) && (MERcount < 9))  // Wait for a valid MER
@@ -11901,12 +11627,19 @@ FinishedButton = 1;
               MERcount = 10;
             }
 
+            if (AGC1 < 1)  // Low input level
+            {
+              setForeColour(255, 63, 63); // Set foreground colour to red
+            }
+            rectangle(wscreen * 1 / 40, hscreen - 11 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
+            Text2(wscreen * 1 / 40, hscreen - 11 * linepitch, AGCtext, font_ptr);
+            setForeColour(255, 255, 255);  // Set foreground colour to white
 
-              rectangle(wscreen * 1 / 40, hscreen - 1 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
-              Text2(wscreen * 1 / 40, hscreen - 1 * linepitch, STATEtext, font_ptr);
-              rectangle(wscreen * 1 / 40, hscreen - 9 * linepitch - txtdesc, 620, 8, 0, 0, 0);
-              LargeText2(wscreen * 1 / 40, hscreen - 9 * linepitch, 4, MERtext, &font_dejavu_sans_72);
-              Text2(wscreen * 1 / 40, hscreen - 12 * linepitch, "Touch Right Side to Exit", font_ptr);
+            rectangle(wscreen * 1 / 40, hscreen - 1 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
+            Text2(wscreen * 1 / 40, hscreen - 1 * linepitch, STATEtext, font_ptr);
+            rectangle(wscreen * 1 / 40, hscreen - 9 * linepitch - txtdesc, 620, 8, 0, 0, 0);
+            LargeText2(wscreen * 1 / 40, hscreen - 9 * linepitch, 4, MERtext, &font_dejavu_sans_72);
+            Text2(wscreen * 1 / 40, hscreen - 12 * linepitch, "Touch Right Side to Exit", font_ptr);
 
             if (MERcount == 10)
             {
@@ -11958,8 +11691,8 @@ FinishedButton = 1;
     touch_response = 0; 
     break;
 
-  case 5:
-    snprintf(udp_string, 63, "UDP Output to %s:%s", LMRXudpip, LMRXudpport);
+  case 5:  // AutoSet LNB Frequency
+
     setBackColour(0, 0, 0);
     clearScreen();
     fp=popen(PATH_SCRIPT_LMRXMER, "r");

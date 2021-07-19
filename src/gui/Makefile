@@ -19,6 +19,7 @@ rpidatvtouch4: rpidatvtouch4.c
 		font/dejavu_sans_30.c \
 		font/dejavu_sans_32.c \
 		font/dejavu_sans_72.c \
+		lmrx_utils.c \
 		rpidatvtouch4.c $(LIBFLAGS2) 
 
 install:
