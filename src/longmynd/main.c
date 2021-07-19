@@ -505,6 +505,12 @@ uint8_t do_report(longmynd_status_t *status) {
         status->lna_gain = (lna_gain<<5) | lna_vgo;
     }
 
+    /* AGC1 Gain */
+    if (err==ERROR_NONE) err=stv0910_read_agc1_gain(STV0910_DEMOD_TOP, &status->agc1_gain);
+
+    /* AGC2 Gain */
+    if (err==ERROR_NONE) err=stv0910_read_agc2_gain(STV0910_DEMOD_TOP, &status->agc2_gain);
+
     /* I,Q powers */
     if (err==ERROR_NONE) err=stv0910_read_power(STV0910_DEMOD_TOP, &status->power_i, &status->power_q);
 
@@ -749,6 +755,8 @@ void *loop_i2c(void *arg) {
         status->demod_state = status_cpy.demod_state;
         status->lna_ok = status_cpy.lna_ok;
         status->lna_gain = status_cpy.lna_gain;
+        status->agc1_gain = status_cpy.agc1_gain;
+        status->agc2_gain = status_cpy.agc2_gain;
         status->power_i = status_cpy.power_i;
         status->power_q = status_cpy.power_q;
         status->frequency_requested = status_cpy.frequency_requested;
@@ -797,6 +805,10 @@ uint8_t status_all_write(longmynd_status_t *status, uint8_t (*status_write)(uint
     if (status->lna_ok) {
         if (err==ERROR_NONE && *output_ready_ptr) err=status_write(STATUS_LNA_GAIN,status->lna_gain, output_ready_ptr);
     }
+    /* AGC1 Gain */
+    if (err==ERROR_NONE && *output_ready_ptr) err=status_write(STATUS_AGC1_GAIN, status->agc1_gain, output_ready_ptr);
+    /* AGC2 Gain */
+    if (err==ERROR_NONE && *output_ready_ptr) err=status_write(STATUS_AGC2_GAIN, status->agc2_gain, output_ready_ptr);
     /* I,Q powers */
     if (err==ERROR_NONE && *output_ready_ptr) err=status_write(STATUS_POWER_I, status->power_i, output_ready_ptr);
     if (err==ERROR_NONE && *output_ready_ptr) err=status_write(STATUS_POWER_Q, status->power_q, output_ready_ptr);

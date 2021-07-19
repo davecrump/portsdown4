@@ -149,6 +149,48 @@ uint8_t stv0910_read_puncture_rate(uint8_t demod, uint8_t *rate) {
 
 
 /* -------------------------------------------------------------------------------------------------- */
+uint8_t stv0910_read_agc1_gain(uint8_t demod, uint16_t *agc) {
+/* -------------------------------------------------------------------------------------------------- */
+/* reads the AGC1 Gain registers in the Demodulator and returns the results                           */
+/*  demod: STV0910_DEMOD_TOP | STV0910_DEMOD_BOTTOM: which demodulator is being read                  */
+/* agc: place to store the results                                                                    */
+/* return: error state                                                                                */
+/* -------------------------------------------------------------------------------------------------- */
+    uint8_t err;
+    uint8_t agc_low, agc_high;
+
+                         err=stv0910_read_reg(demod==STV0910_DEMOD_TOP ? RSTV0910_P2_AGCIQIN0 : RSTV0910_P1_AGCIQIN0, &agc_low);
+    if (err==ERROR_NONE) err=stv0910_read_reg(demod==STV0910_DEMOD_TOP ? RSTV0910_P2_AGCIQIN1 : RSTV0910_P1_AGCIQIN1, &agc_high);
+    if (err==ERROR_NONE) *agc = (uint16_t)agc_high << 8 | (uint16_t)agc_low;
+
+    if (err!=ERROR_NONE) printf("ERROR: STV0910 read agc1 gain\n");
+
+    return err;
+}
+
+
+/* -------------------------------------------------------------------------------------------------- */
+uint8_t stv0910_read_agc2_gain(uint8_t demod, uint16_t *agc) {
+/* -------------------------------------------------------------------------------------------------- */
+/* reads the AGC2 Gain registers in the Demodulator and returns the results                           */
+/*  demod: STV0910_DEMOD_TOP | STV0910_DEMOD_BOTTOM: which demodulator is being read                  */
+/* agc: place to store the results                                                                    */
+/* return: error state                                                                                */
+/* -------------------------------------------------------------------------------------------------- */
+    uint8_t err;
+    uint8_t agc_low, agc_high;
+
+                         err=stv0910_read_reg(demod==STV0910_DEMOD_TOP ? RSTV0910_P2_AGC2I0 : RSTV0910_P1_AGC2I0, &agc_low);
+    if (err==ERROR_NONE) err=stv0910_read_reg(demod==STV0910_DEMOD_TOP ? RSTV0910_P2_AGC2I1 : RSTV0910_P1_AGC2I1, &agc_high);
+    if (err==ERROR_NONE) *agc = (uint16_t)agc_high << 8 | (uint16_t)agc_low;
+
+    if (err!=ERROR_NONE) printf("ERROR: STV0910 read agc2 gain\n");
+
+    return err;
+}
+
+
+/* -------------------------------------------------------------------------------------------------- */
 uint8_t stv0910_read_power(uint8_t demod, uint8_t *power_i, uint8_t *power_q) {
 /* -------------------------------------------------------------------------------------------------- */
 /* reads the power registers in the Demodulator and returns the results                               */
