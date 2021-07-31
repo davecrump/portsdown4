@@ -1,6 +1,10 @@
-202107221
+202107222
 Display MiniTiouner RF Input Level on Receive
 Display exact received SR
+Add DVB-S2 no-scan RX mode
+Bugfix Pluto EasyCap 16:9 mode
+Disable receiver re-scan timeout by default in new builds
+Add Power Meter and Test Equipment Menu
 
 202107100
 Enable 16:9 Streaming from Comp Vid

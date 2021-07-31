@@ -356,6 +356,16 @@ make
 cp bandview ../../bin/
 cd /home/pi
 
+# Compile Power Meter
+echo
+echo "---------------------------------"
+echo "----- Compiling Power Meter -----"
+echo "---------------------------------"
+cd /home/pi/rpidatv/src/power_meter
+make
+cp power_meter ../../bin/
+cd /home/pi
+
 # Compile and install the executable for GPIO-switched transmission (201710080)
 echo "Installing keyedtx"
 cd /home/pi/rpidatv/src/keyedtx
