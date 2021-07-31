@@ -52,4 +52,5 @@ bin/rpidatvgui
 bin/set_attenuator
 bin/siggen
 bin/plutotx
+bin/power_meter
 

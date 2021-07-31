@@ -924,11 +924,12 @@ fi
 
     ##################### Pluto H264 EasyCap Code ##############################
 
-    # Allow for experimental widescreen 
-
+    # Widescreen switching
     if [ "$FORMAT" == "16:9" ]; then
-      VIDEO_WIDTH=768
-      VIDEO_HEIGHT=400
+      SCALE="-vf scale=1024:576"
+      # SCALE="-vf scale=720:400"  Slightly better for fast moving images
+    else
+      SCALE=""
     fi
 
     if [ "$MODE_INPUT" == "ANALOGCAM" ]; then
@@ -940,15 +941,15 @@ fi
         v4l2-ctl -d $ANALOGCAMNAME "--set-standard="$ANALOGCAMSTANDARD
       fi
 
-      # Experimental Pluto H264 EasyCap
+      # Pluto H264 EasyCap
       if [ "$MODE_OUTPUT" == "PLUTO" ] && [ "$MODE_INPUT" == "ANALOGCAM" ]; then
         INPUT_FORMAT="yuyv422"
         rpidatv/bin/ffmpeg -thread_queue_size 2048 \
-          -f v4l2 -input_format $INPUT_FORMAT -video_size 720x576 \
+          -f v4l2 -input_format $INPUT_FORMAT \
           -i $ANALOGCAMNAME \
           -f alsa -thread_queue_size 2048 -ac $AUDIO_CHANNELS  \
           -i hw:$AUDIO_CARD_NUMBER,0 \
-          -c:v h264_omx -b:v $BITRATE_VIDEO -g 25 \
+          -c:v h264_omx -b:v $BITRATE_VIDEO $SCALE -g 25 \
           -ar 22050 -ac $AUDIO_CHANNELS -ab 64k \
           -f flv \
           rtmp://$PLUTOIP:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,-$PLUTOPWR,nocalib,800,32,/,$CALL, &

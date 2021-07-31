@@ -8995,9 +8995,9 @@ void LMRX(int NoButton)
   #define PATH_SCRIPT_LMRXMER "/home/pi/rpidatv/scripts/lmmer.sh 2>&1"
   #define PATH_SCRIPT_LMRXUDP "/home/pi/rpidatv/scripts/lmudp.sh 2>&1"
   #define PATH_SCRIPT_LMRXOMX "/home/pi/rpidatv/scripts/lmomx.sh 2>&1"
-  //#define PATH_SCRIPT_LMRXVLC "/home/pi/rpidatv/scripts/lmvlc.sh"
   #define PATH_SCRIPT_LMRXVLCFF "/home/pi/rpidatv/scripts/lmvlcff.sh"
   #define PATH_SCRIPT_LMRXVLCFFUDP "/home/pi/rpidatv/scripts/lmvlcffudp.sh"
+  #define PATH_SCRIPT_LMRXVLCFFUDP2 "/home/pi/rpidatv/scripts/lmvlcffudp2.sh"
 
   //Local parameters:
 
@@ -9120,7 +9120,18 @@ void LMRX(int NoButton)
   {
 
   case 0:
-    fp=popen(PATH_SCRIPT_LMRXVLCFFUDP, "r");
+  case 2:
+
+    if (NoButton == 0)
+    {
+      fp=popen(PATH_SCRIPT_LMRXVLCFFUDP, "r");
+    }
+    
+    if (NoButton == 2)
+    {
+      fp=popen(PATH_SCRIPT_LMRXVLCFFUDP2, "r");
+    }
+    
     if(fp==NULL) printf("Process error\n");
 
     printf("STARTING VLC with FFMPEG RX\n");
@@ -9448,6 +9459,9 @@ void LMRX(int NoButton)
               case 36:
                 strcpy(VidEncodingtext, "H265");
               break;
+              case 129:
+                strcpy(AudEncodingtext, " AC3");
+              break;
               default:
                 printf("New Encoding Code = %d\n", EncodingCode);
               break;
@@ -9622,14 +9636,14 @@ void LMRX(int NoButton)
     touch_response = 0; 
     break;
 
-
+/*  Delete after next update
   case 2:
     fp=popen(PATH_SCRIPT_LMRXVLCFF, "r");
     if(fp==NULL) printf("Process error\n");
 
     printf("STARTING VLC with FFMPEG RX\n");
 
-    /* Open status FIFO for read only  */
+    // Open status FIFO for read only
     //mkfifo("longmynd_status_fifo", 0666);
     ret = mkfifo("longmynd_status_fifo", 0666);
     fd_status_fifo = open("longmynd_status_fifo", O_RDONLY); 
@@ -9944,6 +9958,9 @@ void LMRX(int NoButton)
               case 36:
                 strcpy(VidEncodingtext, "H265");
               break;
+              case 129:
+                strcpy(AudEncodingtext, " AC3");
+              break;
               default:
                 printf("New Encoding Code = %d\n", EncodingCode);
               break;
@@ -10116,6 +10133,8 @@ void LMRX(int NoButton)
     system("sudo killall lmvlcff.sh >/dev/null 2>/dev/null");
     touch_response = 0; 
     break;
+    // end of code to delete
+*/
 
   case 6:
     printf("STARTING VLC with FFMPEG DVB-T RX\n");
@@ -11020,6 +11039,9 @@ void LMRX(int NoButton)
               case 36:
                 strcpy(VidEncodingtext, "H265");
               break;
+              case 129:
+                strcpy(AudEncodingtext, " AC3");
+              break;
               default:
                 printf("New Encoding Code = %d\n", EncodingCode);
               break;
@@ -11425,6 +11447,9 @@ void LMRX(int NoButton)
               case 36:
                 strcpy(VidEncodingtext, "H265");
               break;
+              case 129:
+                strcpy(AudEncodingtext, " AC3");
+              break;
               default:
                 printf("New Encoding Code = %d\n", EncodingCode);
               break;
@@ -11699,6 +11724,7 @@ void LMRX(int NoButton)
     if(fp==NULL) printf("Process error\n");
 
     printf("STARTING Autoset LNB LO Freq\n");
+    int oldLMRXqoffset = LMRXqoffset;
     LMRXqoffset = 0;
 
     // Open status FIFO
@@ -11785,6 +11811,10 @@ void LMRX(int NoButton)
             Text2(wscreen * 1 / 40, hscreen - 1 * linepitch, STATEtext, font_ptr);
             rectangle(wscreen * 1 / 40, hscreen - 3 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
             Text2(wscreen * 1 / 40, hscreen - 3 * linepitch, MERtext, font_ptr);
+
+            Text2(wscreen * 1.0 / 40.0, hscreen - 4.5 * linepitch, "Previous LNB Offset", font_ptr);
+            snprintf(FREQtext, 15, "%d kHz", oldLMRXqoffset);
+            Text2(wscreen * 1.0 / 40.0, hscreen - 5.5 * linepitch, FREQtext, font_ptr);
        
             // Make sure that the Tuner frequency is sensible
             if ((TUNEFREQ < 143000) || (TUNEFREQ > 2650000))
@@ -11794,19 +11824,19 @@ void LMRX(int NoButton)
 
             if ((MERcount == 10) && (LMRXqoffset == 0) && (TUNEFREQ != 0))
             {
-              Text2(wscreen * 1.0 / 40.0, hscreen - 5.5 * linepitch, "Calculated LNB Offset", font_ptr);
+              Text2(wscreen * 1.0 / 40.0, hscreen - 7.0 * linepitch, "Calculated New LNB Offset", font_ptr);
               LMRXqoffset = 10491500 - TUNEFREQ;
-              snprintf(FREQtext, 15, "%d KHz", LMRXqoffset);
-              Text2(wscreen * 1.0 / 40.0, hscreen - 7.5 * linepitch, FREQtext, font_ptr);
-              Text2(wscreen * 1.0 / 40.0, hscreen - 9.5 * linepitch, "Saved to memory card", font_ptr);
+              snprintf(FREQtext, 15, "%d kHz", LMRXqoffset);
+              Text2(wscreen * 1.0 / 40.0, hscreen - 8.0 * linepitch, FREQtext, font_ptr);
+              Text2(wscreen * 1.0 / 40.0, hscreen - 9.0 * linepitch, "Saved to memory card", font_ptr);
               snprintf(Value, 15, "%d", LMRXqoffset);
               SetConfigParam(PATH_LMCONFIG, "qoffset", Value);
             }
             if ((MERcount == 10) && (LMRXqoffset != 0)) // Done, so just display results
             {
-              Text2(wscreen * 1.0 / 40.0, hscreen - 5.5 * linepitch, "Calculated LNB Offset", font_ptr);
-              snprintf(FREQtext, 15, "%d KHz", LMRXqoffset);
-              Text2(wscreen * 1.0 / 40.0, hscreen - 7.5 * linepitch, FREQtext, font_ptr);
+              Text2(wscreen * 1.0 / 40.0, hscreen - 7.0 * linepitch, "Calculated New LNB Offset", font_ptr);
+              snprintf(FREQtext, 15, "%d kHz", LMRXqoffset);
+              Text2(wscreen * 1.0 / 40.0, hscreen - 8.0 * linepitch, FREQtext, font_ptr);
             }
             Text2(wscreen * 1.0 / 40.0, hscreen - 11.5 * linepitch, "Touch right side of screen to exit", font_ptr);
           }
@@ -16161,11 +16191,27 @@ void waituntil(int w,int h)
           UpdateWindow();
           usleep(500000);
           break;
-        case 5:                                                 // XY Display
+        case 10:                                                 // Signal Generator
           DisplayLogo();
-          cleanexit(134);
+          cleanexit(130);
           break;
-        case 22:                              // Menu 1
+        case 11:                                                 // BandViewer
+          if((CheckLimeMiniConnect() == 0) || (CheckLimeUSBConnect() == 0))
+          {
+            DisplayLogo();
+            cleanexit(136);
+          }
+          else
+          {
+            MsgBox("No LimeSDR Connected");
+            wait_touch();
+          }
+          break;
+        case 12:                                                 // Power Meter
+          DisplayLogo();
+          cleanexit(137);
+          break;
+        case 21:                              // Menu 1
           printf("MENU 1 \n");
           CurrentMenu=1;
           setBackColour(255, 255, 255);
@@ -18450,7 +18496,7 @@ void waituntil(int w,int h)
 void Define_Menu1()
 {
   int button = 0;
-  strcpy(MenuTitle[1], "BATC Portsdown 4 DATV System Main Menu"); 
+  strcpy(MenuTitle[1], "BATC Portsdown 4 DATV Transceiver Main Menu"); 
 
   // Frequency - Bottom Row, Menu 1
 
@@ -18940,7 +18986,7 @@ void Define_Menu2()
 {
   int button;
 
-  strcpy(MenuTitle[2], "BATC Portsdown Transmitter Menu 2"); 
+  strcpy(MenuTitle[2], "BATC Portsdown 4 DATV Transceiver Menu 2"); 
 
   // Bottom Row, Menu 2
 
@@ -18976,8 +19022,7 @@ void Define_Menu2()
   AddButtonStatus(button, "Snap^Check", &Blue);
 
   button = CreateButton(2, 8);
-  AddButtonStatus(button, "More^Functions", &Blue);
-
+  AddButtonStatus(button, "Test^Equipment", &Blue);
 
   button = CreateButton(2, 9);
   AddButtonStatus(button, "Stream^Viewer", &Blue);
@@ -19047,7 +19092,7 @@ void Define_Menu3()
 {
   int button;
 
-  strcpy(MenuTitle[3], "Menu 3 Portsdown Configuration");
+  strcpy(MenuTitle[3], "Portsdown DATV Transceiver Configuration Menu 3");
 
   // Bottom Line Menu 3: Check for Update
 
@@ -19455,7 +19500,7 @@ void Define_Menu7()
 {
   int button;
 
-  strcpy(MenuTitle[7], "Menu 7 Extra Utilities");
+  strcpy(MenuTitle[7], "BATC Portsdown 4 Test Equipment Menu (7)");
 
   // Bottom Line Menu 7: User Buttons
 
@@ -19479,18 +19524,24 @@ void Define_Menu7()
   AddButtonStatus(button, "Button 5", &Blue);
   AddButtonStatus(button, "Button 5", &Green);
 
-  // 2nd line up Menu 7: Lime Config 
+  // 2nd line up Menu 7:  
 
-  button = CreateButton(7, 5);
-  AddButtonStatus(button, "Start^XY Display", &Blue);
+  // 3rd line up Menu 7:
 
-  // 3rd line up Menu 7: 
+  button = CreateButton(7, 10);
+  AddButtonStatus(button, "Signal^Generator", &Blue);
+
+  button = CreateButton(7, 11);
+  AddButtonStatus(button, "Band^Viewer", &Blue);
+
+  button = CreateButton(7, 12);
+  AddButtonStatus(button, "Power^Meter", &Blue);
 
   // 4th line up Menu 7: 
 
   // Top of Menu 7
 
-  button = CreateButton(7, 22);
+  button = CreateButton(7, 21);
   AddButtonStatus(button," M1  ",&Blue);
 }
 
@@ -19512,12 +19563,12 @@ void Define_Menu8()
   AddButtonStatus(button, "RECEIVE", &Grey);
 
   button = CreateButton(8, 1);
-  AddButtonStatus(button, "Play with^OMX Player", &Blue);
-  AddButtonStatus(button, "Play with^OMX Player", &Grey);
+  AddButtonStatus(button, "RX with^OMX Player", &Blue);
+  AddButtonStatus(button, "RX with^OMX Player", &Grey);
 
   button = CreateButton(8, 2);
-  AddButtonStatus(button, "Play with^ffmpeg VLC", &Blue);
-  AddButtonStatus(button, "Play with^ffmpeg VLC", &Grey);
+  AddButtonStatus(button, "RX DVB-S2^No Scan", &Blue);
+  AddButtonStatus(button, "RX DVB-S2^No Scan", &Grey);
 
   button = CreateButton(8, 3);
   AddButtonStatus(button, "Play to^UDP Stream", &Blue);
