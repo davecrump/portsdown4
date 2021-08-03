@@ -235,6 +235,7 @@ uint8_t process_command_line(int argc, char *argv[], longmynd_config_t *config) 
     config->polarisation_supply=false;
     char polarisation_str[8];
     config->ts_timeout = 5*1000;
+    config->search_algorithm = 21; // 0x15
 
     param=1;
     while (param<argc-2) {
@@ -282,6 +283,9 @@ uint8_t process_command_line(int argc, char *argv[], longmynd_config_t *config) 
                 break;
             case 'r':
                 config->ts_timeout=strtol(argv[param],NULL,10);
+                break;
+            case 'A':
+                config->search_algorithm =(uint8_t)strtol(argv[param++],NULL,10);
                 break;
           }
         }
@@ -650,7 +654,7 @@ void *loop_i2c(void *arg) {
 
             /* now start the whole thing scanning for the signal */
             if (*err==ERROR_NONE) {
-                *err=stv0910_start_scan(STV0910_DEMOD_TOP);
+                *err=stv0910_start_scan(STV0910_DEMOD_TOP, config_cpy.search_algorithm);
                 status_cpy.state=STATE_DEMOD_HUNTING;
             }
 
