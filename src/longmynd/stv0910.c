@@ -644,7 +644,7 @@ uint8_t stv0910_setup_ts(uint8_t demod) {
 }
 
 /* -------------------------------------------------------------------------------------------------- */
-uint8_t stv0910_start_scan(uint8_t demod) {
+uint8_t stv0910_start_scan(uint8_t demod, uint8_t aep) {
 /* -------------------------------------------------------------------------------------------------- */
 /* demodulator search sequence is:                                                                    */
 /*   setup the timing loop                                                                            */
@@ -664,8 +664,9 @@ uint8_t stv0910_start_scan(uint8_t demod) {
 
     printf("Flow: STV0910 start scan\n");
 
-    if (err==ERROR_NONE) err=stv0910_write_reg((demod==STV0910_DEMOD_TOP ? RSTV0910_P2_DMDISTATE : RSTV0910_P1_DMDISTATE),
-                                                                                   STV0910_SCAN_BLIND_BEST_GUESS);
+    if (err==ERROR_NONE) err=stv0910_write_reg((demod==STV0910_DEMOD_TOP ? RSTV0910_P2_DMDISTATE : RSTV0910_P1_DMDISTATE), aep);
+
+//                                                                                   STV0910_SCAN_BLIND_BEST_GUESS);
 
     if (err!=ERROR_NONE) printf("ERROR: STV0910 start scan\n");
 

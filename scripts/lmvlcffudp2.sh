@@ -132,7 +132,8 @@ UDPIP=127.0.0.1
 UDPPORT=1234
 
 # Start LongMynd
-sudo /home/pi/longmynd/longmynd -i $UDPIP $UDPPORT -s longmynd_status_fifo $VOLTS_CMD $TIMEOUT_CMD -A 11 $SCAN_CMD $INPUT_CMD $FREQ_KHZ $SYMBOLRATEK &
+sudo /home/pi/longmynd/longmynd -i $UDPIP $UDPPORT -s longmynd_status_fifo \
+  $VOLTS_CMD $TIMEOUT_CMD -A 11 $SCAN_CMD $INPUT_CMD $FREQ_KHZ $SYMBOLRATEK >/dev/null 2>/dev/null &
 
 # Start VLC
 cvlc -I rc --rc-host 127.0.0.1:1111 $PROG --codec ffmpeg -f --video-title-timeout=100 \

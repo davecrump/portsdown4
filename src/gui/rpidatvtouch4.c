@@ -1564,7 +1564,10 @@ void ReadModeInput(char coding[256], char vsource[256])
     strcpy(coding, "MPEG-2");
     strcpy(vsource, "RPi Camera");
     strcpy(CurrentEncoding, "MPEG-2");
-    strcpy(CurrentFormat, "4:3");
+    if (strcmp(ModeOutput, "STREAMER") != 0)  // Allow 16:9 for streamer
+    {
+      strcpy(CurrentFormat, "4:3");
+    }
     strcpy(CurrentSource, TabSource[0]); // Pi Cam
   }
   else if (strcmp(ModeInput, "ANALOGMPEG-2") == 0)
@@ -1587,7 +1590,10 @@ void ReadModeInput(char coding[256], char vsource[256])
     strcpy(coding, "MPEG-2");
     strcpy(vsource, "Static Test Card");
     strcpy(CurrentEncoding, "MPEG-2");
-    strcpy(CurrentFormat, "4:3");
+    if (strcmp(ModeOutput, "STREAMER") != 0)  // Allow 16:9 for streamer
+    {
+      strcpy(CurrentFormat, "4:3");
+    }
     strcpy(CurrentSource, TabSource[3]); // Desktop
   }
   else if (strcmp(ModeInput, "CONTESTMPEG-2") == 0)

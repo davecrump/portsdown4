@@ -77,6 +77,7 @@ typedef struct {
     uint8_t sr_index;
     uint32_t freq_requested[4];
     uint32_t sr_requested[4];
+    uint8_t search_algorithm;
     bool beep_enabled;
 
     uint8_t device_usb_bus;

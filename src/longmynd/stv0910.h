@@ -62,7 +62,7 @@ uint8_t stv0910_init_regs(void);
 uint8_t stv0910_setup_timing_loop(uint8_t, uint32_t);
 uint8_t stv0910_setup_carrier_loop(uint8_t, uint32_t); 
 uint8_t stv0910_read_scan_state(uint8_t, uint8_t *);
-uint8_t stv0910_start_scan(uint8_t);
+uint8_t stv0910_start_scan(uint8_t, uint8_t);
 uint8_t stv0910_setup_search_params(uint8_t);
 uint8_t stv0910_setup_clocks();
 
