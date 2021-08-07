@@ -116,7 +116,7 @@ int xscalenum = 25;       // Numerator for X scaling fraction
 int xscaleden = 20;       // Denominator for X scaling fraction
 
 int meter_deflection = -110;
-char MeterSensor[63];     // ad8318-1
+char MeterSensor[63];     // ad8318-3
 char MeterTitle[63] = "-";
 char MeterSource[63] = "dbm" ;     // dbm mw volts a-d db
 char MeterRange[63];
@@ -258,7 +258,7 @@ void ReadSavedParams()
   strcpy(PlotTitle, "-");  // this is the "do not display" response
   GetConfigParam(PATH_XYCONFIG, "title", PlotTitle);
 
-  strcpy(MeterSensor, "-");  // like ad8318-1
+  strcpy(MeterSensor, "-");  // like ad8318-3
   GetConfigParam(PATH_XYCONFIG, "metersensor", MeterSensor);
 
   strcpy(MeterTitle, "-");  // this is the "do not display" response
@@ -1701,7 +1701,7 @@ void ChangeLabel(int button)
 
     case 13:                                                       // Cal Factor
       // Define request string
-      strcpy(RequestText, "Enter Calibration Factor (between 10 and 200 %)");
+      strcpy(RequestText, "Enter Calibration Factor (between 5 and 500 %)");
 
       // Ask for the new value
       Keyboard(RequestText, MeterCalFactor, 10);
@@ -2419,9 +2419,13 @@ void ChangeSensor(int button)
 {
     switch (button)
     {
-      case 2:                                         // ad8318-1
-        strcpy(MeterSensor, "ad8318-1");
-        SetConfigParam(PATH_XYCONFIG, "metersensor", "ad8318-1");
+      case 2:                                         // ad8318-3
+        strcpy(MeterSensor, "ad8318-3");
+        SetConfigParam(PATH_XYCONFIG, "metersensor", "ad8318-3");
+      break;
+      case 3:                                         // ad8318-5
+        strcpy(MeterSensor, "ad8318-5");
+        SetConfigParam(PATH_XYCONFIG, "metersensor", "ad8318-5");
       break;
       case 5:
         strcpy(MeterSensor, "voltage");
@@ -3125,14 +3129,15 @@ void *WaitButtonEvent(void * arg)
           UpdateWindow();
           freeze = false;
           break;
-        case 2:                                            // ad8318-1
+        case 2:                                            // ad8318-3
           ChangeSensor(i);
           Start_Highlights_Menu9();
           UpdateWindow();          
           break;
-        case 3:                                            // 
-          //ChangeSensor(i);
-          //UpdateWindow();          
+        case 3:                                            // ad8318-5
+          ChangeSensor(i);
+          Start_Highlights_Menu9();
+          UpdateWindow();          
           break;
         case 4:                                            // 
           //ChangeSensor(i);
@@ -3411,8 +3416,6 @@ void Start_Highlights_Menu5()
   if (Meter == true)
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 2), 1);
-  printf("Meter true\n");
-
   }
   else
   {
@@ -3615,11 +3618,12 @@ void Define_Menu9()  // Power Meter Sensor
   AddButtonStatus(button, " ", &Green);
 
   button = CreateButton(9, 2);
-  AddButtonStatus(button, "AD8318", &Blue);
-  AddButtonStatus(button, "AD8318", &Green);
+  AddButtonStatus(button, "AD8318 3v", &Blue);
+  AddButtonStatus(button, "AD8318 3v", &Green);
 
-  //button = CreateButton(9, 3);
-  //AddButtonStatus(button, "Cal^Factor", &Blue);
+  button = CreateButton(9, 3);
+  AddButtonStatus(button, "AD8318  5v", &Blue);
+  AddButtonStatus(button, "AD8318  5v", &Green);
 
   //button = CreateButton(9, 4);
   //AddButtonStatus(button, "Range", &Blue);
@@ -3645,21 +3649,31 @@ void Define_Menu9()  // Power Meter Sensor
 
 void Start_Highlights_Menu9()
 {
-  if (strcmp(MeterSensor, "ad8318-1") == 0)
+  if (strcmp(MeterSensor, "ad8318-3") == 0)
   {
     SetButtonStatus(ButtonNumber(9, 2), 1);
+    SetButtonStatus(ButtonNumber(9, 3), 0);
+    SetButtonStatus(ButtonNumber(9, 5), 0);
+    SetButtonStatus(ButtonNumber(9, 6), 0);
+  }
+  else if (strcmp(MeterSensor, "ad8318-5") == 0)
+  {
+    SetButtonStatus(ButtonNumber(9, 2), 0);
+    SetButtonStatus(ButtonNumber(9, 3), 1);
     SetButtonStatus(ButtonNumber(9, 5), 0);
     SetButtonStatus(ButtonNumber(9, 6), 0);
   }
   else if (strcmp(MeterSensor, "voltage") == 0)
   {
     SetButtonStatus(ButtonNumber(9, 2), 0);
+    SetButtonStatus(ButtonNumber(9, 3), 0);
     SetButtonStatus(ButtonNumber(9, 5), 1);
     SetButtonStatus(ButtonNumber(9, 6), 0);
   }
   else
   {
     SetButtonStatus(ButtonNumber(9, 2), 0);
+    SetButtonStatus(ButtonNumber(9, 3), 0);
     SetButtonStatus(ButtonNumber(9, 5), 0);
     SetButtonStatus(ButtonNumber(9, 6), 1);
   }
@@ -4656,9 +4670,9 @@ void CheckWithinRange(int advalue)
   const font_t *font_ptr = &font_dejavu_sans_28;   // 28pt
 
   // Check for each sensor
-  if (strcmp(MeterSensor, "ad8318-1") == 0)
+  if (strcmp(MeterSensor, "ad8318-5") == 0)
   {
-    if (advalue > ad8318_1_underrange)
+    if (advalue > ad8318_5_underrange)
     {
       pthread_mutex_lock(&text_lock);
       setBackColour(0, 0, 0);
@@ -4676,7 +4690,47 @@ void CheckWithinRange(int advalue)
       setForeColour(255, 255, 255);
       pthread_mutex_unlock(&text_lock);
     }
-    if (advalue < ad8318_1_overrange)
+    if (advalue < ad8318_5_overrange)
+    {
+      pthread_mutex_lock(&text_lock);
+      setBackColour(0, 0, 0);
+      setForeColour(255, 63, 36);
+      Text2(430, 120,"Over-range", font_ptr);
+      setForeColour(255, 255, 255);
+      pthread_mutex_unlock(&text_lock);
+    }
+    else
+    {
+      pthread_mutex_lock(&text_lock);
+      setBackColour(0, 0, 0);
+      setForeColour(0, 0, 0);
+      Text2(430, 120,"Over-range", font_ptr);
+      setForeColour(255, 255, 255);
+      pthread_mutex_unlock(&text_lock);
+    }
+  }
+
+  if (strcmp(MeterSensor, "ad8318-3") == 0)
+  {
+    if (advalue > ad8318_3_underrange)
+    {
+      pthread_mutex_lock(&text_lock);
+      setBackColour(0, 0, 0);
+      setForeColour(255, 63, 36);
+      Text2(110, 120,"Under-range", font_ptr);
+      setForeColour(255, 255, 255);
+      pthread_mutex_unlock(&text_lock);
+    }
+    else
+    {
+      pthread_mutex_lock(&text_lock);
+      setBackColour(0, 0, 0);
+      setForeColour(0, 0, 0);
+      Text2(110, 120,"Under-range", font_ptr);
+      setForeColour(255, 255, 255);
+      pthread_mutex_unlock(&text_lock);
+    }
+    if (advalue < ad8318_3_overrange)
     {
       pthread_mutex_lock(&text_lock);
       setBackColour(0, 0, 0);
@@ -4847,9 +4901,14 @@ int main()
 
       // Function here to translate MCP3002 output to useful value in dBm, mW or volts
 
-      if (strcmp(MeterSensor, "ad8318-1") == 0)
+      if (strcmp(MeterSensor, "ad8318-5") == 0)
       {
-        power_dBm = ad8318_1[rawvalue].pwr_dBm;
+        power_dBm = ad8318_5[rawvalue].pwr_dBm;
+      }
+
+      if (strcmp(MeterSensor, "ad8318-3") == 0)
+      {
+        power_dBm = ad8318_3[rawvalue].pwr_dBm;
       }
 
       // Apply Calibration Factor correction if needed
@@ -4884,7 +4943,7 @@ int main()
       }
       if (strcmp(MeterSensor, "voltage") == 0)
       {
-         meter_deflection = (rawvalue * 1000) / 1024;
+         meter_deflection = (rawvalue * 660) / 1024;
       }
 
       if (rawvalue != previous_rawvalue)           // Update numeric display
@@ -4895,7 +4954,7 @@ int main()
         }
         else if (strcmp(MeterSensor, "voltage") == 0)
         {
-          Showvolts(((float)(rawvalue) * 5.0) / 1024.0);
+          Showvolts(((float)(rawvalue) * 3.3) / 1024.0);
         }
         else
         {
@@ -4919,7 +4978,8 @@ int main()
     {
       if (ModeChanged == true)
       {
-        pthread_join(thMeter_Movement, NULL);
+        //pthread_join(thMeter_Movement, NULL);
+        printf("After Join\n");
         setBackColour(0, 0, 0);
         DrawEmptyScreen();
         DrawYaxisLabels();  // dB calibration on LHS
@@ -5013,7 +5073,7 @@ int main()
         while (((((pixel * xscalenum) > (x * xscaleden)) && (ContScan == false))) || (Meter == true));
 
         dispvalue = mcp3002_value(1);
-        //printf("a-d value = %d\n", dispvalue);
+        printf("a-d value = %d\n", dispvalue);
         scaledadresult[pixel] = ((dispvalue * yscalenum)/ yscaleden) + yshift;
         if (normalised == false)
         {
