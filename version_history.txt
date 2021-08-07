@@ -1,6 +1,7 @@
-202108010
+202108011
 Bugfix 20 minute LongMynd scan lock-up
 Enable 16:9 streaming from Test Card and Pi Cam
+Power meter enhancements
 
 202107222
 Display MiniTiouner RF Input Level on Receive
