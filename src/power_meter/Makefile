@@ -1,4 +1,4 @@
-all:	xy
+all:	power_meter
 
 clean:
 	rm -f *.o *.inc *.so *.c~ *.h~
@@ -7,14 +7,15 @@ clean:
 INCLUDEFLAGS2=-lpthread -I/opt/vc/include -I/opt/vc/include/interface/vmcs_host/linux -I/opt/vc/include/interface/vcos/pthreads -I..
 LIBFLAGS2=-L/opt/vc/lib -lbcm_host -lpthread  -ljpeg -lrt -lm -ldl -lfftw3f -lwiringPi
 
-xy: mcp3002.h mcp3002.c xy.c 
-	gcc -Wall $(INCLUDEFLAGS2) -o  xy \
+power_meter: mcp3002.h mcp3002.c power_meter.c 
+	gcc -Wall $(INCLUDEFLAGS2) -o  power_meter \
 		font/font.c \
 		font/dejavu_sans_18.c \
 		font/dejavu_sans_20.c \
 		font/dejavu_sans_22.c \
 		font/dejavu_sans_28.c \
-		xy.c $(LIBFLAGS2) 
+		font/dejavu_sans_36.c \
+		power_meter.c $(LIBFLAGS2) 
 
 install:
-	cp xy ../../bin/
+	cp power_meter ../../bin/

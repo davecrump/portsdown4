@@ -400,6 +400,16 @@ make
 cp bandview ../../bin/
 cd /home/pi
 
+# Compile Power Meter
+echo
+echo "---------------------------------"
+echo "----- Compiling Power Meter -----"
+echo "---------------------------------"
+cd /home/pi/rpidatv/src/power_meter
+make
+cp power_meter ../../bin/
+cd /home/pi
+
 #echo
 #echo "-----------------------------------------"
 #echo "----- Compiling Ancilliary programs -----"

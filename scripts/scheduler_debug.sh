@@ -49,6 +49,7 @@ EOF
 # 134  Exit from rpidatvgui requesting start of XY Display
 # 135  Run the Langstone TRX
 # 136  Exit from rpidatvgui requesting start of BandViewer
+# 137  Exit from rpidatvgui requesting start of Power Meter
 # 160  Shutdown from GUI
 # 192  Reboot from GUI
 # 193  Rotate 7 inch and reboot
@@ -125,6 +126,11 @@ while [ "$GUI_RETURN_CODE" -gt 127 ] || [ "$GUI_RETURN_CODE" -eq 0 ];  do
     136)
       sleep 1
       /home/pi/rpidatv/bin/bandview
+      GUI_RETURN_CODE="$?"
+    ;;
+    137)
+      sleep 1
+      /home/pi/rpidatv/bin/power_meter
       GUI_RETURN_CODE="$?"
     ;;
     160)

@@ -35,6 +35,8 @@ INPUT_SEL_T=$(get_config_var input1 $RCONFIGFILE)
 LNBVOLTS=$(get_config_var lnbvolts $RCONFIGFILE)
 TSTIMEOUT=$(get_config_var tstimeout $RCONFIGFILE)
 TSTIMEOUT_T=$(get_config_var tstimeout1 $RCONFIGFILE)
+SCANWIDTH=$(get_config_var scanwidth $RCONFIGFILE)
+SCANWIDTH_T=$(get_config_var scanwidth1 $RCONFIGFILE)
 CHAN=$(get_config_var chan $RCONFIGFILE)
 CHAN_T=$(get_config_var chan1 $RCONFIGFILE)
 
@@ -46,6 +48,7 @@ else
   SYMBOLRATEK=$SYMBOLRATEK_T
   INPUT_SEL=$INPUT_SEL_T
   TSTIMEOUT=$TSTIMEOUT_T
+  SCANWIDTH=$SCANWIDTH_T
   CHAN=$CHAN_T
 fi
 
@@ -83,23 +86,62 @@ if [ "$CHAN" != "0" ] && [ "$CHAN" != "" ]; then
   PROG="--program "$CHAN
 fi
 
+# Adjust timeout for low SRs
+if [[ $SYMBOLRATEK -lt 300 ]] && [[ $TSTIMEOUT -ne -1 ]]; then
+  let TSTIMEOUT=2*$TSTIMEOUT
+  if [[ $SYMBOLRATEK -lt 150 ]]; then
+    let TSTIMEOUT=2*$TSTIMEOUT
+  fi
+fi
+
 TIMEOUT_CMD=" "
 if [[ $TSTIMEOUT -ge 500 ]] || [[ $TSTIMEOUT -eq -1 ]]; then
   TIMEOUT_CMD=" -r "$TSTIMEOUT" "
 fi
 
+SCAN_CMD=" "
+if [[ $SCANWIDTH -ge 10 ]] && [[ $SCANWIDTH -lt 250 ]]; then
+  SCAN_CMD=`echo - | awk '{print '$SCANWIDTH' / 100}'`
+  SCAN_CMD="-S "$SCAN_CMD
+fi
+
+# Create dummy marquee overlay file
+echo " " >/home/pi/tmp/vlc_overlay.txt
+
 sudo killall longmynd >/dev/null 2>/dev/null
 sudo killall vlc >/dev/null 2>/dev/null
 
+# Play a very short dummy file if this is a first start for VLC since boot
+# This makes sure the RX works on first selection after boot
+if [[ ! -f /home/pi/tmp/vlcprimed ]]; then
+  cvlc -I rc --rc-host 127.0.0.1:1111 -f --codec ffmpeg --video-title-timeout=100 \
+    --width 800 --height 480 \
+    --sub-filter marq --marq-x 25 --marq-file "/home/pi/tmp/vlc_overlay.txt" \
+    --gain 3 --alsa-audio-device $AUDIO_DEVICE \
+    /home/pi/rpidatv/video/blank.ts vlc:quit >/dev/null 2>/dev/null &
+  sleep 1
+  touch /home/pi/tmp/vlcprimed
+  echo shutdown | nc 127.0.0.1 1111
+fi
+
+# Create the ts fifo
 sudo rm longmynd_main_ts >/dev/null 2>/dev/null
 mkfifo longmynd_main_ts
 
-sudo /home/pi/longmynd/longmynd -s longmynd_status_fifo $VOLTS_CMD $TIMEOUT_CMD $INPUT_CMD $FREQ_KHZ $SYMBOLRATEK &
+UDPIP=127.0.0.1
+UDPPORT=1234
 
-cvlc -I rc --rc-host 127.0.0.1:1111 $PROG -f --no-video-title-show \
+# Start LongMynd
+sudo /home/pi/longmynd/longmynd -i $UDPIP $UDPPORT -s longmynd_status_fifo \
+  $VOLTS_CMD $TIMEOUT_CMD -A 11 $SCAN_CMD $INPUT_CMD $FREQ_KHZ $SYMBOLRATEK >/dev/null 2>/dev/null &
+
+# Start VLC
+cvlc -I rc --rc-host 127.0.0.1:1111 $PROG --codec ffmpeg -f --video-title-timeout=100 \
   --width 800 --height 480 \
+  --sub-filter marq --marq-x 25 --marq-file "/home/pi/tmp/vlc_overlay.txt" \
   --gain 3 --alsa-audio-device $AUDIO_DEVICE \
-  longmynd_main_ts >/dev/null 2>/dev/null &
+  udp://@127.0.0.1:1234 >/dev/null 2>/dev/null &
 
 exit
+
 

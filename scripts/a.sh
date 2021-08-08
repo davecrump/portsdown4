@@ -773,6 +773,11 @@ fi
           VIDEO_WIDTH=720
           VIDEO_HEIGHT=576
         fi
+        if [ "$FORMAT" == "16:9" ]; then
+          VIDEO_WIDTH=1024
+          VIDEO_HEIGHT=576
+        fi
+
         # No code for beeps here
         sudo modprobe bcm2835_v4l2
         if [ "$AUDIO_CARD" == 0 ]; then
@@ -924,11 +929,12 @@ fi
 
     ##################### Pluto H264 EasyCap Code ##############################
 
-    # Allow for experimental widescreen 
-
+    # Widescreen switching
     if [ "$FORMAT" == "16:9" ]; then
-      VIDEO_WIDTH=768
-      VIDEO_HEIGHT=400
+      SCALE="-vf scale=1024:576"
+      # SCALE="-vf scale=720:400"  Slightly better for fast moving images
+    else
+      SCALE=""
     fi
 
     if [ "$MODE_INPUT" == "ANALOGCAM" ]; then
@@ -940,15 +946,15 @@ fi
         v4l2-ctl -d $ANALOGCAMNAME "--set-standard="$ANALOGCAMSTANDARD
       fi
 
-      # Experimental Pluto H264 EasyCap
+      # Pluto H264 EasyCap
       if [ "$MODE_OUTPUT" == "PLUTO" ] && [ "$MODE_INPUT" == "ANALOGCAM" ]; then
         INPUT_FORMAT="yuyv422"
         rpidatv/bin/ffmpeg -thread_queue_size 2048 \
-          -f v4l2 -input_format $INPUT_FORMAT -video_size 720x576 \
+          -f v4l2 -input_format $INPUT_FORMAT \
           -i $ANALOGCAMNAME \
           -f alsa -thread_queue_size 2048 -ac $AUDIO_CHANNELS  \
           -i hw:$AUDIO_CARD_NUMBER,0 \
-          -c:v h264_omx -b:v $BITRATE_VIDEO -g 25 \
+          -c:v h264_omx -b:v $BITRATE_VIDEO $SCALE -g 25 \
           -ar 22050 -ac $AUDIO_CHANNELS -ab 64k \
           -f flv \
           rtmp://$PLUTOIP:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,-$PLUTOPWR,nocalib,800,32,/,$CALL, &
@@ -1736,7 +1742,7 @@ fi
       sudo fbi -T 1 -noverbose -a /home/pi/tmp/contest.jpg >/dev/null 2>/dev/null
       (sleep 1; sudo killall -9 fbi >/dev/null 2>/dev/null) &  ## kill fbi once it has done its work
     
-    elif [ "$MODE_INPUT" == "CARDMPEG-2" ]; then
+    elif [ "$MODE_INPUT" == "CARDMPEG-2" ] && [ "$FORMAT" != "16:9" ]; then
       if [ "$CAPTIONON" == "on" ]; then
         rm /home/pi/tmp/caption.png >/dev/null 2>/dev/null
         rm /home/pi/tmp/tcf2.jpg >/dev/null 2>/dev/null
@@ -1749,7 +1755,7 @@ fi
         sudo fbi -T 1 -noverbose -a /home/pi/rpidatv/scripts/images/tcf.jpg >/dev/null 2>/dev/null
       fi
       (sleep 1; sudo killall -9 fbi >/dev/null 2>/dev/null) &  ## kill fbi once it has done its work
-    elif [ "$MODE_INPUT" == "CARD16MPEG-2" ]; then
+    elif [ "$MODE_INPUT" == "CARD16MPEG-2" ] || [ "$FORMAT" == "16:9" ]; then
       if [ "$CAPTIONON" == "on" ]; then
         rm /home/pi/tmp/caption.png >/dev/null 2>/dev/null
         rm /home/pi/tmp/tcfw162.jpg >/dev/null 2>/dev/null
@@ -1813,12 +1819,20 @@ fi
     # Now generate the stream
     case "$MODE_OUTPUT" in
       "STREAMER")
+        if [ "$FORMAT" == "16:9" ]; then
+          VIDEO_WIDTH=1280
+          VIDEO_HEIGHT=720
+        else
+          VIDEO_WIDTH=720
+          VIDEO_HEIGHT=576
+        fi
+
         # No code for beeps here
         if [ "$AUDIO_CARD" == 0 ]; then
           $PATHRPI"/ffmpeg" -loglevel $MODE_DEBUG -thread_queue_size 2048 \
             -f image2 -loop 1 \
             -i $IMAGEFILE \
-            -framerate 25 -video_size 720x576 -c:v h264_omx -b:v 576k \
+            -framerate 25 -video_size "$VIDEO_WIDTH"x"$VIDEO_HEIGHT" -c:v h264_omx -b:v 576k \
             $VF $CAPTION \
             \
             -f flv $STREAM_URL/$STREAM_KEY &
@@ -1830,7 +1844,7 @@ fi
             -f alsa -ac $AUDIO_CHANNELS -ar $AUDIO_SAMPLE \
             -i hw:$AUDIO_CARD_NUMBER,0 \
             \
-            -framerate 25 -video_size 720x576 -c:v h264_omx -b:v 512k \
+            -framerate 25 -video_size "$VIDEO_WIDTH"x"$VIDEO_HEIGHT" -c:v h264_omx -b:v 512k \
             -ar 22050 -ac $AUDIO_CHANNELS -ab 64k            \
             -f flv $STREAM_URL/$STREAM_KEY &
         fi

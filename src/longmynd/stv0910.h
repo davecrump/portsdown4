@@ -47,6 +47,8 @@ uint8_t stv0910_read_car_freq(uint8_t, int32_t*);
 uint8_t stv0910_read_constellation(uint8_t, uint8_t*, uint8_t*);
 uint8_t stv0910_read_sr(uint8_t demod, uint32_t*);
 uint8_t stv0910_read_puncture_rate(uint8_t, uint8_t*);
+uint8_t stv0910_read_agc1_gain(uint8_t, uint16_t*);
+uint8_t stv0910_read_agc2_gain(uint8_t, uint16_t*);
 uint8_t stv0910_read_power(uint8_t, uint8_t*, uint8_t*);
 uint8_t stv0910_read_err_rate(uint8_t, uint32_t*);
 uint8_t stv0910_read_ber(uint8_t, uint32_t*);
@@ -60,7 +62,7 @@ uint8_t stv0910_init_regs(void);
 uint8_t stv0910_setup_timing_loop(uint8_t, uint32_t);
 uint8_t stv0910_setup_carrier_loop(uint8_t, uint32_t); 
 uint8_t stv0910_read_scan_state(uint8_t, uint8_t *);
-uint8_t stv0910_start_scan(uint8_t);
+uint8_t stv0910_start_scan(uint8_t, uint8_t);
 uint8_t stv0910_setup_search_params(uint8_t);
 uint8_t stv0910_setup_clocks();
 

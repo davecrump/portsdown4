@@ -1,0 +1,15 @@
+startfreq=2407000
+stopfreq=2412000
+reflevel=99
+normlevel=-40
+rbw=0
+title=Portsdown XY Display
+metersensor=ad8318-3
+metertitle=Portsdown Power Meter
+metersource=dbm
+meterrange=50
+meterzero=-45
+metermwrange=1.000000
+meteratten=0
+metercalfactor=100
+

@@ -35,6 +35,7 @@ src/limesdr_toolbox/limesdr_dvb
 src/rpidatv
 src/bandview/bandview
 src/dvb_t_stack/Release/
+src/power_meter/power_meter
 scripts/configs/Langstone.conf
 bin/adf4351
 bin/avc2ts
@@ -52,4 +53,5 @@ bin/rpidatvgui
 bin/set_attenuator
 bin/siggen
 bin/plutotx
+bin/power_meter
 
