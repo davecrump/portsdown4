@@ -112,7 +112,7 @@ int yscalenum = 18;       // Numerator for Y scaling fraction
 int yscaleden = 30;       // Denominator for Y scaling fraction
 int yshift    = 5;        // Vertical shift (pixels) for Y
 
-int xscalenum = 25;       // Numerator for X scaling fraction
+int xscalenum = 27;       // Numerator for X scaling fraction
 int xscaleden = 20;       // Denominator for X scaling fraction
 
 int meter_deflection = -110;
@@ -5073,7 +5073,7 @@ int main()
         while (((((pixel * xscalenum) > (x * xscaleden)) && (ContScan == false))) || (Meter == true));
 
         dispvalue = mcp3002_value(1);
-        printf("a-d value = %d\n", dispvalue);
+        //printf("a-d value = %d\n", dispvalue);
         scaledadresult[pixel] = ((dispvalue * yscalenum)/ yscaleden) + yshift;
         if (normalised == false)
         {
