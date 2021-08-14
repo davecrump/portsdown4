@@ -1,3 +1,7 @@
+202108160
+Support all 3 versions of C920 WebCam (and C930e?)
+BugFix Pluto Video input 16:9
+
 202108011
 Bugfix 20 minute LongMynd scan lock-up
 Enable 16:9 streaming from Test Card and Pi Cam

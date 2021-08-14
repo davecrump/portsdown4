@@ -7,7 +7,7 @@
 sudo killall rpidatvgui >/dev/null 2>/dev/null
 
 # Kill the current process if it is running
-sudo killall Power_meter >/dev/null 2>/dev/null
+sudo killall power_meter >/dev/null 2>/dev/null
 
 cd /home/pi/rpidatv/src/power_meter
 touch power_meter.c

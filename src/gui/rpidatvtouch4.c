@@ -1472,10 +1472,6 @@ void ReadModeInput(char coding[256], char vsource[256])
     strcpy(coding, "H264");
     strcpy(vsource, "RPi Camera");
     strcpy(CurrentEncoding, "H264");
-//    if(strcmp(CurrentFormat, "16:9") !=0)  // Allow 16:9
-//    {
-//      strcpy(CurrentFormat, "4:3");
-//    }
     strcpy(CurrentSource, TabSource[0]); // Pi Cam
   } 
   else if (strcmp(ModeInput, "ANALOGCAM") == 0)
@@ -1494,10 +1490,6 @@ void ReadModeInput(char coding[256], char vsource[256])
     strcpy(coding, "H264");
     strcpy(vsource, "Webcam");
     strcpy(CurrentEncoding, "H264");
-//    if(strcmp(CurrentFormat, "16:9") !=0)  // Allow 16:9
-//    {
-//      strcpy(CurrentFormat, "4:3");
-//    }
     strcpy(CurrentSource, TabSource[6]); // Webcam
   }
   else if (strcmp(ModeInput, "CARDH264") == 0)
@@ -1505,10 +1497,15 @@ void ReadModeInput(char coding[256], char vsource[256])
     strcpy(coding, "H264");
     strcpy(vsource, "Static Test Card F");
     strcpy(CurrentEncoding, "H264");
-    if(strcmp(CurrentFormat, "16:9") !=0)  // Allow 16:9
+    if ((strcmp(CurrentFormat, "720p") == 0) || (strcmp(CurrentFormat, "1080p") == 0))  // Go 16:9
+    {
+      strcpy(CurrentFormat, "16:9");
+    }
+    if(strcmp(CurrentFormat, "16:9") != 0)  // Allow 16:9
     {
       strcpy(CurrentFormat, "4:3");
     }
+    SetConfigParam(PATH_PCONFIG, "format", CurrentFormat);
     strcpy(CurrentSource, TabSource[3]); // TestCard
   }
   else if (strcmp(ModeInput, "CONTEST") == 0)
@@ -2624,7 +2621,8 @@ int CheckC920()
  *
  * @param nil
  *
- * @return 0 if not connected, 1 if old with H264 Encoder and 2 if new without encoder
+ * @return 0 if not connected, 1 if old with H264 Encoder and 2 if Orbicam without encoder
+ * and return 3 if newer C920 without encoder
 *******************************************************************************/
 
 int CheckC920Type()
@@ -2636,7 +2634,7 @@ int CheckC920Type()
   // or          Bus 001 Device 00x: ID 046d:0892 Logitech, Inc. OrbiCam            (new)
   // or null
 
-  fp = popen("lsusb | grep '046d:082d'", "r");
+  fp = popen("lsusb | grep '046d:082d'", "r");  // Old C920
   if (fp == NULL)
   {
     printf("Failed to run command\n" );
@@ -2653,7 +2651,7 @@ int CheckC920Type()
     }
   }
 
-  fp = popen("lsusb | grep '046d:0892'", "r");
+  fp = popen("lsusb | grep '046d:0892'", "r");  // Orbicam C920
   if (fp == NULL)
   {
     printf("Failed to run command\n" );
@@ -2669,6 +2667,24 @@ int CheckC920Type()
       return 2;
     }
   }
+
+  fp = popen("lsusb | grep '046d:08e5'", "r");  // Newer C920
+  if (fp == NULL)
+  {
+    printf("Failed to run command\n" );
+    exit(1);
+  }
+
+  /* Read the output a line at a time - output it. */
+  while (fgets(response_line, 250, fp) != NULL)
+  {
+    if (strlen(response_line) > 1)
+    {
+      pclose(fp);
+      return 3;
+    }
+  }
+
   pclose(fp);
   return 0;
 }
@@ -5718,7 +5734,6 @@ void ApplyTXConfig()
   }
   else if (strcmp(CurrentModeOP, "PLUTO") == 0) //          PLUTO Modes
   {
- printf("Pluto Modes\n");
     if (strcmp(CurrentEncoding, "IPTS in") == 0)
     {
       strcpy(ModeInput, "IPTSIN");
@@ -6736,7 +6751,6 @@ void SelectSource(int NoButton)  // Video Source
   printf("Current Source before ApplyTXConfig in SelectSource is %s\n",  CurrentSource);
   ApplyTXConfig();
   printf("Current Source afer ApplyTXConfig in SelectSource is %s\n",  CurrentSource);
-
 }
 
 void SelectFreq(int NoButton)  //Frequency
@@ -12223,6 +12237,11 @@ void InfoScreen()
   if (CheckC920Type() == 2)
   {
     strcat(BitRate, "  Webcam: C920 (no H264 encoder)");
+  }
+
+  if (CheckC920Type() == 3)
+  {
+    strcat(BitRate, "  Webcam: C920 (new with no H264)");
   }
 
   // Initialise and calculate the text display
