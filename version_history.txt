@@ -1,5 +1,7 @@
-202108160
+202108161
 Support all 3 versions of C920 WebCam (and C930e?)
+Add Some C930e and C525 Support
+Enable streaming from Webcams
 BugFix Pluto Video input 16:9
 
 202108011

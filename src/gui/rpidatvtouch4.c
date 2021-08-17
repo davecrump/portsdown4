@@ -5721,7 +5721,7 @@ void ApplyTXConfig()
     }
     else if (strcmp(CurrentSource, "Webcam") == 0)
     {
-      strcpy(ModeInput, "CAMMPEG-2");
+      strcpy(ModeInput, "WEBCAMMPEG-2");
     }
     else if (strcmp(CurrentSource, "TestCard") == 0)
     {

@@ -501,6 +501,13 @@ detect_video()
   fi
 
   if [ "$WEBCAM_TYPE" == "None" ]; then
+    lsusb | grep -q "046d:0826"
+    if [ $? == 0 ]; then
+      WEBCAM_TYPE="C525"
+    fi
+  fi
+
+  if [ "$WEBCAM_TYPE" == "None" ]; then
     lsusb | grep -q "046d:0823"
     if [ $? == 0 ]; then
       WEBCAM_TYPE="C310"
