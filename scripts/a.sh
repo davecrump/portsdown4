@@ -2,7 +2,7 @@
 
 # set -x # Uncomment for testing
 
-# Version 20210705
+# Version 202108160
 
 ############# SET GLOBAL VARIABLES ####################
 
@@ -928,7 +928,7 @@ fi
         fi
       fi
 
-      if [ "$WEBCAM_TYPE" == "C170" ]; then
+      if [ "$WEBCAM_TYPE" == "C170" ] || [ "$WEBCAM_TYPE" == "C525" ]; then
         INPUT_FORMAT="yuyv422"
         AUDIO_CHANNELS=1
         if [ "$FORMAT" == "16:9" ]; then
@@ -939,11 +939,6 @@ fi
           VIDEO_HEIGHT=480
         fi
       fi
-
-echo
-echo AC $AUDIO_CHANNELS
-echo
-echo
 
       rpidatv/bin/ffmpeg -thread_queue_size 2048 \
         -f v4l2 -input_format $INPUT_FORMAT -video_size "$VIDEO_WIDTH"x"$VIDEO_HEIGHT" \
@@ -1064,7 +1059,7 @@ echo
         fi
       fi
 
-      if [ "$WEBCAM_TYPE" == "C170" ]; then
+      if [ "$WEBCAM_TYPE" == "C170" ] || [ "$WEBCAM_TYPE" == "C525" ]; then
         AUDIO_SAMPLE=48000
         AUDIO_CHANNELS=1
         if [ "$BITRATE_VIDEO" -gt 190000 ]; then  # 333KS FEC 1/2 or better
@@ -1543,6 +1538,10 @@ echo
     # "-00:00:0.2" works well at SR2000 on IQ mode
     ITS_OFFSET="-00:00:0.2"
 
+    if [ "$MODE_INPUT" == "WEBCAMMPEG-2" ] && [ "$FORMAT" == "16:9" ]; then
+      MODE_INPUT="WEBCAM16MPEG-2"
+    fi
+
     # Sort out image size, video delay and scaling
     SCALE=""
     case "$MODE_INPUT" in
@@ -1583,6 +1582,11 @@ echo
       fi
       VIDEO_WIDTH="1280"
       VIDEO_HEIGHT="720"
+      if [ "$WEBCAM_TYPE" == "C170" ] || [ "$WEBCAM_TYPE" == "C525" ]; then
+        v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=640,height=360,pixelformat=0
+        VIDEO_WIDTH="640"
+        VIDEO_HEIGHT="360"
+      fi
       VIDEO_FPS=$WC_VIDEO_FPS
       SCALE="scale=1024:576,"
     ;;
@@ -1670,13 +1674,9 @@ echo
 
     # Now generate the stream
 
-echo
-echo MO $MODE_OUTPUT
-echo ACD $AUDIO_CARD
-echo
     case "$MODE_OUTPUT" in
       "STREAMER")
-        if [ "$VIDEO_WIDTH" -lt 720 ]; then
+        if [ "$VIDEO_WIDTH" -lt 640 ]; then
           VIDEO_WIDTH=720
           VIDEO_HEIGHT=576
         fi
@@ -1685,7 +1685,7 @@ echo
         else
           SCALE=""
         fi
-  AUDIO_CARD=1      
+
         if [ "$AUDIO_CARD" == "0" ]; then
           # No audio
           $PATHRPI"/ffmpeg" -loglevel $MODE_DEBUG -thread_queue_size 2048\
@@ -1712,7 +1712,7 @@ echo
           sleep 1
           v4l2-ctl -d "$ANALOGCAMNAME" --set-ctrl "$ECCONTRAST" >/dev/null 2>/dev/null
         fi
-
+exit
       ;;
 
       *) # Transmitting modes
