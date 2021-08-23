@@ -2,7 +2,7 @@
 
 # set -x # Uncomment for testing
 
-# Version 20210705
+# Version 202108160
 
 ############# SET GLOBAL VARIABLES ####################
 
@@ -561,7 +561,7 @@ case "$MODE_INPUT" in
       exit
     fi
 
-    ################# Pluto Code
+    ################# Pluto Code for DVB-S and DVB-S2 (not DVB-T)
 
     if [ "$MODE_OUTPUT" == "PLUTO" ] && [ "$MODE_INPUT" == "CAMH264" ] && [ "$MODULATION" != "DVB-T" ]; then
       sudo modprobe bcm2835_v4l2  # Make sure that Pi Cam driver is loaded
@@ -877,9 +877,17 @@ fi
 
     if [ "$MODE_OUTPUT" == "PLUTO" ] && [ "$MODE_INPUT" == "WEBCAMH264" ] && [ "$MODULATION" != "DVB-T" ]; then
 
-      if [ "$C920Present" == "1" ]; then  # Old C920 with internal H264 encoder
+      # Set default format to catch undocumented webcams (note mono audio at 48K sample rate)
+      INPUT_FORMAT="yuyv422"
+      VIDEO_WIDTH=640
+      VIDEO_HEIGHT=480
+      AUDIO_SAMPLE=48000
+      AUDIO_CHANNELS=1
+
+      if [ "$WEBCAM_TYPE" == "OldC920" ]; then  # Old C920 with internal H264 encoder
         INPUT_FORMAT="h264"
         AUDIO_SAMPLE=32000
+        AUDIO_CHANNELS=2
         if [ "$FORMAT" == "16:9" ]; then
           VIDEO_WIDTH=800
           VIDEO_HEIGHT=448
@@ -892,9 +900,12 @@ fi
         fi
       fi
 
-      if [ "$NEWC920Present" == "1" ]; then  # Overwrite old C920 settings
+      # Orbicam C920, recent C920, B910 or C910
+      if [ "$WEBCAM_TYPE" == "OrbicamC920" ] || [ "$WEBCAM_TYPE" == "NewerC920" ] \
+      || [ "$WEBCAM_TYPE" == "B910" ] || [ "$WEBCAM_TYPE" == "C910" ]; then
         INPUT_FORMAT="yuyv422"
         AUDIO_SAMPLE=32000
+        AUDIO_CHANNELS=2
         if [ "$FORMAT" == "16:9" ]; then
           VIDEO_WIDTH=800
           VIDEO_HEIGHT=448
@@ -904,8 +915,22 @@ fi
         fi
       fi
 
-      if [ "$C170Present" == "1" ]; then
+      if [ "$WEBCAM_TYPE" == "C930e" ]; then  # C930e (G4KLB)
         INPUT_FORMAT="yuyv422"
+        AUDIO_CHANNELS=2
+        AUDIO_SAMPLE=48000
+        if [ "$FORMAT" == "16:9" ]; then
+          VIDEO_WIDTH=800
+          VIDEO_HEIGHT=448
+        else
+          VIDEO_WIDTH=800
+          VIDEO_HEIGHT=600
+        fi
+      fi
+
+      if [ "$WEBCAM_TYPE" == "C170" ] || [ "$WEBCAM_TYPE" == "C525" ]; then
+        INPUT_FORMAT="yuyv422"
+        AUDIO_CHANNELS=1
         if [ "$FORMAT" == "16:9" ]; then
           VIDEO_WIDTH=640
           VIDEO_HEIGHT=360
@@ -972,32 +997,53 @@ fi
       # Webcam in use, so set parameters depending on camera in use
       # Check audio first
       if [ "$AUDIO_PREF" == "auto" ] || [ "$AUDIO_PREF" == "webcam" ]; then  # Webcam audio
-        if [ $C920Present == 1 ] || [ $C910Present=1 ]; then
+        if [ "$WEBCAM_TYPE" == "OldC920" ] || [ "$WEBCAM_TYPE" == "OrbicamC920" ] || [ "$WEBCAM_TYPE" == "NewerC920" ] \
+        || [ "$WEBCAM_TYPE" == "B910" ] || [ "$WEBCAM_TYPE" == "C910" ]; then
           AUDIO_SAMPLE=32000
+        fi
+        if [ "$WEBCAM_TYPE" == "C930e" ]; then
+          AUDIO_SAMPLE=48000
         fi
       fi
 
       # If a C920 put it in the right mode
       # Anything over 800x448 does not work
-      if [ $C920Present == 1 ]; then
-        if [ "$BITRATE_VIDEO" -gt 190000 ]; then  # 333KS FEC 1/2 or better
-          v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=800,height=448,pixelformat=0 --set-parm=15 \
-            --set-ctrl power_line_frequency=1
-          VIDEO_WIDTH=800
-          VIDEO_HEIGHT=448
-          VIDEO_FPS=15
+      if [ "$WEBCAM_TYPE" == "OldC920" ] || [ "$WEBCAM_TYPE" == "OrbicamC920" ] \
+      || [ "$WEBCAM_TYPE" == "NewerC920" ] || [ "$WEBCAM_TYPE" == "C930e" ]; then
+        if [ "$FORMAT" == "4:3" ]; then
+          if [ "$BITRATE_VIDEO" -gt 190000 ]; then  # 333KS FEC 1/2 or better
+            v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=640,height=480,pixelformat=0 --set-parm=15 \
+              --set-ctrl power_line_frequency=1
+            VIDEO_WIDTH=640
+            VIDEO_HEIGHT=480
+            VIDEO_FPS=15
+          else
+            v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=320,height=240,pixelformat=0 --set-parm=15 \
+              --set-ctrl power_line_frequency=1
+            VIDEO_WIDTH=320
+            VIDEO_HEIGHT=240
+            VIDEO_FPS=15
+          fi
         else
-          v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=448,height=240,pixelformat=0 --set-parm=15 \
-            --set-ctrl power_line_frequency=1
-          VIDEO_WIDTH=448
-          VIDEO_HEIGHT=240
-          VIDEO_FPS=15
+          if [ "$BITRATE_VIDEO" -gt 190000 ]; then  # 333KS FEC 1/2 or better
+            v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=800,height=448,pixelformat=0 --set-parm=15 \
+              --set-ctrl power_line_frequency=1
+            VIDEO_WIDTH=800
+            VIDEO_HEIGHT=448
+            VIDEO_FPS=15
+          else
+            v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=448,height=240,pixelformat=0 --set-parm=15 \
+              --set-ctrl power_line_frequency=1
+            VIDEO_WIDTH=448
+            VIDEO_HEIGHT=240
+            VIDEO_FPS=15
+          fi
         fi
       fi
 
       # If a new C910 put it in the right mode
       # Anything over 800x448 does not work
-      if [ $C910Present=1 ]; then
+      if [ "$WEBCAM_TYPE" == "C910" ]; then
         if [ "$BITRATE_VIDEO" -gt 190000 ]; then  # 333KS FEC 1/2 or better
           v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=800,height=448,pixelformat=0 --set-parm=15 \
             --set-ctrl power_line_frequency=1
@@ -1013,20 +1059,22 @@ fi
         fi
       fi
 
-     if [ $C170Present == 1 ]; then
-        AUDIO_CARD=0   # Can't get sound to work at present
+      if [ "$WEBCAM_TYPE" == "C170" ] || [ "$WEBCAM_TYPE" == "C525" ]; then
+        AUDIO_SAMPLE=48000
+        AUDIO_CHANNELS=1
         if [ "$BITRATE_VIDEO" -gt 190000 ]; then  # 333KS FEC 1/2 or better
-          v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=640,height=480,pixelformat=0 --set-parm=10
+          v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=640,height=480,pixelformat=0 --set-parm=15
           VIDEO_WIDTH=640
           VIDEO_HEIGHT=480
-          VIDEO_FPS=10 # This webcam only seems to work at 10 fps
+          VIDEO_FPS=15
         else
-          v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=352,height=288,pixelformat=0 --set-parm=10
+          v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=352,height=288,pixelformat=0 --set-parm=15
           VIDEO_WIDTH=352
           VIDEO_HEIGHT=288
-          VIDEO_FPS=10 # This webcam only seems to work at 10 fps
+          VIDEO_FPS=15
         fi
       fi
+
       ANALOGCAMNAME=$VID_WEBCAM
     fi
 
@@ -1037,26 +1085,24 @@ fi
       sudo modprobe -r bcm2835_v4l2
     fi    
 
-    if [ "$MODULATION" != "DVB-T" ]; then
-
-    # Set up means to transport of stream out of unit
-    case "$MODE_OUTPUT" in
-      "IP")
-        OUTPUT_FILE=""
-      ;;
-      "DATVEXPRESS")
-        echo "set ptt tx" >> /tmp/expctrl
-        sudo nice -n -30 netcat -u -4 127.0.0.1 1314 < videots &
-      ;;
-      "LIMEMINI" | "LIMEUSB" | "LIMEDVB")
-        $PATHRPI"/limesdr_dvb" -i videots -s "$SYMBOLRATE_K"000 -f $FECNUM/$FECDEN -r $UPSAMPLE -m $MODTYPE -c $CONSTLN $PILOTS $FRAMES \
-          -t "$FREQ_OUTPUT"e6 -g $LIME_GAINF -q $CAL $CUSTOM_FPGA -D $DIGITAL_GAIN -e $BAND_GPIO $LIMETYPE &
-      ;;
-      *)
-        sudo $PATHRPI"/rpidatv" -i videots -s $SYMBOLRATE_K -c $FECNUM"/"$FECDEN -f $FREQUENCY_OUT -p $GAIN -m $MODE -x $PIN_I -y $PIN_Q &
-      ;;
-    esac
-
+    if [ "$MODULATION" != "DVB-T" ]; then      ## For DVB-S and DVB-S2
+      # Set up means to transport of stream out of unit
+      case "$MODE_OUTPUT" in
+        "IP")
+          OUTPUT_FILE=""
+        ;;
+        "DATVEXPRESS")
+          echo "set ptt tx" >> /tmp/expctrl
+          sudo nice -n -30 netcat -u -4 127.0.0.1 1314 < videots &
+        ;;
+        "LIMEMINI" | "LIMEUSB" | "LIMEDVB")
+          $PATHRPI"/limesdr_dvb" -i videots -s "$SYMBOLRATE_K"000 -f $FECNUM/$FECDEN -r $UPSAMPLE -m $MODTYPE -c $CONSTLN $PILOTS $FRAMES \
+            -t "$FREQ_OUTPUT"e6 -g $LIME_GAINF -q $CAL $CUSTOM_FPGA -D $DIGITAL_GAIN -e $BAND_GPIO $LIMETYPE &
+        ;;
+        *)
+          sudo $PATHRPI"/rpidatv" -i videots -s $SYMBOLRATE_K -c $FECNUM"/"$FECDEN -f $FREQUENCY_OUT -p $GAIN -m $MODE -x $PIN_I -y $PIN_Q &
+        ;;
+      esac
     else                                      ######### DVB-T
       OUTPUT_FILE=""
       case "$MODE_OUTPUT" in
@@ -1081,8 +1127,6 @@ fi
     if [ "$AUDIO_CARD" == 0 ]; then
       # ******************************* H264 VIDEO, NO AUDIO ************************************
 
-      #let BITRATE_VIDEO=($BITRATE_TS-12000)*725/1000
-
       sudo $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -d 300 -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
         -f $VIDEO_FPS -i $IDRPERIOD $OUTPUT_FILE -t 2 -e $ANALOGCAMNAME -p $PIDPMT -s $CALL $OUTPUT_IP \
          > /dev/null &
@@ -1097,6 +1141,13 @@ fi
       # ******************************* H264 VIDEO WITH AUDIO ************************************
 
       if [ "$MODE_INPUT" == "ANALOGCAM" ]; then              # EasyCap.  No audio resampling required
+
+        if [ "$FORMAT" == "16:9" ]; then
+          VIDEO_WIDTH=768
+          VIDEO_HEIGHT=400
+          #VIDEO_WIDTH=1024
+          #VIDEO_HEIGHT=576
+        fi
 
         arecord -f S16_LE -r $AUDIO_SAMPLE -c 2 -B $ARECORD_BUF -D plughw:$AUDIO_CARD_NUMBER,0 > audioin.wav &
 
@@ -1487,6 +1538,10 @@ fi
     # "-00:00:0.2" works well at SR2000 on IQ mode
     ITS_OFFSET="-00:00:0.2"
 
+    if [ "$MODE_INPUT" == "WEBCAMMPEG-2" ] && [ "$FORMAT" == "16:9" ]; then
+      MODE_INPUT="WEBCAM16MPEG-2"
+    fi
+
     # Sort out image size, video delay and scaling
     SCALE=""
     case "$MODE_INPUT" in
@@ -1494,15 +1549,17 @@ fi
       SCALE="scale=512:288,"
     ;;
     WEBCAMMPEG-2)
-      if [ $C920Present == 1 ] || [ $C910Present == 1 ]; then
+      if [ "$WEBCAM_TYPE" == "OldC920" ] || [ "$WEBCAM_TYPE" == "OrbicamC920" ] \
+      || [ "$WEBCAM_TYPE" == "NewerC920" ] || [ "$WEBCAM_TYPE" == "C910" ] \
+      || [ "$WEBCAM_TYPE" == "C930e" ] || [ "$WEBCAM_TYPE" == "B910" ]; then
         v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=640,height=480,pixelformat=0 \
           --set-ctrl power_line_frequency=1
         AUDIO_SAMPLE=32000
       fi
-      if [ $C270Present == 1 ]; then
+      if [ "$WEBCAM_TYPE" == "C270" ] ; then
         ITS_OFFSET="-00:00:1.8"
       fi
-      if [ $C310Present == 1 ]; then
+      if [ "$WEBCAM_TYPE" == "C310" ]; then
         ITS_OFFSET="-00:00:1.8"
       fi
       VIDEO_WIDTH="640"
@@ -1510,32 +1567,41 @@ fi
       VIDEO_FPS=$WC_VIDEO_FPS
     ;;
     WEBCAM16MPEG-2)
-      if [ $C920Present == 1 ] || [ $C910Present == 1 ]; then
+      if [ "$WEBCAM_TYPE" == "OldC920" ] || [ "$WEBCAM_TYPE" == "OrbicamC920" ] \
+      || [ "$WEBCAM_TYPE" == "NewerC920" ] || [ "$WEBCAM_TYPE" == "C910" ] \
+      || [ "$WEBCAM_TYPE" == "C930e" ] || [ "$WEBCAM_TYPE" == "B910" ]; then
         v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=1280,height=720,pixelformat=0 \
           --set-ctrl power_line_frequency=1
         AUDIO_SAMPLE=32000
       fi
-      if [ $C270Present == 1 ]; then
+      if [ "$WEBCAM_TYPE" == "C270" ]; then
         ITS_OFFSET="-00:00:1.8"
       fi
-      if [ $C310Present == 1 ]; then
+      if [ "$WEBCAM_TYPE" == "C310" ]; then
         ITS_OFFSET="-00:00:1.8"
       fi
       VIDEO_WIDTH="1280"
       VIDEO_HEIGHT="720"
+      if [ "$WEBCAM_TYPE" == "C170" ] || [ "$WEBCAM_TYPE" == "C525" ]; then
+        v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=640,height=360,pixelformat=0
+        VIDEO_WIDTH="640"
+        VIDEO_HEIGHT="360"
+      fi
       VIDEO_FPS=$WC_VIDEO_FPS
       SCALE="scale=1024:576,"
     ;;
     WEBCAMHDMPEG-2)
-      if [ $C920Present == 1 ] || [ $C910Present == 1 ]; then
+      if [ "$WEBCAM_TYPE" == "OldC920" ] || [ "$WEBCAM_TYPE" == "OrbicamC920" ] \
+      || [ "$WEBCAM_TYPE" == "NewerC920" ] || [ "$WEBCAM_TYPE" == "C910" ] \
+      || [ "$WEBCAM_TYPE" == "C930e" ] || [ "$WEBCAM_TYPE" == "B910" ]; then
         v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=1280,height=720,pixelformat=0 \
           --set-ctrl power_line_frequency=1
         AUDIO_SAMPLE=32000
       fi
-      if [ $C270Present == 1 ]; then
+      if [ "$WEBCAM_TYPE" == "C270" ]; then
         ITS_OFFSET="-00:00:2.0"
       fi
-      if [ $C310Present == 1 ]; then
+      if [ "$WEBCAM_TYPE" == "C310" ]; then
         ITS_OFFSET="-00:00:2.0"
       fi
       VIDEO_WIDTH="1280"
@@ -1543,6 +1609,12 @@ fi
       VIDEO_FPS=$WC_VIDEO_FPS
     ;;
     esac
+
+    # Over-ride for C930e
+    if [ "$WEBCAM_TYPE" == "C930e" ]; then
+      AUDIO_SAMPLE=48000
+      VIDEO_FPS=30
+    fi
 
     # Turn off the viewfinder (which would show Pi Cam)
     v4l2-ctl --overlay=0
@@ -1604,13 +1676,16 @@ fi
 
     case "$MODE_OUTPUT" in
       "STREAMER")
-        if [ "$VIDEO_WIDTH" -lt 720 ]; then
+        if [ "$VIDEO_WIDTH" -lt 640 ]; then
           VIDEO_WIDTH=720
           VIDEO_HEIGHT=576
         fi
         if [ "$FORMAT" == "16:9" ]; then
           SCALE="scale=1024:576,"
+        else
+          SCALE=""
         fi
+
         if [ "$AUDIO_CARD" == "0" ]; then
           # No audio
           $PATHRPI"/ffmpeg" -loglevel $MODE_DEBUG -thread_queue_size 2048\
@@ -1619,7 +1694,7 @@ fi
             -framerate 25 -c:v h264_omx -b:v 576k \
             -vf "$CAPTION""$SCALE"yadif=0:1:0 -g 25 \
             -f flv $STREAM_URL/$STREAM_KEY &
-       else
+        else
           # With audio
           $PATHRPI"/ffmpeg" -loglevel $MODE_DEBUG -thread_queue_size 2048\
             -f v4l2 -video_size "$VIDEO_WIDTH"x"$VIDEO_HEIGHT" \
@@ -1637,7 +1712,7 @@ fi
           sleep 1
           v4l2-ctl -d "$ANALOGCAMNAME" --set-ctrl "$ECCONTRAST" >/dev/null 2>/dev/null
         fi
-
+exit
       ;;
 
       *) # Transmitting modes
@@ -1688,7 +1763,6 @@ fi
         # PCR PID ($PIDSTART) seems to be fixed as the same as the video PID.  
         # PMT, Vid and Audio PIDs can all be set.
 
-#        sudo nice -n -30 $PATHRPI"/ffmpeg" -loglevel $MODE_DEBUG -itsoffset "$ITS_OFFSET"\
         $PATHRPI"/ffmpeg" -loglevel $MODE_DEBUG -itsoffset "$ITS_OFFSET"\
           -analyzeduration 0 -probesize 2048  -fpsprobesize 0 -thread_queue_size 512\
           -f v4l2 -framerate $VIDEO_FPS -video_size "$VIDEO_WIDTH"x"$VIDEO_HEIGHT"\

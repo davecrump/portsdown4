@@ -152,9 +152,9 @@ cp -f -r "$PATHSCRIPT"/TXstopextras.sh "$PATHUBACKUP"/TXstopextras.sh
 
 DisplayUpdateMsg "Step 4 of 10\nUpdating Software Package List\n\nXXXX------"
 
-sudo dpkg --configure -a     # Make sure that all the packages are properly configured
-sudo apt-get clean           # Clean up the old archived packages
-sudo apt-get update          # Update the package list
+sudo dpkg --configure -a                            # Make sure that all the packages are properly configured
+sudo apt-get clean                                  # Clean up the old archived packages
+sudo apt-get update --allow-releaseinfo-change      # Update the package list
 
 DisplayUpdateMsg "Step 5 of 10\nUpdating Software Packages\n\nXXXX------"
 

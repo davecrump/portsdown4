@@ -159,7 +159,7 @@ detect_audio()
         | head -c 6 | tail -c 1)"
       WC_AUDIO_CHANNELS=1
       WC_AUDIO_SAMPLE=48000
-      WC_VIDEO_FPS=24
+      WC_VIDEO_FPS=15
     fi
 
     # Check for the presence of a new C910 Webcam with stereo audio
@@ -429,3 +429,102 @@ detect_video()
   fi
   # Note that C920 present will also be set to 1
 }
+
+  ################ Check Webcam Type (not all are compatible) #########################
+  ################ Only one can be connected at any one time  #########################
+  # Detects:
+  # OldC920
+  # OrbicamC920
+  # NewerC920
+  # C930e
+  # C170
+  # C270
+  # C910
+  # B910
+  # C310
+  # Webcam
+
+  WEBCAM_TYPE="None"
+
+  lsusb | grep -q "046d:082d"
+  if [ $? == 0 ]; then
+    WEBCAM_TYPE="OldC920"
+  fi
+
+  if [ "$WEBCAM_TYPE" == "None" ]; then
+    lsusb | grep -q "046d:0892"
+    if [ $? == 0 ]; then
+      WEBCAM_TYPE="OrbicamC920"
+    fi
+  fi
+
+  if [ "$WEBCAM_TYPE" == "None" ]; then
+    lsusb | grep -q "046d:08e5"
+    if [ $? == 0 ]; then
+      WEBCAM_TYPE="NewerC920"
+    fi
+  fi
+
+  if [ "$WEBCAM_TYPE" == "None" ]; then
+    lsusb | grep -q "046d:0843"
+    if [ $? == 0 ]; then
+      WEBCAM_TYPE="C930e"
+    fi
+  fi
+
+  if [ "$WEBCAM_TYPE" == "None" ]; then
+    lsusb | grep -q "046d:082b"
+    if [ $? == 0 ]; then
+      WEBCAM_TYPE="C170"
+    fi
+  fi
+
+  if [ "$WEBCAM_TYPE" == "None" ]; then
+    lsusb | grep -q "046d:0825"
+    if [ $? == 0 ]; then
+      WEBCAM_TYPE="C270"
+    fi
+  fi
+
+  if [ "$WEBCAM_TYPE" == "None" ]; then
+    lsusb | grep -q "046d:0821"
+    if [ $? == 0 ]; then
+      WEBCAM_TYPE="C910"
+    fi
+  fi
+
+  if [ "$WEBCAM_TYPE" == "None" ]; then
+    lsusb | grep -q "046d:0823"
+    if [ $? == 0 ]; then
+      WEBCAM_TYPE="B910"
+    fi
+  fi
+
+  if [ "$WEBCAM_TYPE" == "None" ]; then
+    lsusb | grep -q "046d:0826"
+    if [ $? == 0 ]; then
+      WEBCAM_TYPE="C525"
+    fi
+  fi
+
+  if [ "$WEBCAM_TYPE" == "None" ]; then
+    lsusb | grep -q "046d:0823"
+    if [ $? == 0 ]; then
+      WEBCAM_TYPE="C310"
+    fi
+  fi
+
+  if [ "$WEBCAM_TYPE" == "None" ]; then
+    lsusb | grep -q "Webcam"
+    if [ $? == 0 ]; then
+      WEBCAM_TYPE="Webcam"
+    fi
+  fi
+
+  if [ "$WEBCAM_TYPE" == "None" ]; then
+    printf "No Webcam identified\n"
+  else 
+    printf "Found Webcam of type $WEBCAM_TYPE\n"
+  fi
+
+
