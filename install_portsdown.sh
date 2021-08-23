@@ -43,7 +43,7 @@ echo "------------------------------------"
 echo "----- Updating Package Manager -----"
 echo "------------------------------------"
 sudo dpkg --configure -a
-sudo apt-get update
+sudo apt-get update --allow-releaseinfo-change
 
 # Uninstall the apt-listchanges package to allow silent install of ca certificates (201704030)
 # http://unix.stackexchange.com/questions/124468/how-do-i-resolve-an-apparent-hanging-update-process

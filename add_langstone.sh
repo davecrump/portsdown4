@@ -4,10 +4,10 @@
 
 # First, update packages to the latest standard
 
-sudo dpkg --configure -a     # Make sure that all the packages are properly configured
-sudo apt-get clean           # Clean up the old archived packages
-sudo apt-get update          # Update the package list
-sudo apt-get -y dist-upgrade # Upgrade all the installed packages to their latest version
+sudo dpkg --configure -a                         # Make sure that all the packages are properly configured
+sudo apt-get clean                               # Clean up the old archived packages
+sudo apt-get update --allow-releaseinfo-change   # Update the package list
+sudo apt-get -y dist-upgrade                     # Upgrade all the installed packages to their latest version
 
 # Langstone packages to install
 sudo apt-get -y install libxml2 libxml2-dev bison flex libcdk5-dev

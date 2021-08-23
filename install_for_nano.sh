@@ -27,7 +27,7 @@ echo
 echo "------------------------------------"
 echo "----- Updating Package Manager -----"
 echo "------------------------------------"
-echo jetson | sudo -S apt-get update
+echo jetson | sudo -S apt-get update --allow-releaseinfo-change
 
 # Upgrade the distribution
 echo
