@@ -196,20 +196,18 @@ wget https://github.com/natsfr/LimeSDR_DVBSGateware/releases/download/v0.3/LimeS
  /home/pi/.local/share/LimeSuite/images/v0.3/LimeSDR-Mini_lms7_trx_HW_1.2_auto.rpd
 
 echo
-echo "------------------------------------------------------------"
-echo "----- Downloading Portsdown version of avc2ts Software -----"
-echo "------------------------------------------------------------"
+echo "--------------------------------------------------------------"
+echo "----- Downloading Portsdown 4 version of avc2ts Software -----"
+echo "--------------------------------------------------------------"
 
-# Download the previously selected version of avc2ts
-wget https://github.com/${GIT_SRC}/avc2ts/archive/master.zip
+# Download the previously selected version of avc2ts for Portsdown 4
+cd /home/pi	
+wget https://github.com/${GIT_SRC}/avc2ts/archive/refs/heads/portsdown4.zip
 
 # Unzip the avc2ts software and copy to the Pi
-unzip -o master.zip
-mv avc2ts-master avc2ts
-rm master.zip
-
-# Change the Provider ID
-sed -i 's/Portsdown/Portsdown 4/g' /home/pi/avc2ts/avc2ts.cpp
+unzip -o portsdown4.zip
+mv avc2ts-portsdown4 avc2ts
+rm portsdown4.zip
 
 # Compile rpidatv gui
 echo
@@ -398,6 +396,8 @@ echo "---------------------------------"
 cd /home/pi/rpidatv/src/bandview
 make
 cp bandview ../../bin/
+# Copy the fftw wisdom file to home so that there is no start-up delay
+cp .fftwf_wisdom /home/pi/.fftwf_wisdom
 cd /home/pi
 
 # Compile Power Meter

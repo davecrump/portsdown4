@@ -53,6 +53,7 @@ PIDSTART=$(get_config_var pidstart $PCONFIGFILE)
 SERVICEID=$(get_config_var serviceid $PCONFIGFILE)
 LOCATOR=$(get_config_var locator $PCONFIGFILE)
 FORMAT=$(get_config_var format $PCONFIGFILE)
+PICAM=$(get_config_var picam $PCONFIGFILE)
 
 PIN_I=$(get_config_var gpio_i $PCONFIGFILE)
 PIN_Q=$(get_config_var gpio_q $PCONFIGFILE)
@@ -85,6 +86,14 @@ if [ $? == 0 ]; then   ## Fushuicai USBTV007
   ECCONTRAST="contrast=380"
 else
   ECCONTRAST=" "
+fi
+
+# Check Pi Cam orientation
+# Set for avc2ts modes
+if [ "$PICAM" == "normal" ]; then
+  H264ORIENTATION=""
+else
+  H264ORIENTATION="-u "
 fi
 
 let SYMBOLRATE=SYMBOLRATEK*1000
@@ -684,7 +693,7 @@ case "$MODE_INPUT" in
       # ******************************* H264 VIDEO, NO AUDIO ************************************
 
       sudo $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -d 300 -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
-        -f $VIDEO_FPS -i $IDRPERIOD $OUTPUT_FILE -t 0 -e $ANALOGCAMNAME -p $PIDPMT -s $CALL $OUTPUT_IP \
+        -f $VIDEO_FPS -i $IDRPERIOD $OUTPUT_FILE -t 0 $H264ORIENTATION -e $ANALOGCAMNAME -p $PIDPMT -s $CALL $OUTPUT_IP \
          > /dev/null &
     else
       # ******************************* H264 VIDEO WITH AUDIO ************************************
@@ -697,8 +706,8 @@ case "$MODE_INPUT" in
       fi
 
       sudo $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -d 300 -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
-        -f $VIDEO_FPS -i $IDRPERIOD $OUTPUT_FILE -t 0 -e $ANALOGCAMNAME -p $PIDPMT -s $CALL $OUTPUT_IP \
-        -a audioin.wav -z $BITRATE_AUDIO >/dev/null 2>/dev/null &
+        -f $VIDEO_FPS -i $IDRPERIOD $OUTPUT_FILE -t 0 $H264ORIENTATION -e $ANALOGCAMNAME -p $PIDPMT -s $CALL $OUTPUT_IP \
+        -a audioin.wav -z $BITRATE_AUDIO  >/dev/null 2>/dev/null &
     fi
   ;;
 

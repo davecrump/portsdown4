@@ -239,6 +239,11 @@ fi
 
 DisplayUpdateMsg "Step 6 of 10\nDownloading Portsdown SW\n\nXXXXX-----"
 
+echo
+echo "-------------------------------------------------------"
+echo "----- Updating the Portsdown Touchscreen Software -----"
+echo "-------------------------------------------------------"
+
 cd /home/pi
 
 # Delete previous update folder if downloaded in error
@@ -315,6 +320,21 @@ cp dvb_t_stack /home/pi/rpidatv/bin/dvb_t_stack
 cd /home/pi/rpidatv/src/dvb_t_stack
 sudo cp datvexpress16.ihx /lib/firmware/datvexpress/datvexpress16.ihx
 sudo cp datvexpressraw16.rbf /lib/firmware/datvexpress/datvexpressraw16.rbf
+cd /home/pi
+
+echo
+echo "-------------------------------------"
+echo "----- Updating the H264 Encoder -----"
+echo "-------------------------------------"
+cd /home/pi/avc2ts
+rm avc2ts.cpp
+
+# Download the previously selected version of avc2ts.cpp for Portsdown 4
+wget https://github.com/${GIT_SRC}/avc2ts/raw/portsdown4/avc2ts.cpp
+
+# Make avc2ts with new source
+make
+cp avc2ts ../rpidatv/bin/
 cd /home/pi
 
 echo
@@ -516,6 +536,16 @@ if ! grep -q limerfeport= "$PATHSCRIPT"/portsdown_config.txt; then
   # Add the new entry and a new line 
   echo "limerfeport=txrx" >> "$PATHSCRIPT"/portsdown_config.txt
   echo "limerferxatt=0" >> "$PATHSCRIPT"/portsdown_config.txt
+fi
+
+# Add PiCam and Audio Gain controls to config file if not included  202109010
+if ! grep -q picam= "$PATHSCRIPT"/portsdown_config.txt; then
+  # File needs updating
+  # Delete any blank lines first
+  sed -i -e '/^$/d' "$PATHSCRIPT"/portsdown_config.txt
+  # Add the new entry and a new line 
+  echo "picam=normal" >> "$PATHSCRIPT"/portsdown_config.txt
+  echo "vlcvolume=256" >> "$PATHSCRIPT"/portsdown_config.txt
 fi
 
 # Add New presets and LimeRFE controls to presets file if not included  202107010
