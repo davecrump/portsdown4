@@ -1,3 +1,8 @@
+202109010
+Add option to invert Pi Cam Image
+Use bespoke avc2ts for 7 inch screen to impove viewfinder
+Pre-load bandviewer wisdom file in new builds
+
 202108162
 Support all 3 versions of C920 WebCam (and C930e?)
 Add Some C930e and C525 Support
