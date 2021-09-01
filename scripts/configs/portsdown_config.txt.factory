@@ -54,4 +54,6 @@ udpoutport=10000
 udpinport=10000
 guard=32
 qam=qpsk
+picam=normal
+vlcvolume=256
 

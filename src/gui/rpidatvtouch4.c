@@ -203,6 +203,7 @@ char FreqBtext[31];
 char MenuText[5][63];
 char Guard[7];
 char DVBTQAM[7];
+char CurrentPiCamOrientation[15] = "normal";
 
 // Valid Input Modes:
 // "CAMMPEG-2", "CAMH264", "PATERNAUDIO", "ANALOGCAM" ,"CARRIER" ,"CONTEST"
@@ -1860,6 +1861,19 @@ void ReadModeEasyCap()
 {
   GetConfigParam(PATH_PCONFIG,"analogcaminput", ModeVidIP);
   GetConfigParam(PATH_PCONFIG,"analogcamstandard", ModeSTD);
+}
+
+/***************************************************************************//**
+ * @brief Reads the PiCam Orientation from portsdown_config.txt
+ *        
+ * @param nil
+ *
+ * @return void
+*******************************************************************************/
+
+void ReadPiCamOrientation()
+{
+  GetConfigParam(PATH_PCONFIG,"picam", CurrentPiCamOrientation);
 }
 
 /***************************************************************************//**
@@ -18190,7 +18204,19 @@ void waituntil(int w,int h)
           Start_Highlights_Menu34();
           UpdateWindow();
           break;
-        case 13:                               // 
+        case 13:                               // Invert Pi Cam
+          if(strcmp(CurrentPiCamOrientation, "normal") != 0)  // Not normal, so set to normal
+          {
+            SetConfigParam(PATH_PCONFIG, "picam", "normal");
+            strcpy(CurrentPiCamOrientation, "normal");
+          }
+          else                                                // normal, so invert
+          {
+            SetConfigParam(PATH_PCONFIG, "picam", "inverted");
+            strcpy(CurrentPiCamOrientation, "inverted");
+          }
+          Start_Highlights_Menu43();
+          UpdateWindow();
           break;
         case 14:                               // Invert 7 Inch
           CallingMenu = 4314;
@@ -23011,9 +23037,9 @@ void Define_Menu43()
   button = CreateButton(43, 12);
   AddButtonStatus(button, "Start-up^App", &Blue);
 
-  //button = CreateButton(43, 13);
-  //AddButtonStatus(button, " ", &Blue);
-  //AddButtonStatus(button, " ", &Green);
+  button = CreateButton(43, 13);
+  AddButtonStatus(button, "Invert^Pi Cam", &Blue);
+  AddButtonStatus(button, "Un-invert^Pi Cam", &Blue);
 
   button = CreateButton(43, 14);
   AddButtonStatus(button, "Invert^7 inch", &Blue);
@@ -23030,6 +23056,15 @@ void Start_Highlights_Menu43()
   else
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 9), 2);
+  }
+
+  if (strcmp(CurrentPiCamOrientation, "normal") != 0)
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 13), 1);
+  }
+  else
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 13), 0);
   }
 }
 
@@ -23723,6 +23758,7 @@ int main(int argc, char **argv)
   ReadModeInput(vcoding, vsource);
   ReadModeOutput(vcoding);
   ReadModeEasyCap();
+  ReadPiCamOrientation();
   ReadCaptionState();
   ReadAudioState();
   ReadAttenState();
