@@ -326,20 +326,13 @@ echo
 echo "-------------------------------------"
 echo "----- Updating the H264 Encoder -----"
 echo "-------------------------------------"
-cd /home/pi
-rm -rf avc2ts
-
-# Download the previously selected version of avc2ts for Portsdown 4
-cd /home/pi	
-wget https://github.com/${GIT_SRC}/avc2ts/archive/refs/heads/portsdown4.zip
-
-# Unzip the avc2ts software and copy to the Pi
-unzip -o portsdown4.zip
-mv avc2ts-portsdown4 avc2ts
-rm portsdown4.zip
-
-# Make avc2ts
 cd /home/pi/avc2ts
+rm avc2ts.cpp
+
+# Download the previously selected version of avc2ts.cpp for Portsdown 4
+wget https://github.com/${GIT_SRC}/avc2ts/raw/portsdown4/avc2ts.cpp
+
+# Make avc2ts with new source
 make
 cp avc2ts ../rpidatv/bin/
 cd /home/pi
