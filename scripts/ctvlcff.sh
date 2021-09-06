@@ -34,6 +34,7 @@ Q_OFFSET=$(get_config_var qoffset $RCONFIGFILE)
 AUDIO_OUT=$(get_config_var audio $RCONFIGFILE)
 CHAN=$(get_config_var chan $RCONFIGFILE)
 CHAN_T=$(get_config_var chan1 $RCONFIGFILE)
+VLCVOLUME=$(get_config_var vlcvolume $PCONFIGFILE)
 
 # Correct for LNB LO Frequency if required
 if [ "$RX_MODE" == "sat" ]; then
@@ -62,6 +63,14 @@ fi
 PROG=" "
 if [ "$CHAN" != "0" ] && [ "$CHAN" != "" ]; then
   PROG="--program "$CHAN
+fi
+
+# Error check volume
+if [ "$VLCVOLUME" -lt 0 ]; then
+  VLCVOLUME=0
+fi
+if [ "$VLCVOLUME" -gt 512 ]; then
+  VLCVOLUME=512
 fi
 
 # Create dummy marquee overlay file
@@ -100,4 +109,10 @@ cvlc -I rc --rc-host 127.0.0.1:1111 $PROG --codec ffmpeg -f --video-title-timeou
   --gain 3 --alsa-audio-device $AUDIO_DEVICE \
   udp://@127.0.0.1:1314 >/dev/null 2>/dev/null &
 
+sleep 1
+
+# Set the start-up volume
+printf "volume "$VLCVOLUME"\nlogout\n" | nc 127.0.0.1 1111 >/dev/null 2>/dev/null
+
+exit
 
