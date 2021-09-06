@@ -261,7 +261,8 @@ char LMRXmode[10];          // sat or terr
 char LMRXaudio[15];         // rpi or usb
 char LMRXvolts[7];          // off, v or h
 char RXmod[7];              // DVB-S or DVB-T
-bool VLCResetRequest = false; // Set on touchsscreen request for VLC to be reset                     
+bool VLCResetRequest = false; // Set on touchsscreen request for VLC to be reset  
+int  CurrentVLCVolume = 256;  // Read from config file                   
 
 // LongMynd RX Received Parameters for display
 
@@ -1360,20 +1361,24 @@ void SetAudioLevels()
 
   // Read the mic gain (may not be defined)
   GetConfigParam(PATH_PCONFIG,"micgain", MicGain);
-  //printf("Mic Gain responds as -%s-\n", MicGain);
   MicLevel = atoi(MicGain);
-  //printf("atoi returns %d\n", MicLevel);
 
   // Error check the Mic Gain
   if ((MicLevel <= 0) || (MicLevel > 30))
   {
     MicLevel = 26;
   }
-  snprintf(aMixerCmd, 126, "amixer -c 1 -- sset Mic Capture %d > /dev/null 2>&1", MicLevel);
-  //printf("-%s-\n", aMixerCmd);
 
-  // Apply
+  // Apply to cards 1 and 2 in case the EasyCap has grabbed the card 1 ID
+  snprintf(aMixerCmd, 126, "amixer -c 1 -- sset Mic Capture %d > /dev/null 2>&1", MicLevel);
   system(aMixerCmd);
+  snprintf(aMixerCmd, 126, "amixer -c 2 -- sset Mic Capture %d > /dev/null 2>&1", MicLevel);
+  system(aMixerCmd);
+
+  // And set all the output levels to Max
+  system("amixer -c 0 -- sset Headphone 100% > /dev/null 2>&1");
+  system("amixer -c 1 -- sset Speaker 100% > /dev/null 2>&1");
+  system("amixer -c 2 -- sset Speaker 100% > /dev/null 2>&1");
 }
 
 
@@ -1901,6 +1906,30 @@ void ReadAudioState()
 {
   GetConfigParam(PATH_PCONFIG,"audio", CurrentAudioState);
 }
+
+/***************************************************************************//**
+ * @brief Reads the VLC Volume from portsdown_config.txt
+ *        
+ * @param nil
+ *
+ * @return void
+*******************************************************************************/
+
+void ReadVLCVolume()
+{
+  char VLCVolumeText[15];
+  GetConfigParam(PATH_PCONFIG,"vlcvolume", VLCVolumeText);
+  CurrentVLCVolume = atoi(VLCVolumeText);
+  if (CurrentVLCVolume < 0)
+  {
+    CurrentVLCVolume = 0;
+  }
+  if (CurrentVLCVolume > 512)
+  {
+    CurrentVLCVolume = 512;
+  }
+}
+
 
 /***************************************************************************//**
  * @brief Reads the current Attenuator from portsdown_config.txt
@@ -4420,7 +4449,7 @@ void CheckPlutoReady()
   {
     if (CheckPlutoIPConnect() == 1)
     {
-      MsgBox4("No Pluto Detected", "Check Config and Connections", "or disconnect/connect Pluto", "Touch screen to continue");
+      MsgBox4("No Pluto Detected", "Check Config and Connections", "or disconnect/connect Pluto", "Touch Screen to Continue");
       wait_touch();
     }
   }
@@ -4448,7 +4477,7 @@ void CheckLimeReady()
       }
       else
       {
-        MsgBox2("No LimeMini Detected", "Check Connections");
+        MsgBox4("No LimeSDR Mini Detected", "Check connections", "or select another output device.", "Touch Screen to Continue");
       }
       wait_touch();
     }
@@ -4463,7 +4492,7 @@ void CheckLimeReady()
       }
       else
       {
-        MsgBox2("No Lime USB Detected", "Check Connections");
+        MsgBox4("No LimeSDR USB Detected", "Check connections", "or select another output device.", "Touch Screen to Continue");
       }
       wait_touch();
     }
@@ -7711,6 +7740,46 @@ void SetDeviceLevel()
 }
 
 
+void AdjustVLCVolume(int adjustment)
+{
+  int VLCVolumePerCent;
+  char VLCVolumeText[63];
+  char VolumeMessageText[63];
+  char VLCVolumeCommand[255];
+
+  CurrentVLCVolume = CurrentVLCVolume + adjustment;
+  if (CurrentVLCVolume < 0)
+  {
+    CurrentVLCVolume = 0;
+  }
+  if (CurrentVLCVolume > 512)
+  {
+    CurrentVLCVolume = 512;
+  }
+  snprintf(VLCVolumeText, 62, "%d", CurrentVLCVolume);
+  SetConfigParam(PATH_PCONFIG, "vlcvolume", VLCVolumeText);
+
+  snprintf(VLCVolumeCommand, 254, "/home/pi/rpidatv/scripts/setvlcvolume.sh %d", CurrentVLCVolume);
+  system(VLCVolumeCommand); 
+
+  VLCVolumePerCent = (100 * CurrentVLCVolume) / 512;
+  snprintf(VolumeMessageText, 62, "VOLUME %d%%", VLCVolumePerCent);
+  // printf("%s\n", VolumeMessageText);
+  
+  FILE *fw=fopen("/home/pi/tmp/vlc_temp_overlay.txt","w+");
+  if(fw!=0)
+  {
+    fprintf(fw, "%s\n", VolumeMessageText);
+  }
+  fclose(fw);
+
+  // Copy temp file to file to be read by VLC to prevent file collisions
+  system("cp /home/pi/tmp/vlc_temp_overlay.txt /home/pi/tmp/vlc_overlay.txt");
+  // Clear the volume caption after 1 second
+  system("(sleep 1; echo " " > /home/pi/tmp/vlc_overlay.txt) &");
+}
+
+
 void SetReceiveLOFreq(int NoButton)
 {
   char Param[31];
@@ -8586,6 +8655,17 @@ void *WaitButtonLMRX(void * arg)
         FinishedButton = 2; // graphics off
       }
     }
+    else if((scaledX >= 35 * wscreen / 40)  && (scaledY >= 6 * hscreen / 12))  // Top Right
+    {
+      //printf("Volume Up.\n");
+      AdjustVLCVolume(51);
+    }
+    else if((scaledX >= 35 * wscreen / 40)  && (scaledY < 6 * hscreen / 12))  // Top Right
+    {
+      //printf("Volume Down.\n");
+      AdjustVLCVolume(-51);
+    }
+
     else
     {
       printf("Out of zone.  End receive requested.\n");
@@ -23773,6 +23853,7 @@ int main(int argc, char **argv)
   ReadLangstone();
   ReadTSConfig();
   ReadContestSites();
+  ReadVLCVolume();
 
   SetAudioLevels();
 

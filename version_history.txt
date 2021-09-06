@@ -1,3 +1,7 @@
+202109051
+Add Receiver VLC Volume Control from Touchscreen
+Declutter rpidatv/scripts/configs folder
+
 202109010
 Add option to invert Pi Cam Image
 Use bespoke avc2ts for 7 inch screen to impove viewfinder
