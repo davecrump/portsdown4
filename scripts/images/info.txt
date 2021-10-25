@@ -1,1 +1,11 @@
-Images are 320*480 .pngs for Waveshare 3.5 inch touchscreen, but should actually be 720x576 for desktop
+Extra Test Cards should be placed in the folder.
+
+4:3 card should be 720x576 and should have the filename entered in the config file (without the .jpg extension.
+
+16:9 card should be 1024x576 and have the same filename with w16 added.
+
+720p card should be 1280x720 and have the same basic filename with w added.
+
+Titles in the config file are used on the selection buttons.
+
+png Images are 320*480 .pngs used for the touchscreen backgrounds.

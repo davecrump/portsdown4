@@ -1,0 +1,16 @@
+card=0
+card5name=5
+card5title=5
+card6name=6
+card6title=6
+card7name=7
+card7title=7
+card8name=8
+card8title=8
+card9name=9
+card9title=9
+card10name=10
+card10title=10
+card11name=11
+card11title=11
+
