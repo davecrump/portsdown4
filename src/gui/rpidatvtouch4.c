@@ -58,6 +58,7 @@ Rewitten by Dave, G8GKQ
 #define PATH_LIME_CAL "/home/pi/rpidatv/scripts/limecalfreq.txt"
 #define PATH_C_NUMBERS "/home/pi/rpidatv/scripts/portsdown_C_codes.txt"
 #define PATH_BV_CONFIG "/home/pi/rpidatv/src/bandview/bandview_config.txt"
+#define PATH_TC_CONFIG "/home/pi/rpidatv/scripts/images/testcard_config.txt"
 
 #define PI 3.14159265358979323846
 #define deg2rad(DEG) ((DEG)*((PI)/(180.0)))
@@ -98,7 +99,7 @@ color_t Grey  = {.r = 127, .g = 127, .b = 127};
 color_t Red   = {.r = 255, .g = 0  , .b = 0  };
 color_t Black = {.r = 0  , .g = 0  , .b = 0  };
 
-#define MAX_BUTTON 675
+#define MAX_BUTTON 690
 int IndexButtonInArray=0;
 button_t ButtonArray[MAX_BUTTON];
 #define TIME_ANTI_BOUNCE 500
@@ -219,6 +220,11 @@ int CompVidBand = 2;        // Band used for Comp Vid Contest numbers
 int ImageIndex = 0;         // Test Card selection number
 int ImageRange = 5;         // Number of Test Cards
 
+// Test Card switching variables
+int CurrentTestCard = 0;   // Test Card F
+char TestCardName[12][63] = {"tcfm", "tcc", "pm5544", "75cb", "11g"}; 
+char TestCardTitle[12][63];
+
 // RTL FM Parameters. [0] is current
 char RTLfreq[10][15];       // String with frequency in MHz
 char RTLlabel[10][15];      // String for label
@@ -271,6 +277,7 @@ char StreamAddress[9][127];  // Full rtmp address of stream
 char StreamLabel[9][31];     // Button Label for stream
 int IQAvailable = 1;         // Flag set to 0 if RPi audio output has been used
 int StreamStoreTrigger = 0;  // Set to 1 if stream amendment needed
+char StreamPlayer[7] = "OMX";// set to VLC if VLC viewer button is pressed
 
 // Stream Output Parameters. [0] is current
 char StreamURL[9][127];      // Full rtmp address of stream server (except for key)
@@ -380,6 +387,7 @@ void Start_Highlights_Menu43();
 void Start_Highlights_Menu44();
 void Start_Highlights_Menu45();
 void Start_Highlights_Menu46();
+void Start_Highlights_Menu47();
 
 void MsgBox(char *);
 void MsgBox2(char *, char *);
@@ -1892,6 +1900,39 @@ void ReadPiCamOrientation()
 void ReadCaptionState()
 {
   GetConfigParam(PATH_PCONFIG,"caption", CurrentCaptionState);
+}
+/***************************************************************************//**
+ * @brief Reads the TestCard State from testcard_config.txt
+ *        
+ * @param nil
+ *
+ * @return void
+*******************************************************************************/
+
+void ReadTestCardState()
+{
+  char Value[63];
+  GetConfigParam(PATH_TC_CONFIG, "card", Value);
+  CurrentTestCard = atoi(Value);
+  if ((CurrentTestCard < 0) || (CurrentTestCard > 11))
+  {
+    CurrentTestCard = 0;
+  }
+
+  GetConfigParam(PATH_TC_CONFIG, "card5name", TestCardName[5]);
+  GetConfigParam(PATH_TC_CONFIG, "card5title", TestCardTitle[5]);
+  GetConfigParam(PATH_TC_CONFIG, "card6name", TestCardName[6]);
+  GetConfigParam(PATH_TC_CONFIG, "card6title", TestCardTitle[6]);
+  GetConfigParam(PATH_TC_CONFIG, "card7name", TestCardName[7]);
+  GetConfigParam(PATH_TC_CONFIG, "card7title", TestCardTitle[7]);
+  GetConfigParam(PATH_TC_CONFIG, "card8name", TestCardName[8]);
+  GetConfigParam(PATH_TC_CONFIG, "card8title", TestCardTitle[8]);
+  GetConfigParam(PATH_TC_CONFIG, "card9name", TestCardName[9]);
+  GetConfigParam(PATH_TC_CONFIG, "card9title", TestCardTitle[9]);
+  GetConfigParam(PATH_TC_CONFIG, "card10name", TestCardName[10]);
+  GetConfigParam(PATH_TC_CONFIG, "card10title", TestCardTitle[10]);
+  GetConfigParam(PATH_TC_CONFIG, "card11name", TestCardName[11]);
+  GetConfigParam(PATH_TC_CONFIG, "card11title", TestCardTitle[11]);
 }
 
 /***************************************************************************//**
@@ -5181,7 +5222,7 @@ int AddButton(int x,int y,int w,int h)
 
 int ButtonNumber(int MenuIndex, int Button)
 {
-  // Returns the Button Number (0 - 674) from the Menu number and the button position
+  // Returns the Button Number (0 - 689) from the Menu number and the button position
   int ButtonNumb = 0;
 
   if (MenuIndex <= 10)  // 10 x 25-button main menus
@@ -5196,7 +5237,7 @@ int ButtonNumber(int MenuIndex, int Button)
   {
     ButtonNumb = 550 + (MenuIndex - 41) * 50 + Button;
   }
-  if (MenuIndex >= 42)  // 5 x 15-button submenus
+  if (MenuIndex >= 42)  // 6 x 15-button submenus
   {
     ButtonNumb = 600 + (MenuIndex - 42) * 15 + Button;
   }
@@ -5205,13 +5246,13 @@ int ButtonNumber(int MenuIndex, int Button)
 
 int CreateButton(int MenuIndex, int ButtonPosition)
 {
-  // Provide Menu number (int 1 - 46), Button Position (0 bottom left, 23 top right)
+  // Provide Menu number (int 1 - 47), Button Position (0 bottom left, 23 top right)
   // return button number
 
   // Menus 1 - 10 are classic 25-button menus
   // Menus 11 - 40 are 10-button menus
   // Menu 41 is a keyboard
-  // Menus 42 - 46 are 15-button menus
+  // Menus 42 - 47 are 15-button menus
 
   int ButtonIndex;
   int x = 0;
@@ -5692,7 +5733,7 @@ void UpdateWindow()
     rectangle(10, 12, wscreen - 18, hscreen * 2 / 6 + 12, 127, 127, 127);
   }
 
-  if ((CurrentMenu >= 42) && (CurrentMenu <= 46))  // 15-button menus
+  if ((CurrentMenu >= 42) && (CurrentMenu <= 47))  // 15-button menus
   {
     rectangle(10, 12, wscreen - 18, hscreen * 3 / 6 + 12, 127, 127, 127);
   }
@@ -6995,6 +7036,117 @@ void SelectCaption(int NoButton)  // Caption on or off
     SetConfigParam(PATH_PCONFIG, Param, "on");
   }
   SelectInGroupOnMenu(CurrentMenu, 5, 6, NoButton, 1);
+}
+
+void ChangeTestCard(int NoButton)  // Change Test Card Selection
+{
+  int NewTestCard;
+  char NewFileName[127];
+  char NewFileNamew16[127];
+  char NewFileNamew[127];
+  char CopyCommand[255];
+  char Value[63];
+
+  // Convert button number into test card number
+  switch(NoButton)
+  {
+    case 0:
+      NewTestCard = 8;
+      break;
+    case 1:
+      NewTestCard = 9;
+      break;
+    case 2:
+      NewTestCard = 10;
+      break;
+    case 3:
+      NewTestCard = 11;
+      break;
+    case 5:
+      NewTestCard = 4;
+      break;
+    case 6:
+      NewTestCard = 5;
+      break;
+    case 7:
+      NewTestCard = 6;
+      break;
+    case 8:
+      NewTestCard = 7;
+      break;
+    case 10:
+      NewTestCard = 0;
+      break;
+    case 11:
+      NewTestCard = 1;
+      break;
+    case 12:
+      NewTestCard = 2;
+      break;
+    case 13:
+      NewTestCard = 3;
+      break;
+  }
+
+  if (NewTestCard == 0) // Add other cards in here for caption?
+  {
+    strcpy(CurrentCaptionState, "on");
+    SetConfigParam(PATH_PCONFIG, "caption", "on");
+  }
+  else
+  {
+    strcpy(CurrentCaptionState, "off");
+    SetConfigParam(PATH_PCONFIG, "caption", "off");
+  }
+
+  strcpy(NewFileName, "/home/pi/rpidatv/scripts/images/");
+  strcat(NewFileName, TestCardName[NewTestCard]);
+  strcpy(NewFileNamew, NewFileName);
+  strcpy(NewFileNamew16, NewFileName);
+  strcat(NewFileName, ".jpg");
+  strcat(NewFileNamew, "w.jpg");
+  strcat(NewFileNamew16, "w16.jpg");
+
+  if(access(NewFileName, F_OK ) == 0)
+  {
+    // Copy across SD Image
+    strcpy(CopyCommand, "cp ");
+    strcat(CopyCommand, NewFileName);
+    strcat(CopyCommand, " /home/pi/rpidatv/scripts/images/tcf.jpg");
+    system(CopyCommand);
+    CurrentTestCard = NewTestCard;
+    snprintf(Value, 10, "%d", NewTestCard);
+    SetConfigParam(PATH_TC_CONFIG, "card", Value);
+
+    // Check if 720p image exists
+    if(access(NewFileNamew, F_OK ) == 0)
+    {
+      strcpy(CopyCommand, "cp ");
+      strcat(CopyCommand, NewFileNamew);
+      strcat(CopyCommand, " /home/pi/rpidatv/scripts/images/tcfw.jpg");
+      system(CopyCommand);
+    }
+
+    // Check if 1024x576 image exists
+    if(access(NewFileNamew16, F_OK ) == 0)
+    {
+      strcpy(CopyCommand, "cp ");
+      strcat(CopyCommand, NewFileNamew16);
+      strcat(CopyCommand, " /home/pi/rpidatv/scripts/images/tcfw16.jpg");
+      system(CopyCommand);
+    }
+  }
+  else
+  {
+    MsgBox2("Test Card File Doesn't Exist\n", "Test Card F Selected");
+    wait_touch();
+    strcpy(CopyCommand, "cp  /home/pi/rpidatv/scripts/images/tcfm.jpg");
+    strcat(CopyCommand, " /home/pi/rpidatv/scripts/images/tcf.jpg");
+    system(CopyCommand);
+    CurrentTestCard = 0;
+    strcpy(CurrentCaptionState, "on");
+    SetConfigParam(PATH_PCONFIG, "caption", "on");
+  }  
 }
 
 void SelectSTD(int NoButton)  // PAL or NTSC
@@ -8704,6 +8856,41 @@ void *WaitButtonLMRX(void * arg)
   return NULL;
 }
 
+void *WaitButtonStream(void * arg)
+{
+  int rawX, rawY, rawPressure;
+  FinishedButton = 0;
+
+  while(FinishedButton == 0)
+  {
+    while(getTouchSample(&rawX, &rawY, &rawPressure)==0);  // Wait here for touch
+
+    TransformTouchMap(rawX, rawY);  // Sorts out orientation and approx scaling of the touch map
+
+    if((scaledX <= 5 * wscreen / 40)  && (scaledY <= hscreen) && (scaledY <= 2 * hscreen / 12)) // Bottom left
+    {
+      printf("In snap zone, so take snap.\n");
+      system("/home/pi/rpidatv/scripts/snap2.sh");
+    }
+    else if((scaledX >= 35 * wscreen / 40)  && (scaledY >= 6 * hscreen / 12))  // Top Right
+    {
+      //printf("Volume Up.\n");
+      AdjustVLCVolume(51);
+    }
+    else if((scaledX >= 35 * wscreen / 40)  && (scaledY < 6 * hscreen / 12))  // Top Right
+    {
+      //printf("Volume Down.\n");
+      AdjustVLCVolume(-51);
+    }
+    else
+    {
+      printf("End stream receive requested\n");
+      FinishedButton = 1;
+    }
+  }
+  return NULL;
+}
+
 
 int CheckStream()
 {
@@ -8744,6 +8931,48 @@ int CheckStream()
   else if (strcmp(response, "Audio") == 0)
   {
     return 2;
+  }
+  else
+  {
+    return 3;
+  }
+}
+
+int CheckVLCStream()
+{
+  // first check file exists, if not, return 1
+  // then read first 5 characters of file
+  // If less than 5 characters (invalid) return 1
+  // if Video, return 0
+  // else return 3
+
+  FILE *fp;
+  char response[127] = "";
+
+  fp = popen("cat /home/pi/tmp/stream_status.txt 2>/dev/null", "r");
+  if (fp == NULL)
+  {
+    //printf("Failed to run command\n" );
+    return 1;
+  }
+
+  // Read the output a line at a time
+  while (fgets(response, 127, fp) != NULL)
+  {
+    //printf("Response was %s", response);
+  }
+  pclose(fp);
+
+  if (strlen(response) < 5)  // Null string or single <CR>
+  {
+    return 1;
+  }
+ 
+  response[5] = '\0'; // Truncate response to 5 characters
+
+  if (strcmp(response, "Video") == 0)
+  {
+    return 0;
   }
   else
   {
@@ -8853,6 +9082,108 @@ void DisplayStream(int NoButton)
     system("killall -9 omxplayer.bin >/dev/null 2>/dev/null");
   }
   DisplayHere("");
+  //init(&wscreen, &hscreen);  // Restart the graphics
+  pthread_join(thbutton, NULL);
+}
+
+void DisplayStreamVLC(int NoButton)
+{
+  int NoPreset;
+  int StreamStatus;
+  char startCommand[255];
+  char WaitMessage[63];
+
+  if(NoButton < 5) // bottom row
+  {
+    NoPreset = NoButton + 5;
+  }
+  else  // top row
+  {
+    NoPreset = NoButton - 4;
+  }
+
+  strcpy(startCommand, "/home/pi/rpidatv/scripts/vlc_stream_player.sh ");
+  strcat(startCommand, StreamAddress[NoPreset]);
+  strcat(startCommand, " &");
+
+  strcpy(WaitMessage, "Waiting for Stream ");
+  strcat(WaitMessage, StreamLabel[NoPreset]);
+
+  printf("Starting Stream receiver ....\n");
+  IQAvailable = 0;           // Set flag to prompt user reboot before transmitting
+  FinishedButton = 0;
+  setBackColour(0, 0, 0);
+  clearScreen();
+  DisplayHere(WaitMessage);
+
+  // Create Wait Button thread
+  pthread_create (&thbutton, NULL, &WaitButtonStream, NULL);
+
+  // first make sure that the stream status is not stale
+  system("rm /home/pi/tmp/stream_status.txt >/dev/null 2>/dev/null");
+  usleep(500000);
+
+  while (FinishedButton == 0)
+  {
+    // first make sure that the stream status is not stale
+    //system("rm /home/pi/tmp/stream_status.txt >/dev/null 2>/dev/null");
+    //usleep(500000);
+
+    // run the VLC player script
+    system(startCommand);
+
+    StreamStatus = CheckVLCStream();
+    //printf("Stream Status File value = %d\n", StreamStatus);
+
+    // = 0 Stream running
+    // = 1 Not started yet
+    // = 3 terminated
+    
+    // Now wait for VLC to respond
+    // checking every 0.5 seconds. 
+
+    while ((StreamStatus == 1) && (FinishedButton == 0))
+    {
+      usleep(500000); 
+      StreamStatus = CheckStream();
+      //printf("Stream Status File value = %d\n", StreamStatus);
+    }
+
+    // If it is running properly, wait here
+    if (StreamStatus == 0)
+    {
+      DisplayHere("Valid Stream Detected");
+
+      while (StreamStatus == 0 && (FinishedButton == 0))
+      {
+        // Wait in this loop while the stream is running
+        usleep(500000); // Check every 0.5 seconds
+        StreamStatus = CheckStream();
+        // printf("Stream Status File value = %d\n", StreamStatus);
+      }
+
+      if (FinishedButton == 0)
+      {
+        DisplayHere("Stream Dropped Out");
+        usleep(500000); // Display dropout message for 0.5 sec
+      }
+      else
+      {
+        DisplayHere(""); // Clear messages
+      }
+    }     
+
+    if ((StreamStatus == 3) || (StreamStatus == 1))  // Nothing detected
+    {
+      DisplayHere(WaitMessage);
+    }
+
+    // Make sure that VLC player is no longer running
+    system("/home/pi/rpidatv/scripts/vlc_stream_player_stop.sh");
+    
+  }
+  DisplayHere("");
+
   //init(&wscreen, &hscreen);  // Restart the graphics
   pthread_join(thbutton, NULL);
 }
@@ -9109,7 +9440,7 @@ void LMRX(int NoButton)
   #define PATH_SCRIPT_LMRXMER "/home/pi/rpidatv/scripts/lmmer.sh 2>&1"
   #define PATH_SCRIPT_LMRXUDP "/home/pi/rpidatv/scripts/lmudp.sh 2>&1"
   #define PATH_SCRIPT_LMRXOMX "/home/pi/rpidatv/scripts/lmomx.sh 2>&1"
-  #define PATH_SCRIPT_LMRXVLCFF "/home/pi/rpidatv/scripts/lmvlcff.sh"
+  // #define PATH_SCRIPT_LMRXVLCFF "/home/pi/rpidatv/scripts/lmvlcff.sh"
   #define PATH_SCRIPT_LMRXVLCFFUDP "/home/pi/rpidatv/scripts/lmvlcffudp.sh"
   #define PATH_SCRIPT_LMRXVLCFFUDP2 "/home/pi/rpidatv/scripts/lmvlcffudp2.sh"
 
@@ -9695,7 +10026,7 @@ void LMRX(int NoButton)
                 strcat(vlctext, "%n");
                 strcat(vlctext, AGCtext);
 
-                strcat(vlctext, "%n.%nTouch Left to Hide Overlay%nTouch Right to Exit");
+                strcat(vlctext, "%n.%nTouch Left to Hide Overlay%nTouch Centre to Exit");
 
                 FILE *fw=fopen("/home/pi/tmp/vlc_temp_overlay.txt","w+");
                 if(fw!=0)
@@ -9710,7 +10041,7 @@ void LMRX(int NoButton)
                 previousMER = MER;
               }
 
-              Text2(wscreen * 1 / 40, hscreen - 11 * linepitch, "Touch Right side to exit", font_ptr);
+              Text2(wscreen * 1 / 40, hscreen - 11 * linepitch, "Touch Centre to exit", font_ptr);
               Text2(wscreen * 1 / 40, hscreen - 12 * linepitch, "Touch Lower left for image capture", font_ptr);
             }
             else
@@ -9750,504 +10081,8 @@ void LMRX(int NoButton)
     touch_response = 0; 
     break;
 
-/*  Delete after next update
+/*  Deleted
   case 2:
-    fp=popen(PATH_SCRIPT_LMRXVLCFF, "r");
-    if(fp==NULL) printf("Process error\n");
-
-    printf("STARTING VLC with FFMPEG RX\n");
-
-    // Open status FIFO for read only
-    //mkfifo("longmynd_status_fifo", 0666);
-    ret = mkfifo("longmynd_status_fifo", 0666);
-    fd_status_fifo = open("longmynd_status_fifo", O_RDONLY); 
-
-    // Set the status fifo to be non-blocking on empty reads
-    fcntl(fd_status_fifo, F_SETFL, O_NONBLOCK);
-
-    if (fd_status_fifo < 0)
-    {
-      printf("Failed to open status fifo\n");
-    }
-    printf("Listening, ret = %d\n", ret);
-
-    while ((FinishedButton == 1) || (FinishedButton == 2)) // 1 is captions on, 2 is off
-    {
-      num = read(fd_status_fifo, status_message_char, 1);
-
-      if (num < 0)  // no character to read
-      {
-        usleep(500);
-        if (TunerFound == FALSE)
-        {
-          TunerPollCount = TunerPollCount + 1;
-
-          if (TunerPollCount > 15)
-          {
-            strcpy(line5, "Waiting for MiniTiouner to Respond");
-            Text2(wscreen * 1 / 40, hscreen - 1 * linepitch, line5, font_ptr);
-            TunerPollCount = 0;
-          }
-        }
-      }
-      else // there was a character to read
-      {
-        status_message_char[num]='\0';
-        // if (num>0) printf("%s\n",status_message_char);
-        
-        if (strcmp(status_message_char, "$") == 0)
-        {
-          TunerFound = TRUE;
-
-          if ((stat_string[0] == '1') && (stat_string[1] == ','))  // Decoder State
-          {
-            strcpy(STATEtext, stat_string);
-            chopN(STATEtext, 2);
-            STATE = atoi(STATEtext);
-            switch(STATE)
-            {
-              case 0:
-              strcpy(STATEtext, "Initialising");
-              break;
-              case 1:
-              strcpy(STATEtext, "Searching");
-              break;
-              case 2:
-              strcpy(STATEtext, "Found Headers");
-              break;
-              case 3:
-              strcpy(STATEtext, "DVB-S Lock");
-              break;
-              case 4:
-              strcpy(STATEtext, "DVB-S2 Lock");
-              break;
-              default:
-              snprintf(STATEtext, 10, "%d", STATE);
-            }
-          }
-
-          if ((stat_string[0] == '6') && (stat_string[1] == ','))  // Frequency
-          {
-            strcpy(FREQtext, stat_string);
-            chopN(FREQtext, 2);
-            FREQ = atof(FREQtext);
-            if (strcmp(LMRXmode, "sat") == 0)
-            {
-              FREQ = FREQ + LMRXqoffset;
-            }
-            FREQ = FREQ / 1000;
-            snprintf(FREQtext, 15, "%.3f MHz", FREQ);
-          }
-
-          if ((stat_string[0] == '9') && (stat_string[1] == ','))  // SR in S
-          {
-            strcpy(SRtext, stat_string);
-            chopN(SRtext, 2);
-            SR = atoi(SRtext) / 1000;
-            snprintf(SRtext, 15, "%d kS", SR);
-          }
-
-          if ((stat_string[0] == '1') && (stat_string[1] == '3'))  // Service Provider
-          {
-            strcpy(ServiceProvidertext, stat_string);
-            chopN(ServiceProvidertext, 3);
-          }
-
-          if ((stat_string[0] == '1') && (stat_string[1] == '4'))  // Service
-          {
-            strcpy(Servicetext, stat_string);
-            chopN(Servicetext, 3);
-          }
-
-          if ((stat_string[0] == '1') && (stat_string[1] == '8'))  // MODCOD
-          {
-            strcpy(MODCODtext, stat_string);
-            chopN(MODCODtext, 3);
-            MODCOD = atoi(MODCODtext);
-            //STATE = 4;
-            if (STATE == 3)                                        // DVB-S
-            {
-              switch(MODCOD)
-              {
-                case 0:
-                  strcpy(FECtext, "FEC 1/2");
-                  MERThreshold = 1.7; //
-                break;
-                case 1:
-                  strcpy(FECtext, "FEC 2/3");
-                  MERThreshold = 3.3; //
-                break;
-                case 2:
-                  strcpy(FECtext, "FEC 3/4");
-                  MERThreshold = 4.2; //
-                break;
-                case 3:
-                  strcpy(FECtext, "FEC 5/6");
-                  MERThreshold = 5.1; //
-                break;
-                case 4:
-                  strcpy(FECtext, "FEC 6/7");
-                  MERThreshold = 5.5; //
-                break;
-                case 5:
-                  strcpy(FECtext, "FEC 7/8");
-                  MERThreshold = 5.8; //
-                break;
-                default:
-                  strcpy(FECtext, "FEC -");
-                  MERThreshold = 0; //
-                  strcat(FECtext, MODCODtext);
-                break;
-              }
-              strcpy(Modulationtext, "QPSK");
-            }
-            if (STATE == 4)                                        // DVB-S2
-            {
-              switch(MODCOD)
-              {
-                case 1:
-                  strcpy(FECtext, "FEC 1/4");
-                  MERThreshold = -2.3; //
-                break;
-                case 2:
-                  strcpy(FECtext, "FEC 1/3");
-                  MERThreshold = -1.2; //
-                break;
-                case 3:
-                  strcpy(FECtext, "FEC 2/5");
-                  MERThreshold = -0.3; //
-                break;
-                case 4:
-                  strcpy(FECtext, "FEC 1/2");
-                  MERThreshold = 1.0; //
-                break;
-                case 5:
-                  strcpy(FECtext, "FEC 3/5");
-                  MERThreshold = 2.3; //
-                break;
-                case 6:
-                  strcpy(FECtext, "FEC 2/3");
-                  MERThreshold = 3.1; //
-                break;
-                case 7:
-                  strcpy(FECtext, "FEC 3/4");
-                  MERThreshold = 4.1; //
-                break;
-                case 8:
-                  strcpy(FECtext, "FEC 4/5");
-                  MERThreshold = 4.7; //
-                break;
-                case 9:
-                  strcpy(FECtext, "FEC 5/6");
-                  MERThreshold = 5.2; //
-                break;
-                case 10:
-                  strcpy(FECtext, "FEC 8/9");
-                  MERThreshold = 6.2; //
-                break;
-                case 11:
-                  strcpy(FECtext, "FEC 9/10");
-                  MERThreshold = 6.5; //
-                break;
-                case 12:
-                  strcpy(FECtext, "FEC 3/5");
-                  MERThreshold = 5.5; //
-                break;
-                case 13:
-                  strcpy(FECtext, "FEC 2/3");
-                  MERThreshold = 6.6; //
-                break;
-                case 14:
-                  strcpy(FECtext, "FEC 3/4");
-                  MERThreshold = 7.9; //
-                break;
-                case 15:
-                  strcpy(FECtext, "FEC 5/6");
-                  MERThreshold = 9.4; //
-                break;
-                case 16:
-                  strcpy(FECtext, "FEC 8/9");
-                  MERThreshold = 10.7; //
-                break;
-                case 17:
-                  strcpy(FECtext, "FEC 9/10");
-                  MERThreshold = 11.0; //
-                break;
-                case 18:
-                  strcpy(FECtext, "FEC 2/3");
-                  MERThreshold = 9.0; //
-                break;
-                case 19:
-                  strcpy(FECtext, "FEC 3/4");
-                  MERThreshold = 10.2; //
-                break;
-                case 20:
-                  strcpy(FECtext, "FEC 4/5");
-                  MERThreshold = 11.0; //
-                break;
-                case 21:
-                  strcpy(FECtext, "FEC 5/6");
-                  MERThreshold = 11.6; //
-                break;
-                case 22:
-                  strcpy(FECtext, "FEC 8/9");
-                  MERThreshold = 12.9; //
-                break;
-                case 23:
-                  strcpy(FECtext, "FEC 9/10");
-                  MERThreshold = 13.2; //
-                break;
-                case 24:
-                  strcpy(FECtext, "FEC 3/4");
-                  MERThreshold = 12.8; //
-                break;
-                case 25:
-                  strcpy(FECtext, "FEC 4/5");
-                  MERThreshold = 13.7; //
-                break;
-                case 26:
-                  strcpy(FECtext, "FEC 5/6");
-                  MERThreshold = 14.3; //
-                break;
-                case 27:
-                  strcpy(FECtext, "FEC 8/9");
-                  MERThreshold = 15.7; //
-                break;
-                case 28:
-                  strcpy(FECtext, "FEC 9/10");
-                  MERThreshold = 16.1; //
-                break;
-                default:
-                  strcpy(FECtext, "FEC -");
-                  MERThreshold = 0; //
-                break;
-              }
-              if ((MODCOD >= 1) && (MODCOD <= 11 ))
-              {
-                strcpy(Modulationtext, "QPSK");
-              }
-              if ((MODCOD >= 12) && (MODCOD <= 17 ))
-              {
-                strcpy(Modulationtext, "8PSK");
-              }
-              if ((MODCOD >= 18) && (MODCOD <= 23 ))
-              {
-                strcpy(Modulationtext, "16APSK");
-              }
-              if ((MODCOD >= 24) && (MODCOD <= 28 ))
-              {
-                strcpy(Modulationtext, "32APSK");
-              }
-            }
-          }
-
-          if ((stat_string[0] == '1') && (stat_string[1] == '7'))  // Video and audio encoding
-          {
-            strcpy(Encodingtext, stat_string);
-            chopN(Encodingtext, 3);
-            EncodingCode = atoi(Encodingtext);
-            switch(EncodingCode)
-            {
-              case 2:
-                strcpy(VidEncodingtext, "MPEG-2");
-              break;
-              case 3:
-                strcpy(AudEncodingtext, " MPA");
-              break;
-              case 4:
-                strcpy(AudEncodingtext, " MPA");
-              break;
-              case 15:
-                strcpy(AudEncodingtext, " AAC");
-              break;
-              case 16:
-                strcpy(VidEncodingtext, "H263");
-              break;
-              case 27:
-                strcpy(VidEncodingtext, "H264");
-              break;
-              case 32:
-                strcpy(AudEncodingtext, " MPA");
-              break;
-              case 36:
-                strcpy(VidEncodingtext, "H265");
-              break;
-              case 129:
-                strcpy(AudEncodingtext, " AC3");
-              break;
-              default:
-                printf("New Encoding Code = %d\n", EncodingCode);
-              break;
-            }
-            strcpy(Encodingtext, VidEncodingtext);
-            strcat(Encodingtext, AudEncodingtext);
-          }
-
-          if ((stat_string[0] == '3') && (stat_string[1] == '5'))  // AGC1 Setting
-          {
-            strcpy(AGC1text, stat_string);
-            chopN(AGC1text, 3);
-            AGC1 = atoi(AGC1text);
-          }
-
-          if ((stat_string[0] == '3') && (stat_string[1] == '7'))  // AGC2 Setting
-          {
-            strcpy(AGC2text, stat_string);
-            chopN(AGC2text, 3);
-            AGC2 = atoi(AGC2text);
-          }
-
-          if ((stat_string[0] == '1') && (stat_string[1] == '2'))  // MER
-          {
-            if (FinishedButton == 1)  // Parameters requested to be displayed
-            {
-
-              // If they weren't displayed before, set the previousMER to 0 
-              // so they get displayed and don't have to wait for an MER change
-              if (Parameters_currently_displayed != 1)
-              {
-                previousMER = 0;
-              }
-              Parameters_currently_displayed = 1;
-              strcpy(MERtext, stat_string);
-              chopN(MERtext, 3);
-              MER = atof(MERtext)/10;
-              if (MER > 51)  // Trap spurious MER readings
-              {
-                MER = 0;
-              }
-              snprintf(MERtext, 24, "MER %.1f (%.1f needed)", MER, MERThreshold);
-              snprintf(AGCtext, 24, "RF Input Level %d dB", CalcInputPwr(AGC1, AGC2));
-
-              rectangle(wscreen * 1 / 40, hscreen - 1 * linepitch - txtdesc, wscreen * 30 / 40, txttot, 0, 0, 0);
-              Text2(wscreen * 1 / 40, hscreen - 1 * linepitch, STATEtext, font_ptr);
-              rectangle(wscreen * 1 / 40, hscreen - 2 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
-              Text2(wscreen * 1 / 40, hscreen - 2 * linepitch, FREQtext, font_ptr);
-              rectangle(wscreen * 1 / 40, hscreen - 3 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
-              Text2(wscreen * 1 / 40, hscreen - 3 * linepitch, SRtext, font_ptr);
-              rectangle(wscreen * 1 / 40, hscreen - 4 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
-              Text2(wscreen * 1 / 40, hscreen - 4 * linepitch, Modulationtext, font_ptr);
-              rectangle(wscreen * 1 / 40, hscreen - 5 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
-              Text2(wscreen * 1 / 40, hscreen - 5 * linepitch, FECtext, font_ptr);
-              rectangle(wscreen * 1 / 40, hscreen - 6 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
-              Text2(wscreen * 1 / 40, hscreen - 6 * linepitch, ServiceProvidertext, font_ptr);
-              rectangle(wscreen * 1 / 40, hscreen - 7 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
-              Text2(wscreen * 1 / 40, hscreen - 7 * linepitch, Servicetext, font_ptr);
-              rectangle(wscreen * 1 / 40, hscreen - 8 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
-              Text2(wscreen * 1 / 40, hscreen - 8 * linepitch, Encodingtext, font_ptr);
-              if (AGC1 < 1)  // Low input level
-              {
-                setForeColour(255, 63, 63); // Set foreground colour to red
-              }
-              rectangle(wscreen * 1 / 40, hscreen - 10 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
-              Text2(wscreen * 1 / 40, hscreen - 10 * linepitch, AGCtext, font_ptr);
-              setForeColour(255, 255, 255);  // Set foreground colour to white
-
-              if (MER < MERThreshold + 0.1)
-              {
-                setForeColour(255, 63, 63); // Set foreground colour to red
-              }
-              else  // Auto-hide the parameter display after 5 seconds
-              {
-                if (FirstLock == 0) // This is the first time MER has exceeded threshold
-                {
-                  FirstLock = 1;
-                  LockTime = clock();  // Set first lock time
-                }
-                if ((clock() > LockTime + 600000) && (FirstLock == 1))  // About 5s since first lock
-                {
-                  FinishedButton = 2; // Hide parameters
-                  FirstLock = 2;      // and stop it trying to hide them again
-                }
-              }
-
-              rectangle(wscreen * 1 / 40, hscreen - 9 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
-              Text2(wscreen * 1 / 40, hscreen - 9 * linepitch, MERtext, font_ptr);
-
-              // Only change VLC overlayfile if MER has changed
-              if (MER != previousMER)
-              {
-
-                // Strip trailing line feeds from text strings
-                ServiceProvidertext[strlen(ServiceProvidertext) - 1] = '\0';
-                Servicetext[strlen(Servicetext) - 1] = '\0';
-
-                // Build string for VLC
-                strcpy(vlctext, STATEtext);
-                strcat(vlctext, "%n");
-                strcat(vlctext, FREQtext);
-                strcat(vlctext, "%n");
-                strcat(vlctext, SRtext);
-                strcat(vlctext, "%n");
-                strcat(vlctext, Modulationtext);
-                strcat(vlctext, "%n");
-                strcat(vlctext, FECtext);
-                strcat(vlctext, "%n");
-                strcat(vlctext, ServiceProvidertext);
-                strcat(vlctext, "%n");
-                strcat(vlctext, Servicetext);
-                strcat(vlctext, "%n");
-                strcat(vlctext, Encodingtext);
-                strcat(vlctext, "%n");
-                strcat(vlctext, MERtext);
-                strcat(vlctext, "%n");
-                strcat(vlctext, AGCtext);
-                strcat(vlctext, "%n.%nTouch Left to Hide Overlay%nTouch Right to Exit");
-
-                FILE *fw=fopen("/home/pi/tmp/vlc_temp_overlay.txt","w+");
-                if(fw!=0)
-                {
-                  fprintf(fw, "%s\n", vlctext);
-                }
-                fclose(fw);
-
-                // Copy temp file to file to be read by VLC to prevent file collisions
-                system("cp /home/pi/tmp/vlc_temp_overlay.txt /home/pi/tmp/vlc_overlay.txt");
-
-                previousMER = MER;
-              }
-
-              setForeColour(255, 255, 255);  // Set foreground colour to white
-              Text2(wscreen * 1 / 40, hscreen - 11 * linepitch, "Touch Right side to exit", font_ptr);
-              Text2(wscreen * 1 / 40, hscreen - 12 * linepitch, "Touch Lower left for image capture", font_ptr);
-            }
-            else
-            {
-              if (Parameters_currently_displayed == 1)
-              {
-                setBackColour(0, 0, 0);
-                clearScreen();
-                Parameters_currently_displayed = 0;
-
-                FILE *fw=fopen("/home/pi/tmp/vlc_overlay.txt","w+");
-                if(fw!=0)
-                {
-                  fprintf(fw, " ");
-                }
-                fclose(fw);
-              }
-            }
-          }
-          stat_string[0] = '\0';
-        }
-        else
-        {
-          strcat(stat_string, status_message_char);
-        }
-      }
-    }
-    // Shutdown VLC if it has not stolen the graphics
-    system("/home/pi/rpidatv/scripts/lmvlcsd.sh &");
-
-    close(fd_status_fifo); 
-    usleep(1000);
-
-    printf("Stopping receive process\n");
-    pclose(fp);
-    system("sudo killall lmvlcff.sh >/dev/null 2>/dev/null");
-    touch_response = 0; 
-    break;
-    // end of code to delete
 */
 
   case 6:
@@ -10530,7 +10365,7 @@ void LMRX(int NoButton)
               strcat(vlctext, line13);
               strcat(vlctext, "%n");
               strcat(vlctext, line14);
-              strcat(vlctext, "%n.%nTouch Left to Hide Overlay%nTouch Right to Exit");
+              strcat(vlctext, "%n.%nTouch Left to Hide Overlay%nTouch Centre to Exit");
 
               FILE *fw=fopen("/home/pi/tmp/vlc_temp_overlay.txt","w+");
               if(fw!=0)
@@ -10543,7 +10378,7 @@ void LMRX(int NoButton)
               system("cp /home/pi/tmp/vlc_temp_overlay.txt /home/pi/tmp/vlc_overlay.txt");
 
             }
-            Text2(wscreen * 1 / 40, hscreen - 11 * linepitch, "Touch Right side to exit", font_ptr);
+            Text2(wscreen * 1 / 40, hscreen - 11 * linepitch, "Touch Centre to exit", font_ptr);
             Text2(wscreen * 1 / 40, hscreen - 12 * linepitch, "Touch Lower left for image capture", font_ptr);
           }
           else
@@ -10823,7 +10658,7 @@ void LMRX(int NoButton)
             Text2(wscreen * 1 / 40, hscreen - 9 * linepitch, line14, font_ptr);
 
             Text2(wscreen * 1 / 40, hscreen - 11 * linepitch, "UDP Output", font_ptr);
-            Text2(wscreen * 1 / 40, hscreen - 12 * linepitch, "Touch Right Side to Exit", font_ptr);
+            Text2(wscreen * 1 / 40, hscreen - 12 * linepitch, "Touch Centre to Exit", font_ptr);
           }
           else
           {
@@ -11223,7 +11058,7 @@ void LMRX(int NoButton)
               rectangle(wscreen * 1 / 40, hscreen - 9 * linepitch - txtdesc, wscreen * 19 / 40, txttot, 0, 0, 0);
               Text2(wscreen * 1 / 40, hscreen - 9 * linepitch, MERtext, font_ptr);
               setForeColour(255, 255, 255);  // Set foreground colour to white
-              Text2(wscreen * 1 / 40, hscreen - 11 * linepitch, "Touch Right side to exit", font_ptr);
+              Text2(wscreen * 1 / 40, hscreen - 11 * linepitch, "Touch Centre to exit", font_ptr);
               Text2(wscreen * 1 / 40, hscreen - 12 * linepitch, "Touch Lower left for image capture", font_ptr);
             }
             else
@@ -11639,7 +11474,7 @@ void LMRX(int NoButton)
             Text2(wscreen * 1 / 40, hscreen - 9 * linepitch, MERtext, font_ptr);
             setForeColour(255, 255, 255);  // Set foreground colour to white
             Text2(wscreen * 1 / 40, hscreen - 11 * linepitch, udp_string, font_ptr);
-            Text2(wscreen * 1 / 40, hscreen - 12 * linepitch, "Touch Right Side to Exit", font_ptr);
+            Text2(wscreen * 1 / 40, hscreen - 12 * linepitch, "Touch Centre to Exit", font_ptr);
 
             // Display large MER number
             LargeText2(wscreen * 18 / 40, hscreen * 19 / 48, 5, MERNtext, &font_dejavu_sans_32);
@@ -11778,7 +11613,7 @@ void LMRX(int NoButton)
             Text2(wscreen * 1 / 40, hscreen - 1 * linepitch, STATEtext, font_ptr);
             rectangle(wscreen * 1 / 40, hscreen - 9 * linepitch - txtdesc, 620, 8, 0, 0, 0);
             LargeText2(wscreen * 1 / 40, hscreen - 9 * linepitch, 4, MERtext, &font_dejavu_sans_72);
-            Text2(wscreen * 1 / 40, hscreen - 12 * linepitch, "Touch Right Side to Exit", font_ptr);
+            Text2(wscreen * 1 / 40, hscreen - 12 * linepitch, "Touch Centre to Exit", font_ptr);
 
             if (MERcount == 10)
             {
@@ -11952,7 +11787,7 @@ void LMRX(int NoButton)
               snprintf(FREQtext, 15, "%d kHz", LMRXqoffset);
               Text2(wscreen * 1.0 / 40.0, hscreen - 8.0 * linepitch, FREQtext, font_ptr);
             }
-            Text2(wscreen * 1.0 / 40.0, hscreen - 11.5 * linepitch, "Touch right side of screen to exit", font_ptr);
+            Text2(wscreen * 1.0 / 40.0, hscreen - 11.5 * linepitch, "Touch Centre of screen to exit", font_ptr);
           }
           stat_string[0] = '\0';
         }
@@ -15656,8 +15491,14 @@ void waituntil(int w,int h)
         case 3:                               // Not used
           UpdateWindow();
           break;
-        case 4:                               // Not used
+        case 4:                              // VLC Stream Viewer
+          printf("MENU 20 \n");
+          CurrentMenu = 20;
+          setBackColour(0, 0, 0);
+          clearScreen();
+          Start_Highlights_Menu20();
           UpdateWindow();
+          strcpy(StreamPlayer, "VLC");
           break;
         case 5:                               // Locator Bearings
           RangeBearing();
@@ -15683,13 +15524,14 @@ void waituntil(int w,int h)
           Start_Highlights_Menu7();
           UpdateWindow();
           break;
-        case 9:                              // Stream Viewer
+        case 9:                              // OMX Stream Viewer
           printf("MENU 20 \n");
           CurrentMenu = 20;
           setBackColour(0, 0, 0);
           clearScreen();
           Start_Highlights_Menu20();
           UpdateWindow();
+          strcpy(StreamPlayer, "OMX");
           break;
         case 10:                              // Video Monitor (EasyCap)
         case 11:                              // Pi Cam Monitor
@@ -15840,7 +15682,7 @@ void waituntil(int w,int h)
           Start_Highlights_Menu40();
           UpdateWindow();
           break;
-        case 4:                               // 
+        case 4:                              // 
           break;
         case 5:                              // Lime Config
           printf("MENU 37 \n"); 
@@ -15874,7 +15716,13 @@ void waituntil(int w,int h)
           Start_Highlights_Menu15();
           UpdateWindow();
           break;
-        case 9:                              // 
+        case 9:                              // Test card Select Menu
+          printf("MENU 47 \n"); 
+          CurrentMenu=47;
+          setBackColour(0, 0, 0);
+          clearScreen();
+          Start_Highlights_Menu47();
+          UpdateWindow();
           break;
         case 10:                               // Amend Sites/Beacons
           printf("MENU 31 \n"); 
@@ -17135,9 +16983,18 @@ void waituntil(int w,int h)
         case 2:                               // Preset 7
           if (StreamStoreTrigger == 0)        // Normal
           {
-            DisplayStream(i);
-            setBackColour(0, 0, 0);
-            clearScreen();
+            if (strcmp(StreamPlayer, "OMX") == 0)
+            {
+              DisplayStream(i);
+              setBackColour(0, 0, 0);
+              clearScreen();
+            }
+            else
+            {
+              DisplayStreamVLC(i);
+              setBackColour(0, 0, 0);
+              clearScreen();
+            }
           }
           else                                // Amend the Preset
           {
@@ -17152,9 +17009,18 @@ void waituntil(int w,int h)
           AmendStreamPreset(i);
           StreamStoreTrigger = 0;
           SetButtonStatus(ButtonNumber(CurrentMenu, 9), 0);
-          DisplayStream(i);
-          setBackColour(0, 0, 0);
-          clearScreen();
+          if (strcmp(StreamPlayer, "OMX") == 0)
+          {
+            DisplayStream(i);
+            setBackColour(0, 0, 0);
+            clearScreen();
+          }
+          else
+          {
+            DisplayStreamVLC(i);
+            setBackColour(0, 0, 0);
+            clearScreen();
+          }
           UpdateWindow();                     // Stay in Menu 20
           break;
         case 9:                               // Amend Preset
@@ -18616,6 +18482,63 @@ void waituntil(int w,int h)
         continue;   // Completed Menu 46 action, go and wait for touch
       }
 
+      if (CurrentMenu == 47)  // Menu 47 Test Card Selection Menu
+      {
+        printf("Button Event %d, Entering Menu 47 Case Statement\n",i);
+        CallingMenu = 47;
+        switch (i)
+        {
+        case 0:                                         // Change the Test Card
+        case 1:
+        case 2:
+        case 3:
+        case 5:
+        case 6:
+        case 7:
+        case 8:
+        case 10:
+        case 11:
+        case 12:
+        case 13:
+          ChangeTestCard(i);
+          Start_Highlights_Menu47();
+          UpdateWindow();
+          break;
+        case 4:                                         // Cancel
+          SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 1);
+          printf("Menu 47 Cancel\n");
+          Start_Highlights_Menu47();  // Update Menu appearance
+          UpdateWindow();             // and display for half a second
+          usleep(500000);
+          SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 0); // Reset cancel (even if not selected)
+          printf("Returning to MENU 1 from Menu 47\n");
+          CurrentMenu = 1;
+          setBackColour(255, 255, 255);
+          clearScreen();
+          Start_Highlights_Menu1();
+          UpdateWindow();
+          break;
+        case 14:                                         // Toggle Caption State 
+          if (strcmp(CurrentCaptionState, "off") == 0)
+          {
+            strcpy(CurrentCaptionState, "on");
+            SetConfigParam(PATH_PCONFIG, "caption", "on");
+          }
+          else
+          {
+            strcpy(CurrentCaptionState, "off");
+            SetConfigParam(PATH_PCONFIG, "caption", "off");
+          }
+          Start_Highlights_Menu47();
+          UpdateWindow();
+          break;
+        default:
+          printf("Menu 47 Error\n");
+        }
+        continue;   // Completed Menu 47 action, go and wait for touch
+      }
+
+
       if (CurrentMenu == 41)  // Menu 41 Keyboard (should not get here)
       {
         //break;
@@ -19137,9 +19060,9 @@ void Define_Menu2()
   //AddButtonStatus(button, " ", &Blue);
   //AddButtonStatus(button, " ", &Green);
 
-  //button = CreateButton(2, 4);
-  //AddButtonStatus(button, " ", &Blue);
-  //AddButtonStatus(button, " ", &Green);
+  button = CreateButton(2, 4);
+  AddButtonStatus(button, "Stream^Viewer VLC", &Blue);
+  AddButtonStatus(button, "Stream^Viewer VLC", &Green);
 
   // 2nd line up Menu 2
 
@@ -19156,8 +19079,8 @@ void Define_Menu2()
   AddButtonStatus(button, "Test^Equipment", &Blue);
 
   button = CreateButton(2, 9);
-  AddButtonStatus(button, "Stream^Viewer", &Blue);
-  AddButtonStatus(button, "Stream^Viewer", &Green);
+  AddButtonStatus(button, "Stream^Viewer OMX", &Blue);
+  AddButtonStatus(button, "Stream^Viewer OMX", &Green);
 
   // 3rd line up Menu 2
 
@@ -19253,6 +19176,9 @@ void Define_Menu3()
 
   button = CreateButton(3, 8);
   AddButtonStatus(button, "Pluto^Config", &Blue);
+
+  button = CreateButton(3, 9);
+  AddButtonStatus(button, "Select^Test Card", &Blue);
 
   // 3rd line up Menu 3: Amend Sites/Beacons, Set Receive LOs and set Stream Outputs 
 
@@ -23451,7 +23377,155 @@ void Start_Highlights_Menu46()
 
 }
 
+void Define_Menu47()
+{
+  int button;
+  char label[63];
 
+  strcpy(MenuTitle[47], "Portsdown Test Card Selection (47)"); 
+
+  // Bottom Row, Menu 47
+
+  button = CreateButton(47, 0);
+  strcpy(label, "Card^");
+  strcat(label, TestCardTitle[8]);
+  AddButtonStatus(button, label, &Blue);
+  AddButtonStatus(button, label, &Green);
+
+  button = CreateButton(47, 1);
+  strcpy(label, "Card^");
+  strcat(label, TestCardTitle[9]);
+  AddButtonStatus(button, label, &Blue);
+  AddButtonStatus(button, label, &Green);
+
+  button = CreateButton(47, 2);
+  strcpy(label, "Card^");
+  strcat(label, TestCardTitle[10]);
+  AddButtonStatus(button, label, &Blue);
+  AddButtonStatus(button, label, &Green);
+
+  button = CreateButton(47, 3);
+  strcpy(label, "Card^");
+  strcat(label, TestCardTitle[11]);
+  AddButtonStatus(button, label, &Blue);
+  AddButtonStatus(button, label, &Green);
+
+  button = CreateButton(47, 4);
+  AddButtonStatus(button, "Exit", &DBlue);
+  AddButtonStatus(button, "Exit", &LBlue);
+
+  button = CreateButton(47, 5);
+  strcpy(label, "Grey^Scale");
+  AddButtonStatus(button, label, &Blue);
+  AddButtonStatus(button, label, &Green);
+
+  button = CreateButton(47, 6);
+  strcpy(label, "Card^");
+  strcat(label, TestCardTitle[5]);
+  AddButtonStatus(button, label, &Blue);
+  AddButtonStatus(button, label, &Green);
+
+  button = CreateButton(47, 7);
+  strcpy(label, "Card^");
+  strcat(label, TestCardTitle[6]);
+  AddButtonStatus(button, label, &Blue);
+  AddButtonStatus(button, label, &Green);
+
+  button = CreateButton(47, 8);
+  strcpy(label, "Card^");
+  strcat(label, TestCardTitle[7]);
+  AddButtonStatus(button, label, &Blue);
+  AddButtonStatus(button, label, &Green);
+
+  button = CreateButton(47, 10);
+  strcpy(label, "Test Card^F");
+  AddButtonStatus(button, label, &Blue);
+  AddButtonStatus(button, label, &Green);
+
+  button = CreateButton(47, 11);
+  strcpy(label, "Test Card^C");
+  AddButtonStatus(button, label, &Blue);
+  AddButtonStatus(button, label, &Green);
+
+  button = CreateButton(47, 12);
+  strcpy(label, "PM5544^ ");
+  AddButtonStatus(button, label, &Blue);
+  AddButtonStatus(button, label, &Green);
+
+  button = CreateButton(47, 13);
+  strcpy(label, "Colour Bars^ ");
+  AddButtonStatus(button, label, &Blue);
+  AddButtonStatus(button, label, &Green);
+
+  button = CreateButton(47, 14);                        // Toggle Caption
+  AddButtonStatus(button, "Caption^On", &Blue);
+  AddButtonStatus(button, "Caption^Off", &Blue);
+}
+
+void Start_Highlights_Menu47()
+{
+  if (strcmp(CurrentCaptionState, "on") == 0)
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 14), 0);
+  }
+  else
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 14), 1);
+  }
+
+  SetButtonStatus(ButtonNumber(CurrentMenu, 0), 0);
+  SetButtonStatus(ButtonNumber(CurrentMenu, 1), 0);
+  SetButtonStatus(ButtonNumber(CurrentMenu, 2), 0);
+  SetButtonStatus(ButtonNumber(CurrentMenu, 3), 0);
+  SetButtonStatus(ButtonNumber(CurrentMenu, 5), 0);
+  SetButtonStatus(ButtonNumber(CurrentMenu, 6), 0);
+  SetButtonStatus(ButtonNumber(CurrentMenu, 7), 0);
+  SetButtonStatus(ButtonNumber(CurrentMenu, 8), 0);
+  SetButtonStatus(ButtonNumber(CurrentMenu, 10), 0);
+  SetButtonStatus(ButtonNumber(CurrentMenu, 11), 0);
+  SetButtonStatus(ButtonNumber(CurrentMenu, 12), 0);
+  SetButtonStatus(ButtonNumber(CurrentMenu, 13), 0);
+
+  switch (CurrentTestCard)
+  {
+    case 0:
+      SetButtonStatus(ButtonNumber(CurrentMenu, 10), 1);
+      break;
+    case 1:
+      SetButtonStatus(ButtonNumber(CurrentMenu, 11), 1);
+      break;
+    case 2:
+      SetButtonStatus(ButtonNumber(CurrentMenu, 12), 1);
+      break;
+    case 3:
+      SetButtonStatus(ButtonNumber(CurrentMenu, 13), 1);
+      break;
+    case 4:
+      SetButtonStatus(ButtonNumber(CurrentMenu, 5), 1);
+      break;
+    case 5:
+      SetButtonStatus(ButtonNumber(CurrentMenu, 6), 1);
+      break;
+    case 6:
+      SetButtonStatus(ButtonNumber(CurrentMenu, 7), 1);
+      break;
+    case 7:
+      SetButtonStatus(ButtonNumber(CurrentMenu, 8), 1);
+      break;
+    case 8:
+      SetButtonStatus(ButtonNumber(CurrentMenu, 0), 1);
+      break;
+    case 9:
+      SetButtonStatus(ButtonNumber(CurrentMenu, 1), 1);
+      break;
+    case 10:
+      SetButtonStatus(ButtonNumber(CurrentMenu, 2), 1);
+      break;
+    case 11:
+      SetButtonStatus(ButtonNumber(CurrentMenu, 3), 1);
+      break;
+  }
+}
 
 void Define_Menu41()
 {
@@ -23720,6 +23794,7 @@ terminate(int dummy)
   system("sudo killall lmudp.sh >/dev/null 2>/dev/null");
   system("sudo killall longmynd >/dev/null 2>/dev/null");
   system("sudo killall /home/pi/rpidatv/bin/CombiTunerExpress >/dev/null 2>/dev/null");
+  system("/home/pi/rpidatv/scripts/vlc_stream_player_stop.sh &");
   printf("Terminate\n");
   setBackColour(0, 0, 0);
   clearScreen();
@@ -23840,6 +23915,7 @@ int main(int argc, char **argv)
   ReadModeEasyCap();
   ReadPiCamOrientation();
   ReadCaptionState();
+  ReadTestCardState();
   ReadAudioState();
   ReadAttenState();
   ReadBand();
@@ -23907,6 +23983,7 @@ int main(int argc, char **argv)
   Define_Menu44();
   Define_Menu45();
   Define_Menu46();
+  Define_Menu47();
 
   // Check if DATV Express Server required and, if so, start it
   CheckExpress();

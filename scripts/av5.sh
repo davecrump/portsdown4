@@ -29,7 +29,7 @@ AUDIO_OUT=$(get_config_var audio $RCONFIGFILE)
 
 # Read from Portsdown config file
 UDPINPORT=$(get_config_var udpinport $PCONFIGFILE)
-
+VLCVOLUME=$(get_config_var vlcvolume $PCONFIGFILE)
 
 # Send audio to the correct port
 if [ "$AUDIO_OUT" == "rpi" ]; then
@@ -43,6 +43,17 @@ if [ "$AUDIO_OUT" == "rpi" ]; then
 else
   AUDIO_DEVICE="hw:CARD=Device,DEV=0"
 fi
+
+# Error check volume
+if [ "$VLCVOLUME" -lt 0 ]; then
+  VLCVOLUME=0
+fi
+if [ "$VLCVOLUME" -gt 512 ]; then
+  VLCVOLUME=512
+fi
+
+# Create dummy marquee overlay file
+echo " " >/home/pi/tmp/vlc_overlay.txt
 
 sudo killall vlc >/dev/null 2>/dev/null
 
@@ -63,8 +74,14 @@ fi
 
 cvlc -I rc --rc-host 127.0.0.1:1111 --codec ffmpeg -f --video-title-timeout=100 \
   --width 800 --height 480 \
+  --sub-filter marq --marq-x 25 --marq-file "/home/pi/tmp/vlc_overlay.txt" \
   --gain 3 --alsa-audio-device hw:CARD=Device,DEV=0 \
   udp://:@:"$UDPINPORT" >/dev/null 2>/dev/null &
+
+sleep 1
+
+# Set the start-up volume
+printf "volume "$VLCVOLUME"\nlogout\n" | nc 127.0.0.1 1111 >/dev/null 2>/dev/null
 
 exit
 
