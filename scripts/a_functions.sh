@@ -130,6 +130,22 @@ detect_audio()
       WC_VIDEO_FPS=30
     fi
 
+    C930ePresent=0
+    # Check for the presence of a C930e Webcam with stereo audio
+    arecord -l | grep -E -q \
+      "Webcam C930e"
+    if [ $? == 0 ]; then   ## Present
+      C930ePresent=1
+      # Look for the webcam's audio card, select the line and take
+      # the 6th character.  Max card number = 8 !!
+      WCAM="$(arecord -l | grep -E \
+        "Webcam C930e" \
+        | head -c 6 | tail -c 1)"
+      WC_AUDIO_CHANNELS=2
+      WC_AUDIO_SAMPLE=48000
+      WC_VIDEO_FPS=30
+    fi
+
     C910Present=0
     # Check for the presence of an old C910 Webcam with stereo audio
     arecord -l | grep -E -q \
