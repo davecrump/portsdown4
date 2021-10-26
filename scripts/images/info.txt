@@ -1,4 +1,4 @@
-Extra Test Cards should be placed in the folder.
+Extra .jpg Test Cards should be placed in this folder.
 
 4:3 card should be 720x576 and should have the filename entered in the config file (without the .jpg extension.
 
@@ -8,4 +8,6 @@ Extra Test Cards should be placed in the folder.
 
 Titles in the config file are used on the selection buttons.
 
-png Images are 320*480 .pngs used for the touchscreen backgrounds.
+File names and Card Titles need to be hand edited using nano or another text editor.  No spaces allowed.
+
+The png Images are 320*480 .pngs used for the touchscreen backgrounds.
