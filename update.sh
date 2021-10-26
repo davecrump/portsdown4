@@ -97,6 +97,9 @@ PCONFIGFILE="/home/pi/rpidatv/scripts/portsdown_config.txt"
 # Note previous version number
 cp -f -r /home/pi/rpidatv/scripts/installed_version.txt /home/pi/prev_installed_version.txt
 
+# Remove previous User Config Backups
+rm -rf "$PATHUBACKUP"
+
 # Create a folder for user configs
 mkdir "$PATHUBACKUP" >/dev/null 2>/dev/null
 
