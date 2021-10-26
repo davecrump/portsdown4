@@ -933,7 +933,10 @@ fi
         INPUT_FORMAT="yuyv422"
         AUDIO_CHANNELS=2
         AUDIO_SAMPLE=48000
-        if [ "$FORMAT" == "16:9" ]; then
+        if [ "$FORMAT" == "720p" ]; then
+          VIDEO_WIDTH=1280
+          VIDEO_HEIGHT=720
+        elif [ "$FORMAT" == "16:9" ]; then
           VIDEO_WIDTH=800
           VIDEO_HEIGHT=448
         else
