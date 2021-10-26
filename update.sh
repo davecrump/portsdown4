@@ -463,7 +463,8 @@ cp -f -r "$PATHUBACKUP"/TXstopextras.sh "$PATHSCRIPT"/TXstopextras.sh
 
 # Restore the user's original test cards if required
 if test -f "$PATHUBACKUP"/images/tccw.jpg ; then     # Test card functionality included pre-update
-  cp -f -r "$PATHUBACKUP"/images "$PATHSCRIPT"/images
+  rm -rf "$PATHSCRIPT"/images
+  cp -f -r "$PATHUBACKUP"/images "$PATHSCRIPT"
 fi
 
 # Add Mic Gain parameter to config file if not included
