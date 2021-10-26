@@ -150,6 +150,10 @@ cp -f -r "$PATHSCRIPT"/user_button5.sh "$PATHUBACKUP"/user_button5.sh
 cp -f -r "$PATHSCRIPT"/TXstartextras.sh "$PATHUBACKUP"/TXstartextras.sh
 cp -f -r "$PATHSCRIPT"/TXstopextras.sh "$PATHUBACKUP"/TXstopextras.sh
 
+# Make a safe copy of the user's Test cards
+cp -f -r "$PATHSCRIPT"/images "$PATHUBACKUP"/images
+
+
 DisplayUpdateMsg "Step 4 of 10\nUpdating Software Package List\n\nXXXX------"
 
 sudo dpkg --configure -a                            # Make sure that all the packages are properly configured
@@ -456,6 +460,11 @@ cp -f -r "$PATHUBACKUP"/user_button5.sh "$PATHSCRIPT"/user_button5.sh
 # Restore the user's original transmit start and transmit stop scripts
 cp -f -r "$PATHUBACKUP"/TXstartextras.sh "$PATHSCRIPT"/TXstartextras.sh
 cp -f -r "$PATHUBACKUP"/TXstopextras.sh "$PATHSCRIPT"/TXstopextras.sh
+
+# Restore the user's original test cards if required
+if test -f "$PATHUBACKUP"/images/tccw.jpg ; then     # Test card functionality included pre-update
+  cp -f -r "$PATHUBACKUP"/images "$PATHSCRIPT"/images
+fi
 
 # Add Mic Gain parameter to config file if not included
 if ! grep -q micgain "$PATHSCRIPT"/portsdown_config.txt; then
