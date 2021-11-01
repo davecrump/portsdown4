@@ -16178,6 +16178,18 @@ void waituntil(int w,int h)
           DisplayLogo();
           cleanexit(137);
           break;
+        case 13:                                                 // NF Meter
+          if((CheckLimeMiniConnect() == 0) || (CheckLimeUSBConnect() == 0))
+          {
+            DisplayLogo();
+            cleanexit(138);
+          }
+          else
+          {
+            MsgBox("No LimeSDR Connected");
+            wait_touch();
+          }
+          break;
         case 21:                              // Menu 1
           printf("MENU 1 \n");
           CurrentMenu=1;
@@ -19593,6 +19605,9 @@ void Define_Menu7()
 
   button = CreateButton(7, 12);
   AddButtonStatus(button, "Power^Meter", &Blue);
+
+  button = CreateButton(7, 13);
+  AddButtonStatus(button, "NF^Meter", &Blue);
 
   // 4th line up Menu 7: 
 

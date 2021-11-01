@@ -40,6 +40,7 @@ scripts/configs/Langstone.conf
 bin/adf4351
 bin/avc2ts
 bin/bandview
+bin/nf_meter
 bin/dvb2iq
 bin/dvb_t_stack
 bin/keyedtx

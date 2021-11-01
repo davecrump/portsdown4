@@ -381,6 +381,9 @@ echo "---------------------------------"
 cd /home/pi/rpidatv/src/bandview
 make
 cp bandview ../../bin/
+# Copy the fftw wisdom file to home so that there is no start-up delay
+# This file works for both BandViewer and NF Meter
+cp .fftwf_wisdom /home/pi/.fftwf_wisdom
 cd /home/pi
 
 # Compile Power Meter
@@ -391,6 +394,16 @@ echo "---------------------------------"
 cd /home/pi/rpidatv/src/power_meter
 make
 cp power_meter ../../bin/
+cd /home/pi
+
+# Compile NF Meter
+echo
+echo "----------------------------------------"
+echo "----- Compiling Noise Figure Meter -----"
+echo "----------------------------------------"
+cd /home/pi/rpidatv/src/nf_meter
+make
+cp nf_meter ../../bin/
 cd /home/pi
 
 # Compile and install the executable for GPIO-switched transmission (201710080)
