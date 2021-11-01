@@ -1,3 +1,11 @@
+202110300
+Enable USB and EasyCap Audio with Pluto C920 DVB-S and DVB-S2
+Correct receiver touchscreen exit message
+Add cability to change the testcard image from Menu 3
+Experimental VLC-based Stream Viewer
+Add C930e Webcam Support
+Experimental Noise Figure Meter
+
 202109051
 Add Receiver VLC Volume Control from Touchscreen
 Declutter rpidatv/scripts/configs folder

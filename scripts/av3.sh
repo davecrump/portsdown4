@@ -13,8 +13,14 @@ VID_USB="$(v4l2-ctl --list-devices 2> /dev/null | \
   sed -n '/C920/,/dev/p' | grep 'dev' | tr -d '\t')"
 
 if [ "$VID_USB" == '' ]; then
-  printf "VID_USB was not found, setting to /dev/video0\n"
-  VID_USB="/dev/video0"
+
+  VID_USB="$(v4l2-ctl --list-devices 2> /dev/null | \
+    sed -n '/C930e/,/dev/p' | grep 'dev' | tr -d '\t')"
+
+  if [ "$VID_USB" == '' ]; then
+    printf "VID_USB was not found, setting to /dev/video0\n"
+    VID_USB="/dev/video0"
+  fi
 fi
 
 printf "The USB device string is $VID_USB\n"
@@ -23,12 +29,8 @@ printf "The USB device string is $VID_USB\n"
 
 sudo killall mplayer >/dev/null 2>/dev/null
 
-#mplayer tv:// -tv driver=v4l2:device="$VID_USB" \
-#   -fs -vo fbdev /dev/fb0
-
 mplayer tv:// -tv driver=v4l2:device="$VID_USB":audiorate=22050 \
    -vo fbdev2 -vf scale=800:480
-#mplayer tv:// -tv driver=v4l2:device="$VID_USB":audiorate=22050:immediatemode=0:forceaudio:alsa:adevice=hw=3.0 \
-#   -vo fbdev2 -vf scale=800:480
+
 
 

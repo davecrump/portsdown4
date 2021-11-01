@@ -97,6 +97,9 @@ PCONFIGFILE="/home/pi/rpidatv/scripts/portsdown_config.txt"
 # Note previous version number
 cp -f -r /home/pi/rpidatv/scripts/installed_version.txt /home/pi/prev_installed_version.txt
 
+# Remove previous User Config Backups
+rm -rf "$PATHUBACKUP"
+
 # Create a folder for user configs
 mkdir "$PATHUBACKUP" >/dev/null 2>/dev/null
 
@@ -149,6 +152,10 @@ cp -f -r "$PATHSCRIPT"/user_button5.sh "$PATHUBACKUP"/user_button5.sh
 # Make a safe copy of the transmit start and transmit stop scripts
 cp -f -r "$PATHSCRIPT"/TXstartextras.sh "$PATHUBACKUP"/TXstartextras.sh
 cp -f -r "$PATHSCRIPT"/TXstopextras.sh "$PATHUBACKUP"/TXstopextras.sh
+
+# Make a safe copy of the user's Test cards
+cp -f -r "$PATHSCRIPT"/images "$PATHUBACKUP"/images
+
 
 DisplayUpdateMsg "Step 4 of 10\nUpdating Software Package List\n\nXXXX------"
 
@@ -374,6 +381,9 @@ echo "---------------------------------"
 cd /home/pi/rpidatv/src/bandview
 make
 cp bandview ../../bin/
+# Copy the fftw wisdom file to home so that there is no start-up delay
+# This file works for both BandViewer and NF Meter
+cp .fftwf_wisdom /home/pi/.fftwf_wisdom
 cd /home/pi
 
 # Compile Power Meter
@@ -384,6 +394,16 @@ echo "---------------------------------"
 cd /home/pi/rpidatv/src/power_meter
 make
 cp power_meter ../../bin/
+cd /home/pi
+
+# Compile NF Meter
+echo
+echo "----------------------------------------"
+echo "----- Compiling Noise Figure Meter -----"
+echo "----------------------------------------"
+cd /home/pi/rpidatv/src/nf_meter
+make
+cp nf_meter ../../bin/
 cd /home/pi
 
 # Compile and install the executable for GPIO-switched transmission (201710080)
@@ -456,6 +476,12 @@ cp -f -r "$PATHUBACKUP"/user_button5.sh "$PATHSCRIPT"/user_button5.sh
 # Restore the user's original transmit start and transmit stop scripts
 cp -f -r "$PATHUBACKUP"/TXstartextras.sh "$PATHSCRIPT"/TXstartextras.sh
 cp -f -r "$PATHUBACKUP"/TXstopextras.sh "$PATHSCRIPT"/TXstopextras.sh
+
+# Restore the user's original test cards if required
+if test -f "$PATHUBACKUP"/images/tccw.jpg ; then     # Test card functionality included pre-update
+  rm -rf "$PATHSCRIPT"/images
+  cp -f -r "$PATHUBACKUP"/images "$PATHSCRIPT"
+fi
 
 # Add Mic Gain parameter to config file if not included
 if ! grep -q micgain "$PATHSCRIPT"/portsdown_config.txt; then

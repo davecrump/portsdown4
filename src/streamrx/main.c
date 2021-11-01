@@ -23,10 +23,10 @@ int StreamStatus;
 int i;
 char DisplayCaption[127];
 
-pthread_t dailyreset;    // thread to reset omxplayer every hour
+pthread_t dailyreset;    // thread to reset VLC every hour
 
 void *DailyReset(void * arg);
-int CheckStream(void);
+int CheckVLCStream(void);
 void DisplayHere(void);
 
 /***************************************************************************//**
@@ -69,13 +69,11 @@ void GetConfigParam(char *PathConfigFile, char *Param, char *Value)
 static void
 terminate(int dummy)
 {
-  char Commnd[255];
   printf("Terminate\n");
   digitalWrite(IndicationGPIO, LOW);
-  sprintf(Commnd,"sudo killall omxplayer.bin >/dev/null 2>/dev/null");
   system("sudo fbi -T 1 -noverbose -a /home/pi/rpidatv/scripts/images/BATC_Black.png >/dev/null 2>/dev/null");  // Restore logo image
-
-  sprintf(Commnd,"sudo killall -9 omxplayer.bin >/dev/null 2>/dev/null");
+  system("/home/pi/rpidatv/scripts/vlc_stream_player_stop.sh");
+  system("(sleep 1; sudo killall -9 fbi >/dev/null 2>/dev/null) &");
   exit(1);
 }
 
@@ -119,8 +117,8 @@ int main(int argc, char *argv[])
   else
   {
     printf("ERROR: Incorrect number of parameters!\n");
-    printf(" == streamrx == Dave Crump <dave.g8gkq@gmail.com ==\n");
-    printf(" == Based on code from Phil Crump                   ==\n");
+    printf(" == streamrx VLC == Dave Crump <dave.g8gkq@gmail.com ==\n");
+    printf(" == Based on code from Phil Crump                       ==\n");
     printf("  usage: streamrx [x]\n");
     printf("    x: GPIO for streaming indicator (optional)\n");
     printf("    default is 7, recommended is 7 (pin 7)\n");
@@ -144,11 +142,11 @@ int main(int argc, char *argv[])
   // Read in the streamname and set up the command
   GetConfigParam(PATH_STREAMPRESETS, "stream0", Value);
 
-  strcpy(startCommand, "/home/pi/rpidatv/scripts/omx.sh ");
+  strcpy(startCommand, "/home/pi/rpidatv/scripts/vlc_stream_player.sh ");
   strcat(startCommand, Value);
-  strcat(startCommand, " &"); 
+  strcat(startCommand, " &");
 
-  printf("Starting Stream receiver ....\n");
+  printf("Starting VLC Stream receiver on %s \n", Value);
   printf("Use ctrl-C to exit \n");
 
   strcpy(DisplayCaption, "Waiting for Stream");
@@ -165,28 +163,24 @@ int main(int argc, char *argv[])
     system("rm /home/pi/tmp/stream_status.txt >/dev/null 2>/dev/null");
     usleep(500000);
 
-    // run the omxplayer script
-    //printf("Starting Stream Display\n");
+    // run the VLC player script
     system(startCommand);
-    //printf("Sending command:%s\n", startCommand);
-    //printf("Now moved beyond omxplayer\n\n");
 
-    StreamStatus = CheckStream();
+    StreamStatus = CheckVLCStream();
+    //printf("Stream Status File value = %d\n", StreamStatus);
 
     // = 0 Stream running
     // = 1 Not started yet
-    // = 2 started but audio only
     // = 3 terminated
     
-    // Now wait 10 seconds for omxplayer to respond
-    // checking every 0.5 seconds.  It will time out at 5 seconds
+    // Now wait for VLC to respond
+    // checking every 0.5 seconds. 
 
-    count = 0;
-    while ((StreamStatus == 1) && (count < 20))
+    while (StreamStatus == 1)
     {
       usleep(500000); 
-      count = count + 1;
-      StreamStatus = CheckStream();
+      StreamStatus = CheckVLCStream();
+      //printf("Stream Status File value = %d\n", StreamStatus);
     }
 
     // If it is running properly, set GPIO high and wait here
@@ -200,31 +194,26 @@ int main(int argc, char *argv[])
       {
         // Wait in this loop while the stream is running
         usleep(500000); // Check every 0.5 seconds
-        StreamStatus = CheckStream();
+        StreamStatus = CheckVLCStream();
+        // printf("Stream Status File value = %d\n", StreamStatus);
       }
 
       strcpy(DisplayCaption, "Stream Dropped Out");
       DisplayHere();
       usleep(500000); // Display dropout message for 0.5 sec
-    }     
+    }
 
     // So stream has either stopped, or not started properly
     digitalWrite(IndicationGPIO, LOW);
-
-    if (StreamStatus == 2)  // Audio only
-    {
-      strcpy(DisplayCaption, "Audio Stream Detected, Trying for Video");
-      DisplayHere();
-    }
-
+    
     if ((StreamStatus == 3) || (StreamStatus == 1))  // Nothing detected
     {
       strcpy(DisplayCaption, "Waiting for Stream");
       DisplayHere();
     }
 
-    // Make sure that omxplayer is no longer running
-    system("killall -9 omxplayer.bin >/dev/null 2>/dev/null");
+    // Make sure that VLC player is no longer running
+    system("/home/pi/rpidatv/scripts/vlc_stream_player_stop.sh");
 
   }
 
@@ -233,12 +222,12 @@ int main(int argc, char *argv[])
   pthread_join(dailyreset, NULL);
 }
 
-int CheckStream()
+int CheckVLCStream()
 {
   // first check file exists, if not, return 1
   // then read first 5 characters of file
+  // If less than 5 characters (invalid) return 1
   // if Video, return 0
-  // if Audio, return 2.
   // else return 3
 
   FILE *fp;
@@ -268,10 +257,6 @@ int CheckStream()
   if (strcmp(response, "Video") == 0)
   {
     return 0;
-  }
-  else if (strcmp(response, "Audio") == 0)
-  {
-    return 2;
   }
   else
   {

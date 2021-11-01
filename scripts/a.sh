@@ -587,6 +587,11 @@ case "$MODE_INPUT" in
       fi
 
       # Size the viewfinder
+
+#v4l2-ctl --set-ctrl=rotate=180
+
+v4l2-ctl --set-ctrl=rotate=0
+
       v4l2-ctl -d $VID_PICAM --set-fmt-overlay=left=0,top=0,width=736,height=416 --overlay 1 # For 800x480 framebuffer
       v4l2-ctl -d $VID_PICAM -p $VIDEO_FPS
 
@@ -928,7 +933,10 @@ fi
         INPUT_FORMAT="yuyv422"
         AUDIO_CHANNELS=2
         AUDIO_SAMPLE=48000
-        if [ "$FORMAT" == "16:9" ]; then
+        if [ "$FORMAT" == "720p" ]; then
+          VIDEO_WIDTH=1280
+          VIDEO_HEIGHT=720
+        elif [ "$FORMAT" == "16:9" ]; then
           VIDEO_WIDTH=800
           VIDEO_HEIGHT=448
         else
@@ -948,6 +956,20 @@ fi
           VIDEO_HEIGHT=480
         fi
       fi
+
+      # Overide Audio settings if not using webcam mic
+      # "auto" and "webcam" UNCHANGED. "mic", and "video" here
+      # "bleeps" and "no_audio" not implemented
+      case "$AUDIO_PREF" in
+        "mic")
+          AUDIO_CHANNELS=1
+          AUDIO_SAMPLE=48000
+        ;;
+        "video")
+          AUDIO_CHANNELS=2
+          AUDIO_SAMPLE=48000
+        ;;
+      esac
 
       rpidatv/bin/ffmpeg -thread_queue_size 2048 \
         -f v4l2 -input_format $INPUT_FORMAT -video_size "$VIDEO_WIDTH"x"$VIDEO_HEIGHT" \
