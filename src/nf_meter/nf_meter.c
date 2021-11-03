@@ -98,14 +98,9 @@ bool frozen = false;
 bool PeakPlot = false;
 bool PortsdownExitRequested = false;
 
-//int scaledadresult[501];  // Sensed AD Result
-int PeakValue[513] = {0};
-bool RequestPeakValueZero = false;
-
 int startfreq = 0;
 int stopfreq = 0;
 int rbw = 0;
-int reflevel = 99;
 char PlotTitle[63] = "-";
 bool ContScan = false;
 
@@ -121,20 +116,9 @@ int pfreq5 = 2409000;
 
 float MAIN_SPECTRUM_TIME_SMOOTH;
 
-bool markeron = false;
-int markermode = 7;       // 2 peak, 3, null, 4 man, 7 off
-int historycount = 0;
-int markerxhistory[10];
-int markeryhistory[10];
-int manualmarkerx = 250;
-
-bool Range20dB = false;
-int BaseLine20dB = -80;
-
-bool NFMeter = true;
-
 int ScansforLevel = 10;
 float ENR = 15.0;
+float RF_ENR = 15.0; // Used for transverters
 float Tsoff = 290.0;
 float Tson;
 bool CalibrateRequested = false;
@@ -159,27 +143,38 @@ int xscaleden = 20;       // Denominator for X scaling fraction
 void GetConfigParam(char *, char *, char *);
 void SetConfigParam(char *, char *, char *);
 void ReadSavedParams();
-void MsgBox4(char *, char *, char *, char *);
 void do_snapcheck();
-int openTouchScreen(int);
-void Keyboard(char *, char *, int);
-int getTouchScreenDetails(int*, int* ,int* ,int*);
-int ButtonNumber(int, int);
-void SetButtonStatus(int ,int);
-void UpdateWindow();
-int getTouchSample(int*, int*, int*);
-int IsMenuButtonPushed(int, int);
-void DrawButton(int);
-void ChangeSmallMeterScale(int);
 int IsImageToBeChanged(int, int);
+void MsgBox4(char *, char *, char *, char *);
+void Keyboard(char *, char *, int);
+int openTouchScreen(int);
+int getTouchScreenDetails(int*, int* ,int* ,int*);
 void TransformTouchMap(int, int);
+int IsButtonPushed(int, int, int);
+int IsMenuButtonPushed(int, int);
+void ChangeSmallMeterScale(int);
+int InitialiseButtons();
+int AddButton(int, int, int, int);
+int ButtonNumber(int, int);
+int CreateButton(int, int);
+int AddButtonStatus(int, char *, color_t *);
+void AmendButtonStatus(int, int, char *, color_t *);
+void DrawButton(int);
+void SetButtonStatus(int ,int);
+int getTouchSample(int*, int*, int*);
+void UpdateWindow();
+void wait_touch();
+void SetSpanWidth(int);
+void SetLimeGain(int);
 void AdjustLimeGain(int);
+void SetENR();
+void SetRF_ENR();
+void SetFreqPreset(int);
+void ShiftFrequency(int);
 void CalcSpan();
 void ChangeLabel(int);
-void DrawEmptyScreen();  
-void DrawYaxisLabels();  
-void DrawSettings();
-void CalculateMarkers();
+void RedrawDisplay();
+
 void Define_Menu1();
 void Define_Menu2();
 void Define_Menu3();
@@ -190,15 +185,24 @@ void Define_Menu7();
 void Define_Menu8();
 void Define_Menu9();
 void Define_Menu10();
-
-static void cleanexit(int);
+void Define_Menu41();
 void Start_Highlights_Menu1();
 void Start_Highlights_Menu2();
 void Start_Highlights_Menu6();
 void Start_Highlights_Menu7();
 void Start_Highlights_Menu10();
-void RedrawDisplay();
+
+void DrawEmptyScreen();  
+void DrawYaxisLabels();  
+void DrawSettings();
+void DrawTrace(int, int, int, int);
+void DrawMeterArc();
+void DrawMeterTicks(int, int);
+void Draw5MeterLabels(float, float);
 void CalibrateSystem();
+static void cleanexit(int);
+
+
 
 //////////////////////////////////////////// SA bits /////////////////////////////////////////
 
@@ -346,6 +350,7 @@ void ReadSavedParams()
 
   GetConfigParam(PATH_CONFIG, "enr", response);
   ENR = atof(response);
+  RF_ENR = ENR;
 
   strcpy(PlotTitle, "-");  // this is the "do not display" response
   GetConfigParam(PATH_CONFIG, "title", PlotTitle);
@@ -1382,44 +1387,17 @@ void UpdateWindow()    // Paint each defined button
   int first;
   int last;
 
-  if (markeron == false)
-  {
-    // Draw a black rectangle where the buttons are to erase them
-    rectangle(620, 0, 160, 480, 0, 0, 0);
-  }
-  else   // But don't erase the marker text
-  {
-    rectangle(620, 0, 160, 420, 0, 0, 0);
-  }
-
-  // Don't draw buttons if the Markers are being refreshed.  Wait here
-
+  // Draw a black rectangle where the buttons are to erase them
+  rectangle(620, 0, 160, 480, 0, 0, 0);
 
   // Draw each button in turn
   first = ButtonNumber(CurrentMenu, 0);
   last = ButtonNumber(CurrentMenu + 1 , 0) - 1;
-  if ((markeron == false) || (CurrentMenu == 41))
+  for(i = first; i <= last; i++)
   {
-    for(i = first; i <= last; i++)
+    if (ButtonArray[i].IndexStatus > 0)  // If button needs to be drawn
     {
-      if (ButtonArray[i].IndexStatus > 0)  // If button needs to be drawn
-      {
-        DrawButton(i);                     // Draw the button
-      }
-    }
-  }
-  else
-  {
-    if (ButtonArray[first].IndexStatus > 0)  // If button needs to be drawn
-    {
-      DrawButton(first);                     // Draw button 0, but not button 1
-    }
-    for(i = (first + 2); i <= last; i++)
-    {
-      if (ButtonArray[i].IndexStatus > 0)  // If button needs to be drawn
-      {
-        DrawButton(i);                     // Draw the button
-      }
+      DrawButton(i);                     // Draw the button
     }
   }
 }
@@ -1528,8 +1506,6 @@ void SetLimeGain(int button)
   gain = ((float)limegain) / 100.0;
   NewGain = true;
   Calibrated = false;
-
-  //DrawSettings();       // New labels
   freeze = false;
 }
 
@@ -1616,6 +1592,7 @@ void SetENR()
   SetConfigParam(PATH_CONFIG, "enr", ValueToSave);
   printf("new ENR set to %.2f \n", ENR);
   Tson = Tsoff * (1 + pow(10, (ENR / 10)));
+  RF_ENR = ENR;
 
   Calibrated = false;
 
@@ -1624,9 +1601,47 @@ void SetENR()
   DrawEmptyScreen();  // Required to set A value, which is not set in DrawTrace
   DrawYaxisLabels();  // dB calibration on LHS
   DrawSettings();     // Start, Stop RBW, Ref level and Title
+  ModeChanged = true; // Redraw the meter scale
   freeze = false;
 }
 
+void SetRF_ENR()
+{  
+  char RequestText[64];
+  char InitText[63];
+  float newENR;
+
+  // Stop the scan at the end of the current one and wait for it to stop
+  freeze = true;
+  while(! frozen)
+  {
+    usleep(10);                                   // wait till the end of the scan
+  }
+
+  // Define request string
+  strcpy(RequestText, "Enter the ENR at the Tvrtr input frequency");
+
+  // Define initial value
+  snprintf(InitText, 10, "%.2f", RF_ENR);
+ 
+  // Ask for the new value
+  do
+  {
+    Keyboard(RequestText, InitText, 10);
+    newENR = atof(KeyboardReturn);
+  }
+  while ((newENR < 1.0) || (newENR > 30.0));
+
+  RF_ENR = newENR;
+
+  // Tidy up, paint around the screen and then unfreeze
+  clearScreen();
+  DrawEmptyScreen();  // Required to set A value, which is not set in DrawTrace
+  DrawYaxisLabels();  // dB calibration on LHS
+  DrawSettings();     // Start, Stop RBW, Ref level and Title
+  ModeChanged = true; // Redraw the meter scale
+  freeze = false;
+}
 
 
 void SetFreqPreset(int button)
@@ -1983,6 +1998,7 @@ void ChangeLabel(int button)
   DrawEmptyScreen();  // Required to set A value, which is not set in DrawTrace
   DrawYaxisLabels();  // dB calibration on LHS
   DrawSettings();     // Start, Stop RBW, Ref level and Title
+  ModeChanged = true;
   freeze = false;
 }
 
@@ -2038,9 +2054,9 @@ void *WaitButtonEvent(void * arg)
           CurrentMenu=3;
           UpdateWindow();
           break;
-        case 3:                                            // Markers
-          printf("Markers Menu 2 Requested\n");
-          CurrentMenu=2;
+        case 3:                                            // Set-up
+          printf("Set-up Menu 2 Requested\n");
+          CurrentMenu = 2;
           Start_Highlights_Menu2();
           UpdateWindow();
           break;
@@ -2053,8 +2069,6 @@ void *WaitButtonEvent(void * arg)
         case 6:                                            // Right Arrow
           printf("Shift Frequency Requested\n");
           ShiftFrequency(i);
-          //UpdateWindow();
-          RequestPeakValueZero = true;
           break;
         case 7:                                            // System
           printf("System Menu 4 Requested\n");
@@ -2121,14 +2135,25 @@ void *WaitButtonEvent(void * arg)
           freeze = false;
           break;
         case 2:                                            // Set ENR
-          SetENR();
+          if (Calibrated == false)
+          {
+            SetENR();
+          }
+          else
+          {
+            SetRF_ENR();
+          }
+          Start_Highlights_Menu2();
           UpdateWindow();
           break;
         case 3:                                            // Lime Gain Up
         case 5:                                            // Lime Gain Down
-          AdjustLimeGain(i);
-          Start_Highlights_Menu2();
-          UpdateWindow();
+          if (Calibrated == false)
+          {
+            AdjustLimeGain(i);
+            Start_Highlights_Menu2();
+            UpdateWindow();
+          }
           break;
         case 4:                                            // No action, show Lime Gain
           break;
@@ -2136,15 +2161,13 @@ void *WaitButtonEvent(void * arg)
           if (Calibrated == false)
           {
             CalibrateSystem();
-            Start_Highlights_Menu2();
-            UpdateWindow();
           }
           else
           {
             Calibrated = false;
-            Start_Highlights_Menu2();
-            UpdateWindow();
           }
+          Start_Highlights_Menu2();
+          UpdateWindow();
           break;
         case 7:                                            // Return to Main Menu
           printf("Main Menu 1 Requested\n");
@@ -2191,21 +2214,18 @@ void *WaitButtonEvent(void * arg)
           ChangeLabel(i);
           CurrentMenu = 3;
           UpdateWindow();          
-          RequestPeakValueZero = true;
           break;
         case 3:                                            // Frequency Presets
           printf("Frequency Preset Menu 7 Requested\n");
           CurrentMenu = 7;
           Start_Highlights_Menu7();
           UpdateWindow();
-          RequestPeakValueZero = true;
           break;
         case 4:                                            // Span Width
           printf("Span Width Menu 6 Requested\n");
           CurrentMenu = 6;
           Start_Highlights_Menu6();
           UpdateWindow();
-          RequestPeakValueZero = true;
           break;
         case 5:                                            // Set-up Menu
           printf("Set-up Menu 2 Requested\n");
@@ -2663,11 +2683,11 @@ void Define_Menu2()                                         // Set-up Menu
 
   button = CreateButton(2, 2);
   AddButtonStatus(button, "Set^ENR", &Blue);
-  AddButtonStatus(button, "Set^ENR", &Green);
+  AddButtonStatus(button, "Set^Input ENR", &Blue);
 
   button = CreateButton(2, 3);
   AddButtonStatus(button, "Gain Up", &Blue);
-  AddButtonStatus(button, "Gain Up", &Green);
+  AddButtonStatus(button, "Gain Up", &Grey);
 
   button = CreateButton(2, 4);
   AddButtonStatus(button, "Gain", &Black);
@@ -2697,10 +2717,17 @@ void Start_Highlights_Menu2()
 
   if (Calibrated == true)  // 
   {
+    SetButtonStatus(ButtonNumber(2, 2), 1);
+    SetButtonStatus(ButtonNumber(2, 3), 1);
+    SetButtonStatus(ButtonNumber(2, 5), 1);
     SetButtonStatus(ButtonNumber(2, 6), 2);
   }
   else
   {
+    SetButtonStatus(ButtonNumber(2, 2), 0);
+    SetButtonStatus(ButtonNumber(2, 3), 0);
+    SetButtonStatus(ButtonNumber(2, 5), 0);
+
     if (CalibrateRequested == true)
     {
       SetButtonStatus(ButtonNumber(2, 6), 1);
@@ -3905,6 +3932,7 @@ int main(void)
   float SmoothGDevicedB = 0;
   float SmoothNFDevicedB = 0;
   float meterNF = 30.0;
+  float meterG = 0.0;
 
 
   // Catch sigaction and call terminate
@@ -4131,7 +4159,9 @@ int main(void)
       rectangle(300, 90, 250, 22, 0, 0, 0);  // Blank area
       if (Avlpwrcold + 20.0 < -65.0)
       {
+        pthread_mutex_lock(&text_lock);
         Text2(300, 95, "Increase Lime Gain", &font_dejavu_sans_18);
+        pthread_mutex_unlock(&text_lock);
       }
 
       if (CalibrateRequested)
@@ -4216,7 +4246,15 @@ int main(void)
         SmoothGDevicedB = GDevicedB * 0.1 + SmoothGDevicedB * 0.9;
         SmoothNFDevicedB = NFDevicedB * 0.1 + SmoothNFDevicedB * 0.9;
 
+        meterG = SmoothGDevicedB;
         meterNF = SmoothNFDevicedB;
+
+        // Apply Transverter ENR if required
+        if ((Calibrated == true) && (ENR != RF_ENR))
+        {
+          meterNF = meterNF - ENR + RF_ENR;
+          meterG = meterG + ENR - RF_ENR;
+        }
 
         //printf("NFDevicedB = %0.1f dB, SmoothNFDevicedB = %0.1f dB\n", NFDevicedB, SmoothNFDevicedB);
 
@@ -4224,7 +4262,7 @@ int main(void)
 
       if (meterNF != meterNF)
       {
-        meterNF = 31.0;
+        meterNF = 30.0;
       }
 
       switch (MeterScale)
@@ -4252,11 +4290,14 @@ int main(void)
       }
       else
       {
-        snprintf(NFText, 20, "Device NF %0.1f dB", meterNF);
-      }
-      if (meterNF > 30.0)
-      {
-        snprintf(NFText, 20, "NF > 30 dB");
+        if (ENR != RF_ENR)
+        {
+          snprintf(NFText, 20, "Tvtr NF %0.1f dB", meterNF);
+        }
+        else
+        {
+          snprintf(NFText, 20, "Device NF %0.1f dB", meterNF);
+        }
       }
       
       rectangle(360, 250, 280, 40, 0, 0, 0);  // Blank area
@@ -4268,7 +4309,14 @@ int main(void)
       rectangle(330, 190, 300, 40, 0, 0, 0);  // Blank area
       if(Calibrated == true)
       {
-        snprintf(NFText, 20, "Device gain %0.1f dB", SmoothGDevicedB);
+        if (ENR != RF_ENR)
+        {
+          snprintf(NFText, 20, "Tvtr gain %0.1f dB", meterG);
+        }
+        else
+        {
+          snprintf(NFText, 20, "Device gain %0.1f dB", meterG);
+        }
         setBackColour(0, 0, 0);
         pthread_mutex_lock(&text_lock);
         Text2(330, 200, NFText, &font_dejavu_sans_28);
