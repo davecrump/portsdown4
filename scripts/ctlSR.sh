@@ -64,27 +64,27 @@ SYMBOLRATEK=$(get_config_var symbolrate $PCONFIGFILE)
 
 ############### Switch GPIOs based on Symbol Rate ########
 
-if (( $SYMBOLRATEK \< 130 )); then
+if [ "$SYMBOLRATEK" -lt "130" ] ; then
                 gpio -g write $filter_bit0 0;
                 gpio -g write $filter_bit1 0;
                 gpio -g write $filter_bit2 0;
-elif (( $SYMBOLRATEK \< 260 )); then
+elif [ "$SYMBOLRATEK" -lt "260" ] ; then
                 gpio -g write $filter_bit0 1;
                 gpio -g write $filter_bit1 0;
                 gpio -g write $filter_bit2 0;
-elif (( $SYMBOLRATEK \< 360 )); then
+elif [ "$SYMBOLRATEK" -lt "360" ] ; then
                 gpio -g write $filter_bit0 0;
                 gpio -g write $filter_bit1 1;
                 gpio -g write $filter_bit2 0;
-elif (( $SYMBOLRATEK \< 550 )); then
+elif [ "$SYMBOLRATEK" -lt "550" ] ; then
                 gpio -g write $filter_bit0 1;
                 gpio -g write $filter_bit1 1;
                 gpio -g write $filter_bit2 0;
-elif (( $SYMBOLRATEK \< 1100 )); then
+elif [ "$SYMBOLRATEK" -lt "1100" ] ; then
                 gpio -g write $filter_bit0 0;
                 gpio -g write $filter_bit1 0;
                 gpio -g write $filter_bit2 1;
-elif (( $SYMBOLRATEK \< 2200 )); then
+elif [ "$SYMBOLRATEK" -lt "2200" ] ; then
                 gpio -g write $filter_bit0 1;
                 gpio -g write $filter_bit1 0;
                 gpio -g write $filter_bit2 1;

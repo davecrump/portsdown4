@@ -62,12 +62,14 @@ echo "-------------------------------"
 echo "----- Installing Packages -----"
 echo "-------------------------------"
 
-sudo apt-get -y install git cmake libusb-1.0-0-dev wiringpi libfftw3-dev libxcb-shape0 
+sudo apt-get -y install git cmake libusb-1.0-0-dev libfftw3-dev libxcb-shape0 
+sudo apt-get -y install wiringpi                                         # Wiring pi depracated? 
 sudo apt-get -y install libx11-dev buffer libjpeg-dev indent 
-sudo apt-get -y install ttf-dejavu-core bc usbmount libvncserver-dev
+sudo apt-get -y install bc usbmount libvncserver-dev
+sudo apt-get -y install ttf-dejavu-core                                  # being depracated?
 sudo apt-get -y install fbi netcat imagemagick omxplayer
-sudo apt-get -y install libvdpau-dev libva-dev  # For latest ffmpeg build
-sudo apt-get -y install libsqlite3-dev libi2c-dev # 201811300 Lime
+sudo apt-get -y install libvdpau-dev libva-dev                           # For latest ffmpeg build
+sudo apt-get -y install libsqlite3-dev libi2c-dev                        # 201811300 Lime
 sudo apt-get -y install sshpass  # 201905090 For Jetson Nano
 sudo apt-get -y install libbsd-dev # 201910100 for raspi2raspi
 sudo apt-get -y install libasound2-dev sox # 201910230 for LongMynd tone and avc2ts audio

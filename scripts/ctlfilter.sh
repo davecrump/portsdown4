@@ -7,7 +7,7 @@
 # Called by a.sh in IQ and DATVEXPRESS modes to switch in correct
 # Nyquist Filter, band/transverter switching and attenuator level
 # Also sets Pin 21 (BCM 9, WiringPi 13) low for Portsdown/Langstone switching
-# Written by Dave G8GKQ 20170209.  Last amended 201802040
+# Written by Dave G8GKQ 20170209.  Last amended 202111100
 
 # SR Outputs:
 
@@ -107,27 +107,27 @@ SYMBOLRATEK=$(get_config_var symbolrate $PCONFIGFILE)
 
 ############### Switch GPIOs based on Symbol Rate ########
 
-if (( $SYMBOLRATEK \< 130 )); then
+if [ "$SYMBOLRATEK" -lt "130" ] ; then
                 gpio -g write $filter_bit0 0;
                 gpio -g write $filter_bit1 0;
                 gpio -g write $filter_bit2 0;
-elif (( $SYMBOLRATEK \< 260 )); then
+elif [ "$SYMBOLRATEK" -lt "260" ] ; then
                 gpio -g write $filter_bit0 1;
                 gpio -g write $filter_bit1 0;
                 gpio -g write $filter_bit2 0;
-elif (( $SYMBOLRATEK \< 360 )); then
+elif [ "$SYMBOLRATEK" -lt "360" ] ; then
                 gpio -g write $filter_bit0 0;
                 gpio -g write $filter_bit1 1;
                 gpio -g write $filter_bit2 0;
-elif (( $SYMBOLRATEK \< 550 )); then
+elif [ "$SYMBOLRATEK" -lt "550" ] ; then
                 gpio -g write $filter_bit0 1;
                 gpio -g write $filter_bit1 1;
                 gpio -g write $filter_bit2 0;
-elif (( $SYMBOLRATEK \< 1100 )); then
+elif [ "$SYMBOLRATEK" -lt "1100" ] ; then
                 gpio -g write $filter_bit0 0;
                 gpio -g write $filter_bit1 0;
                 gpio -g write $filter_bit2 1;
-elif (( $SYMBOLRATEK \< 2200 )); then
+elif [ "$SYMBOLRATEK" -lt "2200" ] ; then
                 gpio -g write $filter_bit0 1;
                 gpio -g write $filter_bit1 0;
                 gpio -g write $filter_bit2 1;
@@ -206,10 +206,10 @@ ATTENUATOR=$(get_config_var attenuator $PCONFIGFILE)
 ATTENLEVEL=$(get_config_var attenlevel $PCONFIGFILE)
 
 #Change ATTENLEVEL sign if not 0 
-if (( $(bc <<< "$ATTENLEVEL < 0") )); then
-  ATTENLEVEL=${ATTENLEVEL:1}
-else
+if [ "$ATTENLEVEL" = "0" ] || [ "$ATTENLEVEL" = "0.0" ] || [ "$ATTENLEVEL" = "0.00" ] ; then
   ATTENLEVEL=0.00
+else
+  ATTENLEVEL=${ATTENLEVEL:1}
 fi
 
 case "$ATTENUATOR" in
@@ -230,7 +230,7 @@ esac
 ################ If DATV EXPRESS in use, Set Ports ########
 
 MODE_OUTPUT=$(get_config_var modeoutput $PCONFIGFILE)
-if [ $MODE_OUTPUT = "DATVEXPRESS" ]; then
+if [ "$MODE_OUTPUT" = "DATVEXPRESS" ] ; then
   echo "set port "$EXPPORTS >> /tmp/expctrl
 fi
 

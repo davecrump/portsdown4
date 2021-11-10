@@ -110,8 +110,8 @@ while [ "$GUI_RETURN_CODE" -gt 127 ] || [ "$GUI_RETURN_CODE" -eq 0 ];  do
       /home/pi/update.sh -d
     ;;
     134)
-      /home/pi/rpidatv/bin/xy
-      GUI_RETURN_CODE="129"
+      /home/pi/rpidatv/bin/power_meter xy
+      GUI_RETURN_CODE="$?"
     ;;
     135)
       cd /home/pi

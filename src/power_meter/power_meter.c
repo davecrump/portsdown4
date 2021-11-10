@@ -2517,6 +2517,25 @@ void *WaitButtonEvent(void * arg)
           Start_Highlights_Menu4();
           UpdateWindow();
           break;
+        case 7:                                            // Exit to Portsdown
+          if(PortsdownExitRequested)
+          {
+            freeze = true;
+            usleep(100000);
+            setBackColour(0, 0, 0);
+            wipeScreen(0, 0, 0);
+            usleep(1000000);
+            closeScreen();
+            cleanexit(129);
+          }
+          else
+          {
+            PortsdownExitRequested = true;
+            Start_Highlights_Menu1();
+            UpdateWindow();
+          }
+          break;
+
         case 8:
           if (freeze)
           {
@@ -2632,6 +2651,7 @@ void *WaitButtonEvent(void * arg)
         case 8:                                            // Return to Main Menu
           printf("Main Menu 1 Requested\n");
           CurrentMenu=1;
+          Start_Highlights_Menu1();
           UpdateWindow();
           break;
         case 9:
@@ -2679,7 +2699,8 @@ void *WaitButtonEvent(void * arg)
           break;
         case 7:                                            // Return to Main Menu
           printf("Main Menu 1 Requested\n");
-          CurrentMenu=1;
+          CurrentMenu = 1;
+          Start_Highlights_Menu1();
           UpdateWindow();
           break;
         case 8:
@@ -3216,13 +3237,26 @@ void Define_Menu1()  // XY Main Menu
   AddButtonStatus(button, "System", &Blue);
   AddButtonStatus(button, " ", &Green);
 
-  //button = CreateButton(1, 7);
-  //AddButtonStatus(button, "7", &Blue);
-  //AddButtonStatus(button, " ", &Green);
+  button = CreateButton(1, 7);
+  AddButtonStatus(button, "Exit to^Portsdown", &DBlue);
+  AddButtonStatus(button, "Exit to^Portsdown", &Red);
 
   button = CreateButton(1, 8);
   AddButtonStatus(button, "Freeze", &Blue);
   AddButtonStatus(button, "Unfreeze", &Green);
+}
+
+
+void Start_Highlights_Menu1()
+{
+  if (PortsdownExitRequested)
+  {
+    SetButtonStatus(ButtonNumber(1, 7), 1);
+  }
+  else
+  {
+    SetButtonStatus(ButtonNumber(1, 7), 0);
+  }
 }
 
 
@@ -4781,7 +4815,7 @@ static void terminate(int dummy)
 }
 
 
-int main()
+int main(int argc, char **argv)
 {
   int NoDeviceEvent=0;
   wscreen = 800;
@@ -4854,6 +4888,29 @@ int main()
   Define_Menu41();
 
   ReadSavedParams();
+
+  // Check if starting in Power Meter or XY mode
+  if( argc == 1)
+  {
+    printf("No arguments, Starting with Power meter\n");
+  }  
+  else if( argc == 2 )
+  {
+    //printf("%d arguments, Starting with Power meter %s\n", argc, argv[1]);
+
+    // 1 Argument provided
+    if(strcmp(argv[1], "xy") == 0)
+    {
+      ContScan = false;
+      Meter = false;
+      ModeChanged = true;
+    }
+  }
+  else
+  {
+    printf("ERROR: Incorrect number of parameters!\n");
+    return 0;
+  }
 
   // Create Wait Button thread
   pthread_create (&thbutton, NULL, &WaitButtonEvent, NULL);
