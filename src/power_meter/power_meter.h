@@ -53,6 +53,7 @@ void Define_Menu6();                 // Meter (Main) Menu
 void Define_Menu7();
 void Define_Menu8();
 void Define_Menu9();
+void Start_Highlights_Menu1();
 void Start_Highlights_Menu4();
 void Start_Highlights_Menu5();
 void Start_Highlights_Menu6();

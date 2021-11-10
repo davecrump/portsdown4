@@ -19,7 +19,6 @@
 
 #define NEON_ALIGNMENT (4*4*2) // From libcsdr
 
-//int64_t lo_frequency = 9750000;
 int64_t center_frequency = 10489850000;
 int64_t span_frequency = 512000;
 
@@ -39,20 +38,9 @@ screen_pixel_t main_waterfall_buffer[MAIN_WATERFALL_HEIGHT][MAIN_WATERFALL_WIDTH
 
 #define MAIN_SPECTRUM_WIDTH     512
 #define MAIN_SPECTRUM_HEIGHT    170
-//screen_pixel_t main_spectrum_buffer[MAIN_SPECTRUM_HEIGHT][MAIN_SPECTRUM_WIDTH] __attribute__ ((aligned (NEON_ALIGNMENT)));
+
 #define MAIN_SPECTRUM_TIME_SMOOTH   0.8f
 float main_spectrum_smooth_buffer[MAIN_SPECTRUM_WIDTH] = { 0 };
-
-//#define MAIN_SPECTRUM_POS_X     100
-//#define MAIN_SPECTRUM_POS_Y     (SCREEN_HEIGHT - MAIN_WATERFALL_HEIGHT - MAIN_SPECTRUM_HEIGHT - 70)
-
-/** Frequency Display **/
-
-#define FREQUENCY_WIDTH         256
-#define FREQUENCY_HEIGHT        43
-screen_pixel_t frequency_buffer[FREQUENCY_HEIGHT][FREQUENCY_WIDTH] __attribute__ ((aligned (NEON_ALIGNMENT)));
-
-//////// New bits:
 
 char *fbp = 0;
 int fbfd = 0;
@@ -81,19 +69,9 @@ typedef struct {
 
 
 screen_pixel_t2 main_spectrum_buffer[MAIN_SPECTRUM_HEIGHT][MAIN_SPECTRUM_WIDTH] __attribute__ ((aligned (NEON_ALIGNMENT)));
-//#define MAIN_SPECTRUM_TIME_SMOOTH   0.8f
-//float main_spectrum_smooth_buffer[MAIN_SPECTRUM_WIDTH] = { 0 };
 
 #define MAIN_SPECTRUM_POS_X     100
 #define MAIN_SPECTRUM_POS_Y     (SCREEN_HEIGHT - MAIN_WATERFALL_HEIGHT - MAIN_SPECTRUM_HEIGHT - 70)
-
-
-
-
-
-
-//////// End new Bits
-
 
 const screen_pixel_t graphics_white_pixel =
 {
@@ -230,14 +208,10 @@ static void spectrum_render(void)
   }
 }
 
-//static void frequency_render_font_cb(int x, int y, screen_pixel_t *pixel_ptr)
-//{
-//  memcpy(&(frequency_buffer[y][x]), pixel_ptr, sizeof(screen_pixel_t));
-//}
-
 
 static uint32_t main_waterfall_counter = (MAIN_WATERFALL_HEIGHT-1);
 /* Takes 512byte FFT */
+
 void waterfall_render_fft(uint8_t *fft_data)
 {
 #if 0
