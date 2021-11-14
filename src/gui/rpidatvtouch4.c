@@ -4514,7 +4514,7 @@ void CheckLimeReady()
     {
       if (CheckLimeUSBConnect() == 0)
       {
-        MsgBox2("LimeUSB Detected, LimeMini Selected", "Please select LimeMini");
+        MsgBox2("Lime USB Detected, Lime Mini Selected", "Please select LimeSDR USB");
       }
       else
       {
@@ -4529,7 +4529,7 @@ void CheckLimeReady()
     {
       if (CheckLimeMiniConnect() == 0)
       {
-        MsgBox2("LimeMini Detected, LimeUSB Selected", "Please select LimeUSB");
+        MsgBox2("Lime Mini Detected, Lime USB Selected", "Please select LimeSDR Mini");
       }
       else
       {
