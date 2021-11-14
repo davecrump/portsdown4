@@ -69,6 +69,7 @@ void *lime_thread(void *arg)
         device_info->deviceName,
         device_info->boardSerialNumber
     );
+
     printf(" - Hardware: v%s, Firmware: v%s, Gateware: v%s\n",
         device_info->hardwareVersion,
         device_info->firmwareVersion,
@@ -145,7 +146,25 @@ void *lime_thread(void *arg)
     LMS_GetLOFrequency(device, LMS_CH_RX, 0, &rxfreq);
     printf("RXFREQ after cal = %f\n", rxfreq);
 
-    // Antenna is set automatically by LimeSuite
+    // Antenna is set automatically by LimeSuite for LimeSDR Mini
+    // but needs setting for LimeSDR USB.  Options:
+    // LMS_SetAntenna(device, LMS_CH_RX, 0, 1); //LNA_H
+    // LMS_SetAntenna(device, LMS_CH_RX, 0, 2); //LNA_L
+    // LMS_SetAntenna(device, LMS_CH_RX, 0, 3); //LNA_W
+
+    if (strcmp(device_info->deviceName, "LimeSDR-USB") ==0)
+    {
+      if (frequency_actual_rx >= 2e9)
+      {
+        LMS_SetAntenna(device, LMS_CH_RX, 0, 1); //LNA_H
+        //printf("LNA_H Success\n");
+      }
+      else
+      {
+        LMS_SetAntenna(device, LMS_CH_RX, 0, 2); //LNA_L
+        //printf("LNA_L Success\n");
+      }
+    }
 
     // Set the Analog LPF bandwidth
     LMS_SetLPFBW(device, LMS_CH_RX, 0, (bandwidth * 1.2));
@@ -222,6 +241,21 @@ void *lime_thread(void *arg)
 
           LMS_GetLOFrequency(device, LMS_CH_RX, 0, &rxfreq);
           printf("RXFREQ after cal = %f\n", rxfreq);
+
+          // Set correct Antenna port for LimeSDR_ USB:
+          if (strcmp(device_info->deviceName, "LimeSDR-USB") ==0)
+          {
+            if (frequency_actual_rx >= 2e9)
+            {
+              LMS_SetAntenna(device, LMS_CH_RX, 0, 1); //LNA_H
+              //printf("LNA_H Success\n");
+            }
+            else
+            {
+              LMS_SetAntenna(device, LMS_CH_RX, 0, 2); //LNA_L
+              //printf("LNA_L Success\n");
+            }
+          }
         }
 
         if (NewCal == true)

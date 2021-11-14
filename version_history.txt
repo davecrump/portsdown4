@@ -1,6 +1,8 @@
 202111120
-DVB-T for LimeSDR USB
-XY Display
+Add DVB-T for LimeSDR USB
+Correct port selection for LimeSDR USB on Bandview and NF Meter
+Bugfix NF Meter readings after calibration
+Add XY Display
 
 202110301
 Enable USB and EasyCap Audio with Pluto C920 DVB-S and DVB-S2
