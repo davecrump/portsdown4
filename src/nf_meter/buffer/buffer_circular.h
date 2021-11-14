@@ -38,9 +38,9 @@ void buffer_circular_waitPop(buffer_circular_t *buffer_ptr, uint32_t maxLength, 
 void buffer_circular_waitThresholdPop(buffer_circular_t *buffer_ptr, uint32_t minLength, uint32_t maxLength, void *data, uint32_t *length);
 
 /** Declared Buffer Objects **/
-buffer_circular_t buffer_circular_iq_main;
-buffer_circular_t buffer_circular_iq_if;
-buffer_circular_t buffer_circular_audio;
+extern buffer_circular_t buffer_circular_iq_main;
+extern buffer_circular_t buffer_circular_iq_if;
+extern buffer_circular_t buffer_circular_audio;
 
 #endif /* __BUFFER_CIRCULAR_H__ */
 

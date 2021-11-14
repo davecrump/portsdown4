@@ -127,6 +127,7 @@ bool ModeChanged = true;
 int MeterScale = 1;
 float ActiveZero = 30.0;
 float ActiveFSD = 0.0;
+uint8_t NoiseSourceGPIO = 11;   // Noise source pin 26 wPi 11
 
 int tracecount = 0;  // Used for speed testing
 int exit_code;
@@ -3838,10 +3839,10 @@ void *MeterMovement(void * arg)
         current_cos = cos(meter_angle);
 
         // Overwrite previous position
-        DrawAALine(475, 290, 475 + (int)(154.0 * previous_sin), 290 + (int)(154.0 * previous_cos), 0, 0, 0, 0, 0, 0);
+        DrawAALine(475, 290, 475 + (int)(153.0 * previous_sin), 290 + (int)(153.0 * previous_cos), 0, 0, 0, 0, 0, 0);
 
         // Write new position
-        DrawAALine(475, 290, 475 + (int)(154.0 * current_sin), 290 + (int)(154.0 * current_cos), 0, 0, 0, 255, 255, 255);
+        DrawAALine(475, 290, 475 + (int)(153.0 * current_sin), 290 + (int)(153.0 * current_cos), 0, 0, 0, 255, 255, 255);
 
         // Set up for overwrite next time
         previous_sin = current_sin;
@@ -3852,8 +3853,6 @@ void *MeterMovement(void * arg)
   }
   return NULL;
 }
-
-
 
 
 void CalibrateSystem()
@@ -3883,7 +3882,8 @@ static void terminate(int sig)
   char Commnd[255];
   sprintf(Commnd,"stty echo");
   system(Commnd);
-
+  // Turn off Noise Source
+  digitalWrite(NoiseSourceGPIO, LOW);
   printf("scans = %d\n", tracecount);
   exit(0);
 }
@@ -3985,9 +3985,6 @@ int main(void)
     return 0;
   }
 
-  // Noise source pin 26 wPi 11
-  uint8_t NoiseSourceGPIO = 11;
-
   // Set all nominated pins to outputs
   pinMode(NoiseSourceGPIO, OUTPUT);
 
@@ -4007,6 +4004,8 @@ int main(void)
   screen_init();
 
   initScreen();
+
+  UpdateWindow();
 
   MsgBox4("Starting the Band Viewer", "Profiling FFTs on first use", "Please wait 80 seconds", "No delay next time");
 
@@ -4186,7 +4185,7 @@ int main(void)
 
           CalpwrTotalHot =  CalpwrTotalHot / 20.0;
           CalpwrTotalCold =  CalpwrTotalCold / 20.0;
-          CalNFsys = CalNFsys / 10;
+          CalNFsys = CalNFsys / 20.0;
 
           Calibrated = true;
           CalibrateRequested = false;

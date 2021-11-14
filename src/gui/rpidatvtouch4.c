@@ -4514,7 +4514,7 @@ void CheckLimeReady()
     {
       if (CheckLimeUSBConnect() == 0)
       {
-        MsgBox2("LimeUSB Detected, LimeMini Selected", "Please select LimeMini");
+        MsgBox2("Lime USB Detected, Lime Mini Selected", "Please select LimeSDR USB");
       }
       else
       {
@@ -4529,7 +4529,7 @@ void CheckLimeReady()
     {
       if (CheckLimeMiniConnect() == 0)
       {
-        MsgBox2("LimeMini Detected, LimeUSB Selected", "Please select LimeUSB");
+        MsgBox2("Lime Mini Detected, Lime USB Selected", "Please select LimeSDR Mini");
       }
       else
       {
@@ -6420,6 +6420,7 @@ void GreyOutReset11()
   SetButtonStatus(ButtonNumber(CurrentMenu, 2), 0); // 16 APSK
   SetButtonStatus(ButtonNumber(CurrentMenu, 3), 0); // 32APSK
   SetButtonStatus(ButtonNumber(CurrentMenu, 6), 0); // carrier
+  SetButtonStatus(ButtonNumber(CurrentMenu, 7), 0); // Show DVB-T
 }
 
 void GreyOut11()
@@ -6432,7 +6433,7 @@ void GreyOut11()
    && (strcmp(CurrentModeOP, "COMPVID") != 0)
    && (strcmp(CurrentModeOP, "IP") != 0)
    && (strcmp(CurrentModeOP, "JLIME") != 0)
-   && (strcmp(CurrentModeOP, "JEXPRESS") != 0)) // not DVB-S2-capable
+   && (strcmp(CurrentModeOP, "JEXPRESS") != 0)) // so selection is not DVB-S2-capable
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 0), 2); // grey-out S2 QPSK
     SetButtonStatus(ButtonNumber(CurrentMenu, 1), 2); // grey-out 8PSK
@@ -6466,12 +6467,13 @@ void GreyOut11()
     SetButtonStatus(ButtonNumber(CurrentMenu, 9), 2); // grey-out Frames long/short
     SetButtonStatus(ButtonNumber(CurrentMenu, 7), 0); // Show DVB-T
   }
-  else
+
+  if (strcmp(CurrentModeOP, "EXPRESS") == 0
+   || (strcmp(CurrentModeOP, "LIMEDVB") == 0)
+   || (strcmp(CurrentModeOP, "JLIME") == 0)
+   || (strcmp(CurrentModeOP, "JEXPRESS") == 0)) // so selection is not DVB-T-capable
   {
-    if (strcmp(CurrentModeOP, "LIMEMINI") != 0)
-    {
-      SetButtonStatus(ButtonNumber(CurrentMenu, 7), 2); // Grey-out DVB-T
-    }
+    SetButtonStatus(ButtonNumber(CurrentMenu, 7), 2); // Grey-out DVB-T
   }
 }
 
@@ -8586,6 +8588,7 @@ void TransmitStop()
   system("sudo killall arecord >/dev/null 2>/dev/null");
   system("sudo killall dvb_t_stack >/dev/null 2>/dev/null");
   system("sudo killall /home/pi/rpidatv/bin/dvb_t_stack_lime > /dev/null 2>/dev/null");
+  system("sudo killall /home/pi/rpidatv/bin/dvb_t_stack_limeusb > /dev/null 2>/dev/null");
 
   if((strcmp(ModeOutput, "IQ") == 0) || (strcmp(ModeOutput, "QPSKRF") == 0))
   {
@@ -16190,6 +16193,10 @@ void waituntil(int w,int h)
             wait_touch();
           }
           break;
+        case 14:                                                 // XY Display
+          DisplayLogo();
+          cleanexit(134);
+          break;
         case 21:                              // Menu 1
           printf("MENU 1 \n");
           CurrentMenu=1;
@@ -19608,6 +19615,9 @@ void Define_Menu7()
 
   button = CreateButton(7, 13);
   AddButtonStatus(button, "NF^Meter", &Blue);
+
+  button = CreateButton(7, 14);
+  AddButtonStatus(button, "XY^Display", &Blue);
 
   // 4th line up Menu 7: 
 
