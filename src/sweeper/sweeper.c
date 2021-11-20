@@ -2471,7 +2471,7 @@ void *WaitButtonEvent(void * arg)
           wipeScreen(0, 0, 0);
           usleep(1000000);
           closeScreen();
-          cleanexit(137);
+          cleanexit(139);
           break;
         case 7:                                            // Return to Main Menu
           printf("Main Menu 1 Requested\n");
