@@ -16161,6 +16161,10 @@ void waituntil(int w,int h)
           UpdateWindow();
           usleep(500000);
           break;
+        case 5:                                                 // Sweeper
+          DisplayLogo();
+          cleanexit(139);
+          break;
         case 10:                                                 // Signal Generator
           DisplayLogo();
           cleanexit(130);
@@ -19601,6 +19605,9 @@ void Define_Menu7()
   AddButtonStatus(button, "Button 5", &Green);
 
   // 2nd line up Menu 7:  
+
+  button = CreateButton(7, 5);
+  AddButtonStatus(button, "Frequency^Sweeper", &Blue);
 
   // 3rd line up Menu 7:
 
