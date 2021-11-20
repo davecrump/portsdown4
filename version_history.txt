@@ -1,3 +1,6 @@
+202111200
+Add experimental Frequency Sweeper
+
 202111120
 Add DVB-T for LimeSDR USB
 Correct port selection for LimeSDR USB on Bandview and NF Meter
