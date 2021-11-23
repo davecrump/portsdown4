@@ -17,25 +17,23 @@
 #include <pthread.h>
 #include <ctype.h>
 #include <stdbool.h>
+#include <lime/LimeSuite.h>
 
 #include "font/font.h"
 #include "touch.h"
 #include "Graphics.h"
 #include "mcp3002.h"
-#include "power_meter.h"
+#include "sweeper.h"
 
 #define PI 3.14159265358979323846
 
 pthread_t thbutton;
-pthread_t thMeter_Movement;
 
 pthread_mutex_t text_lock;
 
 int fd = 0;
 int wscreen, hscreen;
 float scaleXvalue, scaleYvalue; // Coeff ratio from Screen/TouchArea
-
-
 
 #define MAX_STATUS 6
 typedef struct
@@ -56,13 +54,13 @@ color_t DGrey = {.r = 32 , .g = 32 , .b = 32 };
 color_t Red   = {.r = 255, .g = 0  , .b = 0  };
 color_t Black = {.r = 0  , .g = 0  , .b = 0  };
 
-#define PATH_XYCONFIG "/home/pi/rpidatv/src/power_meter/pm_config.txt"
+#define PATH_SWEEPER_CONFIG "/home/pi/rpidatv/src/sweeper/sweeper_config.txt"
 
 #define MAX_BUTTON 675
 int IndexButtonInArray=0;
 button_t ButtonArray[MAX_BUTTON];
-int CurrentMenu = 6;
-int CallingMenu = 6;
+int CurrentMenu = 1;
+int CallingMenu = 1;
 char KeyboardReturn[64];
 
 int Inversed = 0;
@@ -71,12 +69,12 @@ char DisplayType[31] = "Element14_7";
 int wbuttonsize = 100;
 int hbuttonsize = 50;
 int rawX, rawY;
-int FinishedButton = 0;
 int i;
 bool freeze = false;
 bool frozen = false;
 bool normalised = false;
 bool normalising = false;
+bool normalise_requested = false;
 bool activescan = false;
 bool finishednormalising = false;
 int y[501];               // Actual displayed values on the chart
@@ -86,12 +84,13 @@ int normleveloffset = 300;
 
 int startfreq = 0;
 int stopfreq = 0;
-int rbw = 0;
-int reflevel = 99;
+int centrefreq = 437000;
+int freqspan = 50000;
+int points = 500;
+int stride = 1;
 int normlevel = -20;
 char PlotTitle[63] = "-";
 bool ContScan = false;
-bool Meter = true;
 bool ModeChanged = true;
 bool PortsdownExitRequested = false;
 bool app_exit = false;
@@ -108,34 +107,27 @@ int manualmarkerx = 250;
 int tracecount = 0;  // Used for speed testing
 int exit_code;
 
-int yscalenum = 18;       // Numerator for Y scaling fraction
-int yscaleden = 30;       // Denominator for Y scaling fraction
-int yshift    = 5;        // Vertical shift (pixels) for Y
+char Sensor[63];     // ad8318-3
+char Source[63];     // lime
 
-int xmin = 30;            // Trigger value for start of scan
-int xscalenum = 26;       // Numerator for X scaling fraction
-int xscaleden = 20;       // Denominator for X scaling fraction
+// Lime Control
+bool LimeCalibrated = false;
+bool LimeCalRequired = true;
+bool LimeOPOnRequested = false;
+bool LimeOPOn = false;
+bool LimeRun = false;
+bool DoLimeCal = false;
+int64_t LimeCalFreq;
+int LimeGain = 88;
 
-int meter_deflection = -110;
-char MeterSensor[63];     // ad8318-3
-char MeterTitle[63] = "-";
-char MeterSource[63] = "dbm" ;     // dbm mw volts a-d db
-char MeterRange[63];
-char MetermWRange[63];
-char MeterZero[63];
-char MeterAtten[63];
-char MeterCalFactor[63];
-int Meterrange;
-float Metermwrange;
-int Meterzero;
-float Meteratten;
-int Metercalfactor;
-char MeterUnits[63] = "dBm";
-float ActiveZero = -80.0;
-float ActiveFSD = 20.0;
+int64_t DisplayFreq = 437000000;
+
+//Lime SDR Device structure, should be initialized to NULL
+static lms_device_t* device = NULL;
+pthread_t thlimestream;        //
 
 
-///////////////////////////////////////////// SCREEN AND TOUCH UTILITIES ////////////////////////
+///////////////////////////////////////////// DATA HANDLING UTILITIES ////////////////////////
 
 
 /***************************************************************************//**
@@ -236,58 +228,313 @@ void SetConfigParam(char *PathConfigFile, char *Param, char *Value)
 
 void ReadSavedParams()
 {
-  char response[63]="0";
-  GetConfigParam(PATH_XYCONFIG, "startfreq", response);
-  startfreq = atoi(response);
+  char response[63] = "0";
+
+  GetConfigParam(PATH_SWEEPER_CONFIG, "centrefreq", response);
+  centrefreq = atoi(response);
 
   strcpy(response, "0");
-  GetConfigParam(PATH_XYCONFIG, "stopfreq", response);
-  stopfreq = atoi(response);
+  GetConfigParam(PATH_SWEEPER_CONFIG, "freqspan", response);
+  freqspan = atoi(response);
 
-  strcpy(response, "99");  // this is the "do not display" level
-  GetConfigParam(PATH_XYCONFIG, "reflevel", response);
-  reflevel = atoi(response);
+  startfreq = centrefreq + freqspan / 2;
+  stopfreq = centrefreq - freqspan / 2;
+
+  strcpy(response, "0");
+  GetConfigParam(PATH_SWEEPER_CONFIG, "points", response);
+  points = atoi(response);
+  if (points == 0)
+  {
+    points = 500;
+    printf ("Error: Points read from config file as 0.\n");
+  }
+  stride = 500 / points;
 
   strcpy(response, "-20");  // this is the default level
-  GetConfigParam(PATH_XYCONFIG, "normlevel", response);
+  GetConfigParam(PATH_SWEEPER_CONFIG, "normlevel", response);
   normlevel = atoi(response);
 
-  strcpy(response, "0");  // this is the "do not display" level
-  GetConfigParam(PATH_XYCONFIG, "rbw", response);
-  rbw = atoi(response);
-
   strcpy(PlotTitle, "-");  // this is the "do not display" response
-  GetConfigParam(PATH_XYCONFIG, "title", PlotTitle);
+  GetConfigParam(PATH_SWEEPER_CONFIG, "title", PlotTitle);
 
-  strcpy(MeterSensor, "-");  // like ad8318-3
-  GetConfigParam(PATH_XYCONFIG, "metersensor", MeterSensor);
+  strcpy(Sensor, "-");  // like ad8318-3
+  GetConfigParam(PATH_SWEEPER_CONFIG, "sensor", Sensor);
 
-  strcpy(MeterTitle, "-");  // this is the "do not display" response
-  GetConfigParam(PATH_XYCONFIG, "metertitle", MeterTitle);
+  strcpy(Source, "-");  // like lime
+  GetConfigParam(PATH_SWEEPER_CONFIG, "source", Source);
 
-  strcpy(MeterSource, "-");  // like dbm or mw
-  GetConfigParam(PATH_XYCONFIG, "metersource", MeterSource);
+  strcpy(response, "88");  // this is the default level
+  GetConfigParam(PATH_SWEEPER_CONFIG, "limegain", response);
+  LimeGain = atoi(response);
 
-  strcpy(MeterRange, "10");  // integer units from 0 to FSD min 5 max 100
-  GetConfigParam(PATH_XYCONFIG, "meterrange", MeterRange);
-  Meterrange = atoi(MeterRange);
+}
 
-  strcpy(MeterZero, "0");  // Integer Meter zero value
-  GetConfigParam(PATH_XYCONFIG, "meterzero", MeterZero);
-  Meterzero = atoi(MeterZero);
+void initSource(int64_t DisplayFreq)
+{
+  if(strcmp(Source, "lime") == 0)
+  {
+    LimeRun = true;
+    pthread_create (&thlimestream, NULL, &LimeStream, NULL);
+  }
+}
 
-  strcpy(MetermWRange, "1.0");  // 
-  GetConfigParam(PATH_XYCONFIG, "metermwrange", MetermWRange);
-  Metermwrange = atof(MetermWRange);
+void CalibrateSource()
+{
+  if(strcmp(Source, "lime") == 0)
+  {
+    DoLimeCal = true;
+
+    // Wait for cal to finish before scanning again
+    while (DoLimeCal == true)
+    {
+      usleep(1000);
+      freeze = true;
+    }
+    freeze = false;
+  }
+}
+
+void setOutput(int64_t DisplayFreq)
+{
+  if(strcmp(Source, "lime") == 0)
+  {
+    // Check bounds
+    if (DisplayFreq > 3500000000)
+    {
+      DisplayFreq = 3500000000;
+    }
+    if (DisplayFreq < 25000000)
+    {
+      DisplayFreq = 25000000;
+    }
+    if (LMS_SetLOFrequency(device, LMS_CH_TX, 0, (double)(DisplayFreq)) != 0)
+    {
+      printf("Error - unable to set Lime Frequency %lld in setLime\n", DisplayFreq);
+    }
+  }
+}
+
+void *LimeStream(void * arg)
+{
+  const double frequency = (double)(DisplayFreq);  //
+  const double sample_rate = 5e6;    //sample rate to 5 MHz
+  const double tone_freq = 1e6; //tone frequency
+  const double f_ratio = tone_freq/sample_rate;
+
+  //CheckLimeReady();
+
+  //Find devices
+  int n;
+  lms_info_str_t list[8]; //should be large enough to hold all detected devices
+  if ((n = LMS_GetDeviceList(list)) < 0) //NULL can be passed to only get number of devices
+  {
+    printf("Error - unable to find Lime Device\n");
+  }
+
+  //open the first device
+  if (LMS_Open(&device, list[0], NULL))
+  {
+    printf("Error - unable to open first Lime Device\n");
+  }
+
+  //Initialize device with default configuration
+  //Do not use if you want to keep existing configuration
+  //Use LMS_LoadConfig(device, "/path/to/file.ini") to load config from INI
+  if (LMS_Init(device)!=0)
+  {
+    printf("Error - unable to initialise Lime Device\n");
+  }
+
+  //Enable TX channel,Channels are numbered starting at 0
+  if (LMS_EnableChannel(device, LMS_CH_TX, 0, true)!=0)
+  {
+    printf("Error - unable to enable TX Channel\n");
+  }
+
+  //Set sample rate
+  if (LMS_SetSampleRate(device, sample_rate, 0)!=0)
+  {
+    printf("Error - unable to set Lime sample rate\n");
+  }
+
+  //Set inital center frequency
+  if (LMS_SetLOFrequency(device, LMS_CH_TX, 0, frequency)!=0)
+  {
+    printf("Error - unable to set Lime Frequency in LimeStream\n");
+  }
+
+  //set TX gain for calibration
+  if (LMS_SetNormalizedGain(device, LMS_CH_TX, 0, 0.9) != 0)
+  {
+    printf("Error - unable to set Lime Gain\n");
+  }
+
+  //calibrate Tx, continue on failure
+  if (LMS_Calibrate(device, LMS_CH_TX, 0, sample_rate, 0) != 0)
+  {
+    printf("Error - unable to Calibrate on first attempt\n");
+  }
+  LimeCalibrated = true;
+  LimeCalRequired = false;
 
 
-  strcpy(MeterAtten, "0");  // dB of ext atten
-  GetConfigParam(PATH_XYCONFIG, "meteratten", MeterAtten);
-  Meteratten = atof(MeterAtten);
+  if (LMS_SetNormalizedGain(device, LMS_CH_TX, 0, 0.01) != 0)  // set gain to low lwevel
+  {
+    printf("Error - unable to set Lime Gain\n");
+  }
+    
+    //Streaming Setup 
+    lms_stream_t tx_stream;                 //stream structure
+    tx_stream.channel = 0;                  //channel number
+    tx_stream.fifoSize = 256*1024;          //fifo size in samples
+    tx_stream.throughputVsLatency = 0.5;    //0 min latency, 1 max throughput
+    tx_stream.dataFmt = LMS_FMT_F32;      //floating point samples
+    tx_stream.isTx = true;                  //TX channel
+    LMS_SetupStream(device, &tx_stream);
 
-  strcpy(MeterCalFactor, "100");  // %
-  GetConfigParam(PATH_XYCONFIG, "metercalfactor", MeterCalFactor);
-  Metercalfactor = atoi(MeterCalFactor);
+    //Initialize data buffers
+    const int buffer_size = 1024*8;
+    float tx_buffer[2*buffer_size];     //buffer to hold complex values (2*samples))
+    int i;
+
+    for (i = 0; i <buffer_size; i++)       //generate TX tone
+    {
+      //const double pi = acos(-1);
+      //double w = 2*pi*i*f_ratio;
+      //tx_buffer[2*i] = cos(w);
+      //tx_buffer[2*i+1] = sin(w);
+      tx_buffer[2*i] = 1.0;
+      tx_buffer[2*i+1] = 0.0;
+    }  
+
+    float null_buffer[2 * buffer_size];
+    for (i = 0; i < (2 * buffer_size); i++)       // Initialise null array
+    {
+      null_buffer[i] = 0.0;
+    }  
+
+
+    const int send_cnt = (int)(buffer_size*f_ratio) / f_ratio; 
+
+    LMS_StartStream(&tx_stream);         // Start streaming
+
+    while (LimeRun) 
+    {
+      int ret;
+      if (LimeOPOnRequested != LimeOPOn)   // Change of state
+      {
+        if (LimeOPOnRequested)             // Set the Lime Gain to the requested Level
+        {
+          if (LMS_SetNormalizedGain(device, LMS_CH_TX, 0, (float)LimeGain * 0.01) != 0)
+          {
+            printf("Error - unable to set Lime Gain\n");
+          }
+          LimeOPOn = true;
+        }
+        else
+        {
+          if (LMS_SetNormalizedGain(device, LMS_CH_TX, 0, 0.01) != 0)
+          {
+            printf("Error - unable to set Lime Gain\n");
+          }
+          LimeOPOn = false;
+        }
+      }
+      if (DoLimeCal)
+      {
+        if (LMS_SetNormalizedGain(device, LMS_CH_TX, 0, 0.7) != 0)  // set gain to enable cal
+        {
+          printf("Error - unable to set Lime Gain\n");
+        }
+
+        // Calibrate
+        if (LMS_Calibrate(device, LMS_CH_TX, 0, sample_rate, 0) != 0)  // 
+        {
+          printf("Error - unable to Calibrate in LimeRun\n");
+        }
+
+        if (LimeOPOn)                                              // If output is on
+        {
+          if (LMS_SetNormalizedGain(device, LMS_CH_TX, 0, (float)LimeGain * 0.01) != 0)  // set gain to output level
+          {
+            printf("Error - unable to set Lime Gain\n");
+          }
+        }
+        else 
+        {
+          if (LMS_SetNormalizedGain(device, LMS_CH_TX, 0, 0.01) != 0)  // set gain to low level
+          {
+            printf("Error - unable to set Lime Gain\n");
+          }
+        }
+        DoLimeCal = false;
+        LimeCalibrated = true;
+        LimeCalRequired = false;
+        LimeCalFreq = DisplayFreq / 1000; // in kHz
+      }
+      if (LimeOPOn)
+      {
+        //Transmit USB samples
+        ret = LMS_SendStream(&tx_stream, tx_buffer, send_cnt, NULL, 1000);
+      }
+      else
+      {
+        //Transmit null samples
+        ret = LMS_SendStream(&tx_stream, null_buffer, send_cnt, NULL, 1000);
+      }
+   
+      if (ret != send_cnt)
+      {
+        printf("error: samples sent: error: %d samples sent\n", ret);
+      }
+    }
+
+    // LimeRun is false, so stop the stream
+    printf("Stopping stream and closing Lime\n");
+
+    // Stop Stream
+    if (LMS_StopStream(&tx_stream) != 0)  
+    {
+      printf("Error - unable to set stop stream\n");
+    }
+    printf("Stream Stopped\n");
+
+    // Destroy Stream
+    if (LMS_DestroyStream(device, &tx_stream) != 0) 
+    {
+      printf("Error - unable to set destroy stream\n");
+    }
+    printf("Stream Destroyed\n");
+
+    //Disable TX channel
+    if (LMS_EnableChannel(device, LMS_CH_TX, 0, false) != 0)
+    {
+      printf("Error - unable to Disable Lime TX Channel\n");
+    }
+    printf("TX Channel Disabled\n");
+
+
+  //Close device
+  if (LMS_Close(device) == 0)
+  {
+    printf("LimeSDR Device Closed\n");
+  }
+  
+  printf("Lime shutdown complete\n");
+
+  LimeOPOn = false;
+  return NULL;
+}
+
+void LimeOff()
+{
+  if (LimeRun)
+  {
+    LimeRun = false;
+    pthread_join(thlimestream, NULL);
+  }
+
+  system("/home/pi/rpidatv/bin/limesdr_stopchannel");
 }
 
 
@@ -682,7 +929,7 @@ void Keyboard(char RequestText[64], char InitText[64], int MaxLength)
         DrawButton(ButtonNumber(41, token));
         //UpdateWindow();
 
-        if (strlen(EditText) < 33) // Don't let it overflow
+        if (strlen(EditText) < 30) // Don't let it overflow
         {
         // Copy the text to the left of the insert point
         strncpy(PreCuttext, &EditText[0], CursorPos);
@@ -950,7 +1197,7 @@ int CreateButton(int MenuIndex, int ButtonPosition)
 
   ButtonIndex = ButtonNumber(MenuIndex, ButtonPosition);
 
-  if ((MenuIndex != 41) && (MenuIndex != 2) && (MenuIndex != 6))   // All except keyboard, Markers, Main Power
+  if ((MenuIndex != 41) && (MenuIndex != 2))   // All except keyboard, Markers
   {
     if (ButtonPosition == 0)  // Capture
     {
@@ -968,7 +1215,7 @@ int CreateButton(int MenuIndex, int ButtonPosition)
       h = 50;
     }
   }
-  else if ((MenuIndex == 2) || (MenuIndex == 6))  // Marker or Power(main) Menu
+  else if (MenuIndex == 2)  // Marker Menu
   {
     if (ButtonPosition == 0)  // Capture
     {
@@ -1294,6 +1541,24 @@ void wait_touch()
 }
 
 
+void MsgBox4(char *message1, char *message2, char *message3, char *message4)
+{
+  // Display a 4-line message
+  setForeColour(255, 255, 255);    // White text
+  setBackColour(0, 0, 0);          // on Black
+  const font_t *font_ptr = &font_dejavu_sans_28;
+  int txtht =  font_ptr->ascent;
+  int linepitch = (14 * txtht) / 10;
+
+  clearScreen();
+  TextMid2(wscreen / 2, hscreen - (linepitch * 2), message1, font_ptr);
+  TextMid2(wscreen / 2, hscreen - 2 * (linepitch * 2), message2, font_ptr);
+  TextMid2(wscreen / 2, hscreen - 3 * (linepitch * 2), message3, font_ptr);
+  TextMid2(wscreen / 2, hscreen - 4 * (linepitch * 2), message4, font_ptr);
+}
+
+
+
 void CalculateMarkers()
 {
 //int markerx = 250;
@@ -1303,9 +1568,9 @@ void CalculateMarkers()
 
   int maxy;
   int xformaxy = 0;
-  int xsum = 0;
-  int ysum = 0;
-  int markersamples = 10;
+  //int xsum = 0;
+  //int ysum = 0;
+  //int markersamples = 10;
   char markerlevel[31];
   char markerfreq[31];
   float markerlev;
@@ -1345,37 +1610,42 @@ void CalculateMarkers()
   }
 
   // Now smooth the marker 
-  markerxhistory[historycount] = xformaxy;
-  markeryhistory[historycount] = maxy;
+  //markerxhistory[historycount] = xformaxy;
+  //markeryhistory[historycount] = maxy;
 
-  for (i = 0; i < markersamples; i++)
-  {
-    xsum = xsum + markerxhistory[i];
-    ysum = ysum + markeryhistory[i];
-  }
+  //for (i = 0; i < markersamples; i++)
+  //{
+  //  xsum = xsum + markerxhistory[i];
+  //  ysum = ysum + markeryhistory[i];
+  //}
 
-  historycount++;
-  if (historycount > (markersamples - 1))
-  {
-    historycount = 0;
-  }
-  markerx = 100 + (xsum / markersamples);
-  markery = 410 - (ysum / markersamples);
+  //historycount++;
+  //if (historycount > (markersamples - 1))
+  //{
+  //  historycount = 0;
+  //}
+
+  //markerx = 100 + (xsum / markersamples);
+  //markery = 410 - (ysum / markersamples);
+
+  markerx = 100 + xformaxy;
+  markery = 410 - maxy;
 
   // And display it
   markerlev = ((float)(410 - markery) / 5) - 80.0;
   rectangle(620, 420, 160, 60, 0, 0, 0);  // Blank the Menu title
+  pthread_mutex_lock(&text_lock);
+  setBackColour(0, 0, 0);
   snprintf(markerlevel, 31, "Mkr %0.1f dB", markerlev);
   TextMid2(700, 450, markerlevel, &font_dejavu_sans_18);
+  pthread_mutex_unlock(&text_lock);
 
-  if((startfreq != -1 ) && (stopfreq != -1)) // "Do not display" values
-  {
-
-    markerf = (float)((((markerx - 100) * (stopfreq - startfreq)) / 500 + startfreq)) / 1000.0; 
-    snprintf(markerfreq, 31, "%0.2f MHz", markerf);
-    setBackColour(0, 0, 0);
-    TextMid2(700, 425, markerfreq, &font_dejavu_sans_18);
-  }
+  markerf = (float)((((markerx - 100) * (stopfreq - startfreq)) / 500 + startfreq)) / 1000.0; 
+  snprintf(markerfreq, 31, "%0.2f MHz", markerf);
+  pthread_mutex_lock(&text_lock);
+  setBackColour(0, 0, 0);
+  TextMid2(700, 425, markerfreq, &font_dejavu_sans_18);
+  pthread_mutex_unlock(&text_lock);
 }
 
 
@@ -1383,31 +1653,30 @@ void Normalise()
 {
   normleveloffset = 400 + normlevel * 5;  // 0 = screen bottom, 400 = screen top
 
-  finishednormalising = false;            // Make sure that it is not normalising (ie measuring the baseline)
+  printf("normleveloffset = %d\n", normleveloffset);
 
-  while (activescan == true)              // Wait for the end of the current scan
+  normalise_requested = true;
+
+  SetButtonStatus(ButtonNumber(1, 4), 2);
+  UpdateWindow();
+
+  while (normalised == false)    // Wait for the end of the measurement scan
   {
     usleep(10);
   }
-
-  normalising = true;                     // Set the flag for it to measure the baseline
-
-  while (finishednormalising == false)    // Wait for the end of the measurement scan
-  {
-    usleep(10);
-  }
-
-  normalising = false;                    // Stop it measuring
-
-  normalised = true;                      // and start it calculating for subsequent scans
+  printf("normalised has been detected as true in Sub Normalise\n");
+  
+  SetButtonStatus(ButtonNumber(1, 4), 1);
+  UpdateWindow();
 }
 
-void ChangeLabel(int button)
+void SetFreq(int button)
 {
 
   char RequestText[64];
   char InitText[63];
   bool IsValid = false;
+  float test_value = 0.0;
   div_t div_10;
   div_t div_100;
   div_t div_1000;
@@ -1422,1023 +1691,434 @@ void ChangeLabel(int button)
 
   switch (button)
   {
-    case 2:                                                       // Start Freq
+    case 2:                                                       // Keyboard Entry of Centre Freq
       // Define request string
-      strcpy(RequestText, "Enter new start frequency in MHz");
+      strcpy(RequestText, "Enter new centre frequency in MHz");
 
       // Define initial value and convert to MHz
-      if(startfreq == -1 ) // "Do not display" value
+      div_10 = div(centrefreq, 10);
+      div_1000 = div(centrefreq, 1000);
+
+      if(div_10.rem != 0)  // last character not zero, so make answer of form xxx.xxx
       {
-        InitText[0] = '\0';
+        snprintf(InitText, 10, "%d.%03d", div_1000.quot, div_1000.rem);
       }
       else
       {
-        div_10 = div(startfreq, 10);
-        div_1000 = div(startfreq, 1000);
+        div_100 = div(centrefreq, 100);
 
-        if(div_10.rem != 0)  // last character not zero, so make answer of form xxx.xxx
+        if(div_100.rem != 0)  // last but one character not zero, so make answer of form xxx.xx
         {
-          snprintf(InitText, 10, "%d.%03d", div_1000.quot, div_1000.rem);
+          snprintf(InitText, 10, "%d.%02d", div_1000.quot, div_1000.rem / 10);
         }
         else
         {
-          div_100 = div(startfreq, 100);
-
-          if(div_100.rem != 0)  // last but one character not zero, so make answer of form xxx.xx
+          if(div_1000.rem != 0)  // last but two character not zero, so make answer of form xxx.x
           {
-            snprintf(InitText, 10, "%d.%02d", div_1000.quot, div_1000.rem / 10);
+            snprintf(InitText, 10, "%d.%d", div_1000.quot, div_1000.rem / 100);
           }
-          else
+          else  // integer MHz, so just xxx (no dp)
           {
-            if(div_1000.rem != 0)  // last but two character not zero, so make answer of form xxx.x
-            {
-              snprintf(InitText, 10, "%d.%d", div_1000.quot, div_1000.rem / 100);
-            }
-            else  // integer MHz, so just xxx (no dp)
-            {
-              snprintf(InitText, 10, "%d", div_1000.quot);
-            }
+            snprintf(InitText, 10, "%d", div_1000.quot);
           }
         }
       }
 
       // Ask for the new value
-      Keyboard(RequestText, InitText, 10);
-      if (strlen(KeyboardReturn) == 0)
-      {
-        startfreq = -1;
-      }
-      else
-      {
-        startfreq = (int)((1000 * atof(KeyboardReturn)) + 0.1);
-      }
-      snprintf(ValueToSave, 63, "%d", startfreq);
-      SetConfigParam(PATH_XYCONFIG, "startfreq", ValueToSave);
-      printf("StartFreq set to %d \n", startfreq);
-      break;
-
-    case 3:                                                       // Stop Freq
-      // Define request string
-      strcpy(RequestText, "Enter new stop frequency in MHz");
-
-      // Define initial value and convert to MHz
-      if(stopfreq == -1 ) // "Do not display" value
-      {
-        InitText[0] = '\0';
-      }
-      else
-      {
-        div_10 = div(stopfreq, 10);
-        div_1000 = div(stopfreq, 1000);
-
-        if(div_10.rem != 0)  // last character not zero, so make answer of form xxx.xxx
-        {
-          snprintf(InitText, 10, "%d.%03d", div_1000.quot, div_1000.rem);
-        }
-        else
-        {
-          div_100 = div(stopfreq, 100);
-
-          if(div_100.rem != 0)  // last but one character not zero, so make answer of form xxx.xx
-          {
-            snprintf(InitText, 10, "%d.%02d", div_1000.quot, div_1000.rem / 10);
-          }
-          else
-          {
-            if(div_1000.rem != 0)  // last but two character not zero, so make answer of form xxx.x
-            {
-              snprintf(InitText, 10, "%d.%d", div_1000.quot, div_1000.rem / 100);
-            }
-            else  // integer MHz, so just xxx (no dp)
-            {
-              snprintf(InitText, 10, "%d", div_1000.quot);
-            }
-          }
-        }
-      }
-
-      // Ask for the new value
-      Keyboard(RequestText, InitText, 10);
-      if (strlen(KeyboardReturn) == 0)
-      {
-        stopfreq = -1;
-      }
-      else
-      {
-        stopfreq = (int)((1000 * atof(KeyboardReturn)) + 0.1);
-      }
-      snprintf(ValueToSave, 63, "%d", stopfreq);
-      SetConfigParam(PATH_XYCONFIG, "stopfreq", ValueToSave);
-      printf("stopFreq set to %d \n", stopfreq);
-      break;
-    case 4:                                                       // Ref Level
-      // Define request string
-      strcpy(RequestText, "Enter new Reference Level in dBm");
-      // Define initial value 
-      if(reflevel == 99 ) // "Do not display" value
-      {
-        InitText[0] = '\0';
-      }
-      else
-      {
-        snprintf(InitText, 10, "%d", reflevel);
-      }
-
       while (IsValid == false)
       {
-        Keyboard(RequestText, InitText, 4);
-        if (strlen(KeyboardReturn) == 0)
+        Keyboard(RequestText, InitText, 10);
+        if (strlen(KeyboardReturn) != 0)
         {
-          reflevel = 99;  // "Do not display" value
-        }
-        else
-        {
-          reflevel = atoi(KeyboardReturn);
-        }
-        if ((reflevel > -200) && (reflevel < 100))
-        {
-          IsValid = true;
-        }
-      }
-      snprintf(ValueToSave, 63, "%d", reflevel);
-      SetConfigParam(PATH_XYCONFIG, "reflevel", ValueToSave);
-      printf("Ref Level set to: %d\n", reflevel);
-      break;
-    case 5:                                                       // RBW
-      // Define request string
-      strcpy(RequestText, "Enter new Resolution Bandwidth in kHz");
-      // Define initial value 
-      if(rbw == 0) // "Do not display" value
-      {
-        InitText[0] = '\0';
-      }
-      else
-      {
-        snprintf(InitText, 10, "%d", rbw);
-      }
-
-      while (IsValid == false)
-      {
-        Keyboard(RequestText, InitText, 5);
-        if (strlen(KeyboardReturn) == 0)
-        {
-          rbw = 0;  // "Do not display" value
-        }
-        else
-        {
-          rbw = atoi(KeyboardReturn);
-        }
-        if ((rbw >= 0) && (rbw < 10000))
-        {
-          IsValid = true;
-        }
-      }
-      snprintf(ValueToSave, 63, "%d", rbw);
-      SetConfigParam(PATH_XYCONFIG, "rbw", ValueToSave);
-      printf("Resolution Bandwidth set to: %d\n", rbw);
-      break;
-    case 6:                                                       // Plot Title
-      strcpy(RequestText, "Enter the title to be displayed on this plot");
-      if(strcmp(PlotTitle, "-") == 0)           // Active Blank
-      {
-        InitText[0] = '\0';
-      }
-      else
-      {
-        snprintf(InitText, 63, "%s", PlotTitle);
-      }
-
-      Keyboard(RequestText, InitText, 40);
-  
-      if(strlen(KeyboardReturn) > 0)
-      {
-        strcpy(PlotTitle, KeyboardReturn);
-      }
-      else
-      {
-        strcpy(PlotTitle, "-");
-      }
-      SetConfigParam(PATH_XYCONFIG, "title", PlotTitle);
-      printf("Plot Title set to: %s\n", KeyboardReturn);
-      break;
-    case 7:                                                       // Set Normalise Level
-      // Define request string
-      strcpy(RequestText, "Enter new Normalise Level (Range 0 to -80)");
-
-      // Define initial value 
-      snprintf(InitText, 10, "%d", normlevel);
-
-      while (IsValid == false)
-      {
-        Keyboard(RequestText, InitText, 4);
-        if (strlen(KeyboardReturn) == 0)
-        {
-          IsValid = false;
-        }
-        else
-        {
-          normlevel = atoi(KeyboardReturn);
-          if ((normlevel >= -80) && (normlevel <= 0))
+          test_value = atof(KeyboardReturn);
+          if ((test_value >= 10.0) && (test_value <= 25000.0)) // 10 MHz to 25 GHz
           {
             IsValid = true;
-          }
-          else
-          {
-            IsValid = false;
+            centrefreq = (int)((1000 * atof(KeyboardReturn)) + 0.1);
           }
         }
       }
-      snprintf(ValueToSave, 63, "%d", normlevel);
-      SetConfigParam(PATH_XYCONFIG, "normlevel", ValueToSave);
-      printf("Normalisation Level set to: %d\n", normlevel);
+
+      snprintf(ValueToSave, 63, "%d", centrefreq);
+      SetConfigParam(PATH_SWEEPER_CONFIG, "centrefreq", ValueToSave);
+      printf("CentreFreq set to %d \n", centrefreq);
       break;
-
-    case 16:                                                       // Power Meter Title
-      strcpy(RequestText, "Enter the title to be displayed on the Meter");
-      if(strcmp(PlotTitle, "-") == 0)           // Active Blank
-      {
-        InitText[0] = '\0';
-      }
-      else
-      {
-        snprintf(InitText, 63, "%s", MeterTitle);
-      }
-
-      Keyboard(RequestText, InitText, 40);
-  
-      if(strlen(KeyboardReturn) > 0)
-      {
-        strcpy(MeterTitle, KeyboardReturn);
-      }
-      else
-      {
-        strcpy(MeterTitle, "-");
-      }
-      SetConfigParam(PATH_XYCONFIG, "metertitle", MeterTitle);
-      printf("Meter Title set to: %s\n", KeyboardReturn);
+    case 3:                                                       // 146
+      centrefreq = 145000;
+      snprintf(ValueToSave, 63, "%d", centrefreq);
+      SetConfigParam(PATH_SWEEPER_CONFIG, "centrefreq", ValueToSave);
+      printf("CentreFreq set to %d \n", centrefreq);
       break;
-
-    case 12:                                                       // External Attenuator
-      // Define request string
-      strcpy(RequestText, "Enter value (dB) of External Attenuator");
-
-      // Ask for the new value
-      Keyboard(RequestText, MeterAtten, 10);
-      if (strlen(KeyboardReturn) == 0)
-      {
-        strcpy(MeterAtten, "0");
-      }
-      else
-      {
-        strcpy(MeterAtten, KeyboardReturn);
-      }
-
-      // Convert and store
-      Meteratten = 0.0;  // In case atof fails
-      Meteratten = atof(MeterAtten);
-      SetConfigParam(PATH_XYCONFIG, "meteratten", MeterAtten);
-      printf("Attenuator set to set to %f \n", Meteratten);
+    case 4:                                                       // 437
+      centrefreq = 435000;
+      snprintf(ValueToSave, 63, "%d", centrefreq);
+      SetConfigParam(PATH_SWEEPER_CONFIG, "centrefreq", ValueToSave);
+      printf("CentreFreq set to %d \n", centrefreq);
       break;
-
-    case 13:                                                       // Cal Factor
-      // Define request string
-      strcpy(RequestText, "Enter Calibration Factor (between 5 and 500 %)");
-
-      // Ask for the new value
-      Keyboard(RequestText, MeterCalFactor, 10);
-      if (strlen(KeyboardReturn) == 0)
-      {
-        strcpy(MeterCalFactor, "100");
-      }
-      else
-      {
-        strcpy(MeterCalFactor, KeyboardReturn);
-      }
-
-      // Convert and store
-      Metercalfactor = 100;  // In case atoi fails
-      Metercalfactor = atoi(MeterCalFactor);
-      SetConfigParam(PATH_XYCONFIG, "metercalfactor", MeterCalFactor);
-      printf("Cal Factor set to %d%%\n", Metercalfactor);
+    case 5:                                                       // 1255
+      centrefreq = 1250000;
+      snprintf(ValueToSave, 63, "%d", centrefreq);
+      SetConfigParam(PATH_SWEEPER_CONFIG, "centrefreq", ValueToSave);
+      printf("CentreFreq set to %d \n", centrefreq);
       break;
+    case 6:                                                       // 2400
+      centrefreq = 2400000;
+      snprintf(ValueToSave, 63, "%d", centrefreq);
+      SetConfigParam(PATH_SWEEPER_CONFIG, "centrefreq", ValueToSave);
+      printf("CentreFreq set to %d \n", centrefreq);
+      break;
+  }
+
+  startfreq = centrefreq + freqspan / 2;
+  stopfreq = centrefreq - freqspan / 2;
+
+  if ((centrefreq < ((LimeCalFreq * 9) / 10)) || (centrefreq > ((LimeCalFreq * 11) / 10)))
+  {
+    CalibrateSource();
   }
 
   // Tidy up, paint around the screen and then unfreeze
   wipeScreen(0, 0, 0);
-  if (Meter == false)
-  {
-    DrawEmptyScreen();  // Required to set A value, which is not set in DrawTrace
-    DrawYaxisLabels();  // dB calibration on LHS
-    DrawSettings();     // Start, Stop RBW, Ref level and Title
-  }
-  else
-  {
-    DrawMeterBox();
-    DrawMeterArc();
-    DrawMeterTicks(10, 1);
-    Draw5MeterLabels(-80, +20);
-    DrawMeterSettings();
-  }
+  DrawEmptyScreen();  // Required to set A value, which is not set in DrawTrace
+  DrawYaxisLabels();  // dB calibration on LHS
+  DrawSettings();     // Start, Stop, Ref level and Title
   freeze = false;
 }
 
-void ChangeRange(int button)
+
+void SetSpan(int button)
 {
-  const font_t *font_ptr = &font_dejavu_sans_18;   // 18pt
 
-  float meterfullscalenow = 1;
-  float meterfullscaledown = 5;
-  float meterfullscaleup = 2;
-
-  float rangenow = 1.0;
-  float rangeup = 2.0;
-  float rangedown = 0.5;
-
-  char MeterUnitsNow[63];
-  char MeterUnitsUp[63];
-  char MeterUnitsDown[63];
-
-  char metermwrangeToSave[63];
-  char meterrangeToSave[63];
-  char meterzeroToSave[63];
-
-  if (strcmp(MeterSource, "mw") == 0)
+  char RequestText[64];
+  char InitText[63];
+  bool IsValid = false;
+  float test_value = 0.0;
+  div_t div_10;
+  div_t div_100;
+  div_t div_1000;
+  char ValueToSave[63];
+  
+  // Stop the scan at the end of the current one and wait for it to stop
+  freeze = true;
+  while(! frozen)
   {
-    ActiveZero = 0.0;
-
-    if ((Metermwrange > 90000) && (Metermwrange < 110000))  // 100 W = 50 dBm (max)
-    {
-      rangenow = 100000.0;
-      rangeup =  100000.0;
-      rangedown = 50000.0;
-
-      strcpy(MeterUnitsNow, "W");
-      strcpy(MeterUnitsUp, "W");
-      strcpy(MeterUnitsDown, "W");
-
-      meterfullscalenow = 100.0;
-      meterfullscaleup =  100.0;
-      meterfullscaledown = 50.0;
-    }
-
-    if ((Metermwrange > 45000) && (Metermwrange < 55000))  // 50 W
-    {
-      rangenow =  50000.0;
-      rangeup =  100000.0;
-      rangedown = 20000.0;
-
-      strcpy(MeterUnitsNow, "W");
-      strcpy(MeterUnitsUp, "W");
-      strcpy(MeterUnitsDown, "W");
-
-      meterfullscalenow = 50.0;
-      meterfullscaleup = 100.0;
-      meterfullscaledown = 20.0;
-    }
-
-    if ((Metermwrange > 18000) && (Metermwrange < 22000))  // 20 W
-    {
-      rangenow =  20000.0;
-      rangeup =   50000.0;
-      rangedown = 10000.0;
-
-      strcpy(MeterUnitsNow, "W");
-      strcpy(MeterUnitsUp, "W");
-      strcpy(MeterUnitsDown, "W");
-
-      meterfullscalenow = 20.0;
-      meterfullscaleup = 50.0;
-      meterfullscaledown = 10.0;
-    }
-
-    if ((Metermwrange > 9000) && (Metermwrange < 11000))  // 10 W = 40 dBm
-    {
-      rangenow = 10000.0;
-      rangeup = 20000.0;
-      rangedown = 5000.0;
-
-      strcpy(MeterUnitsNow, "W");
-      strcpy(MeterUnitsUp, "W");
-      strcpy(MeterUnitsDown, "W");
-
-      meterfullscalenow = 10.0;
-      meterfullscaleup = 20.0;
-      meterfullscaledown = 5.0;
-    }
-
-    if ((Metermwrange > 4500) && (Metermwrange < 5500))  // 5 W
-    {
-      rangenow = 5000.0;
-      rangeup = 10000.0;
-      rangedown = 2000.0;
-
-      strcpy(MeterUnitsNow, "W");
-      strcpy(MeterUnitsUp, "W");
-      strcpy(MeterUnitsDown, "W");
-
-      meterfullscalenow = 5.0;
-      meterfullscaleup = 10.0;
-      meterfullscaledown = 2.0;
-    }
-
-    if ((Metermwrange > 1800) && (Metermwrange < 2200))  // 2 W
-    {
-      rangenow = 2000.0;
-      rangeup = 5000.0;
-      rangedown = 1000.0;
-
-      strcpy(MeterUnitsNow, "W");
-      strcpy(MeterUnitsUp, "W");
-      strcpy(MeterUnitsDown, "W");
-
-      meterfullscalenow = 2.0;
-      meterfullscaleup = 5.0;
-      meterfullscaledown = 1.0;
-    }
-
-    if ((Metermwrange > 900) && (Metermwrange < 1100))  // 1 W = 30 dBm
-    {
-      rangenow = 1000.0;
-      rangeup = 2000.0;
-      rangedown = 500.0;
-
-      strcpy(MeterUnitsNow, "W");
-      strcpy(MeterUnitsUp, "W");
-      strcpy(MeterUnitsDown, "W");
-
-      meterfullscalenow = 1.0;
-      meterfullscaleup = 2.0;
-      meterfullscaledown = 0.5;
-    }
-
-    if ((Metermwrange > 450) && (Metermwrange < 550))  // 500 mW
-    {
-      rangenow = 500.0;
-      rangeup = 1000.0;
-      rangedown = 200.0;
-
-      strcpy(MeterUnitsNow, "W");
-      strcpy(MeterUnitsUp, "W");
-      strcpy(MeterUnitsDown, "mW");
-
-      meterfullscalenow = 0.5;
-      meterfullscaleup = 1.0;
-      meterfullscaledown = 200.0;
-    }
-
-    if ((Metermwrange > 180) && (Metermwrange < 220))  // 200 mW
-    {
-      rangenow = 200.0;
-      rangeup = 500.0;
-      rangedown = 100.0;
-
-      strcpy(MeterUnitsNow, "mW");
-      strcpy(MeterUnitsUp, "W");
-      strcpy(MeterUnitsDown, "mW");
-
-      meterfullscalenow = 200.0;
-      meterfullscaleup = 0.5;
-      meterfullscaledown = 100.0;
-    }
-
-    if ((Metermwrange > 90) && (Metermwrange < 110))  // 100 mW = 20 dBm
-    {
-      rangenow = 100.0;
-      rangeup = 200.0;
-      rangedown = 50.0;
-
-      strcpy(MeterUnitsNow, "mW");
-      strcpy(MeterUnitsUp, "mW");
-      strcpy(MeterUnitsDown, "mW");
-
-      meterfullscalenow = 100.0;
-      meterfullscaleup = 200.0;
-      meterfullscaledown = 50.0;
-    }
-
-    if ((Metermwrange > 45) && (Metermwrange < 55))  // 50 mW
-    {
-      rangenow = 50.0;
-      rangeup = 100.0;
-      rangedown = 20.0;
-
-      strcpy(MeterUnitsNow, "mW");
-      strcpy(MeterUnitsUp, "mW");
-      strcpy(MeterUnitsDown, "mW");
-
-      meterfullscalenow = 50.0;
-      meterfullscaleup = 100.0;
-      meterfullscaledown = 20.0;
-    }
-
-    if ((Metermwrange > 18) && (Metermwrange < 22))  // 20 mW
-    {
-      rangenow = 20.0;
-      rangeup = 50.0;
-      rangedown = 10.0;
-
-      strcpy(MeterUnitsNow, "mW");
-      strcpy(MeterUnitsUp, "mW");
-      strcpy(MeterUnitsDown, "mW");
-
-      meterfullscalenow = 20.0;
-      meterfullscaleup = 50.0;
-      meterfullscaledown = 10.0;
-    }
-
-    if ((Metermwrange > 9.0) && (Metermwrange < 11))  // 10 mW = 10 dBm
-    {
-      rangenow = 10.0;
-      rangeup = 20.0;
-      rangedown = 5.0;
-
-      strcpy(MeterUnitsNow, "mW");
-      strcpy(MeterUnitsUp, "mW");
-      strcpy(MeterUnitsDown, "mW");
-
-      meterfullscalenow = 10.0;
-      meterfullscaleup = 20.0;
-      meterfullscaledown = 5.0;
-    }
-
-    if ((Metermwrange > 4.5) && (Metermwrange < 5.5))  // 5 mW
-    {
-      rangenow = 5.0;
-      rangeup = 10.0;
-      rangedown = 2.0;
-
-      strcpy(MeterUnitsNow, "mW");
-      strcpy(MeterUnitsUp, "mW");
-      strcpy(MeterUnitsDown, "mW");
-
-      meterfullscalenow = 5.0;
-      meterfullscaleup = 10.0;
-      meterfullscaledown = 2.0;
-    }
-
-    if ((Metermwrange > 1.8) && (Metermwrange < 2.2))  // 2 mW
-    {
-      rangenow = 2.0;
-      rangeup = 5.0;
-      rangedown = 1.0;
-
-      strcpy(MeterUnitsNow, "mW");
-      strcpy(MeterUnitsUp, "mW");
-      strcpy(MeterUnitsDown, "mW");
-
-      meterfullscalenow = 2.0;
-      meterfullscaleup = 5.0;
-      meterfullscaledown = 1.0;
-    }
-
-    if ((Metermwrange > 0.9) && (Metermwrange < 1.1))  // 1 mW = 0 dBm
-    {
-      rangenow = 1.0;
-      rangeup = 2.0;
-      rangedown = 0.5;
-
-      strcpy(MeterUnitsNow, "mW");
-      strcpy(MeterUnitsUp, "mW");
-      strcpy(MeterUnitsDown, "mW");
-
-      meterfullscalenow = 1.0;
-      meterfullscaleup = 2.0;
-      meterfullscaledown = 0.5;
-    }
-
-    if ((Metermwrange > 0.45) && (Metermwrange < 0.55))  // 500 uW
-    {
-      rangenow = 0.5;
-      rangeup = 1.0;
-      rangedown = 0.2;
-
-      strcpy(MeterUnitsNow, "mW");
-      strcpy(MeterUnitsUp, "mW");
-      strcpy(MeterUnitsDown, "uW");
-
-      meterfullscalenow = 0.5;
-      meterfullscaleup = 1.0;
-      meterfullscaledown = 200;
-    }
-
-    if ((Metermwrange > 0.18) && (Metermwrange < 0.22))  // 200 uW
-    {
-      rangenow = 0.2;
-      rangeup = 0.5;
-      rangedown = 0.1;
-
-      strcpy(MeterUnitsNow, "uW");
-      strcpy(MeterUnitsUp, "mW");
-      strcpy(MeterUnitsDown, "uW");
-
-      meterfullscalenow = 200;
-      meterfullscaleup = 0.5;
-      meterfullscaledown = 100;
-    }
-
-    if ((Metermwrange > 0.09) && (Metermwrange < 0.11))  // 100 uW = -10 dBm
-    {
-      rangenow = 0.1;
-      rangeup = 0.2;
-      rangedown = 0.05;
-
-      strcpy(MeterUnitsNow, "uW");
-      strcpy(MeterUnitsUp, "uW");
-      strcpy(MeterUnitsDown, "uW");
-
-      meterfullscalenow = 100;
-      meterfullscaleup = 200;
-      meterfullscaledown = 50;
-    }
-
-    if ((Metermwrange > 0.045) && (Metermwrange < 0.055))  // 50 uW
-    {
-      rangenow = 0.05;
-      rangeup = 0.1;
-      rangedown = 0.02;
-
-      strcpy(MeterUnitsNow, "uW");
-      strcpy(MeterUnitsUp, "uW");
-      strcpy(MeterUnitsDown, "uW");
-
-      meterfullscalenow = 50;
-      meterfullscaleup = 100;
-      meterfullscaledown = 20;
-    }
-
-    if ((Metermwrange > 0.018) && (Metermwrange < 0.022))  // 20 uW
-    {
-      rangenow = 0.02;
-      rangeup = 0.05;
-      rangedown = 0.01;
-
-      strcpy(MeterUnitsNow, "uW");
-      strcpy(MeterUnitsUp, "uW");
-      strcpy(MeterUnitsDown, "uW");
-
-      meterfullscalenow = 20;
-      meterfullscaleup = 50;
-      meterfullscaledown = 10;
-    }
-
-    if ((Metermwrange > 0.009) && (Metermwrange < 0.011))  // 10 uW = -20 dBm
-    {
-      rangenow = 0.01;
-      rangeup = 0.02;
-      rangedown = 0.005;
-
-      strcpy(MeterUnitsNow, "uW");
-      strcpy(MeterUnitsUp, "uW");
-      strcpy(MeterUnitsDown, "uW");
-
-      meterfullscalenow = 10;
-      meterfullscaleup = 20;
-      meterfullscaledown = 5;
-    }
-
-    if ((Metermwrange > 0.0045) && (Metermwrange < 0.0055))  // 5 uW
-    {
-      rangenow = 0.005;
-      rangeup = 0.01;
-      rangedown = 0.002;
-
-      strcpy(MeterUnitsNow, "uW");
-      strcpy(MeterUnitsUp, "uW");
-      strcpy(MeterUnitsDown, "uW");
-
-      meterfullscalenow = 5;
-      meterfullscaleup = 10;
-      meterfullscaledown = 2;
-    }
-
-    if ((Metermwrange > 0.0018) && (Metermwrange < 0.0022))  // 2 uW
-    {
-      rangenow = 0.002;
-      rangeup = 0.005;
-      rangedown = 0.001;
-
-      strcpy(MeterUnitsNow, "uW");
-      strcpy(MeterUnitsUp, "uW");
-      strcpy(MeterUnitsDown, "uW");
-
-      meterfullscalenow = 2;
-      meterfullscaleup = 5;
-      meterfullscaledown = 1;
-    }
-
-    if ((Metermwrange > 0.0009) && (Metermwrange < 0.0011))  // 1 uW = -30 dBm
-    {
-      rangenow = 0.001;
-      rangeup = 0.002;
-      rangedown = 0.0005;
-
-      strcpy(MeterUnitsNow, "uW");
-      strcpy(MeterUnitsUp, "uW");
-      strcpy(MeterUnitsDown, "uW");
-
-      meterfullscalenow = 1;
-      meterfullscaleup = 2;
-      meterfullscaledown = 0.5;
-    }
-
-    if ((Metermwrange > 0.00045) && (Metermwrange < 0.00055))  // 0.5 uW
-    {
-      rangenow = 0.0005;
-      rangeup = 0.001;
-      rangedown = 0.0002;
-
-      strcpy(MeterUnitsNow, "uW");
-      strcpy(MeterUnitsUp, "uW");
-      strcpy(MeterUnitsDown, "nW");
-
-      meterfullscalenow = 0.5;
-      meterfullscaleup = 1.0;
-      meterfullscaledown = 200;
-    }
-
-    if ((Metermwrange > 0.00018) && (Metermwrange < 0.00022))  // 200 nW
-    {
-      rangenow = 0.0002;
-      rangeup = 0.0005;
-      rangedown = 0.0001;
-
-      strcpy(MeterUnitsNow, "nW");
-      strcpy(MeterUnitsUp, "uW");
-      strcpy(MeterUnitsDown, "nW");
-
-      meterfullscalenow = 200;
-      meterfullscaleup = 0.5;
-      meterfullscaledown = 100;
-    }
-
-    if ((Metermwrange > 0.00009) && (Metermwrange < 0.00011))  // 100 nW = -40 dBm
-    {
-      rangenow = 0.0001;
-      rangeup = 0.0002;
-      rangedown = 0.00005;
-
-      strcpy(MeterUnitsNow, "nW");
-      strcpy(MeterUnitsUp, "nW");
-      strcpy(MeterUnitsDown, "nW");
-
-      meterfullscalenow = 100;
-      meterfullscaleup = 200;
-      meterfullscaledown = 50;
-    }
-
-    if ((Metermwrange > 0.000045) && (Metermwrange < 0.000055))  // 50 nW
-    {
-      rangenow = 0.00005;
-      rangeup = 0.0001;
-      rangedown = 0.00002;
-
-      strcpy(MeterUnitsNow, "nW");
-      strcpy(MeterUnitsUp, "nW");
-      strcpy(MeterUnitsDown, "nW");
-
-      meterfullscalenow = 50;
-      meterfullscaleup = 100;
-      meterfullscaledown = 20;
-    }
-
-    if ((Metermwrange > 0.000018) && (Metermwrange < 0.000022))  // 20 nW
-    {
-      rangenow =  0.00002;
-      rangeup =   0.00005;
-      rangedown = 0.00001;
-
-      strcpy(MeterUnitsNow, "nW");
-      strcpy(MeterUnitsUp, "nW");
-      strcpy(MeterUnitsDown, "nW");
-
-      meterfullscalenow = 20;
-      meterfullscaleup = 50;
-      meterfullscaledown = 10;
-    }
-
-    if ((Metermwrange > 0.000009) && (Metermwrange < 0.000011))  // 10 nW = -50 dBm
-    {
-      rangenow = 0.00001;
-      rangeup = 0.00002;
-      rangedown = 0.000005;
-
-      strcpy(MeterUnitsNow, "nW");
-      strcpy(MeterUnitsUp, "nW");
-      strcpy(MeterUnitsDown, "nW");
-
-      meterfullscalenow = 10;
-      meterfullscaleup = 20;
-      meterfullscaledown = 5;
-    }
-
-    if ((Metermwrange > 0.0000045) && (Metermwrange < 0.0000055))  // 5 nW
-    {
-      rangenow = 0.000005;
-      rangeup = 0.00001;
-      rangedown = 0.000002;
-
-      strcpy(MeterUnitsNow, "nW");
-      strcpy(MeterUnitsUp, "nW");
-      strcpy(MeterUnitsDown, "nW");
-
-      meterfullscalenow = 5;
-      meterfullscaleup = 10;
-      meterfullscaledown = 2;
-    }
-
-    if ((Metermwrange > 0.0000018) && (Metermwrange < 0.0000022))  // 2 nW
-    {
-      rangenow = 0.000002;
-      rangeup = 0.000005;
-      rangedown = 0.000001;
-
-      strcpy(MeterUnitsNow, "nW");
-      strcpy(MeterUnitsUp, "nW");
-      strcpy(MeterUnitsDown, "nW");
-
-      meterfullscalenow = 2.0;
-      meterfullscaleup = 5.0;
-      meterfullscaledown = 1.0;
-    }
-
-    if ((Metermwrange > 0.0000009) && (Metermwrange < 0.0000011))  // 1 nW = -60 dBm (lowest)
-    {
-      rangenow = 0.000001;
-      rangeup = 0.000002;
-      rangedown = 0.000001;
-
-      strcpy(MeterUnitsNow, "nW");
-      strcpy(MeterUnitsUp, "nW");
-      strcpy(MeterUnitsDown, "nW");
-
-      meterfullscalenow = 1.0;
-      meterfullscaleup = 2.0;
-      meterfullscaledown = 1.0;
-    }
-
-    switch (button)
-    {
-      case 0:                                            // Just set the meter scale
-        Metermwrange = rangenow;
-        strcpy(MeterUnits, MeterUnitsNow);
-        ActiveFSD = meterfullscalenow;
-        break;   
-      case 2:                                            // Power up
-        Metermwrange = rangeup;
-        strcpy(MeterUnits, MeterUnitsUp);
-        ActiveFSD = meterfullscaleup;
-
-        // Store the new setting in the config file
-        snprintf(metermwrangeToSave, 63, "%f", Metermwrange);
-        SetConfigParam(PATH_XYCONFIG, "metermwrange", metermwrangeToSave);
-        break;
-      case 3:                                            // Power down
-        Metermwrange = rangedown;
-        strcpy(MeterUnits, MeterUnitsDown);
-        ActiveFSD = meterfullscaledown;
-
-        // Store the new setting in the config file
-        snprintf(metermwrangeToSave, 63, "%f", Metermwrange);
-        SetConfigParam(PATH_XYCONFIG, "metermwrange", metermwrangeToSave);
-        break;
-      case 6:                                            // Reset
-        Metermwrange = 1.0;
-        strcpy(MeterUnits, "mW");
-        ActiveFSD = 1.0;
-
-        // Store the new setting in the config file
-        snprintf(metermwrangeToSave, 63, "%f", Metermwrange);
-        SetConfigParam(PATH_XYCONFIG, "metermwrange", metermwrangeToSave);
-        break;
-    }
+    usleep(10);                                   // wait till the end of the scan
   }
 
-  if (strcmp(MeterSource, "dbm") == 0)
+  switch (button)
   {
-    strcpy(MeterUnits, "dBm");
- 
-    switch (button)
-    {
-      case 0:                                            // Just set the meter scale to value from file
-        ActiveZero = (float)Meterzero;
-        ActiveFSD = (float)(Meterzero + Meterrange);
-        break;   
-      case 2:                                            // Power up
-        if (Meterzero <= 45)  
+    case 2:                                                       // Keyboard Entry of Span Width
+      // Define request string
+      strcpy(RequestText, "Enter new scan width in MHz");
+
+      // Define initial value and convert to MHz
+      div_10 = div(freqspan, 10);
+      div_1000 = div(freqspan, 1000);
+
+      if(div_10.rem != 0)  // last character not zero, so make answer of form xxx.xxx
+      {
+        snprintf(InitText, 10, "%d.%03d", div_1000.quot, div_1000.rem);
+      }
+      else
+      {
+        div_100 = div(freqspan, 100);
+
+        if(div_100.rem != 0)  // last but one character not zero, so make answer of form xxx.xx
         {
-          Meterzero = Meterzero + 5;
-          ActiveZero = (float)Meterzero;
-          ActiveFSD = (float)(Meterzero + Meterrange);
-          snprintf(meterzeroToSave, 63, "%d", Meterzero);
-          SetConfigParam(PATH_XYCONFIG, "meterzero", meterzeroToSave);
+          snprintf(InitText, 10, "%d.%02d", div_1000.quot, div_1000.rem / 10);
         }
-        break;
-      case 3:                                            // Power down
-        if (Meterzero >= -75)  
+        else
         {
-          Meterzero = Meterzero - 5;
-          ActiveZero = (float)Meterzero;
-          ActiveFSD = (float)(Meterzero + Meterrange);
-          snprintf(meterzeroToSave, 63, "%d", Meterzero);
-          SetConfigParam(PATH_XYCONFIG, "meterzero", meterzeroToSave);
+          if(div_1000.rem != 0)  // last but two character not zero, so make answer of form xxx.x
+          {
+            snprintf(InitText, 10, "%d.%d", div_1000.quot, div_1000.rem / 100);
+          }
+          else  // integer MHz, so just xxx (no dp)
+          {
+            snprintf(InitText, 10, "%d", div_1000.quot);
+          }
         }
-        break;
-      case 4:                                            // Wider Range
-        if (Meterrange < 100)       // 100 is max range for dBm
+      }
+
+      // Ask for the new value
+      while (IsValid == false)
+      {
+        Keyboard(RequestText, InitText, 10);
+        if (strlen(KeyboardReturn) != 0)
         {
-          if (Meterrange == 10)
+          test_value = atof(KeyboardReturn);
+          if ((test_value >= 1.0) && (test_value <= 6000.0)) // 1 MHz to 6 GHz
           {
-            Meterrange = (5 * Meterrange) / 2;  // int maths!
+            IsValid = true;
+            freqspan = (int)((1000 * atof(KeyboardReturn)) + 0.1);
           }
-          else  // 5, 25, 50
-          {
-            Meterrange = 2 * Meterrange;
-          }
-          ActiveZero = (float)Meterzero;
-          ActiveFSD = (float)(Meterzero + Meterrange);
-          snprintf(meterrangeToSave, 63, "%d", Meterrange);
-          SetConfigParam(PATH_XYCONFIG, "meterrange", meterrangeToSave);
         }
-        break;
-      case 5:                                            // Smaller Range
-        if (Meterrange > 5)       // 5 is min range for dBm
-        {
-          if (Meterrange == 25)
-          {
-            Meterrange = (2 * Meterrange) / 5;  // int maths!
-          }
-          else  // 10, 50, 100
-          {
-            Meterrange = Meterrange / 2;
-          }
-          ActiveZero = (float)Meterzero;
-          ActiveFSD = (float)(Meterzero + Meterrange);
-          snprintf(meterrangeToSave, 63, "%d", Meterrange);
-          SetConfigParam(PATH_XYCONFIG, "meterrange", meterrangeToSave);
-        }
-        break;
-      case 6:                                            // Reset
-        Meterzero = -45;
-        Meterrange = 50;
-        ActiveZero = (float)Meterzero;
-        ActiveFSD = (float)(Meterzero + Meterrange);
-        snprintf(meterzeroToSave, 63, "%d", Meterzero);
-        SetConfigParam(PATH_XYCONFIG, "meterzero", meterzeroToSave);
-        snprintf(meterrangeToSave, 63, "%d", Meterrange);
-        SetConfigParam(PATH_XYCONFIG, "meterrange", meterrangeToSave);
-        break;
-    }
+      }
+
+      snprintf(ValueToSave, 63, "%d", freqspan);
+      SetConfigParam(PATH_SWEEPER_CONFIG, "freqspan", ValueToSave);
+      printf("FreqSpan set to %d \n", freqspan);
+      break;
+    case 3:                                                       // 10 MHz
+      freqspan = 10000;
+      snprintf(ValueToSave, 63, "%d", freqspan);
+      SetConfigParam(PATH_SWEEPER_CONFIG, "freqspan", ValueToSave);
+      printf("freqspan set to %d \n", freqspan);
+      break;
+    case 4:                                                       // 20 MHz
+      freqspan = 20000;
+      snprintf(ValueToSave, 63, "%d", freqspan);
+      SetConfigParam(PATH_SWEEPER_CONFIG, "freqspan", ValueToSave);
+      printf("freqspan set to %d \n", freqspan);
+      break;
+    case 5:                                                       // 50 MHz
+      freqspan = 50000;
+      snprintf(ValueToSave, 63, "%d", freqspan);
+      SetConfigParam(PATH_SWEEPER_CONFIG, "freqspan", ValueToSave);
+      printf("freqspan set to %d \n", freqspan);
+      break;
+    case 6:                                                       // 100 MHz
+      freqspan = 100000;
+      snprintf(ValueToSave, 63, "%d", freqspan);
+      SetConfigParam(PATH_SWEEPER_CONFIG, "freqspan", ValueToSave);
+      printf("freqspan set to %d \n", freqspan);
+      break;
   }
 
-  if (strcmp(MeterSensor, "raw") == 0)
-  {
-    ActiveZero = 0;
-    ActiveFSD = 1000.0;
-    strcpy(MeterUnits, " ");
-  }
+  startfreq = centrefreq + freqspan / 2;
+  stopfreq = centrefreq - freqspan / 2;
 
-  if (strcmp(MeterSensor, "voltage") == 0)
-  {
-    ActiveZero = 0;
-    ActiveFSD = 5.0;
-    strcpy(MeterUnits, "Volts");
-  }
-
-  // Overwrite the Meter Units
-  rectangle(120, 180, 50, 30, 0, 0, 0);
-  pthread_mutex_lock(&text_lock);
-  setBackColour(0, 0, 0);
-  setForeColour(63, 255, 63);
-  Text2(120, 180, MeterUnits, font_ptr);
-  setForeColour(255, 255, 255);
-  pthread_mutex_unlock(&text_lock);
-
-
+  // Tidy up, paint around the screen and then unfreeze
+  wipeScreen(0, 0, 0);
+  DrawEmptyScreen();  // Required to set A value, which is not set in DrawTrace
+  DrawYaxisLabels();  // dB calibration on LHS
+  DrawSettings();     // Start, Stop, Ref level and Title
+  freeze = false;
 }
+
+void SetPoints(int button)
+{
+  char ValueToSave[63];
+  
+  // Stop the scan at the end of the current one and wait for it to stop
+  freeze = true;
+  while(! frozen)
+  {
+    usleep(10);                                   // wait till the end of the scan
+  }
+
+  switch (button)
+  {
+    case 2:                                                       // 500
+      points = 500;
+      break;
+    case 3:                                                       // 250
+      points = 250;
+      break;
+    case 4:                                                       // 100
+      points = 100;
+      break;
+    case 5:                                                       // 50
+      points = 50;
+      break;
+    case 6:                                                       // 20
+      points = 20;
+      break;
+  }
+
+  snprintf(ValueToSave, 63, "%d", points);
+  SetConfigParam(PATH_SWEEPER_CONFIG, "points", ValueToSave);
+  printf("points set to %d \n", points);
+
+  stride = 500 / points;
+
+  // Tidy up, paint around the screen and then unfreeze
+
+  wipeScreen(0, 0, 0);
+  DrawEmptyScreen();  // Required to set A value, which is not set in DrawTrace
+  DrawYaxisLabels();  // dB calibration on LHS
+  DrawSettings();     // Start, Stop, Ref level and Title
+  freeze = false;
+}
+
+void SetTitle()
+{
+  char RequestText[64];
+  char InitText[63];
+
+  // Stop the scan at the end of the current one and wait for it to stop
+  freeze = true;
+  while(! frozen)
+  {
+    usleep(10);                                   // wait till the end of the scan
+  }
+
+  strcpy(RequestText, "Enter the title to be displayed on this plot");
+  if(strcmp(PlotTitle, "-") == 0)           // Active Blank
+  {
+    InitText[0] = '\0';
+  }
+  else
+  {
+    snprintf(InitText, 63, "%s", PlotTitle);
+  }
+
+  Keyboard(RequestText, InitText, 40);
+  
+  if(strlen(KeyboardReturn) > 0)
+  {
+    strcpy(PlotTitle, KeyboardReturn);
+  }
+  else
+  {
+    strcpy(PlotTitle, "-");
+  }
+
+  SetConfigParam(PATH_SWEEPER_CONFIG, "title", PlotTitle);
+  printf("Plot Title set to: %s\n", KeyboardReturn);
+
+  // Tidy up, paint around the screen and then unfreeze
+  wipeScreen(0, 0, 0);
+  DrawEmptyScreen();  // Required to set A value, which is not set in DrawTrace
+  DrawYaxisLabels();  // dB calibration on LHS
+  DrawSettings();     // Start, Stop, Centre and Title
+  freeze = false;
+}
+
+void SetNormLevel()
+{
+  char RequestText[64];
+  char InitText[63];
+  bool IsValid = false;
+
+  char ValueToSave[63];
+  
+  // Stop the scan at the end of the current one and wait for it to stop
+  freeze = true;
+  while(! frozen)
+  {
+    usleep(10);                                   // wait till the end of the scan
+  }
+
+  // Define request string
+  strcpy(RequestText, "Enter new Normalise Level (Range 0 to -80)");
+
+  // Define initial value 
+  snprintf(InitText, 10, "%d", normlevel);
+
+  while (IsValid == false)
+  {
+    Keyboard(RequestText, InitText, 4);
+    if (strlen(KeyboardReturn) == 0)
+    {
+      IsValid = false;
+    }
+    else
+    {
+      normlevel = atoi(KeyboardReturn);
+      if ((normlevel >= -80) && (normlevel <= 0))
+      {
+        IsValid = true;
+      }
+      else
+      {
+        IsValid = false;
+      }
+    }
+  }
+  snprintf(ValueToSave, 63, "%d", normlevel);
+  SetConfigParam(PATH_SWEEPER_CONFIG, "normlevel", ValueToSave);
+  printf("Normalisation Level set to: %d\n", normlevel);
+
+  // Tidy up, paint around the screen and then unfreeze
+  wipeScreen(0, 0, 0);
+  DrawEmptyScreen();  // Required to set A value, which is not set in DrawTrace
+  DrawYaxisLabels();  // dB calibration on LHS
+  DrawSettings();     // Start, Stop, Ref level and Title
+  freeze = false;
+}
+
+void SetLimeGain()
+{
+  char RequestText[64];
+  char InitText[63];
+  bool IsValid = false;
+
+  char ValueToSave[63];
+  
+  // Stop the scan at the end of the current one and wait for it to stop
+  freeze = true;
+  while(! frozen)
+  {
+    usleep(10);                                   // wait till the end of the scan
+  }
+
+  // Define request string
+  strcpy(RequestText, "Enter new Lime Gain (level) (Range 0 to 100)");
+
+  // Define initial value 
+  snprintf(InitText, 10, "%d", LimeGain);
+
+  while (IsValid == false)
+  {
+    Keyboard(RequestText, InitText, 4);
+    if (strlen(KeyboardReturn) == 0)
+    {
+      IsValid = false;
+    }
+    else
+    {
+      LimeGain = atoi(KeyboardReturn);
+      if ((LimeGain >= 0) && (LimeGain <= 100))
+      {
+        IsValid = true;
+      }
+      else
+      {
+        IsValid = false;
+      }
+    }
+  }
+  snprintf(ValueToSave, 63, "%d", LimeGain);
+  SetConfigParam(PATH_SWEEPER_CONFIG, "limegain", ValueToSave);
+  printf("LimeGain set to: %d\n", LimeGain);
+
+         if (LMS_SetNormalizedGain(device, LMS_CH_TX, 0, (float)LimeGain * 0.01) != 0)  // set gain to output level
+          {
+            printf("Error - unable to set Lime Gain\n");
+          }
+
+
+  // Tidy up, paint around the screen and then unfreeze
+  wipeScreen(0, 0, 0);
+  DrawEmptyScreen();  // Required to set A value, which is not set in DrawTrace
+  DrawYaxisLabels();  // dB calibration on LHS
+  DrawSettings();     // Start, Stop, Ref level and Title
+  freeze = false;
+}
+
 
 void ChangeSensor(int button)
 {
-    switch (button)
-    {
-      case 2:                                         // ad8318-3
-        strcpy(MeterSensor, "ad8318-3");
-        SetConfigParam(PATH_XYCONFIG, "metersensor", "ad8318-3");
+  switch (button)
+  {
+    case 2:                                         // ad8318-3
+      strcpy(Sensor, "ad8318-3");
+      SetConfigParam(PATH_SWEEPER_CONFIG, "sensor", "ad8318-3");
+    break;
+    case 3:                                         // ad8318-5
+      strcpy(Sensor, "ad8318-5");
+      SetConfigParam(PATH_SWEEPER_CONFIG, "sensor", "ad8318-5");
+    break;
+    case 5:
+      strcpy(Sensor, "voltage");
+      SetConfigParam(PATH_SWEEPER_CONFIG, "sensor", "voltage");
       break;
-      case 3:                                         // ad8318-5
-        strcpy(MeterSensor, "ad8318-5");
-        SetConfigParam(PATH_XYCONFIG, "metersensor", "ad8318-5");
+    case 6:
+      strcpy(Sensor, "raw");
+      SetConfigParam(PATH_SWEEPER_CONFIG, "sensor", "raw");
       break;
-      case 5:
-        strcpy(MeterSensor, "voltage");
-        SetConfigParam(PATH_XYCONFIG, "metersensor", "voltage");
-        break;
-      case 6:
-        strcpy(MeterSensor, "raw");
-        SetConfigParam(PATH_XYCONFIG, "metersensor", "raw");
-        break;
-    }
-    ChangeRange(0); // calculate and draw the meter units
-    Draw5MeterLabels(ActiveZero, ActiveFSD);
+  }
 }
 
 
@@ -2457,7 +2137,6 @@ void *WaitButtonEvent(void * arg)
     }
 
     printf("x=%d y=%d\n", rawX, rawY);
-    FinishedButton = 1;
     i = IsMenuButtonPushed(rawX, rawY);
     if (i == -1)
     {
@@ -2481,10 +2160,9 @@ void *WaitButtonEvent(void * arg)
           UpdateWindow();
           freeze = false;
           break;
-        case 2:                                            // Select Mode
-          printf("Mode Menu 5 Requested\n");
-          CurrentMenu = 5;
-          Start_Highlights_Menu5();
+        case 2:                                            // Settings
+          printf("Settings Menu 3 Requested\n");
+          CurrentMenu = 3;
           UpdateWindow();
           break;
         case 3:                                            // Markers
@@ -2498,7 +2176,6 @@ void *WaitButtonEvent(void * arg)
             Normalise();
             SetButtonStatus(ButtonNumber(CurrentMenu, 4), 1);
             UpdateWindow();
-            normalised = true;
           }
           else
           {
@@ -2507,15 +2184,14 @@ void *WaitButtonEvent(void * arg)
             normalised = false;
           }
           break;
-        case 5:                                            // Labels
-          printf("Labels Menu 3 Requested\n");
-          CurrentMenu=3;
+        case 5:                                            // Config
+          printf("Config Menu 10 Requested\n");
+          CurrentMenu=10;
           UpdateWindow();
           break;
         case 6:                                            // System
           printf("System Menu 4 Requested\n");
           CurrentMenu=4;
-          Start_Highlights_Menu4();
           UpdateWindow();
           break;
         case 7:                                            // Exit to Portsdown
@@ -2651,7 +2327,7 @@ void *WaitButtonEvent(void * arg)
           break;
         case 8:                                            // Return to Main Menu
           printf("Main Menu 1 Requested\n");
-          CurrentMenu = 1;
+          CurrentMenu=1;
           Start_Highlights_Menu1();
           UpdateWindow();
           break;
@@ -2674,7 +2350,7 @@ void *WaitButtonEvent(void * arg)
       continue;  // Completed Menu 2 action, go and wait for touch
     }
 
-    if (CurrentMenu == 3)  // XY Labels Menu
+    if (CurrentMenu == 3)  // Settings Menu
     {
       printf("Button Event %d, Entering Menu 3 Case Statement\n",i);
       CallingMenu = 3;
@@ -2690,13 +2366,33 @@ void *WaitButtonEvent(void * arg)
           UpdateWindow();
           freeze = false;
           break;
-        case 2:                                            // Start
-        case 3:                                            // Stop
-        case 4:                                            // Ref Level
-        case 5:                                            // RBW
-        case 6:                                            // Title
-          ChangeLabel(i);
-          UpdateWindow();          
+        case 2:                                            // Frequency
+          printf("Frequency Menu 6 Requested\n");
+          CurrentMenu = 6;
+          Start_Highlights_Menu6();
+          UpdateWindow();
+          break;
+        case 3:                                            // Span
+          printf("Span Menu 7 Requested\n");
+          CurrentMenu = 7;
+          Start_Highlights_Menu7();
+          UpdateWindow();
+          break;
+        case 4:                                            // Points
+          printf("Points Menu 8 Requested\n");
+          CurrentMenu = 8;
+          Start_Highlights_Menu8();
+          UpdateWindow();
+          break;
+        case 5:                                            // Level
+          printf("Level Menu 11 Requested\n");
+          CurrentMenu = 11;
+          UpdateWindow();
+          break;
+        case 6:                                            // Set Title
+          SetTitle();
+          CurrentMenu = 3;
+          UpdateWindow();
           break;
         case 7:                                            // Return to Main Menu
           printf("Main Menu 1 Requested\n");
@@ -2723,7 +2419,7 @@ void *WaitButtonEvent(void * arg)
       continue;  // Completed Menu 3 action, go and wait for touch
     }
 
-    if (CurrentMenu == 4)  //  System Menu (Power and XY)
+    if (CurrentMenu == 4)  //  System Menu
     {
       printf("Button Event %d, Entering Menu 4 Case Statement\n",i);
       CallingMenu = 4;
@@ -2747,31 +2443,16 @@ void *WaitButtonEvent(void * arg)
           }
           do_snapcheck();
           initScreen();
-          if (Meter == true)
-          {
-            setBackColour(0, 0, 0);
-            DrawMeterBox();
-            DrawMeterArc();
-            DrawMeterTicks(10, 1);
-            Draw5MeterLabels(ActiveZero, ActiveFSD);
-            DrawMeterSettings();
-          }
-          else
-          {
-            DrawEmptyScreen();
-            DrawYaxisLabels();  // dB calibration on LHS
-            DrawSettings();     // Start, Stop RBW, Ref level and Title
-          }
+          DrawEmptyScreen();
+          DrawYaxisLabels();  // dB calibration on LHS
+          DrawSettings();     // Start, Stop, Ref level and Title
           UpdateWindow();
           freeze = false;
           break;
         case 3:                                            // Set Normalise Level
-          if (Meter == false)                              // Only for XY
-          {
-            ChangeLabel(7);
-            CurrentMenu=1;
-            UpdateWindow();
-          }
+          SetNormLevel();
+          CurrentMenu =1 ;
+          UpdateWindow();
           break;
         case 4:                                            // Shutdown
           system("sudo shutdown now");
@@ -2790,21 +2471,11 @@ void *WaitButtonEvent(void * arg)
           wipeScreen(0, 0, 0);
           usleep(1000000);
           closeScreen();
-          cleanexit(137);
+          cleanexit(139);
           break;
         case 7:                                            // Return to Main Menu
-          if (Meter == false)
-          {
-            printf("Main Menu 1 Requested\n");
-            CurrentMenu = 1;
-            Start_Highlights_Menu1();
-          }
-          else  // Go to Meter Main Menu
-          {
-            printf("Main Menu 6 Requested\n");
-            CurrentMenu = 6;
-            Start_Highlights_Menu6();
-          }
+          printf("Main Menu 1 Requested\n");
+          CurrentMenu = 1;
           UpdateWindow();
           break;
         case 8:
@@ -2826,7 +2497,7 @@ void *WaitButtonEvent(void * arg)
       continue;  // Completed Menu 4 action, go and wait for touch
     }
 
-    if (CurrentMenu == 5)  // Mode Menu (XY and Power)
+    if (CurrentMenu == 5)  // Source Menu
     {
       printf("Button Event %d, Entering Menu 5 Case Statement\n",i);
       CallingMenu = 5;
@@ -2844,49 +2515,21 @@ void *WaitButtonEvent(void * arg)
           UpdateWindow();
           freeze = false;
           break;
-        case 2:                                            // Power Meter Mode
-          Meter = true;
-          ModeChanged = true;
+        case 2:                                            // Lime
           Start_Highlights_Menu5();
           UpdateWindow();
           break;
-        case 3:                                            // XY Mode
-          if ((ContScan == true) || (Meter == true))
-          {
-            ContScan = false;
-            Meter = false;
-          }
-          ModeChanged = true;
-          Start_Highlights_Menu5();
-          UpdateWindow();
+        case 3:                                            // 
           break;
-        case 4:                                            // Continuous Scan Mode
-          if ((ContScan == false)  || (Meter == true))
-          {
-            ContScan = true;
-            Meter = false;
-          }
-          ModeChanged = true;
-          Start_Highlights_Menu5();
-          UpdateWindow();
+        case 4:                                            // 
           break;
         case 5:                                            // 
           break;
         case 6:                                            // 
           break;
         case 7:                                            // Return to Main Menu
-          if (Meter == false)
-          {
-            printf("Main Menu 1 Requested\n");
-            CurrentMenu = 1;
-            Start_Highlights_Menu1();
-         }
-          else  // Go to Meter Main Menu
-          {
-            printf("Main Menu 6 Requested\n");
-            CurrentMenu = 6;
-            Start_Highlights_Menu6();
-          }
+          printf("Main Menu 1 Requested\n");
+          CurrentMenu = 1;
           UpdateWindow();
           break;
         case 8:
@@ -2908,7 +2551,7 @@ void *WaitButtonEvent(void * arg)
       continue;  // Completed Menu 5 action, go and wait for touch
     }
 
-    if (CurrentMenu == 6)  // Meter (Main) Menu
+    if (CurrentMenu == 6)  // Frequency Menu
     {
       printf("Button Event %d, Entering Menu 6 Case Statement\n",i);
       CallingMenu = 6;
@@ -2924,67 +2567,23 @@ void *WaitButtonEvent(void * arg)
           UpdateWindow();
           freeze = false;
           break;
-        case 2:                                            // Select Meter Settings
-          printf("Settings Menu 7 Requested\n");
-          CurrentMenu=7;
+        case 2:                                            // Keyboard
+        case 3:                                            // 145
+        case 4:                                            // 435
+        case 5:                                            // 1250
+        case 6:                                            // 2400
+          SetFreq(i);
+          normalised = false;
+          Start_Highlights_Menu6();
           UpdateWindow();
           break;
-        case 3:                                            // Toggle dBm/mw
-          if (strcmp(MeterSource, "dbm") == 0)
-          {
-            strcpy(MeterSource, "mw");
-          }
-          else
-          {
-            strcpy(MeterSource, "dbm");
-          }
-          ChangeRange(0);
-          Draw5MeterLabels(ActiveZero, ActiveFSD);
-          SetConfigParam(PATH_XYCONFIG, "metersource", MeterSource);
-          CurrentMenu=6;
+        case 7:                                            // Return to Main Menu
+          printf("Main Menu 1 Requested\n");
+          CurrentMenu = 1;
+          Start_Highlights_Menu1();
           UpdateWindow();
           break;
-        case 4:                                            // Mode
-          printf("Mode Menu 5 Requested\n");
-          CurrentMenu = 5;
-          Start_Highlights_Menu5();
-          UpdateWindow();
-          break;
-        case 5:                                            // Left Arrow
-          ChangeRange(3);
-          Draw5MeterLabels(ActiveZero, ActiveFSD);
-          UpdateWindow();
-          break;
-        case 6:                                            // Right Arrow
-          ChangeRange(2);
-          Draw5MeterLabels(ActiveZero, ActiveFSD);
-          UpdateWindow();
-          break;
-        case 7:                                            // System
-          printf("System Menu 4 Requested\n");
-          CurrentMenu=4;
-          Start_Highlights_Menu4();
-          UpdateWindow();
-          break;
-        case 8:                                            // Exit to Portsdown
-          if(PortsdownExitRequested)
-          {
-            freeze = true;
-            usleep(100000);
-            setBackColour(0, 0, 0);
-            wipeScreen(0, 0, 0);
-            usleep(1000000);
-            closeScreen();
-            cleanexit(129);
-          }
-          else
-          {
-            PortsdownExitRequested = true;
-            Start_Highlights_Menu6();
-            UpdateWindow();
-          }
-          break;
-        case 9:
+        case 8:
           if (freeze)
           {
             SetButtonStatus(ButtonNumber(CurrentMenu, 8), 0);
@@ -3000,15 +2599,9 @@ void *WaitButtonEvent(void * arg)
         default:
           printf("Menu 6 Error\n");
       }
-      if(i != 8)
-      {
-        PortsdownExitRequested = false;
-        Start_Highlights_Menu6();
-        UpdateWindow();
-      }
       continue;  // Completed Menu 6 action, go and wait for touch
     }
-    if (CurrentMenu == 7)  // Settings Menu
+    if (CurrentMenu == 7)  // Span Menu
     {
       printf("Button Event %d, Entering Menu 7 Case Statement\n",i);
       CallingMenu = 7;
@@ -3024,34 +2617,20 @@ void *WaitButtonEvent(void * arg)
           UpdateWindow();
           freeze = false;
           break;
-        case 2:                                            // Ext Atten
-          ChangeLabel(i + 10);
-          UpdateWindow();          
-          break;
-        case 3:                                            // Cal Factor
-          ChangeLabel(i + 10);
-          UpdateWindow();          
-          break;
-        case 4:                                            // Range
-          printf("Range Menu 8 Requested\n");
-          CurrentMenu = 8;
-          Start_Highlights_Menu8();
-          UpdateWindow();
-          break;
-        case 5:                                            // Sensor
-          printf("Sensor Menu 9 Requested\n");
-          CurrentMenu = 9;
-          Start_Highlights_Menu9();
-          UpdateWindow();
-          break;
-        case 6:                                            // Meter Title
-          ChangeLabel(i + 10);
+        case 2:                                            // Keyboard
+        case 3:                                            // 10
+        case 4:                                            // 20
+        case 5:                                            // 50
+        case 6:                                            // 100
+          SetSpan(i);
+          normalised = false;
+          Start_Highlights_Menu7();
           UpdateWindow();          
           break;
         case 7:                                            // Return to Main Menu
-          printf("Meter Main Menu 6 Requested\n");
-          Start_Highlights_Menu6();
-          CurrentMenu=6;
+          printf("Main Menu 1 Requested\n");
+          Start_Highlights_Menu1();
+          CurrentMenu=1;
           UpdateWindow();
           break;
         case 8:
@@ -3073,9 +2652,9 @@ void *WaitButtonEvent(void * arg)
       continue;  // Completed Menu 7 action, go and wait for touch
     }
 
-    if (CurrentMenu == 8)  // Meter Range Menu
+    if (CurrentMenu == 8)  // Points Menu
     {
-      printf("Button Event %d, Entering Menu 7 Case Statement\n",i);
+      printf("Button Event %d, Entering Menu 8 Case Statement\n",i);
       CallingMenu = 8;
       Start_Highlights_Menu8();
       switch (i)
@@ -3090,35 +2669,20 @@ void *WaitButtonEvent(void * arg)
           UpdateWindow();
           freeze = false;
           break;
-        case 2:                                            // Power Up
-          ChangeRange(i);
-          Draw5MeterLabels(ActiveZero, ActiveFSD);
-          UpdateWindow();          
-          break;
-        case 3:                                            // Power Down
-          ChangeRange(i);
-          Draw5MeterLabels(ActiveZero, ActiveFSD);
-          UpdateWindow();          
-          break;
-        case 4:                                            // dbm expand
-          ChangeRange(i);
-          Draw5MeterLabels(ActiveZero, ActiveFSD);
-          UpdateWindow();
-          break;
-        case 5:                                            // dbm contract
-          ChangeRange(i);
-          Draw5MeterLabels(ActiveZero, ActiveFSD);
-          UpdateWindow();
-          break;
-        case 6:                                            // Reset
-          ChangeRange(i);
-          Draw5MeterLabels(ActiveZero, ActiveFSD);
+        case 2:                                            // 500
+        case 3:                                            // 250
+        case 4:                                            // 100
+        case 5:                                            // 50
+        case 6:                                            // 20
+          SetPoints(i);
+          normalised = false;
+          Start_Highlights_Menu8();
           UpdateWindow();          
           break;
         case 7:                                            // Return to Main Menu
-          printf("Meter Main Menu 6 Requested\n");
-          Start_Highlights_Menu6();
-          CurrentMenu=6;
+          printf("Main Menu 1 Requested\n");
+          Start_Highlights_Menu1();
+          CurrentMenu = 1;
           UpdateWindow();
           break;
         case 8:
@@ -3161,18 +2725,18 @@ void *WaitButtonEvent(void * arg)
           UpdateWindow();          
           break;
         case 3:                                            // ad8318-5
-          ChangeSensor(i);
-          Start_Highlights_Menu9();
-          UpdateWindow();          
+          //ChangeSensor(i);
+          //Start_Highlights_Menu9();
+          //UpdateWindow();          
           break;
         case 4:                                            // 
           //ChangeSensor(i);
           //UpdateWindow();
           break;
         case 5:                                            // voltage
-          ChangeSensor(i);
-          Start_Highlights_Menu9();
-          UpdateWindow();
+          //ChangeSensor(i);
+          //Start_Highlights_Menu9();
+          //UpdateWindow();
           break;
         case 6:                                            // raw a-d
           ChangeSensor(i);
@@ -3180,9 +2744,9 @@ void *WaitButtonEvent(void * arg)
           UpdateWindow();          
           break;
         case 7:                                            // Return to Main Menu
-          printf("Meter Main Menu 6 Requested\n");
-          Start_Highlights_Menu6();
-          CurrentMenu=6;
+          printf("Main Menu 1 Requested\n");
+          Start_Highlights_Menu1();
+          CurrentMenu = 1;
           UpdateWindow();
           break;
         case 8:
@@ -3203,6 +2767,117 @@ void *WaitButtonEvent(void * arg)
       }
       continue;  // Completed Menu 9 action, go and wait for touch
     }
+    if (CurrentMenu == 10)  // Config Menu
+    {
+      printf("Button Event %d, Entering Menu 10 Case Statement\n",i);
+      CallingMenu = 10;
+      switch (i)
+      {
+        case 0:                                            // Capture Snap
+          freeze = true; 
+          SetButtonStatus(ButtonNumber(CurrentMenu, 0), 1);
+          UpdateWindow();
+          while(! frozen);
+          system("/home/pi/rpidatv/scripts/snap2.sh");
+          SetButtonStatus(ButtonNumber(CurrentMenu, 0), 0);
+          UpdateWindow();
+          freeze = false;
+          break;
+        case 2:                                            // Go to Source Menu 5
+          printf("Menu 5 Requested\n");
+          CurrentMenu = 5;
+          //Start_Highlights_Menu5();
+          UpdateWindow();
+          break;
+        case 3:                                            // Go to Sensor Menu 9
+          printf("Menu 9 Requested\n");
+          CurrentMenu = 9;
+          //Start_Highlights_Menu9();
+          UpdateWindow();          
+          break;
+        case 4:                                            // Set Normalisation Level
+          break;
+        case 5:                                            // 
+          break;
+        case 6:                                            // 
+          break;
+        case 7:                                            // Return to Main Menu
+          printf("Main Menu 1 Requested\n");
+          CurrentMenu = 1;
+          Start_Highlights_Menu1();
+          UpdateWindow();
+          break;
+        case 8:
+          if (freeze)
+          {
+            SetButtonStatus(ButtonNumber(CurrentMenu, 8), 0);
+            freeze = false;
+          }
+          else
+          {
+            SetButtonStatus(ButtonNumber(CurrentMenu, 8), 1);
+            freeze = true;
+          }
+          UpdateWindow();
+          break;
+        default:
+          printf("Menu 10 Error\n");
+      }
+      continue;  // Completed Menu 10 action, go and wait for touch
+    }
+    if (CurrentMenu == 11)  // Level Menu
+    {
+      printf("Button Event %d, Entering Menu 9 Case Statement\n",i);
+      CallingMenu = 11;
+      switch (i)
+      {
+        case 0:                                            // Capture Snap
+          freeze = true; 
+          SetButtonStatus(ButtonNumber(CurrentMenu, 0), 1);
+          UpdateWindow();
+          while(! frozen);
+          system("/home/pi/rpidatv/scripts/snap2.sh");
+          SetButtonStatus(ButtonNumber(CurrentMenu, 0), 0);
+          UpdateWindow();
+          freeze = false;
+          break;
+        case 2:                                            // Set Level for Lime
+          SetLimeGain();
+          normalised = false;
+          UpdateWindow();
+          break;
+        case 3:                                            // Set level for ADF4351
+          break;
+        case 4:                                            // 
+          break;
+        case 5:                                            // 
+          break;
+        case 6:                                            // 
+          break;
+        case 7:                                            // Return to Main Menu
+          printf("Main Menu 1 Requested\n");
+          CurrentMenu = 1;
+          Start_Highlights_Menu1();
+          UpdateWindow();
+          break;
+        case 8:
+          if (freeze)
+          {
+            SetButtonStatus(ButtonNumber(CurrentMenu, 8), 0);
+            freeze = false;
+          }
+          else
+          {
+            SetButtonStatus(ButtonNumber(CurrentMenu, 8), 1);
+            freeze = true;
+          }
+          UpdateWindow();
+          break;
+        default:
+          printf("Menu 11 Error\n");
+      }
+      continue;  // Completed Menu 11 action, go and wait for touch
+    }
   }
   return NULL;
 }
@@ -3210,7 +2885,7 @@ void *WaitButtonEvent(void * arg)
 
 /////////////////////////////////////////////// DEFINE THE BUTTONS ///////////////////////////////
 
-void Define_Menu1()  // XY Main Menu
+void Define_Menu1()  // Sweeper Main Menu
 {
   int button = 0;
 
@@ -3223,24 +2898,22 @@ void Define_Menu1()  // XY Main Menu
   AddButtonStatus(button, " ", &Green);
 
   button = CreateButton(1, 2);
-  AddButtonStatus(button, "Mode", &Blue);
-  AddButtonStatus(button, " ", &Green);
+  AddButtonStatus(button, "Set-up", &Blue);
 
   button = CreateButton(1, 3);
   AddButtonStatus(button, "Markers", &Blue);
-  AddButtonStatus(button, " ", &Green);
 
   button = CreateButton(1, 4);
   AddButtonStatus(button, "Normalise", &Blue);
   AddButtonStatus(button, "Normalised", &Green);
+  AddButtonStatus(button, "Normalising", &Red);
 
   button = CreateButton(1, 5);
-  AddButtonStatus(button, "Labels", &Blue);
-  AddButtonStatus(button, " ", &Green);
+  AddButtonStatus(button, "Config", &Blue);
+
 
   button = CreateButton(1, 6);
   AddButtonStatus(button, "System", &Blue);
-  AddButtonStatus(button, " ", &Green);
 
   button = CreateButton(1, 7);
   AddButtonStatus(button, "Exit to^Portsdown", &DBlue);
@@ -3254,6 +2927,19 @@ void Define_Menu1()  // XY Main Menu
 
 void Start_Highlights_Menu1()
 {
+  if (normalised == false)
+  {
+    SetButtonStatus(ButtonNumber(1, 4), 0);
+  }
+  else
+  {
+    SetButtonStatus(ButtonNumber(1, 4), 1);
+  }
+  if (normalising == true)  // overide normalise/normalised with normalising
+  {
+    SetButtonStatus(ButtonNumber(1, 4), 2);
+  }
+
   if (PortsdownExitRequested)
   {
     SetButtonStatus(ButtonNumber(1, 7), 1);
@@ -3265,7 +2951,7 @@ void Start_Highlights_Menu1()
 }
 
 
-void Define_Menu2()  // XY Markers
+void Define_Menu2()  // Sweeper Markers
 {
   int button = 0;
 
@@ -3310,7 +2996,7 @@ void Define_Menu2()  // XY Markers
   AddButtonStatus(button, "Unfreeze", &Green);
 }
 
-void Define_Menu3()  // XY Settings
+void Define_Menu3()  // Sweeper Settings
 {
   int button = 0;
 
@@ -3319,23 +3005,21 @@ void Define_Menu3()  // XY Settings
   AddButtonStatus(button, " ", &Black);
 
   button = CreateButton(3, 1);
-  AddButtonStatus(button, "Labels^Menu", &Black);
+  AddButtonStatus(button, "Set-up^Menu", &Black);
   AddButtonStatus(button, " ", &Green);
 
   button = CreateButton(3, 2);
-  AddButtonStatus(button, "Start^Freq", &Blue);
-  AddButtonStatus(button, " ", &Green);
+  AddButtonStatus(button, "Centre^Freq", &Blue);
 
   button = CreateButton(3, 3);
-  AddButtonStatus(button, "Stop^Freq", &Blue);
-  AddButtonStatus(button, " ", &Green);
+  AddButtonStatus(button, "Freq^Span", &Blue);
 
   button = CreateButton(3, 4);
-  AddButtonStatus(button, "Reference^Level", &Blue);
+  AddButtonStatus(button, "Sample^Points", &Blue);
   AddButtonStatus(button, " ", &Green);
 
   button = CreateButton(3, 5);
-  AddButtonStatus(button, "Resolution^Bandwidth", &Blue);
+  AddButtonStatus(button, "Output^Level", &Blue);
   AddButtonStatus(button, " ", &Green);
 
   button = CreateButton(3, 6);
@@ -3351,7 +3035,8 @@ void Define_Menu3()  // XY Settings
   AddButtonStatus(button, "Unfreeze", &Green);
 }
 
-void Define_Menu4()  // System (XY and Meter)
+
+void Define_Menu4()  // System 
 {
   int button = 0;
 
@@ -3393,22 +3078,7 @@ void Define_Menu4()  // System (XY and Meter)
 }
 
 
-void Start_Highlights_Menu4()
-{
-  if (Meter == true)  // Hide Normalise button
-  {
-    SetButtonStatus(ButtonNumber(CurrentMenu, 3), 1);
-  printf("Meter true\n");
-
-  }
-  else
-  {
-    SetButtonStatus(ButtonNumber(CurrentMenu, 3), 0);
-  }
-}
-
-
-void Define_Menu5()  // Mode (XY and Power)
+void Define_Menu5()  // Sweeper Source
 {
   int button = 0;
 
@@ -3417,20 +3087,19 @@ void Define_Menu5()  // Mode (XY and Power)
   AddButtonStatus(button, " ", &Black);
 
   button = CreateButton(5, 1);
-  AddButtonStatus(button, "Mode^Menu", &Black);
+  AddButtonStatus(button, "Source^Menu", &Black);
   AddButtonStatus(button, " ", &Green);
 
   button = CreateButton(5, 2);
-  AddButtonStatus(button, "Power^Meter", &Blue);
-  AddButtonStatus(button, "Power^Meter", &Green);
+  AddButtonStatus(button, "LimeSDR", &Blue);
 
-  button = CreateButton(5, 3);
-  AddButtonStatus(button, "XY^Display", &Blue);
-  AddButtonStatus(button, "XY^Display", &Green);
+  //button = CreateButton(5, 3);
+  //AddButtonStatus(button, "XY^Display", &Blue);
+  //AddButtonStatus(button, "XY^Display", &Green);
 
-  button = CreateButton(5, 4);
-  AddButtonStatus(button, "Y Plot", &Blue);
-  AddButtonStatus(button, "Y Plot", &Green);
+  //button = CreateButton(5, 4);
+  //AddButtonStatus(button, "Y Plot", &Blue);
+  //AddButtonStatus(button, "Y Plot", &Green);
 
   //button = CreateButton(5, 5);
   //AddButtonStatus(button, " ", &Blue);
@@ -3449,10 +3118,11 @@ void Define_Menu5()  // Mode (XY and Power)
   AddButtonStatus(button, "Unfreeze", &Green);
 }
 
+
 void Start_Highlights_Menu5()
 {
   printf("Entered start highlights 5\n");
-  if (Meter == true)
+  if (strcmp(Source, "lime") == 0)
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 2), 1);
   }
@@ -3460,28 +3130,10 @@ void Start_Highlights_Menu5()
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 2), 0);
   }
-
-  if ((Meter == false) && (ContScan == false))
-  {
-    SetButtonStatus(ButtonNumber(CurrentMenu, 3), 1);
-  }
-  else
-  {
-    SetButtonStatus(ButtonNumber(CurrentMenu, 3), 0);
-  }
-
-  if ((Meter == false) && (ContScan == true)) 
-  {
-    SetButtonStatus(ButtonNumber(CurrentMenu, 4), 1);
-  }
-  else
-  {
-    SetButtonStatus(ButtonNumber(CurrentMenu, 4), 0);
-  }
 }
 
 
-void Define_Menu6()                                  // Meter (Main) Menu
+void Define_Menu6()                                  // Sweeper Freq Menu
 {
   int button = 0;
 
@@ -3490,66 +3142,74 @@ void Define_Menu6()                                  // Meter (Main) Menu
   AddButtonStatus(button, " ", &Black);
 
   button = CreateButton(6, 1);
-  AddButtonStatus(button, "Main Menu", &Black);
+  AddButtonStatus(button, "Centre^Freq", &Black);
   AddButtonStatus(button, " ", &Green);
 
   button = CreateButton(6, 2);
-  AddButtonStatus(button, "Settings", &Blue);
-  AddButtonStatus(button, " ", &Green);
+  AddButtonStatus(button, "Keyboard", &Blue);
 
   button = CreateButton(6, 3);
-  AddButtonStatus(button, "dBm", &Blue);
-  AddButtonStatus(button, "mW", &Blue);
+  AddButtonStatus(button, "145 MHz", &Blue);
+  AddButtonStatus(button, "145 MHz", &Green);
 
   button = CreateButton(6, 4);
-  AddButtonStatus(button, "Mode", &Blue);
-  AddButtonStatus(button, "", &Green);
+  AddButtonStatus(button, "435 MHz", &Blue);
+  AddButtonStatus(button, "435 MHz", &Green);
 
   button = CreateButton(6, 5);
-  AddButtonStatus(button, "<-", &Blue);
-  AddButtonStatus(button, " ", &Green);
+  AddButtonStatus(button, "1250 MHz", &Blue);
+  AddButtonStatus(button, "1250 MHz", &Green);
 
   button = CreateButton(6, 6);
-  AddButtonStatus(button, "->", &Blue);
-  AddButtonStatus(button, " ", &Green);
+  AddButtonStatus(button, "2400 MHz", &Blue);
+  AddButtonStatus(button, "2400 MHz", &Green);
 
   button = CreateButton(6, 7);
-  AddButtonStatus(button, "System", &Blue);
-  AddButtonStatus(button, " ", &Green);
+  AddButtonStatus(button, "Return to^Main Menu", &Blue);
 
   button = CreateButton(6, 8);
-  AddButtonStatus(button, "Exit to^Portsdown", &DBlue);
-  AddButtonStatus(button, "Exit to^Portsdown", &Red);
-
-  button = CreateButton(6, 9);
   AddButtonStatus(button, "Freeze", &Blue);
   AddButtonStatus(button, "Unfreeze", &Green);
 }
 
 void Start_Highlights_Menu6()
 {
-
-  if (strcmp(MeterSource, "dbm") == 0)
-  {
-    SetButtonStatus(ButtonNumber(6, 3), 0);
-  }
-  else
+  if (centrefreq == 145000)
   {
     SetButtonStatus(ButtonNumber(6, 3), 1);
   }
-
-  if (PortsdownExitRequested)
+  else
   {
-    SetButtonStatus(ButtonNumber(6, 8), 1);
+    SetButtonStatus(ButtonNumber(6, 3), 0);
+  }
+  if (centrefreq == 435000)
+  {
+    SetButtonStatus(ButtonNumber(6, 4), 1);
   }
   else
   {
-    SetButtonStatus(ButtonNumber(6, 8), 0);
+    SetButtonStatus(ButtonNumber(6, 4), 0);
+  }
+  if (centrefreq == 1250000)
+  {
+    SetButtonStatus(ButtonNumber(6, 5), 1);
+  }
+  else
+  {
+    SetButtonStatus(ButtonNumber(6, 5), 0);
+  }
+  if (centrefreq == 2400000)
+  {
+    SetButtonStatus(ButtonNumber(6, 6), 1);
+  }
+  else
+  {
+    SetButtonStatus(ButtonNumber(6, 6), 0);
   }
 }
 
 
-void Define_Menu7()  // Power Meter Settings
+void Define_Menu7()  // Sweeper Scan Width
 {
   int button = 0;
 
@@ -3558,27 +3218,27 @@ void Define_Menu7()  // Power Meter Settings
   AddButtonStatus(button, " ", &Black);
 
   button = CreateButton(7, 1);
-  AddButtonStatus(button, "Settings^Menu", &Black);
+  AddButtonStatus(button, "Scan Width^Menu", &Black);
   AddButtonStatus(button, " ", &Green);
 
   button = CreateButton(7, 2);
-  AddButtonStatus(button, "External^Atten", &Blue);
-  AddButtonStatus(button, " ", &Green);
+  AddButtonStatus(button, "Keyboard^      ", &Blue);
 
   button = CreateButton(7, 3);
-  AddButtonStatus(button, "Cal^Factor", &Blue);
+  AddButtonStatus(button, "10 MHz", &Blue);
+  AddButtonStatus(button, "10 MHz", &Green);
 
   button = CreateButton(7, 4);
-  AddButtonStatus(button, "Range", &Blue);
-  AddButtonStatus(button, " ", &Green);
+  AddButtonStatus(button, "20 MHz", &Blue);
+  AddButtonStatus(button, "20 MHz", &Green);
 
   button = CreateButton(7, 5);
-  AddButtonStatus(button, "Sensor", &Blue);
-  AddButtonStatus(button, " ", &Green);
+  AddButtonStatus(button, "50 MHz", &Blue);
+  AddButtonStatus(button, "50 MHz", &Green);
 
   button = CreateButton(7, 6);
-  AddButtonStatus(button, "Title", &Blue);
-  AddButtonStatus(button, " ", &Green);
+  AddButtonStatus(button, "100 MHz", &Blue);
+  AddButtonStatus(button, "100 MHz", &Green);
 
   button = CreateButton(7, 7);
   AddButtonStatus(button, "Return to^Main Menu", &Blue);
@@ -3589,7 +3249,57 @@ void Define_Menu7()  // Power Meter Settings
   AddButtonStatus(button, "Unfreeze", &Green);
 }
 
-void Define_Menu8()  // Power Meter Range
+void Start_Highlights_Menu7()
+{
+  char DisplayText[63] = "Keyboard^";
+  float ParamAsFloat;
+  if ((freqspan != 10000) && (freqspan != 20000)
+   && (freqspan != 50000) && (freqspan != 100000))  // Not a preset value
+  {
+    ParamAsFloat = (float)freqspan / 1000.0;
+    snprintf(DisplayText, 63, "Keyboard^%5.1f MHz", ParamAsFloat);
+    AmendButtonStatus(ButtonNumber(7, 2), 0, DisplayText, &Blue);
+  }
+  else
+  {
+    AmendButtonStatus(ButtonNumber(7, 2), 0, "Keyboard^      ", &Blue);
+  }
+
+  if (freqspan == 10000)
+  {
+    SetButtonStatus(ButtonNumber(7, 3), 1);
+  }
+  else
+  {
+    SetButtonStatus(ButtonNumber(7, 3), 0);
+  }
+  if (freqspan == 20000)
+  {
+    SetButtonStatus(ButtonNumber(7, 4), 1);
+  }
+  else
+  {
+    SetButtonStatus(ButtonNumber(7, 4), 0);
+  }
+  if (freqspan == 50000)
+  {
+    SetButtonStatus(ButtonNumber(7, 5), 1);
+  }
+  else
+  {
+    SetButtonStatus(ButtonNumber(7, 5), 0);
+  }
+  if (freqspan == 100000)
+  {
+    SetButtonStatus(ButtonNumber(7, 6), 1);
+  }
+  else
+  {
+    SetButtonStatus(ButtonNumber(7, 6), 0);
+  }
+}
+
+void Define_Menu8()  // Sweeper Plot Points
 {
   int button = 0;
 
@@ -3598,27 +3308,28 @@ void Define_Menu8()  // Power Meter Range
   AddButtonStatus(button, " ", &Black);
 
   button = CreateButton(8, 1);
-  AddButtonStatus(button, "Range^Menu", &Black);
+  AddButtonStatus(button, "Plot Points^Menu", &Black);
   AddButtonStatus(button, " ", &Green);
 
   button = CreateButton(8, 2);
-  AddButtonStatus(button, "Up", &Blue);
-  AddButtonStatus(button, " ", &Green);
+  AddButtonStatus(button, "500", &Blue);
+  AddButtonStatus(button, "500", &Green);
 
   button = CreateButton(8, 3);
-  AddButtonStatus(button, "Down", &Blue);
+  AddButtonStatus(button, "250", &Blue);
+  AddButtonStatus(button, "250", &Green);
 
   button = CreateButton(8, 4);
-  AddButtonStatus(button, "Wider", &Blue);
-  AddButtonStatus(button, " ", &Black);
+  AddButtonStatus(button, "100", &Blue);
+  AddButtonStatus(button, "100", &Green);
 
   button = CreateButton(8, 5);
-  AddButtonStatus(button, "Narrower", &Blue);
-  AddButtonStatus(button, " ", &Black);
+  AddButtonStatus(button, "50", &Blue);
+  AddButtonStatus(button, "50", &Green);
 
   button = CreateButton(8, 6);
-  AddButtonStatus(button, "Reset", &Blue);
-  AddButtonStatus(button, " ", &Green);
+  AddButtonStatus(button, "20", &Blue);
+  AddButtonStatus(button, "20", &Green);
 
   button = CreateButton(8, 7);
   AddButtonStatus(button, "Return to^Main Menu", &Blue);
@@ -3631,20 +3342,50 @@ void Define_Menu8()  // Power Meter Range
 
 void Start_Highlights_Menu8()
 {
-  if (strcmp(MeterSource, "dbm") == 0)
+  if (points == 500)
   {
-    SetButtonStatus(ButtonNumber(8, 4), 0);
-    SetButtonStatus(ButtonNumber(8, 5), 0);
+    SetButtonStatus(ButtonNumber(8, 2), 1);
   }
   else
   {
+    SetButtonStatus(ButtonNumber(8, 2), 0);
+  }
+  if (points == 250)
+  {
+    SetButtonStatus(ButtonNumber(8, 3), 1);
+  }
+  else
+  {
+    SetButtonStatus(ButtonNumber(8, 3), 0);
+  }
+  if (points == 100)
+  {
     SetButtonStatus(ButtonNumber(8, 4), 1);
+  }
+  else
+  {
+    SetButtonStatus(ButtonNumber(8, 4), 0);
+  }
+  if (points == 50)
+  {
     SetButtonStatus(ButtonNumber(8, 5), 1);
+  }
+  else
+  {
+    SetButtonStatus(ButtonNumber(8, 5), 0);
+  }
+  if (points == 20)
+  {
+    SetButtonStatus(ButtonNumber(8, 6), 1);
+  }
+  else
+  {
+    SetButtonStatus(ButtonNumber(8, 6), 0);
   }
 }
 
 
-void Define_Menu9()  // Power Meter Sensor
+void Define_Menu9()  // Sweeper Sensor
 {
   int button = 0;
 
@@ -3660,17 +3401,17 @@ void Define_Menu9()  // Power Meter Sensor
   AddButtonStatus(button, "AD8318 3v", &Blue);
   AddButtonStatus(button, "AD8318 3v", &Green);
 
-  button = CreateButton(9, 3);
-  AddButtonStatus(button, "AD8318  5v", &Blue);
-  AddButtonStatus(button, "AD8318  5v", &Green);
+  //button = CreateButton(9, 3);
+  //AddButtonStatus(button, "AD8318  5v", &Blue);
+  //AddButtonStatus(button, "AD8318  5v", &Green);
 
   //button = CreateButton(9, 4);
   //AddButtonStatus(button, "Range", &Blue);
   //AddButtonStatus(button, " ", &Green);
 
-  button = CreateButton(9, 5);
-  AddButtonStatus(button, "Voltage", &Blue);
-  AddButtonStatus(button, "Voltage", &Green);
+  //button = CreateButton(9, 5);
+  //AddButtonStatus(button, "Voltage", &Blue);
+  //AddButtonStatus(button, "Voltage", &Green);
 
   button = CreateButton(9, 6);
   AddButtonStatus(button, "Raw A-D", &Blue);
@@ -3688,21 +3429,21 @@ void Define_Menu9()  // Power Meter Sensor
 
 void Start_Highlights_Menu9()
 {
-  if (strcmp(MeterSensor, "ad8318-3") == 0)
+  if (strcmp(Sensor, "ad8318-3") == 0)
   {
     SetButtonStatus(ButtonNumber(9, 2), 1);
     SetButtonStatus(ButtonNumber(9, 3), 0);
     SetButtonStatus(ButtonNumber(9, 5), 0);
     SetButtonStatus(ButtonNumber(9, 6), 0);
   }
-  else if (strcmp(MeterSensor, "ad8318-5") == 0)
+  else if (strcmp(Sensor, "ad8318-5") == 0)
   {
     SetButtonStatus(ButtonNumber(9, 2), 0);
     SetButtonStatus(ButtonNumber(9, 3), 1);
     SetButtonStatus(ButtonNumber(9, 5), 0);
     SetButtonStatus(ButtonNumber(9, 6), 0);
   }
-  else if (strcmp(MeterSensor, "voltage") == 0)
+  else if (strcmp(Sensor, "voltage") == 0)
   {
     SetButtonStatus(ButtonNumber(9, 2), 0);
     SetButtonStatus(ButtonNumber(9, 3), 0);
@@ -3716,6 +3457,84 @@ void Start_Highlights_Menu9()
     SetButtonStatus(ButtonNumber(9, 5), 0);
     SetButtonStatus(ButtonNumber(9, 6), 1);
   }
+}
+
+
+void Define_Menu10()  // Config Menu
+{
+  int button = 0;
+
+  button = CreateButton(10, 0);
+  AddButtonStatus(button, "Capture^Snap", &DGrey);
+  AddButtonStatus(button, " ", &Black);
+
+  button = CreateButton(10, 1);
+  AddButtonStatus(button, "Config^Menu", &Black);
+  AddButtonStatus(button, " ", &Green);
+
+  button = CreateButton(10, 2);
+  AddButtonStatus(button, "Source", &Blue);
+
+  button = CreateButton(10, 3);
+  AddButtonStatus(button, "Sensor", &Blue);
+
+  //button = CreateButton(10, 4);
+  //AddButtonStatus(button, "Range", &Blue);
+  //AddButtonStatus(button, " ", &Green);
+
+  //button = CreateButton(10, 5);
+  //AddButtonStatus(button, "Voltage", &Blue);
+  //AddButtonStatus(button, "Voltage", &Green);
+
+  button = CreateButton(10, 6);
+  AddButtonStatus(button, "Label", &Blue);
+
+  button = CreateButton(10, 7);
+  AddButtonStatus(button, "Return to^Main Menu", &Blue);
+  AddButtonStatus(button, " ", &Green);
+
+  button = CreateButton(10, 8);
+  AddButtonStatus(button, "Freeze", &Blue);
+  AddButtonStatus(button, "Unfreeze", &Green);
+}
+
+void Define_Menu11()  // Source Level
+{
+  int button = 0;
+
+  button = CreateButton(11, 0);
+  AddButtonStatus(button, "Capture^Snap", &DGrey);
+  AddButtonStatus(button, " ", &Black);
+
+  button = CreateButton(11, 1);
+  AddButtonStatus(button, "OP Level^Menu", &Black);
+  AddButtonStatus(button, " ", &Green);
+
+  button = CreateButton(11, 2);
+  AddButtonStatus(button, "LimeSDR", &Blue);
+
+  //button = CreateButton(11, 3);
+  //AddButtonStatus(button, "AD4351", &Blue);
+
+  //button = CreateButton(11, 4);
+  //AddButtonStatus(button, "Range", &Blue);
+  //AddButtonStatus(button, " ", &Green);
+
+  //button = CreateButton(11, 5);
+  //AddButtonStatus(button, "Voltage", &Blue);
+  //AddButtonStatus(button, "Voltage", &Green);
+
+  //button = CreateButton(11, 6);
+  //AddButtonStatus(button, "Raw A-D", &Blue);
+  //AddButtonStatus(button, "Raw A-D", &Green);
+
+  button = CreateButton(11, 7);
+  AddButtonStatus(button, "Return to^Main Menu", &Blue);
+  AddButtonStatus(button, " ", &Green);
+
+  button = CreateButton(11, 8);
+  AddButtonStatus(button, "Freeze", &Blue);
+  AddButtonStatus(button, "Unfreeze", &Green);
 }
 
 
@@ -4049,8 +3868,11 @@ void DrawSettings()
   char DisplayText[63];
   float ParamAsFloat;
   int line1y = 45;
-  int line2y = 15;
   int titley = 5;
+
+  startfreq = centrefreq - freqspan / 2;
+  stopfreq = centrefreq + freqspan / 2;
+
 
   // Clear the previous text first
   rectangle(100, 0, 505, 69, 0, 0, 0);
@@ -4058,39 +3880,40 @@ void DrawSettings()
   if ((startfreq >= 0) && (startfreq < 10000000))  // valid and less than 10 GHz
   {
     ParamAsFloat = (float)startfreq / 1000.0;
-    snprintf(DisplayText, 63, "Start %5.1f MHz", ParamAsFloat);
+    snprintf(DisplayText, 63, "%5.1f MHz", ParamAsFloat);
     Text2(100, line1y, DisplayText, font_ptr);
   }
   else if (startfreq >= 10000000)                  // valid and greater than 10 GHz
   {
     ParamAsFloat = (float)startfreq / 1000000.0;
-    snprintf(DisplayText, 63, "Start %5.3f GHz", ParamAsFloat);
+    snprintf(DisplayText, 63, "%5.3f GHz", ParamAsFloat);
     Text2(100, line1y, DisplayText, font_ptr);
+  }
+
+  if ((centrefreq >= 0) && (centrefreq < 10000000))  // valid and less than 10 GHz
+  {
+    ParamAsFloat = (float)centrefreq / 1000.0;
+    snprintf(DisplayText, 63, "%5.1f MHz", ParamAsFloat);
+    TextMid2(350, line1y, DisplayText, font_ptr);
+  }
+  else if (centrefreq >= 10000000)                  // valid and greater than 10 GHz
+  {
+    ParamAsFloat = (float)centrefreq / 1000000.0;
+    snprintf(DisplayText, 63, "%5.3f GHz", ParamAsFloat);
+    TextMid2(350, line1y, DisplayText, font_ptr);
   }
 
   if ((stopfreq > 0) && (stopfreq < 10000000))  // valid and less than 10 GHz
   {
     ParamAsFloat = (float)stopfreq / 1000.0;
-    snprintf(DisplayText, 63, "Stop %5.1f MHz", ParamAsFloat);
-    Text2(440, line1y, DisplayText, font_ptr);
+    snprintf(DisplayText, 63, "%5.1f MHz", ParamAsFloat);
+    Text2(500, line1y, DisplayText, font_ptr);
   }
   else if (stopfreq >= 10000000)                  // valid and greater than 10 GHz
   {
     ParamAsFloat = (float)stopfreq / 1000000.0;
-    snprintf(DisplayText, 63, "Stop %5.3f GHz", ParamAsFloat);
-    Text2(440, line1y, DisplayText, font_ptr);
-  }
-
-  if (reflevel != 99)                           // valid
-  {
-    snprintf(DisplayText, 63, "Ref %d dBm", reflevel);
-    Text2(290, line1y, DisplayText, font_ptr);
-  }
-
-  if (rbw != 0)                                 // valid
-  {
-    snprintf(DisplayText, 63, "RBW %d kHz", rbw);
-    Text2(100, line2y, DisplayText, font_ptr);
+    snprintf(DisplayText, 63, "%5.3f GHz", ParamAsFloat);
+    Text2(500, line1y, DisplayText, font_ptr);
   }
 
   if (strcmp(PlotTitle, "-") != 0)
@@ -4279,521 +4102,54 @@ void DrawTrace(int xoffset, int prev2, int prev1, int current)
   }
 }
 
-
-void DrawMeterBox()
+int limit_y(int y_value)
 {
-    setBackColour(0, 0, 0);
-    wipeScreen(0, 0, 0);
-    HorizLine(100, 70, 500, 255, 255, 255);
-    VertLine(100, 70, 400, 255, 255, 255);
-    HorizLine(100, 470, 500, 255, 255, 255);
-    VertLine(600, 70, 400, 255, 255, 255);
+  if (y_value < 1)
+  {
+    return 1;
+  }
+  if (y_value > 399)
+  {
+    return 399;
+  }
+  return y_value;
 }
 
 
-void DrawMeterArc()
+int fetchsensorreading()
 {
-  // Draws an anti-aliased meter arc
+  int rawvalue = 0;
+  float power_dBm;
+  rawvalue =  mcp3002_value(1);
 
-  float x;
-  float y;
-  int previous_x = 129; // Left most position of arc - 1
-  float current_sin;
-  float current_cos;
-  float arc_angle;
-//  float arc_deflection;
-  int arc_deflection;
-  float contrast;
+  // Function here to translate MCP3002 output to useful value in dBm, mW or volts
 
-//  for (arc_deflection = -1.0; arc_deflection < 999.0; arc_deflection++)
-  for (arc_deflection = 0; arc_deflection < 998; arc_deflection++)
+  if (strcmp(Sensor, "ad8318-5") == 0)
   {
-    arc_angle = (float)(arc_deflection) * 2 * PI / 4000.0 - PI / 4.0;
-    current_sin = sin(arc_angle);
-    current_cos = cos(arc_angle);
+    power_dBm = ad8318_5[rawvalue].pwr_dBm;
+    return (400 - (int)(power_dBm * 5.0));
+  }
 
-if (arc_deflection == 999)
-{
-  printf("sin = %f, cos = %f for arc\n", current_sin, current_cos);
+  if (strcmp(Sensor, "ad8318-3") == 0)
+  {
+    power_dBm = ad8318_3[rawvalue].pwr_dBm;
+    //printf("Power %f dBm, return %d \n", power_dBm, (400 + (int)(power_dBm * 5.0)));
+    return (400 + (int)(power_dBm * 5.0));
+  }
+
+  if (strcmp(Sensor, "raw") == 0)
+  {
+    return ((rawvalue * 400) / 1024);
+  }
+  return 0;
 }
 
-
-    x = 350 + 312 * current_sin;
-    y = 90 + 312 * current_cos;
-
-    if ((x - (float)previous_x) >= 1.0)  // new pixel pair required
-    {
-      // Work out contrast for lower pixel and paint
-      contrast = (y - (int)y) * 255;
-      setPixel(previous_x + 1, hscreen - (int)y, contrast, contrast, contrast);
-
-      // work out contrast for upper pixel and paint
-      contrast = (1 - (y - (int)y)) * 255;
-      setPixel(previous_x + 1, hscreen - ((int)y - 1), contrast, contrast, contrast);
-
-      previous_x = previous_x + 1;
-    }
-  }
-}
-
-
-void DrawMeterTicks(int major_ticks, int minor_ticks)
-{
-  float tick_deflection= 0;
-  int x1;
-  int x2;
-  int y1;
-  int y2;
-  float current_sin;
-  float current_cos;
-  int major_tick_number;
-  int minor_tick_number;
-
-  float major_tick_length = 20.0;
-  float minor_tick_length = 10.0;
-
-  // Draw the major ticks.  Start at zero
-  for (major_tick_number = 0; major_tick_number <= major_ticks; major_tick_number++)
-  {
-    tick_deflection = (major_tick_number * 1000) / major_ticks;  // for majors
-
-    current_sin = sin((float)tick_deflection * 2.0 * PI / 4000.0 - PI / 4.0);
-    current_cos = cos((float)tick_deflection * 2.0 * PI / 4000.0 - PI / 4.0);
-
-    x1 = (int)(350.0 + 312.0 * current_sin);
-    y1 = (int)(90.0 + 312.0 * current_cos);
-    x2 = (int)(350.0 + (312.0 + major_tick_length) * current_sin);
-    y2 = (int)(90.0 + (312.0 + major_tick_length) * current_cos);
-
-    DrawAALine(x1, y1, x2, y2, 0, 0, 0, 255, 255, 255);
-
-    // Draw the minor ticks.  Start at one.  Don't draw for last major tick
-    if (major_tick_number < major_ticks)
-    {
-      for (minor_tick_number = 1; minor_tick_number <= minor_ticks; minor_tick_number++)
-      {
-        tick_deflection = tick_deflection + (minor_tick_number * 1000) / major_ticks / (minor_ticks + 1);
-
-        current_sin = sin((float)tick_deflection * 2.0 * PI / 4000.0 - PI / 4.0);
-        current_cos = cos((float)tick_deflection * 2.0 * PI / 4000.0 - PI / 4.0);
-
-        x1 = (int)(350.0 + 312.0 * current_sin);
-        y1 = (int)(90.0 + 312.0 * current_cos);
-        x2 = (int)(350.0 + (312.0 + minor_tick_length) * current_sin);
-        y2 = (int)(90.0 + (312.0 + minor_tick_length) * current_cos);
-
-        DrawAALine(x1, y1, x2, y2, 0, 0, 0, 255, 255, 255);
-      }
-    }
-  }
-}
-
-
-void DrawMeterSettings()
-{
-  setForeColour(255, 255, 255);                    // White text
-  setBackColour(0, 0, 0);                          // on Black
-  const font_t *font_ptr = &font_dejavu_sans_18;   // 18pt
-  char DisplayText[511];
-  int line1y = 45;
-  int titley = 5;
-
-  // Clear the previous text first
-  rectangle(100, 0, 505, 69, 0, 0, 0);
- 
-  if ((Meteratten > 0.05) || ((int)Metercalfactor != 100))
-  {
-    snprintf(DisplayText, 127, "Sensor %s. Attenuator %0.1f dB. Cal Factor %d%%", MeterSensor, Meteratten, (int)Metercalfactor);
-  }
-  else
-  {
-    snprintf(DisplayText, 127, "Sensor: %s", MeterSensor);
-  }
-  pthread_mutex_lock(&text_lock);
-  Text2(100, line1y, DisplayText, font_ptr);
-  pthread_mutex_unlock(&text_lock);
-
-  if (strcmp(MeterTitle, "-") != 0)
-  {
-    pthread_mutex_lock(&text_lock);
-    TextMid2(350, titley, MeterTitle, &font_dejavu_sans_22);
-    pthread_mutex_unlock(&text_lock);
-  }
-}
-
-
-void Draw5MeterLabels(float LH_Value, float RH_Value)
-{
-  char labeltext[15];
-  const font_t *font_ptr = &font_dejavu_sans_18;   // 18pt
-  setBackColour(0, 0, 0);
-
-  // Clear the previous labels
-  rectangle(102, 345, 40, 30, 0, 0, 0);
-  rectangle(175, 395, 40, 30, 0, 0, 0);
-  rectangle(277, 430, 40, 30, 0, 0, 0);
-  rectangle(387, 430, 40, 30, 0, 0, 0);
-  rectangle(487, 395, 40, 30, 0, 0, 0);
-  rectangle(562, 345, 38, 30, 0, 0, 0);
-
-  if (abs(LH_Value - RH_Value) < 10.0)  // Display DP
-  {
-    snprintf(labeltext, 14, "%0.1f", LH_Value);
-    pthread_mutex_lock(&text_lock);
-    TextMid2(120, 345, labeltext, font_ptr);
-    pthread_mutex_unlock(&text_lock);
-
-    snprintf(labeltext, 14, "%0.1f", LH_Value + (RH_Value -LH_Value) / 5);
-    pthread_mutex_lock(&text_lock);
-    TextMid2(195, 395, labeltext, font_ptr);
-    pthread_mutex_unlock(&text_lock);
-
-    snprintf(labeltext, 14, "%0.1f", LH_Value + 2 * (RH_Value -LH_Value) / 5);
-    pthread_mutex_lock(&text_lock);
-    TextMid2(295, 430, labeltext, font_ptr);
-    pthread_mutex_unlock(&text_lock);
-
-    snprintf(labeltext, 14, "%0.1f", LH_Value + 3 * (RH_Value -LH_Value) / 5);
-    pthread_mutex_lock(&text_lock);
-    TextMid2(405, 430, labeltext, font_ptr);
-    pthread_mutex_unlock(&text_lock);
-
-    snprintf(labeltext, 14, "%0.1f", LH_Value + 4 * (RH_Value -LH_Value) / 5);
-    pthread_mutex_lock(&text_lock);
-    TextMid2(505, 395, labeltext, font_ptr);
-    pthread_mutex_unlock(&text_lock);
-
-    snprintf(labeltext, 14, "%0.1f", RH_Value);
-    pthread_mutex_lock(&text_lock);
-    TextMid2(580, 345, labeltext, font_ptr);
-    pthread_mutex_unlock(&text_lock);
-  }
-  else
-  //No DP
-  {
-    snprintf(labeltext, 14, "%d", (int)LH_Value);
-    pthread_mutex_lock(&text_lock);
-    TextMid2(120, 345, labeltext, font_ptr);
-    pthread_mutex_unlock(&text_lock);
-
-    snprintf(labeltext, 14, "%d", (int)(LH_Value + (RH_Value -LH_Value) / 5));
-    pthread_mutex_lock(&text_lock);
-    TextMid2(195, 395, labeltext, font_ptr);
-    pthread_mutex_unlock(&text_lock);
-
-    snprintf(labeltext, 14, "%d", (int)(LH_Value + 2 * (RH_Value -LH_Value) / 5));
-    pthread_mutex_lock(&text_lock);
-    TextMid2(295, 430, labeltext, font_ptr);
-    pthread_mutex_unlock(&text_lock);
-
-    snprintf(labeltext, 14, "%d", (int)(LH_Value + 3 * (RH_Value -LH_Value) / 5));
-    pthread_mutex_lock(&text_lock);
-    TextMid2(405, 430, labeltext, font_ptr);
-    pthread_mutex_unlock(&text_lock);
-
-    snprintf(labeltext, 14, "%d", (int)(LH_Value + 4 * (RH_Value -LH_Value) / 5));
-    pthread_mutex_lock(&text_lock);
-    TextMid2(505, 395, labeltext, font_ptr);
-    pthread_mutex_unlock(&text_lock);
-
-    snprintf(labeltext, 14, "%d", (int)RH_Value);
-    pthread_mutex_lock(&text_lock);
-    TextMid2(580, 345, labeltext, font_ptr);
-    pthread_mutex_unlock(&text_lock);
-  }
-}
-
-void *MeterMovement(void * arg)
-{
-  bool *exit_requested = (bool *)arg;
-  int current_meter_deflection = 0;
-  int meter_move;
-  float meter_angle;
-  float current_sin;
-  float current_cos;
-  float previous_sin;
-  float previous_cos;
-
-  while((false == *exit_requested))
-  {
-    while (freeze)  // Do not run if display is frozen
-    {
-      usleep(20000);
-    }
-
-    // Check Meter deflection is within bounds
-    if (meter_deflection > 1050)
-    {
-      meter_deflection = 1050;
-    }
-    if (meter_deflection < -50)
-    {
-      meter_deflection = -50;
-    }
-
-
-    if (meter_deflection != current_meter_deflection )        
-    {
-      // Physics
-      meter_move = (meter_deflection - current_meter_deflection) / 5;  // Reduce movement speed
-      if ((abs(meter_move) < 200) && (abs(meter_move) > 50))           // Slow as nearing position
-      {
-         meter_move = meter_move / 2;
-      }
-
-      if (meter_move > 200)                                            // Limit max speed
-      {
-        meter_move = 200;
-      }
-
-      if ((meter_deflection - current_meter_deflection) != 0)                                     // Only draw if needed
-      {
-        if (abs(meter_deflection - current_meter_deflection) > 5)                                 // Large move
-        {
-          meter_angle = (float)(current_meter_deflection + meter_move) * 2.0 * PI / 4000.0 - PI / 4.0;
-          current_meter_deflection = current_meter_deflection + meter_move;
-        }
-        else                                                                                      // last few degrees
-        {
-          meter_angle = (float)(meter_deflection) * 2.0 * PI / 4000.0 - PI / 4.0;
-          current_meter_deflection = meter_deflection;
-        }
-        current_sin = sin(meter_angle);
-        current_cos = cos(meter_angle);
-
-        // Overwrite previous position
-        DrawAALine(350, 90, 350 + (int)(309.0 * previous_sin), 90 + (int)(309.0 * previous_cos), 0, 0, 0, 0, 0, 0);
-
-        // Write new position
-        DrawAALine(350, 90, 350 + (int)(309.0 * current_sin), 90 + (int)(309.0 * current_cos), 0, 0, 0, 255, 255, 255);
-
-        // Set up for overwrite next time
-        previous_sin = current_sin;
-        previous_cos = current_cos;
-      }
-    }
-    usleep(20000);  // 50 Hz refresh rate
-  }
-  return NULL;
-}
-
-
-void ShowdBm(float dBm)
-{
-  char dBmtext[15];
-  const font_t *font_ptr = &font_dejavu_sans_36;   // 36pt
-
-  snprintf(dBmtext, 20, "%0.1f dBm", dBm);
-  if (strlen(dBmtext) < 8)
-  {
-    strcat(dBmtext, "   ");
-  }
-  if (strlen(dBmtext) < 9)
-  {
-    strcat(dBmtext, "  ");
-  }
-  if (strlen(dBmtext) < 10)
-  {
-    strcat(dBmtext, " ");
-  }
-
-  setBackColour(0, 0, 0);
-  pthread_mutex_lock(&text_lock);
-  Text2(110, 80, dBmtext, font_ptr);
-  pthread_mutex_unlock(&text_lock);
-}
-
-
-void ShowmW(float mW)
-{
-  char mWtext[15];
-  const font_t *font_ptr = &font_dejavu_sans_36;   // 36pt
-
-  if (mW > 100)  // Display Watts
-  {
-    snprintf(mWtext, 20, "%0.1f W", mW / 1000.0);
-  }
-  if ((mW <= 100) && (mW > 0.1)) // Display mW
-  {
-    snprintf(mWtext, 20, "%0.1f mW", mW);
-  }
-  if ((mW <= 0.1) && (mW > 0.0001))// Display uW
-  {
-    snprintf(mWtext, 20, "%0.1f uW", mW * 1000.0);
-  }
-  if (mW <= 0.0001) // Display nW
-  {
-    snprintf(mWtext, 20, "%0.1f nW", mW * 1000000.0);
-  }
-
-  if (strlen(mWtext) < 8)
-  {
-    strcat(mWtext, "   ");
-  }
-  if (strlen(mWtext) < 9)
-  {
-    strcat(mWtext, "  ");
-  }
-  if (strlen(mWtext) < 10)
-  {
-    strcat(mWtext, " ");
-  }
-
-  setBackColour(0, 0, 0);
-  pthread_mutex_lock(&text_lock);
-  Text2(400, 80, mWtext, font_ptr);
-  pthread_mutex_unlock(&text_lock);
-}
-
-
-void Showraw(int raw)
-{
-  char rawtext[63];
-  const font_t *font_ptr = &font_dejavu_sans_36;   // 36pt
-
-  snprintf(rawtext, 30, "%d", raw);
-  if (strlen(rawtext) == 1)
-  {
-    strcat(rawtext, "          ");
-  }
-  if (strlen(rawtext) == 2)
-  {
-    strcat(rawtext, "          ");
-  }
-  if (strlen(rawtext) == 3)
-  {
-    strcat(rawtext, "            ");
-  }
-  if (strlen(rawtext) == 4)
-  {
-    strcat(rawtext, "             ");
-  }
-
-  setBackColour(0, 0, 0);
-  pthread_mutex_lock(&text_lock);
-  Text2(110, 80, rawtext, font_ptr);
-  pthread_mutex_unlock(&text_lock);
-
-  // And overwrite power text
-  rectangle(400, 80, 150, 50, 0, 0, 0);
-}
-
-
-void Showvolts(float raw)
-{
-  char rawtext[63];
-  const font_t *font_ptr = &font_dejavu_sans_36;   // 36pt
-
-  snprintf(rawtext, 30, "%0.2f", raw);
-  if (strlen(rawtext) == 3)
-  {
-    strcat(rawtext, " v        ");
-  }
-  if (strlen(rawtext) >= 4)
-  {
-    strcat(rawtext, " v         ");
-  }
-
-  setBackColour(0, 0, 0);
-  pthread_mutex_lock(&text_lock);
-  Text2(110, 80, rawtext, font_ptr);
-  pthread_mutex_unlock(&text_lock);
-
-  // And overwrite power text
-  rectangle(400, 80, 150, 50, 0, 0, 0);
-}
-
-
-void CheckWithinRange(int advalue)
-{
-  const font_t *font_ptr = &font_dejavu_sans_28;   // 28pt
-
-  // Check for each sensor
-  if (strcmp(MeterSensor, "ad8318-5") == 0)
-  {
-    if (advalue > ad8318_5_underrange)
-    {
-      pthread_mutex_lock(&text_lock);
-      setBackColour(0, 0, 0);
-      setForeColour(255, 63, 36);
-      Text2(110, 120,"Under-range", font_ptr);
-      setForeColour(255, 255, 255);
-      pthread_mutex_unlock(&text_lock);
-    }
-    else
-    {
-      pthread_mutex_lock(&text_lock);
-      setBackColour(0, 0, 0);
-      setForeColour(0, 0, 0);
-      Text2(110, 120,"Under-range", font_ptr);
-      setForeColour(255, 255, 255);
-      pthread_mutex_unlock(&text_lock);
-    }
-    if (advalue < ad8318_5_overrange)
-    {
-      pthread_mutex_lock(&text_lock);
-      setBackColour(0, 0, 0);
-      setForeColour(255, 63, 36);
-      Text2(430, 120,"Over-range", font_ptr);
-      setForeColour(255, 255, 255);
-      pthread_mutex_unlock(&text_lock);
-    }
-    else
-    {
-      pthread_mutex_lock(&text_lock);
-      setBackColour(0, 0, 0);
-      setForeColour(0, 0, 0);
-      Text2(430, 120,"Over-range", font_ptr);
-      setForeColour(255, 255, 255);
-      pthread_mutex_unlock(&text_lock);
-    }
-  }
-
-  if (strcmp(MeterSensor, "ad8318-3") == 0)
-  {
-    if (advalue > ad8318_3_underrange)
-    {
-      pthread_mutex_lock(&text_lock);
-      setBackColour(0, 0, 0);
-      setForeColour(255, 63, 36);
-      Text2(110, 120,"Under-range", font_ptr);
-      setForeColour(255, 255, 255);
-      pthread_mutex_unlock(&text_lock);
-    }
-    else
-    {
-      pthread_mutex_lock(&text_lock);
-      setBackColour(0, 0, 0);
-      setForeColour(0, 0, 0);
-      Text2(110, 120,"Under-range", font_ptr);
-      setForeColour(255, 255, 255);
-      pthread_mutex_unlock(&text_lock);
-    }
-    if (advalue < ad8318_3_overrange)
-    {
-      pthread_mutex_lock(&text_lock);
-      setBackColour(0, 0, 0);
-      setForeColour(255, 63, 36);
-      Text2(430, 120,"Over-range", font_ptr);
-      setForeColour(255, 255, 255);
-      pthread_mutex_unlock(&text_lock);
-    }
-    else
-    {
-      pthread_mutex_lock(&text_lock);
-      setBackColour(0, 0, 0);
-      setForeColour(0, 0, 0);
-      Text2(430, 120,"Over-range", font_ptr);
-      setForeColour(255, 255, 255);
-      pthread_mutex_unlock(&text_lock);
-    }
-  }
-}
 
 
 static void cleanexit(int calling_exit_code)
 {
   app_exit = true;
+  LimeOff();
   usleep(100000);
   exit_code = calling_exit_code;
   printf("Clean Exit Code %d\n", exit_code);
@@ -4808,8 +4164,9 @@ static void cleanexit(int calling_exit_code)
 static void terminate(int dummy)
 {
   app_exit = true;
-  printf("Terminate\n");
-
+  printf("\nTerminate\n");
+  LimeOff();
+  usleep(100000);
   char Commnd[255];
   sprintf(Commnd,"stty echo");
   system(Commnd);
@@ -4820,7 +4177,7 @@ static void terminate(int dummy)
 }
 
 
-int main(int argc, char **argv)
+int main()
 {
   int NoDeviceEvent=0;
   wscreen = 800;
@@ -4829,17 +4186,7 @@ int main(int argc, char **argv)
   int screenYmax, screenYmin;
   int i;
   int pixel;
-  int x;
-  int dispvalue;
-  int rawvalue;  // 0 to 1023
-  int previous_rawvalue = -1;  // 0 to 1023
-
-  float power_dBm;
-  float power_mW;
-  char valtext[15];
-
-  bool Flyback = false;
-  int x250 = -1000;
+  int stridecount;
 
   // Catch sigaction and call terminate
   for (i = 0; i < 16; i++)
@@ -4892,190 +4239,65 @@ int main(int argc, char **argv)
   Define_Menu7();
   Define_Menu8();
   Define_Menu9();
+  Define_Menu10();
+  Define_Menu11();
   
   Define_Menu41();
 
   ReadSavedParams();
 
-  // Check if starting in Power Meter or XY mode
-  if( argc == 1)
-  {
-    printf("No arguments, Starting with Power meter\n");
-  }  
-  else if( argc == 2 )
-  {
-    //printf("%d arguments, Starting with Power meter %s\n", argc, argv[1]);
-
-    // 1 Argument provided
-    if(strcmp(argv[1], "xy") == 0)
-    {
-      ContScan = false;
-      Meter = false;
-      ModeChanged = true;
-      CurrentMenu = 1;
-      CallingMenu = 1;
-    }
-  }
-  else
-  {
-    printf("ERROR: Incorrect number of parameters!\n");
-    return 0;
-  }
+  ContScan = true;
+  ModeChanged = true;
 
   // Create Wait Button thread
   pthread_create (&thbutton, NULL, &WaitButtonEvent, NULL);
 
   // Initialise direct access to the 7 inch screen
   initScreen();
+
+  MsgBox4("Starting the Portsdown Sweeper", " ", "Please wait", " ");
   
   normalised = false;
+
+  initSource((int64_t)centrefreq * 1000);
+
+  LimeOPOnRequested = true;
+  while(LimeOPOn == false)
+  {
+    printf("Waiting for Tx calibration to finish...\n");
+    usleep(1000000);
+  }
+
   while(app_exit == false)
   {
-    if (Meter == true)
     {
-      if (ModeChanged == true)
+      if (ModeChanged == true)  // Set up screen
       {
-        setBackColour(0, 0, 0);
-        setForeColour(255, 255, 255);
-        DrawMeterBox();
-        DrawMeterArc();
-        ChangeRange(0); // calculate and draw the meter units
-        DrawMeterTicks(10, 1);
-        Draw5MeterLabels(ActiveZero, ActiveFSD);
-        DrawMeterSettings();
-        Start_Highlights_Menu6();
-        UpdateWindow();     // Draw the buttons
-
-        // Start the meter movement
-        if(pthread_create(&thMeter_Movement, NULL, &MeterMovement, &app_exit))
-        {
-          fprintf(stderr, "Error creating %s pthread\n", "MeterMovement");
-          return 1;
-        }
-        ModeChanged = false;
-      }
-
-      // Read the MCP3002 second input
-      rawvalue = mcp3002_value(1);
-
-      // Show A-D output for testing
-      //const font_t *font_ptr = &font_dejavu_sans_18;   // 18pt
-      snprintf(valtext, 8, "%d", rawvalue);
-
-      //pthread_mutex_lock(&text_lock);
-      // Text2(0, 80, valtext, font_ptr);
-      //pthread_mutex_unlock(&text_lock);
-
-      // Function here to translate MCP3002 output to useful value in dBm, mW or volts
-
-      if (strcmp(MeterSensor, "ad8318-5") == 0)
-      {
-        power_dBm = ad8318_5[rawvalue].pwr_dBm;
-      }
-
-      if (strcmp(MeterSensor, "ad8318-3") == 0)
-      {
-        power_dBm = ad8318_3[rawvalue].pwr_dBm;
-      }
-
-      // Apply Calibration Factor correction if needed
-      if (Metercalfactor != 100)
-      {
-        if (Metercalfactor < 5)
-        {
-          Metercalfactor = 100;
-        }
-        power_dBm = power_dBm + log10(100.0 / (float)Metercalfactor) * 10.0;
-      }
-
-      // Apply correction for external attenuator
-      power_dBm = power_dBm + Meteratten;
-
-      // Convert to linear power
-      power_mW = pow(10.0, power_dBm / 10.0);
-
-      // Now work out meter deflection (-50 to +1050) for this value
-
-      if (strcmp(MeterSource, "dbm") == 0)
-      {
-       meter_deflection = (int)((power_dBm - ActiveZero) * 1000.0 / (ActiveFSD - ActiveZero));
-      }
-      if (strcmp(MeterSource, "mw") == 0)
-      {
-         meter_deflection = (int)(power_mW * 1000 / Metermwrange);
-      }
-      if (strcmp(MeterSensor, "raw") == 0)
-      {
-         meter_deflection = rawvalue;
-      }
-      if (strcmp(MeterSensor, "voltage") == 0)
-      {
-         meter_deflection = (rawvalue * 660) / 1024;
-      }
-
-      if (rawvalue != previous_rawvalue)           // Update numeric display
-      {
-        if (strcmp(MeterSensor, "raw") == 0)
-        {
-          Showraw(rawvalue);
-        }
-        else if (strcmp(MeterSensor, "voltage") == 0)
-        {
-          Showvolts(((float)(rawvalue) * 3.3) / 1024.0);
-        }
-        else
-        {
-          ShowdBm(power_dBm);
-          ShowmW(power_mW);
-
-          // And check within measurement range
-          CheckWithinRange(rawvalue);
-        }
-      }
-
-      while (freeze)
-      {
-        frozen = true;
-      }
-      frozen = false;
-
-      usleep(10000);
-    }
-    else   // XY display
-    {
-      if (ModeChanged == true)
-      {
-        //pthread_join(thMeter_Movement, NULL);
-        //printf("After Join\n");
         setBackColour(0, 0, 0);
         DrawEmptyScreen();
         DrawYaxisLabels();  // dB calibration on LHS
-        DrawSettings();     // Start, Stop RBW, Ref level and Title
-        CurrentMenu = 1;
-        Start_Highlights_Menu1();
+        DrawSettings();     // Start, Stop, Ref level and Title
         UpdateWindow();     // Draw the buttons
+
         ModeChanged = false;
       }
 
-      do  // Wait here for flyback in XY Display Mode (ContScan = false)
-      {
-        x = mcp3002_value(0) - xmin;
-        //printf("X value awaiting 0 = %d\n", x);
-        if (Meter == true) break;                 // Don't wait if meter selected
-      }
-      while (((x > 0) && (ContScan == false)) || (Meter == true));
-
-      Flyback = false;
-      do  // Wait here for first sample -------------------------------------------------
-      {
-        x = mcp3002_value(0) - xmin;
-        //printf("X value awaiting sample 1 = %d\n", x);
-        if (Meter == true) break;                 // Don't wait if meter selected
-      }
-      while (((x <= 1) && (ContScan == false)) || (Meter == true));
+      // Fetch first sample ----------------------------------
 
       activescan = true;
-      scaledadresult[0] = ((mcp3002_value(1) * yscalenum)/ yscaleden) + yshift;
+
+      if (normalise_requested == true)
+      {
+        normalising = true;
+        normalised = false;
+        normalise_requested = false;
+        printf("Start Normalising\n");
+      }
+
+      setOutput((int64_t)centrefreq * 1000 + (0 - 250) * (int64_t)freqspan * 1000 / 500);
+
+      scaledadresult[0] = fetchsensorreading();
+
       if (normalised == false)
       {
         y[0] = scaledadresult[0];
@@ -5089,25 +4311,36 @@ int main(int argc, char **argv)
       {
         norm[0] = normleveloffset - scaledadresult[0];
       }
+      y[0] = limit_y(y[0]);
 
-      if (y[0] < 1)
+      // Fetch second sample ------------------------------------------------
+
+      setOutput((int64_t)centrefreq * 1000 + (stride - 250) * (int64_t)freqspan * 1000 / 500);
+
+      scaledadresult[stride] = fetchsensorreading();
+
+      // Put this sample in the y[stride] bucket and normalise it
+
+      if (normalised == false)
       {
-        y[0] = 1;
+        y[stride] = scaledadresult[stride];
       }
-      if (y[0] > 399)
+      else
       {
-      y[0] = 399;
+        y[stride] = scaledadresult[stride] + norm[stride];
       }
 
-      do  // Wait here for second sample ------------------------------------------------
+      if (normalising == true)
       {
-        x = mcp3002_value(0) - xmin;
-        //printf("X value awaiting sample 2 = %d\n", x);
-        if (Meter == true) break;                 // Don't wait if meter selected
+        norm[stride] = normleveloffset - scaledadresult[stride];
       }
-      while (((x <= 2) && (ContScan == false)) || (Meter == true));
 
-      scaledadresult[1] = ((mcp3002_value(1) * yscalenum)/ yscaleden) + yshift;
+      y[stride] = limit_y(y[stride]);
+
+      // Now calculate y[1], normalise and store
+
+      scaledadresult[1] = scaledadresult[0] + (scaledadresult[stride] - scaledadresult[0]) / stride;
+
       if (normalised == false)
       {
         y[1] = scaledadresult[1];
@@ -5122,87 +4355,81 @@ int main(int argc, char **argv)
         norm[1] = normleveloffset - scaledadresult[1];
       }
 
-      if (y[1] < 1)
-      {
-        y[1] = 1;
-      }
-      if (y[1] > 399)
-      {
-        y[1] = 399;
-      }
+      y[1] = limit_y(y[1]);
+
+      stridecount = 1;
+
       for (pixel = 2; pixel < 500; pixel++)  // Subsequent Samples -----------------------
       {
+        //setOutput(437000000);
+        //printf ("Sample freq %d\n", (centrefreq * 1000 + (pixel - 250) * freqspan * 1000 / 500));
 
-        do  // Wait here for numbered sample
+        if (stride == 1)
         {
-          x = mcp3002_value(0) - xmin;
-          //printf("X value awaiting sample %d = %d\n", pixel, x);
-          if (Meter == true) break;                                 // Don't wait if meter selected
+          setOutput((int64_t)centrefreq * 1000 + (pixel - 250) * (int64_t)freqspan * 1000 / 500);
+          scaledadresult[pixel] = fetchsensorreading();
+        }
 
-          // Deal with X ramp that does not quite make the scan end
-          if (pixel == 250)
+        if (stride != 1)
+        {
+          if (pixel < (stridecount * stride))
           {
-            x250 = x;       // Note half-way X value
+            scaledadresult[pixel] = scaledadresult[(stridecount - 1) * stride]
+                                    + (scaledadresult[stridecount * stride] - scaledadresult[(stridecount - 1) * stride])
+                                    *  (pixel - ((stridecount - 1) * stride)) / stride;
           }
-          if (pixel > 400)
+          if (pixel == ((stridecount * stride)) && (((stridecount + 1) * stride) <= 500 ))
           {
-            if (x < x250)   // So flyback has started
-            {
-              Flyback = true;
-              //printf("Flyback = true, pixel  = %d, x = %d, x250 = %d\n", pixel, x, x250);
-              break;
-            }
+            setOutput((int64_t)centrefreq * 1000 + ((stridecount + 1) * stride - 250) * (int64_t)freqspan * 1000 / 500);
+
+            scaledadresult[(stridecount + 1) * stride] = fetchsensorreading();
+            stridecount++;
           }
         }
-        while (((((pixel * xscalenum) > (x * xscaleden)) && (ContScan == false))) || (Meter == true));
-
-        if (Flyback == true)  // Set the trace to the baseline for the rest of the scan
+        if (normalised == false)
         {
-          y[pixel] = 1;
+          y[pixel] = scaledadresult[pixel];
         }
-        else                               // Measure and possibly normalise the value
+        else
         {
-          dispvalue = mcp3002_value(1);
-          scaledadresult[pixel] = ((dispvalue * yscalenum)/ yscaleden) + yshift;
-
-          if (normalised == false)        
-          {
-            y[pixel] = scaledadresult[pixel];
-          }
-          else                           // Apply normalisation if required
-          {
-            y[pixel] = scaledadresult[pixel] + norm[pixel];
-          }
-
-          if (normalising == true)         // Measure for normalisation (One scan only)
-          {
-            norm[pixel] = normleveloffset - scaledadresult[pixel];
-          }
-
-          if (y[pixel] < 1)                // Constrain y
-          {
-            y[pixel] = 1;
-          }
-          if (y[pixel] > 399)
-          {
-            y[pixel] = 399;
-          }
+          y[pixel] = scaledadresult[pixel] + norm[pixel];
         }
+
+        if (normalising == true)
+        {
+          norm[pixel] = normleveloffset - scaledadresult[pixel];
+        }
+
+        y[pixel] = limit_y(y[pixel]);
+
         DrawTrace(pixel, y[pixel - 2], y[pixel - 1], y[pixel]);
-
 	    //printf("pixel=%d, prev2=%d, prev1=%d, current=%d\n", pixel, y[pixel - 2], y[pixel - 1], y[pixel]);
         while (freeze)
         {
           frozen = true;
         }
+        // Break out of loop on exit from freeze
+        if (frozen == true)
+        {
+          frozen = false;
+          break;
+        }
         frozen = false;
-        if (Meter == true) break;                  // Don't scan if meter selected
+
+        // Break out of loop if normalise requested
+        if (normalise_requested == true)  // normalise requested
+        {
+          break;
+        }
       }
+
       activescan = false;
 
       if (normalising == true)
       {
-        finishednormalising = true;
+        normalising = false;
+        normalised = true;
+        printf("Finished Normalising\n");
       }
 
       if (markeron == true)
@@ -5212,8 +4439,6 @@ int main(int argc, char **argv)
       tracecount++;
     }
   }
-  printf("Waiting for Meter Thread to exit..\n");
-  pthread_join(thMeter_Movement, NULL);
   printf("Waiting for Button Thread to exit..\n");
   pthread_join(thbutton, NULL);
   pthread_mutex_destroy(&text_lock);

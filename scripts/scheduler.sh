@@ -51,6 +51,7 @@ EOF
 # 136  Exit from rpidatvgui requesting start of BandViewer
 # 137  Exit from rpidatvgui requesting start of Power Meter
 # 138  Exit from rpidatvgui requesting start of NF Meter
+# 139  Exit from rpidatvgui requesting start of Sweeper
 # 160  Shutdown from GUI
 # 192  Reboot from GUI
 # 193  Rotate 7 inch and reboot
@@ -135,6 +136,11 @@ while [ "$GUI_RETURN_CODE" -gt 127 ] || [ "$GUI_RETURN_CODE" -eq 0 ];  do
     ;;
     138)
       /home/pi/rpidatv/bin/nf_meter
+      GUI_RETURN_CODE="$?"
+    ;;
+    139)
+      sleep 1
+      /home/pi/rpidatv/bin/sweeper
       GUI_RETURN_CODE="$?"
     ;;
     160)

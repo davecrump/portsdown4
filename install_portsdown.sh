@@ -423,6 +423,16 @@ make
 cp nf_meter ../../bin/
 cd /home/pi
 
+# Compile Sweeper
+echo
+echo "---------------------------------------"
+echo "----- Compiling Frequency Sweeper -----"
+echo "---------------------------------------"
+cd /home/pi/rpidatv/src/sweeper
+make
+cp sweeper ../../bin/
+cd /home/pi
+
 #echo
 #echo "-----------------------------------------"
 #echo "----- Compiling Ancilliary programs -----"

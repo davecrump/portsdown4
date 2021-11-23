@@ -406,6 +406,16 @@ make
 cp nf_meter ../../bin/
 cd /home/pi
 
+# Compile Sweeper
+echo
+echo "---------------------------------------"
+echo "----- Compiling Frequency Sweeper -----"
+echo "---------------------------------------"
+cd /home/pi/rpidatv/src/sweeper
+make
+cp sweeper ../../bin/
+cd /home/pi
+
 # Compile and install the executable for GPIO-switched transmission (201710080)
 echo "Installing keyedtx"
 cd /home/pi/rpidatv/src/keyedtx
