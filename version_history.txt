@@ -1,5 +1,6 @@
 202111200
 Add experimental Frequency Sweeper
+XY Display Enhancements
 
 202111120
 Add DVB-T for LimeSDR USB
