@@ -112,7 +112,8 @@ int yscalenum = 18;       // Numerator for Y scaling fraction
 int yscaleden = 30;       // Denominator for Y scaling fraction
 int yshift    = 5;        // Vertical shift (pixels) for Y
 
-int xscalenum = 27;       // Numerator for X scaling fraction
+int xmin = 30;            // Trigger value for start of scan
+int xscalenum = 26;       // Numerator for X scaling fraction
 int xscaleden = 20;       // Denominator for X scaling fraction
 
 int meter_deflection = -110;
@@ -681,7 +682,7 @@ void Keyboard(char RequestText[64], char InitText[64], int MaxLength)
         DrawButton(ButtonNumber(41, token));
         //UpdateWindow();
 
-        if (strlen(EditText) < 23) // Don't let it overflow
+        if (strlen(EditText) < 33) // Don't let it overflow
         {
         // Copy the text to the left of the insert point
         strncpy(PreCuttext, &EditText[0], CursorPos);
@@ -1607,7 +1608,7 @@ void ChangeLabel(int button)
         snprintf(InitText, 63, "%s", PlotTitle);
       }
 
-      Keyboard(RequestText, InitText, 30);
+      Keyboard(RequestText, InitText, 40);
   
       if(strlen(KeyboardReturn) > 0)
       {
@@ -1663,7 +1664,7 @@ void ChangeLabel(int button)
         snprintf(InitText, 63, "%s", MeterTitle);
       }
 
-      Keyboard(RequestText, InitText, 30);
+      Keyboard(RequestText, InitText, 40);
   
       if(strlen(KeyboardReturn) > 0)
       {
@@ -2650,7 +2651,7 @@ void *WaitButtonEvent(void * arg)
           break;
         case 8:                                            // Return to Main Menu
           printf("Main Menu 1 Requested\n");
-          CurrentMenu=1;
+          CurrentMenu = 1;
           Start_Highlights_Menu1();
           UpdateWindow();
           break;
@@ -2796,11 +2797,13 @@ void *WaitButtonEvent(void * arg)
           {
             printf("Main Menu 1 Requested\n");
             CurrentMenu = 1;
+            Start_Highlights_Menu1();
           }
           else  // Go to Meter Main Menu
           {
             printf("Main Menu 6 Requested\n");
             CurrentMenu = 6;
+            Start_Highlights_Menu6();
           }
           UpdateWindow();
           break;
@@ -2876,11 +2879,13 @@ void *WaitButtonEvent(void * arg)
           {
             printf("Main Menu 1 Requested\n");
             CurrentMenu = 1;
-          }
+            Start_Highlights_Menu1();
+         }
           else  // Go to Meter Main Menu
           {
             printf("Main Menu 6 Requested\n");
             CurrentMenu = 6;
+            Start_Highlights_Menu6();
           }
           UpdateWindow();
           break;
@@ -4833,6 +4838,9 @@ int main(int argc, char **argv)
   float power_mW;
   char valtext[15];
 
+  bool Flyback = false;
+  int x250 = -1000;
+
   // Catch sigaction and call terminate
   for (i = 0; i < 16; i++)
   {
@@ -4904,6 +4912,8 @@ int main(int argc, char **argv)
       ContScan = false;
       Meter = false;
       ModeChanged = true;
+      CurrentMenu = 1;
+      CallingMenu = 1;
     }
   }
   else
@@ -5036,27 +5046,29 @@ int main(int argc, char **argv)
       if (ModeChanged == true)
       {
         //pthread_join(thMeter_Movement, NULL);
-        printf("After Join\n");
+        //printf("After Join\n");
         setBackColour(0, 0, 0);
         DrawEmptyScreen();
         DrawYaxisLabels();  // dB calibration on LHS
         DrawSettings();     // Start, Stop RBW, Ref level and Title
+        CurrentMenu = 1;
+        Start_Highlights_Menu1();
         UpdateWindow();     // Draw the buttons
-
         ModeChanged = false;
       }
 
       do  // Wait here for flyback in XY Display Mode (ContScan = false)
       {
-        x = mcp3002_value(0);
+        x = mcp3002_value(0) - xmin;
         //printf("X value awaiting 0 = %d\n", x);
         if (Meter == true) break;                 // Don't wait if meter selected
       }
-      while (((x != 0) && (ContScan == false)) || (Meter == true));
+      while (((x > 0) && (ContScan == false)) || (Meter == true));
 
+      Flyback = false;
       do  // Wait here for first sample -------------------------------------------------
       {
-        x = mcp3002_value(0);
+        x = mcp3002_value(0) - xmin;
         //printf("X value awaiting sample 1 = %d\n", x);
         if (Meter == true) break;                 // Don't wait if meter selected
       }
@@ -5089,7 +5101,7 @@ int main(int argc, char **argv)
 
       do  // Wait here for second sample ------------------------------------------------
       {
-        x = mcp3002_value(0);
+        x = mcp3002_value(0) - xmin;
         //printf("X value awaiting sample 2 = %d\n", x);
         if (Meter == true) break;                 // Don't wait if meter selected
       }
@@ -5123,38 +5135,61 @@ int main(int argc, char **argv)
 
         do  // Wait here for numbered sample
         {
-          x = mcp3002_value(0);
+          x = mcp3002_value(0) - xmin;
           //printf("X value awaiting sample %d = %d\n", pixel, x);
-        if (Meter == true) break;                 // Don't wait if meter selected
+          if (Meter == true) break;                                 // Don't wait if meter selected
+
+          // Deal with X ramp that does not quite make the scan end
+          if (pixel == 250)
+          {
+            x250 = x;       // Note half-way X value
+          }
+          if (pixel > 400)
+          {
+            if (x < x250)   // So flyback has started
+            {
+              Flyback = true;
+              //printf("Flyback = true, pixel  = %d, x = %d, x250 = %d\n", pixel, x, x250);
+              break;
+            }
+          }
         }
         while (((((pixel * xscalenum) > (x * xscaleden)) && (ContScan == false))) || (Meter == true));
 
-        dispvalue = mcp3002_value(1);
-        //printf("a-d value = %d\n", dispvalue);
-        scaledadresult[pixel] = ((dispvalue * yscalenum)/ yscaleden) + yshift;
-        if (normalised == false)
-        {
-          y[pixel] = scaledadresult[pixel];
-        }
-        else
-        {
-          y[pixel] = scaledadresult[pixel] + norm[pixel];
-        }
-
-        if (normalising == true)
-        {
-          norm[pixel] = normleveloffset - scaledadresult[pixel];
-        }
-
-        if (y[pixel] < 1)
+        if (Flyback == true)  // Set the trace to the baseline for the rest of the scan
         {
           y[pixel] = 1;
         }
-        if (y[pixel] > 399)
+        else                               // Measure and possibly normalise the value
         {
-          y[pixel] = 399;
+          dispvalue = mcp3002_value(1);
+          scaledadresult[pixel] = ((dispvalue * yscalenum)/ yscaleden) + yshift;
+
+          if (normalised == false)        
+          {
+            y[pixel] = scaledadresult[pixel];
+          }
+          else                           // Apply normalisation if required
+          {
+            y[pixel] = scaledadresult[pixel] + norm[pixel];
+          }
+
+          if (normalising == true)         // Measure for normalisation (One scan only)
+          {
+            norm[pixel] = normleveloffset - scaledadresult[pixel];
+          }
+
+          if (y[pixel] < 1)                // Constrain y
+          {
+            y[pixel] = 1;
+          }
+          if (y[pixel] > 399)
+          {
+            y[pixel] = 399;
+          }
         }
         DrawTrace(pixel, y[pixel - 2], y[pixel - 1], y[pixel]);
+
 	    //printf("pixel=%d, prev2=%d, prev1=%d, current=%d\n", pixel, y[pixel - 2], y[pixel - 1], y[pixel]);
         while (freeze)
         {
