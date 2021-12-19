@@ -89,7 +89,7 @@ else
 fi
 
 # Check Pi Cam orientation
-# Set for avc2ts modes
+# Set for avc2ts and ffmpeg modes
 if [ "$PICAM" == "normal" ]; then
   H264ORIENTATION=""
 else
@@ -573,8 +573,11 @@ case "$MODE_INPUT" in
     ################# Pluto Code for DVB-S and DVB-S2 (not DVB-T)
 
     if [ "$MODE_OUTPUT" == "PLUTO" ] && [ "$MODE_INPUT" == "CAMH264" ] && [ "$MODULATION" != "DVB-T" ]; then
-      sudo modprobe bcm2835_v4l2  # Make sure that Pi Cam driver is loaded
 
+      # Make sure that Pi Cam driver is loaded
+      sudo modprobe bcm2835_v4l2
+
+      # Size image as required
       if [ "$FORMAT" == "16:9" ]; then
         VIDEO_WIDTH=1024
         VIDEO_HEIGHT=576
@@ -586,12 +589,14 @@ case "$MODE_INPUT" in
         VIDEO_HEIGHT=576
       fi
 
+      Rotate image if required
+      if [ "$PICAM" != "normal" ]; then
+        v4l2-ctl -d $VID_PICAM --set-ctrl=rotate=180
+      else
+        v4l2-ctl -d $VID_PICAM --set-ctrl=rotate=0
+      fi
+
       # Size the viewfinder
-
-#v4l2-ctl --set-ctrl=rotate=180
-
-v4l2-ctl --set-ctrl=rotate=0
-
       v4l2-ctl -d $VID_PICAM --set-fmt-overlay=left=0,top=0,width=736,height=416 --overlay 1 # For 800x480 framebuffer
       v4l2-ctl -d $VID_PICAM -p $VIDEO_FPS
 
@@ -750,6 +755,13 @@ x=w/10:y=(h/4-text_h)/2"
     VF=""    
   fi
 fi
+
+    # Rotate image if required
+    if [ "$PICAM" != "normal" ]; then
+      v4l2-ctl -d $VID_PICAM --set-ctrl=rotate=180
+    else
+      v4l2-ctl -d $VID_PICAM --set-ctrl=rotate=0
+    fi
 
     # Size the viewfinder
     v4l2-ctl -d $VID_PICAM --set-fmt-overlay=left=0,top=0,width=736,height=416 --overlay 1 # For 800x480 framebuffer
