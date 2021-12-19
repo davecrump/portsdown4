@@ -72,7 +72,7 @@ fi
 
 cvlc -I rc --rc-host 127.0.0.1:1111 --codec ffmpeg -f --video-title-timeout=100 \
   --width 800 --height 480 \
-  --gain 3 --alsa-audio-device hw:CARD=Device,DEV=0 \
+  --gain 3 --alsa-audio-device $AUDIO_DEVICE \
   $STREAMURL >/dev/null 2>/dev/null &
 
 rm  /home/pi/tmp/stream_status.txt >/dev/null 2>/dev/null
