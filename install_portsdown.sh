@@ -80,6 +80,9 @@ sudo apt-get -y install autoconf libtool # for fdk aac
 sudo apt-get -y install libxml2 libxml2-dev bison flex libcdk5-dev                   # for libiio
 sudo apt-get -y install libaio-dev libserialport-dev libxml2-dev libavahi-client-dev # for libiio
 
+sudo apt-get -y install nginx-light                                     # For web access
+sudo apt-get -y install libfcgi-dev                                     # For web control
+
 # Install WiringPi
 cd /tmp
 wget https://project-downloads.drogon.net/wiringpi-latest.deb
@@ -228,7 +231,7 @@ echo "--------------------------------------------"
 
 # For libmpegts
 cd /home/pi/avc2ts
-git clone git://github.com/F5OEO/libmpegts
+git clone https://github.com/F5OEO/libmpegts
 cd libmpegts
 ./configure
 make
@@ -514,6 +517,10 @@ fi
 if !(grep global_cursor_default /boot/cmdline.txt) then
   sudo sed -i '1s,$, vt.global_cursor_default=0,' /boot/cmdline.txt
 fi
+
+# Configure the nginx web server
+cp -r /home/pi/rpidatv/scripts/configs/webroot /home/pi/webroot
+sudo cp /home/pi/rpidatv/scripts/configs/nginx.conf /etc/nginx/nginx.conf
 
 # Record Version Number
 cd /home/pi/rpidatv/scripts/
