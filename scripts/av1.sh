@@ -4,6 +4,26 @@
 
 # set -x
 
+PCONFIGFILE="/home/pi/rpidatv/scripts/portsdown_config.txt"
+
+############ FUNCTION TO READ CONFIG FILE #############################
+
+get_config_var() {
+lua - "$1" "$2" <<EOF
+local key=assert(arg[1])
+local fn=assert(arg[2])
+local file=assert(io.open(fn))
+for line in file:lines() do
+local val = line:match("^#?%s*"..key.."=(.*)$")
+if (val ~= nil) then
+print(val)
+break
+end
+end
+EOF
+}
+
+
 ########### Reload the Pi Cam Driver in case it has been unloaded ###########
 
 sudo modprobe bcm2835_v4l2 >/dev/null 2>/dev/null
@@ -23,12 +43,22 @@ fi
 
 printf "The USB device string is $VID_USB\n"
 
-###########################################################################
+
+############ ALLOW FOR INVERTED CAMERA ###################################
+
+# Rotate image if required
+
+PICAM=$(get_config_var picam $PCONFIGFILE)
+
+if [ "$PICAM" != "normal" ]; then
+  v4l2-ctl -d $VID_USB --set-ctrl=rotate=180
+else
+  v4l2-ctl -d $VID_USB --set-ctrl=rotate=0
+fi
+
+############ USE MPLAYER TO DISPLAY ####################################
 
 sudo killall mplayer >/dev/null 2>/dev/null
-
-#mplayer tv:// -tv driver=v4l2:device="$VID_USB" \
-#   -fs -vo fbdev /dev/fb0
 
 mplayer tv:// -tv driver=v4l2:device="$VID_USB" \
    -vo fbdev2 -vf scale=800:480
