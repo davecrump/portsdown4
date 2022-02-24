@@ -279,6 +279,10 @@ cp -f -r portsdown4-master/src rpidatv
 rm -f rpidatv/video/*.jpg
 cp -f -r portsdown4-master/video rpidatv
 cp -f -r portsdown4-master/version_history.txt rpidatv/version_history.txt
+
+# Copy the "web not enabled" image into the user's back-up image folder
+cp portsdown4-master/scripts/images/web_not_enabled.png "$PATHUBACKUP"/images/web_not_enabled.png
+
 rm master.zip
 rm -rf portsdown4-master
 cd /home/pi
