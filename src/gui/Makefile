@@ -5,7 +5,7 @@ clean:
 	indent -linux -c 60 -brf -l 132
 
 INCLUDEFLAGS2=-lpthread -I/opt/vc/include -I/opt/vc/include/interface/vmcs_host/linux -I/opt/vc/include/interface/vcos/pthreads -I..
-LIBFLAGS2=-L/opt/vc/lib -lbcm_host -lpthread  -ljpeg -lrt -lm -ldl -lfftw3f -lwiringPi
+LIBFLAGS2=-L/opt/vc/lib -lbcm_host -lpthread  -ljpeg -lrt -lm -ldl -lfftw3f -lwiringPi -lfcgi -rdynamic
 
 rpidatvtouch4: rpidatvtouch4.c 
 	gcc -Wall $(INCLUDEFLAGS2) -o  rpidatvgui \
@@ -20,6 +20,8 @@ rpidatvtouch4: rpidatvtouch4.c
 		font/dejavu_sans_32.c \
 		font/dejavu_sans_72.c \
 		lmrx_utils.c \
+		ffunc.c \
+		ffunc.h \
 		rpidatvtouch4.c $(LIBFLAGS2) 
 
 install:

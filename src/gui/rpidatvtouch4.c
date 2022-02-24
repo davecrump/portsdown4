@@ -42,6 +42,7 @@ Rewitten by Dave, G8GKQ
 #include "touch.h"
 #include "Graphics.h"
 #include "lmrx_utils.h"
+#include "ffunc.h"
 
 #define KWHT  "\x1B[37m"
 #define KYEL  "\x1B[33m"
@@ -334,11 +335,23 @@ int PresetStoreTrigger = 0;   //Set to 1 if awaiting preset being stored
 int FinishedButton = 0;       // Used to indicate screentouch during TX or RX
 int touch_response = 0;       // set to 1 on touch and used to reboot display if it locks up
 
+// Web Control globals
+bool webcontrol = false;           // Enables remote control of touchscreen functions
+char ProgramName[255];             // used to pass rpidatvgui char string to listener
+int *web_x_ptr;                // pointer
+int *web_y_ptr;                // pointer
+int web_x;                     // click x 0 - 799 from left
+int web_y;                     // click y 0 - 480 from top
+
+//char *WebClickForAction[7] = "no";  // no/yes
+
 // Threads for Touchscreen monitoring
-pthread_t thfft;        //
+//pthread_t thfft;        //
 pthread_t thbutton;     //
 pthread_t thview;       //
 pthread_t thwait3;      //  Used to count 3 seconds for WebCam reset after transmit
+pthread_t thwebclick;   
+
 
 // Function Prototypes
 
@@ -412,6 +425,10 @@ void LMRX(int);
 void MakeFreqText(int);
 void IPTSConfig(int);
 int file_exist(char *);
+
+void parseClickQuerystring(char *, int32_t *, int32_t *);
+FFUNC touchscreenClick(ffunc_session_t *);
+int ffunc_main(int argc, char *argv[], ffunc_config_t *ffunc_conf);
 
 /***************************************************************************//**
  * @brief Looks up the value of a Param in PathConfigFile and sets value
@@ -1959,7 +1976,7 @@ void ReadAudioState()
 void ReadVLCVolume()
 {
   char VLCVolumeText[15];
-  GetConfigParam(PATH_PCONFIG,"vlcvolume", VLCVolumeText);
+  GetConfigParam(PATH_PCONFIG, "vlcvolume", VLCVolumeText);
   CurrentVLCVolume = atoi(VLCVolumeText);
   if (CurrentVLCVolume < 0)
   {
@@ -1970,6 +1987,128 @@ void ReadVLCVolume()
     CurrentVLCVolume = 512;
   }
 }
+
+void *WebClickListener(void * arg)
+{
+  while (webcontrol)
+  {
+    //(void)argc;
+	//return ffunc_run(ProgramName);
+	ffunc_run(ProgramName);
+  }
+  return NULL;
+}
+
+void parseClickQuerystring(char *query_string, int *x_ptr, int *y_ptr)
+{
+  char *query_ptr = strdup(query_string),
+  *tokens = query_ptr,
+  *p = query_ptr;
+
+  while ((p = strsep (&tokens, "&\n")))
+  {
+    char *var = strtok (p, "="),
+         *val = NULL;
+    if (var && (val = strtok (NULL, "=")))
+    {
+      if(strcmp("x", var) == 0)
+      {
+        *x_ptr = atoi(val);
+      }
+      else if(strcmp("y", var) == 0)
+      {
+        *y_ptr = atoi(val);
+      }
+    }
+  }
+}
+
+FFUNC touchscreenClick(ffunc_session_t * session)
+{
+  ffunc_str_t payload;
+
+  if( ffunc_read_body(session, &payload) )
+  {
+    ffunc_write_out(session, "Status: 200 OK\r\n");
+    ffunc_write_out(session, "Content-Type: text/plain\r\n\r\n");
+    ffunc_write_out(session, "%s\n", "click received.");
+    fprintf(stderr, "Received click POST: %s (%d)\n", payload.data?payload.data:"", payload.len);
+
+    int x = -1;
+    int y = -1;
+    parseClickQuerystring(payload.data, &x, &y);
+      printf("x: %d, y: %d\n", web_x, web_y);
+
+    if((x >= 0) && (y >= 0))
+    {
+      web_x = x;                 // web_x is a global int
+      web_y = y;                 // web_y is a global int
+      printf("x: %d, y: %d\n", web_x, web_y);
+    }
+  }
+  else
+  {
+    ffunc_write_out(session, "Status: 400 Bad Request\r\n");
+    ffunc_write_out(session, "Content-Type: text/plain\r\n\r\n");
+    ffunc_write_out(session, "%s\n", "payload not found.");
+  }
+}
+
+
+#if 0
+int ffunc_main(int argc, char *argv[], ffunc_config_t *ffunc_conf)
+{
+	(void) argc;
+	(void) argv;
+	
+	ffunc_conf->sock_port = 2005;
+	ffunc_conf->backlog = 4;
+	ffunc_conf->max_thread = 2;
+
+	ffunc_parse_function(ffunc_conf, "touchscreenClick");
+	return 0;
+}
+#endif
+
+/***************************************************************************//**
+ * @brief Reads webcontrol state from portsdown_config.txt
+ *        
+ * @param nil
+ *
+ * @return void
+*******************************************************************************/
+
+void ReadWebControl()
+{
+  char WebControlText[15];
+
+  // DISABLED FOR INITIAL RELEASE
+
+  //GetConfigParam(PATH_PCONFIG, "webcontrol", WebControlText);
+  strcpy(WebControlText, "disabled");
+
+  if (strcmp(WebControlText, "enabled") == 0)
+  {
+    webcontrol = true;
+
+    system("pkill -f screen_grab_for_web.sh");
+    usleep(10000);
+    system("/home/pi/rpidatv/scripts/screen_grab_for_web.sh &");
+    printf("Creating thread\n");
+
+    pthread_create (&thwebclick, NULL, &WebClickListener, NULL);
+    printf("Created thread\n");
+
+  }
+  else
+  {
+    webcontrol = false;
+    system("pkill -f screen_grab_for_web.sh");
+    system("cp /home/pi/rpidatv/scripts/images/web_not_enabled.png /home/pi/tmp/screen.png");
+    pthread_join(thwebclick, NULL);
+  }
+}
+
 
 
 /***************************************************************************//**
@@ -5602,55 +5741,123 @@ int getTouchScreenDetails(int *screenXmin,int *screenXmax,int *screenYmin,int *s
 
 int getTouchSample(int *rawX, int *rawY, int *rawPressure)
 {
-	int i;
-        /* how many bytes were read */
-        size_t rb;
-        /* the events (up to 64 at once) */
-        struct input_event ev[64];
-	//static int Last_event=0; //not used?
-	rb=read(fd,ev,sizeof(struct input_event)*64);
-	*rawX=-1;*rawY=-1;
-	int StartTouch=0;
-        for (i = 0;  i <  (rb / sizeof(struct input_event)); i++){
-              if (ev[i].type ==  EV_SYN)
-		{
-                         //printf("Event type is %s%s%s = Start of New Event\n",KYEL,events[ev[i].type],KWHT);
-		}
-                else if (ev[i].type == EV_KEY && ev[i].code == 330 && ev[i].value == 1)
-		{
-			StartTouch=1;
-                        //printf("Event type is %s%s%s & Event code is %sTOUCH(330)%s & Event value is %s1%s = Touch Starting\n", KYEL,events[ev[i].type],KWHT,KYEL,KWHT,KYEL,KWHT);
-		}
-                else if (ev[i].type == EV_KEY && ev[i].code == 330 && ev[i].value == 0)
-		{
-			//StartTouch=0;
-			//printf("Event type is %s%s%s & Event code is %sTOUCH(330)%s & Event value is %s0%s = Touch Finished\n", KYEL,events[ev[i].type],KWHT,KYEL,KWHT,KYEL,KWHT);
-		}
-                else if (ev[i].type == EV_ABS && ev[i].code == 0 && ev[i].value > 0){
-                        //printf("Event type is %s%s%s & Event code is %sX(0)%s & Event value is %s%d%s\n", KYEL,events[ev[i].type],KWHT,KYEL,KWHT,KYEL,ev[i].value,KWHT);
-			*rawX = ev[i].value;
-		}
-                else if (ev[i].type == EV_ABS  && ev[i].code == 1 && ev[i].value > 0){
-                        //printf("Event type is %s%s%s & Event code is %sY(1)%s & Event value is %s%d%s\n", KYEL,events[ev[i].type],KWHT,KYEL,KWHT,KYEL,ev[i].value,KWHT);
-			*rawY = ev[i].value;
-		}
-                else if (ev[i].type == EV_ABS  && ev[i].code == 24 && ev[i].value > 0){
-                        //printf("Event type is %s%s%s & Event code is %sPressure(24)%s & Event value is %s%d%s\n", KYEL,events[ev[i].type],KWHT,KYEL,KWHT,KYEL,ev[i].value,KWHT);
-			*rawPressure = ev[i].value;
-		}
-		if((*rawX!=-1)&&(*rawY!=-1)&&(StartTouch==1))
-		{
-			/*if(Last_event-mymillis()>500)
-			{
-				Last_event=mymillis();
-				return 1;
-			}*/
-			//StartTouch=0;
-			return 1;
-		}
+  int i;
 
-	}
-	return 0;
+  /* how many bytes were read */
+  size_t rb;
+
+  /* the events (up to 64 at once) */
+  struct input_event ev[64];
+
+  //static int Last_event=0; //not used?
+
+  //printf("Starting read RB\n");
+  rb = read(fd, ev, sizeof(struct input_event) * 64);
+  printf("Finishing read RB\n");
+  //rb = 0;
+
+  *rawX = -1;
+  *rawY = -1;
+  int StartTouch = 0;
+
+  // Check for web click events
+  //printf("Checking   %d    %d         Webclick for action *********************************\n", *web_x, *web_y);
+
+  //if (strcmp(WebClickForAction, "yes") == 0)
+  //{
+  //  printf("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n");
+  //}
+
+  //if(webcontrol == true)// && (strcmp(WebClickForAction, "yes") == 0))
+  //{
+  //  *rawX = *web_x;
+  //  *rawY = *web_y;
+    //strcpy(WebClickForAction, "no");
+  //  printf("Web rawX = %d, rawY = %d, rawPressure = %d\n", *rawX, *rawY, *rawPressure);
+  //  return 1;
+  //}
+
+  //usleep(10000);
+  for (i = 0;  i <  (rb / sizeof(struct input_event)); i++)
+  {
+    printf("Starting touch loop\n");
+    printf("WEB x: %d, y: %d\n", web_x, web_y);
+
+      printf("rawX = %d, rawY = %d, rawPressure = %d, \n", *rawX, *rawY, *rawPressure);
+
+    if (ev[i].type ==  EV_SYN)
+    {
+      printf("Event type is %s%s%s = Start of New Event\n",KYEL,events[ev[i].type],KWHT);
+    }
+    else if (ev[i].type == EV_KEY && ev[i].code == 330 && ev[i].value == 1)
+    {
+      StartTouch = 1;
+      printf("Event type is %s%s%s & Event code is %sTOUCH(330)%s & Event value is %s1%s = Touch Starting\n", KYEL,events[ev[i].type],KWHT,KYEL,KWHT,KYEL,KWHT);
+    }
+    else if (ev[i].type == EV_KEY && ev[i].code == 330 && ev[i].value == 0)
+    {
+      //StartTouch=0;
+      printf("Event type is %s%s%s & Event code is %sTOUCH(330)%s & Event value is %s0%s = Touch Finished\n", KYEL,events[ev[i].type],KWHT,KYEL,KWHT,KYEL,KWHT);
+    }
+    else if (ev[i].type == EV_ABS && ev[i].code == 0 && ev[i].value > 0)
+    {
+      printf("Event type is %s%s%s & Event code is %sX(0)%s & Event value is %s%d%s\n", KYEL,events[ev[i].type],KWHT,KYEL,KWHT,KYEL,ev[i].value,KWHT);
+	  *rawX = ev[i].value;
+    }
+    else if (ev[i].type == EV_ABS  && ev[i].code == 1 && ev[i].value > 0)
+    {
+      printf("Event type is %s%s%s & Event code is %sY(1)%s & Event value is %s%d%s\n", KYEL,events[ev[i].type],KWHT,KYEL,KWHT,KYEL,ev[i].value,KWHT);
+      *rawY = ev[i].value;
+    }
+    else if (ev[i].type == EV_ABS  && ev[i].code == 24 && ev[i].value > 0)
+    {
+      printf("Event type is %s%s%s & Event code is %sPressure(24)%s & Event value is %s%d%s\n", KYEL,events[ev[i].type],KWHT,KYEL,KWHT,KYEL,ev[i].value,KWHT);
+      *rawPressure = ev[i].value;
+    }
+
+    if((*rawX != -1) && (*rawY != -1) && (StartTouch == 1))
+    {
+      /*if(Last_event-mymillis()>500)
+      {
+        Last_event=mymillis();
+        return 1;
+      }*/
+
+      //StartTouch=0;
+      printf("rawX = %d, rawY = %d, rawPressure = %d, web_x = %d, web_y = %d\n", *rawX, *rawY, *rawPressure, web_x, web_y);
+      return 1;
+    }
+  }
+
+  printf("Returning 0\n");
+  return 0;
+}
+
+
+
+void togglewebcontrol()
+{
+  if(webcontrol == false)
+  {
+    system("/home/pi/rpidatv/scripts/screen_grab_for_web.sh &");
+    SetConfigParam(PATH_PCONFIG, "webcontrol", "enabled");
+    webcontrol = true;
+    printf("Creating thread\n");
+
+    pthread_create (&thwebclick, NULL, &WebClickListener, NULL);
+    printf("Created thread\n");
+  }
+  else
+  {
+    system("pkill -f screen_grab_for_web.sh");
+    system("cp /home/pi/rpidatv/scripts/images/web_not_enabled.png /home/pi/tmp/screen.png");
+    SetConfigParam(PATH_PCONFIG, "webcontrol", "disabled");
+    webcontrol = false;
+    printf("Joining thread\n");
+    pthread_join(thwebclick, NULL);
+    printf("Joined thread\n");
+
+  }
 }
 
 void ShowMenuText()
@@ -11853,7 +12060,7 @@ void wait_touch()
   printf("wait_touch called\n");
 
   // Check if screen touched, if not, wait 0.1s and check again
-  while(getTouchSample(&rawX, &rawY, &rawPressure)==0)
+  while(getTouchSample(&rawX, &rawY, &rawPressure) == 0)
   {
     usleep(100000);
   }
@@ -18165,6 +18372,11 @@ void waituntil(int w,int h)
           Start_Highlights_Menu43();
           UpdateWindow();
           break;
+        case 10:                               // Web Control Enable/disable
+          togglewebcontrol();
+          Start_Highlights_Menu43();
+          UpdateWindow();
+          break;
         case 12:                               // Select Start-up App
           printf("MENU 34 \n"); 
           CurrentMenu=34;
@@ -23063,10 +23275,9 @@ void Define_Menu43()
   AddButtonStatus(button, "SD Button^Disabled", &Green);
 
   // 3rd Row, Menu 43
-
-//  button = CreateButton(43, 10);
-//  AddButtonStatus(button, "", &Blue);
-//  AddButtonStatus(button, "", &Green);
+  button = CreateButton(43, 10);
+  AddButtonStatus(button, "Web Control^Enabled", &Blue);
+  AddButtonStatus(button, "Web Control^Disabled", &Blue);
 
 //  button = CreateButton(43, 11);
 //  AddButtonStatus(button, "", &Blue);
@@ -23094,6 +23305,15 @@ void Start_Highlights_Menu43()
   else
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 9), 2);
+  }
+
+  if (webcontrol == true)
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 10), 0);
+  }
+  else
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 10), 1);
   }
 
   if (strcmp(CurrentPiCamOrientation, "normal") != 0)
@@ -23842,7 +24062,8 @@ terminate(int dummy)
 
 // main initializes the system and starts Menu 1 
 
-int main(int argc, char **argv)
+//int main(int argc, char **argv)
+int main(int argc, char *argv[])
 {
   int NoDeviceEvent=0;
   wscreen = 800;
@@ -23856,6 +24077,8 @@ int main(int argc, char **argv)
   char SetStandard[255];
   char vcoding[256];
   char vsource[256];
+
+  strcpy(ProgramName, argv[0]);
 
   // Catch sigaction and call terminate
   for (i = 0; i < 16; i++)
@@ -23962,6 +24185,7 @@ int main(int argc, char **argv)
   ReadTSConfig();
   ReadContestSites();
   ReadVLCVolume();
+  ReadWebControl();
 
   SetAudioLevels();
 
@@ -24044,6 +24268,13 @@ int main(int argc, char **argv)
   // Clear the screen ready for Menu 1
   setBackColour(255, 255, 255);          // White background
   clearScreen();
+
+  // Initialise web access
+
+  web_x = -1;
+  web_y = -1;
+  web_x_ptr = &web_x;
+  web_y_ptr = &web_y;
 
   // Display Menu 1
   Start_Highlights_Menu1();

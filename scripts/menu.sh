@@ -1794,10 +1794,35 @@ do_WiFi_Off()
   cp $PATHCONFIGS"/text.wifi_off" /home/pi/.wifi_off ## Disable at start-up
 }
 
-do_Enable_DigiThin()
+
+do_Web_Control()
 {
-whiptail --title "Not implemented yet" --msgbox "Not Implemented yet.  Please press enter to continue" 8 78
+  WEBCONTROL=$(get_config_var webcontrol $PCONFIGFILE)
+  Radio1=OFF
+  Radio2=OFF
+
+  if [[ "$WEBCONTROL" == "enabled" ]]; then
+    Radio1=ON
+  else
+    Radio2=ON
+  fi
+
+  ch_Web_Control=$(whiptail --title "Enable or Disable Web Control" --radiolist \
+    "Select Option with spacebar then press enter" 20 78 5 \
+    "Enabled" "Enable Web Control" $Radio1 \
+    "Disabled" "Disable Web Control" $Radio2 \
+ 	 3>&2 2>&1 1>&3)
+
+  if [ $? -eq 0 ]; then                     ## If the selection has changed
+
+    if [[ "$ch_Web_Control" == "Enabled" ]]; then
+      set_config_var webcontrol "enabled" $PCONFIGFILE
+    else
+      set_config_var webcontrol "disabled" $PCONFIGFILE
+    fi
+  fi
 }
+
 
 do_EasyCap()
 {
@@ -2888,7 +2913,7 @@ menuchoice=$(whiptail --title "$StrSystemTitle" --menu "$StrSystemContext" 20 78
     "3 Show IP" "$StrIPMenu" \
     "4 WiFi Set-up" "SSID and password"  \
     "5 WiFi Off" "Turn the WiFi Off" \
-    "6 Enable DigiThin" "Not Implemented Yet" \
+    "6 Web Control" "Enable or Disable Web Control" \
     "7 Set-up EasyCap" "Set input socket and PAL/NTSC"  \
     "8 Audio Input" "Select USB Dongle or EasyCap"  \
     "9 Attenuator" "Select Output Attenuator Type"  \
@@ -2902,7 +2927,7 @@ menuchoice=$(whiptail --title "$StrSystemTitle" --menu "$StrSystemContext" 20 78
 	  3\ *) do_IP_setup ;;
       4\ *) do_WiFi_setup ;;
       5\ *) do_WiFi_Off   ;;
-      6\ *) do_Enable_DigiThin ;;
+      6\ *) do_Web_Control ;;
       7\ *) do_EasyCap ;;
       8\ *) do_audio_switch;;
       9\ *) do_attenuator;;

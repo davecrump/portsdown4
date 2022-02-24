@@ -58,6 +58,9 @@ EOF
 
 MODE_STARTUP=$(get_config_var startup $PCONFIGFILE)
 
+# Display the web not enabled caption
+# It will get over-written if web is enabled
+cp /home/pi/rpidatv/scripts/images/web_not_enabled.png /home/pi/tmp/screen.png
 
 case "$MODE_STARTUP" in
   Display_boot)
