@@ -80,8 +80,8 @@ sudo apt-get -y install autoconf libtool # for fdk aac
 sudo apt-get -y install libxml2 libxml2-dev bison flex libcdk5-dev                   # for libiio
 sudo apt-get -y install libaio-dev libserialport-dev libxml2-dev libavahi-client-dev # for libiio
 
-#sudo apt-get -y install nginx-light                                     # For web access
-#sudo apt-get -y install libfcgi-dev                                     # For web control
+sudo apt-get -y install nginx-light                                     # For web access
+sudo apt-get -y install libfcgi-dev                                     # For web control
 
 # Install WiringPi
 cd /tmp
@@ -519,8 +519,8 @@ if !(grep global_cursor_default /boot/cmdline.txt) then
 fi
 
 # Configure the nginx web server
-#cp -r /home/pi/rpidatv/scripts/configs/webroot /home/pi/webroot
-#sudo cp /home/pi/rpidatv/scripts/configs/nginx.conf /etc/nginx/nginx.conf
+cp -r /home/pi/rpidatv/scripts/configs/webroot /home/pi/webroot
+sudo cp /home/pi/rpidatv/scripts/configs/nginx.conf /etc/nginx/nginx.conf
 
 # Record Version Number
 cd /home/pi/rpidatv/scripts/
