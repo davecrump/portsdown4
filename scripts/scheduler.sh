@@ -43,7 +43,7 @@ EOF
 # 128  Exit leaving system running
 # 129  Exit from any app requesting restart of main rpidatvgui
 # 130  Exit from rpidatvgui requesting start of siggen
-# 131  Exit from rpidatvgui requesting start of spectrum monitor
+# 131  Exit from rpidatvgui requesting start of FreqShow (now deleted)
 # 132  Run Update Script for production load
 # 133  Run Update Script for development load
 # 134  Exit from rpidatvgui requesting start of the XY Display
