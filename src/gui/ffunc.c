@@ -30,6 +30,10 @@
 #define _FFUNC_MASTER_ " ffunc-master"
 #define _FFUNC_WORKER_ " ffunc-worker"
 
+/* Flags added by Phil Crump 2nd Jan 2022 */
+#define FFUNC_PROCESS_FORK  false
+#define FFUNC_THREADS_SPAWN false
+
 static void* mem_align(size_t size);
 static __attribute__ ((unused)) int ffunc_get_number_of_digit(long long number);
 static ffunc_pool* ffunc_recreate_pool(ffunc_pool *curr_p, size_t new_size);
@@ -57,13 +61,13 @@ static int ffunc_init(char** ffunc_nmap_func);
 static int ffunc_strpos(const char *haystack, const char *needle);
 void *ffunc_thread_worker(void* wrker);
 static int hook_socket(int sock_port, char* sock_port_str, int backlog, int max_thread, char** ffunc_nmap_func, int* procpip);
-static void ffunc_add_signal_handler(void);
+//static void ffunc_add_signal_handler(void);
 static void handle_request(FCGX_Request *request);
 static size_t ffunc_read_body_limit(ffunc_session_t * csession, ffunc_str_t *content);
 static size_t ffunc_read_body_nolimit(ffunc_session_t * csession, ffunc_str_t *content);
 static void ffunc_default_direct_consume(ffunc_session_t *sess);
-static int  has_init_signal = 0;
-static struct sigaction sa;
+//static int  has_init_signal = 0;
+//static struct sigaction sa;
 static void *usr_req_handle;
 // extern declaration
 size_t(*ffunc_read_body)(ffunc_session_t *, ffunc_str_t *);
@@ -238,10 +242,10 @@ ffunc_read_body_limit(ffunc_session_t * csession, ffunc_str_t *content) {
 /**Main Hook**/
 int
 ffunc_hook(ffunc_config_t *conf) {
-    pid_t child_pid, daemon_pid;
-    int child_status;
-    int procpip[2];
-    char pipbuf[FFUNC_APP_INIT_PIPE_BUF_SIZE];
+    //pid_t child_pid, daemon_pid;
+    //int child_status;
+    //int procpip[2];
+    //char pipbuf[FFUNC_APP_INIT_PIPE_BUF_SIZE];
     int sock_port = conf->sock_port;
     char* sock_port_str = conf->sock_port_str;
     int backlog = conf->backlog;
@@ -283,6 +287,7 @@ ffunc_hook(ffunc_config_t *conf) {
     } else if(sock_port_str) {
         ffunc_print("sock_port=%s, backlog=%d\n", sock_port_str, backlog);
     }
+#if FFUNC_PROCESS_FORK
     /** Do master pipe before fork **/
     if (pipe(procpip) < 0)
         exit(1);
@@ -343,7 +348,9 @@ FFUNC_WORKER_RESTART:
         return -1;
     }
     return 0;
-    // return hook_socket(sock_port, backlog, max_thread, ffunc_nmap_func, app_init_handler);
+#else
+    return hook_socket(sock_port, sock_port_str, backlog, max_thread, ffunc_nmap_func, NULL);
+#endif
 }
 
 void *
@@ -373,7 +380,7 @@ ffunc_thread_worker(void* wrker) {
 
 static int
 hook_socket(int sock_port, char *sock_port_str, int backlog, int max_thread, char** ffunc_nmap_func, int* procpip) {
-    char pipbuf[FFUNC_APP_INIT_PIPE_BUF_SIZE];
+    //char pipbuf[FFUNC_APP_INIT_PIPE_BUF_SIZE];
     FCGX_Init();
     if (!ffunc_init(ffunc_nmap_func)) {
         exit(1);
@@ -386,7 +393,7 @@ hook_socket(int sock_port, char *sock_port_str, int backlog, int max_thread, cha
     }
 
     worker_t->accept_mutex = (pthread_mutex_t)PTHREAD_MUTEX_INITIALIZER; // this is lock for all threads
-    int i;
+    //int i;
 
     if (sock_port) {
         sprintf(port_str, ":%d", sock_port);
@@ -409,13 +416,16 @@ hook_socket(int sock_port, char *sock_port_str, int backlog, int max_thread, cha
         exit(1);
     }
 
-    ffunc_print("%d threads \n", max_thread);
-
+#if FFUNC_PROCESS_FORK
     /** Release for success initialized **/
     read(procpip[0], pipbuf, FFUNC_APP_INIT_PIPE_BUF_SIZE);
     write(procpip[1], FFUNC_APP_INITIALIZED, FFUNC_APP_INIT_PIPE_BUF_SIZE);
     close(procpip[0]);
     close(procpip[1]);
+#endif
+
+#if FFUNC_THREADS_SPAWN
+    ffunc_print("%d threads \n", max_thread);
 
     pthread_t pth_workers[max_thread];
     for (i = 0; i < max_thread; i++) {
@@ -425,50 +435,70 @@ hook_socket(int sock_port, char *sock_port_str, int backlog, int max_thread, cha
     for (i = 0; i < max_thread; i++) {
         pthread_join(pth_workers[i], NULL);
     }
+#else
+    int rc;
+
+    FCGX_Request request;
+    if (FCGX_InitRequest(&request, worker_t->fcgi_func_socket, FCGI_FAIL_ACCEPT_ON_INTR) != 0) {
+        ffunc_print("%s\n", "Can not init request");
+//        return NULL;
+        return 1;
+    }
+    while (1) {
+        rc = FCGX_Accept_r(&request);
+        if (rc < 0) {
+            ffunc_print("%s\n", "Cannot accept new request");
+            FCGX_Finish_r(&request); // this will free all the fcgiparams memory and request
+            continue;
+        }
+        handle_request(&request);
+        FCGX_Finish_r(&request); // this will free all the fcgiparams memory and request
+    }
+#endif
 
     ffunc_print("%s\n", "Exiting");
     return EXIT_SUCCESS;
 }
 
-static void
-ffunc_signal_backtrace(int sfd) {
-    (void) sfd;
-    size_t i, ptr_size;
-    void *buffer[10];
-    char **strings;
+//static void
+//ffunc_signal_backtrace(int sfd) {
+//    (void) sfd;
+//    size_t i, ptr_size;
+//    void *buffer[10];
+//    char **strings;
 
-    ptr_size = backtrace(buffer, 1024);
-    fprintf(stderr, "backtrace() returned %zd addresses\n", ptr_size);
+//    ptr_size = backtrace(buffer, 1024);
+//    fprintf(stderr, "backtrace() returned %zd addresses\n", ptr_size);
 
-    strings = backtrace_symbols(buffer, ptr_size);
-    if (strings == NULL) {
-        fprintf(stderr, "backtrace_symbols= %s", strerror(errno));
-        exit(EXIT_FAILURE);
-    }
+//    strings = backtrace_symbols(buffer, ptr_size);
+//    if (strings == NULL) {
+//        fprintf(stderr, "backtrace_symbols= %s", strerror(errno));
+//        exit(EXIT_FAILURE);
+//    }
 
-    for (i = 0; i < ptr_size; i++)
-        fprintf(stderr, "%s\n", strings[i]);
+//    for (i = 0; i < ptr_size; i++)
+//        fprintf(stderr, "%s\n", strings[i]);
 
-    free(strings);
-    exit(EXIT_FAILURE);
-}
+//    free(strings);
+//    exit(EXIT_FAILURE);
+//}
 
-static void
-ffunc_add_signal_handler() {
-    memset(&sa, 0, sizeof(struct sigaction));
-    sa.sa_handler = ffunc_signal_backtrace;
-    sigemptyset(&sa.sa_mask);
+//static void
+//ffunc_add_signal_handler() {
+//    memset(&sa, 0, sizeof(struct sigaction));
+//    sa.sa_handler = ffunc_signal_backtrace;
+//    sigemptyset(&sa.sa_mask);
 
-    sigaction(SIGABRT, &sa, NULL);
-    sigaction(SIGFPE, &sa, NULL);
-    sigaction(SIGILL, &sa, NULL);
-    sigaction(SIGIOT, &sa, NULL);
-    sigaction(SIGSEGV, &sa, NULL);
-#ifdef SIGBUS
-    sigaction(SIGBUS, &sa, NULL);
-#endif
-    has_init_signal = 1;
-}
+//    sigaction(SIGABRT, &sa, NULL);
+//    sigaction(SIGFPE, &sa, NULL);
+//    sigaction(SIGILL, &sa, NULL);
+//    sigaction(SIGIOT, &sa, NULL);
+//    sigaction(SIGSEGV, &sa, NULL);
+//#ifdef SIGBUS
+//    sigaction(SIGBUS, &sa, NULL);
+//#endif
+//    has_init_signal = 1;
+//}
 
 int32_t ffunc_run(char *app_name)
 {
