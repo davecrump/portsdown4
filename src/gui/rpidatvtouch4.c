@@ -13479,13 +13479,13 @@ void do_Langstone()
     if (strcmp(langstone_version, "v2lime") == 0)
     {
       // Check that Pluto IP is set correctly otherwise display error message
-      if (CheckLimeMiniConnect() == 0)
+      if ((CheckLimeMiniConnect() == 0) || (CheckLimeUSBConnect() == 0))
       {
         cleanexit(145);  // Start Langstone V2 for Lime
       }
       else
       {
-        MsgBox4("No Lime Mini connected", " ",
+        MsgBox4("No LimeSDR connected", " ",
                 "Please correct and try again", "Touch Screen to Continue");
         wait_touch();
       } 
@@ -14992,7 +14992,9 @@ void ChangePlutoIPLangstone()  // For Langstone
   char LinuxCommand[255];
 
   // Check that Langstone is loaded
-  if (file_exist("/home/pi/Langstone/run") != 0)
+  if ((strcmp(langstone_version, "v1pluto") == 0)
+  ||  (strcmp(langstone_version, "v2lime") == 0)
+  ||  (strcmp(langstone_version, "v2pluto") == 0))
   {
     MsgBox2("Langstone not installed", "Please install Langstone, then set Pluto IP");
     wait_touch();
