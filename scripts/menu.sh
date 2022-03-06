@@ -3271,10 +3271,6 @@ OnStartup()
 
 #********************************************* MAIN MENU *********************************
 #************************* Execution of Console Menu starts here *************************
-  CALL=$(get_config_var call $PCONFIGFILE)
-
-echo $CALL
-
 
 # Check Language
 MENU_LANG=$(get_config_var menulanguage $PCONFIGFILE)
