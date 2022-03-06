@@ -88,6 +88,8 @@ else
   ECCONTRAST=" "
 fi
 
+"${VAR1}World"
+
 # Check Pi Cam orientation
 # Set for avc2ts and ffmpeg modes
 if [ "$PICAM" == "normal" ]; then
@@ -248,6 +250,14 @@ case "$MODE_OUTPUT" in
 
   PLUTO)
     PLUTOPWR=$(get_config_var plutopwr $PCONFIGFILE)
+
+    # Add an extra / to the beginning of the Pluto call if required to cope with /P
+    echo $CALL | grep -q "/"
+    if [ $? == 0 ]; then
+      PLUTOCALL="/,${CALL}"
+    else
+      PLUTOCALL=",${CALL}"
+    fi
   ;;
 
   DATVEXPRESS)
@@ -609,7 +619,7 @@ case "$MODE_INPUT" in
           -i $VID_PICAM \
           -c:v h264_omx -b:v $BITRATE_VIDEO -g 25 \
           -f flv \
-          rtmp://$PLUTOIP:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,-$PLUTOPWR,nocalib,800,32,/,$CALL, &
+          rtmp://$PLUTOIP:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,-$PLUTOPWR,nocalib,800,32,/$PLUTOCALL, &
 
       else
 
@@ -623,7 +633,7 @@ case "$MODE_INPUT" in
           -c:v h264_omx -b:v $BITRATE_VIDEO -g 25 \
           -ar 22050 -ac $AUDIO_CHANNELS -ab 64k \
           -f flv \
-          rtmp://$PLUTOIP:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,-$PLUTOPWR,nocalib,800,32,/,$CALL, &
+          rtmp://$PLUTOIP:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,-$PLUTOPWR,nocalib,800,32,/$PLUTOCALL, &
       fi
       exit
     fi
@@ -996,7 +1006,7 @@ fi
         -c:v h264_omx -b:v $BITRATE_VIDEO -g 25 \
         -ar 22050 -ac $AUDIO_CHANNELS -ab 64k \
         -f flv \
-        rtmp://$PLUTOIP:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,-$PLUTOPWR,nocalib,800,32,/,$CALL, &
+        rtmp://$PLUTOIP:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,-$PLUTOPWR,nocalib,800,32,/$PLUTOCALL, &
       exit
     fi
 
@@ -1030,7 +1040,7 @@ fi
           -c:v h264_omx -b:v $BITRATE_VIDEO $SCALE -g 25 \
           -ar 22050 -ac $AUDIO_CHANNELS -ab 64k \
           -f flv \
-          rtmp://$PLUTOIP:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,-$PLUTOPWR,nocalib,800,32,/,$CALL, &
+          rtmp://$PLUTOIP:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,-$PLUTOPWR,nocalib,800,32,/$PLUTOCALL, &
 
         # Set the EasyCap contrast to prevent crushed whites
         sleep 0.7
@@ -1285,7 +1295,7 @@ fi
         -i $IMAGEFILE -framerate 1 -video_size "$VIDEO_WIDTH"x"$VIDEO_HEIGHT" \
         -c:v h264_omx -b:v $BITRATE_VIDEO \
         -f flv \
-        rtmp://$PLUTOIP:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,-$PLUTOPWR,nocalib,800,32,/,$CALL, &
+        rtmp://$PLUTOIP:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,-$PLUTOPWR,nocalib,800,32,/$PLUTOCALL, &
       exit
     fi
 
@@ -1320,7 +1330,7 @@ fi
           -framerate 25 -video_size "$VIDEO_WIDTH"x"$VIDEO_HEIGHT" \
           -c:v h264_omx -b:v $BITRATE_VIDEO \
           -f flv \
-          rtmp://$PLUTOIP:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,-$PLUTOPWR,nocalib,800,32,/,$CALL, &
+          rtmp://$PLUTOIP:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,-$PLUTOPWR,nocalib,800,32,/$PLUTOCALL, &
       exit
     fi
 
@@ -1342,7 +1352,7 @@ fi
             -i $IMAGEFILE \
             -framerate 25 -video_size 800x480 -c:v h264_omx -b:v $BITRATE_VIDEO \
         -f flv \
-        rtmp://$PLUTOIP:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,-$PLUTOPWR,nocalib,800,32,/,$CALL, &
+        rtmp://$PLUTOIP:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,-$PLUTOPWR,nocalib,800,32,/$PLUTOCALL, &
       exit
     fi
 
@@ -1507,7 +1517,7 @@ fi
         rpidatv/bin/ffmpeg -thread_queue_size 2048 \
           -i udp://:@:"$UDPINPORT"?fifo_size=1000000"&"overrun_nonfatal=1 -c:v copy -c:a copy \
           -f flv \
-          rtmp://$PLUTOIP:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,-$PLUTOPWR,nocalib,800,32,/,$CALL, &
+          rtmp://$PLUTOIP:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,-$PLUTOPWR,nocalib,800,32,/$PLUTOCALL, &
         exit
         ;;
         *)
@@ -1560,7 +1570,7 @@ fi
 #        rpidatv/bin/ffmpeg -thread_queue_size 2048 \
 #          -i $TSVIDEOFILE -c:v copy -c:a copy \
 #          -f flv \
-#          rtmp://$PLUTOIP:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,-$PLUTOPWR,nocalib,800,32,/,$CALL, &
+#          rtmp://$PLUTOIP:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,-$PLUTOPWR,nocalib,800,32,/$PLUTOCALL, &
 #        exit
 #      ;;
       *)
@@ -2070,7 +2080,7 @@ exit
           -c:v h264_omx -b:v $BITRATE_VIDEO -g 25 \
           -ar 22050 -ac 2 -ab 64k \
           -f flv \
-          rtmp://$PLUTOIP:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,-$PLUTOPWR,nocalib,800,32,/,$CALL, &
+          rtmp://$PLUTOIP:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,-$PLUTOPWR,nocalib,800,32,/$PLUTOCALL, &
       ;;
     esac
   ;;

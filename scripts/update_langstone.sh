@@ -14,15 +14,19 @@ cp -f /home/pi/Langstone/Langstone.conf /home/pi/rpidatv/scripts/configs/Langsto
 rm -rf /home/pi/Langstone
 
 # Clone the latest version
-git clone https://github.com/g4eml/Langstone.git
+git clone http://www.github.com/g4eml/Langstone
 
-cd /home/pi/Langstone
+cd Langstone
+chmod +x build
+chmod +x run
+chmod +x stop
+chmod +x update
+cd /home/pi
 
 # Build the c executable
-./build
-
-cd /home/pi
+/home/pi/Langstone/build
 
 # Restore the old Config file
 cp -f /home/pi/rpidatv/scripts/configs/Langstone.conf /home/pi/Langstone/Langstone.conf 
 
+exit

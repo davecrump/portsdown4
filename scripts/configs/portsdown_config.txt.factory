@@ -57,4 +57,5 @@ qam=qpsk
 picam=normal
 vlcvolume=256
 webcontrol=disabled
+langstone=none
 
