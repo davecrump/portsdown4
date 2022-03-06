@@ -609,6 +609,20 @@ if ! grep -q webcontrol= "$PATHSCRIPT"/portsdown_config.txt; then
   echo "webcontrol=disabled" >> "$PATHSCRIPT"/portsdown_config.txt
 fi
 
+# Add langstone setting to config file if not included  202203070
+if ! grep -q langstone= "$PATHSCRIPT"/portsdown_config.txt; then
+  # File needs updating
+  # Delete any blank lines first
+  sed -i -e '/^$/d' "$PATHSCRIPT"/portsdown_config.txt
+  # Add the new entry and a new line
+  if [ -d  /home/pi/Langstone ]; then                 
+    # Langstone V1 already installed
+    echo "langstone=v1pluto" >> "$PATHSCRIPT"/portsdown_config.txt
+  else
+    echo "langstone=none" >> "$PATHSCRIPT"/portsdown_config.txt
+  fi
+fi
+
 # Add New presets and LimeRFE controls to presets file if not included  202107010
 if ! grep -q d0label= "$PATHSCRIPT"/portsdown_presets.txt; then
   # File needs updating

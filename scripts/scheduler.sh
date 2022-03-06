@@ -47,11 +47,13 @@ EOF
 # 132  Run Update Script for production load
 # 133  Run Update Script for development load
 # 134  Exit from rpidatvgui requesting start of the XY Display
-# 135  Run the Langstone TRX
+# 135  Run the Langstone TRX V1
 # 136  Exit from rpidatvgui requesting start of BandViewer
 # 137  Exit from rpidatvgui requesting start of Power Meter
 # 138  Exit from rpidatvgui requesting start of NF Meter
 # 139  Exit from rpidatvgui requesting start of Sweeper
+# 145  Run the Langstone TRX V2 Lime
+# 146  Run the Langstone TRX V2 Pluto
 # 160  Shutdown from GUI
 # 192  Reboot from GUI
 # 193  Rotate 7 inch and reboot
@@ -145,6 +147,24 @@ while [ "$GUI_RETURN_CODE" -gt 127 ] || [ "$GUI_RETURN_CODE" -eq 0 ];  do
       sleep 1
       /home/pi/rpidatv/bin/sweeper
       GUI_RETURN_CODE="$?"
+    ;;
+    145)                              # Langstone V2 Lime
+      cd /home/pi
+      /home/pi/Langstone/run_lime
+      /home/pi/Langstone/stop_lime
+      sleep 2
+      GUI_RETURN_CODE="129"
+    ;;
+    146)                              # Langstone V2 Pluto
+      cd /home/pi
+      /home/pi/Langstone/run_pluto
+      /home/pi/Langstone/stop_pluto
+      PLUTOIP=$(get_config_var plutoip $PCONFIGFILE)
+      ssh-keygen -f "/home/pi/.ssh/known_hosts" -R "$PLUTOIP" >/dev/null 2>/dev/null
+      # ssh-keygen -f "/home/pi/.ssh/known_hosts" -R "pluto.local" >/dev/null 2>/dev/null
+      timeout 2 sshpass -p analog ssh -o StrictHostKeyChecking=no root@"$PLUTOIP" 'PATH=/bin:/sbin:/usr/bin:/usr/sbin;reboot'
+      sleep 2
+      GUI_RETURN_CODE="129"
     ;;
     160)
       sleep 1

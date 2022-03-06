@@ -1,6 +1,8 @@
-202203020
-Initial Implemntation of Web Access
+202203070
+Initial Implementation of Web Access
 Support for 5 DFRobot 5 inch Screen
+Integrate Langstone V2 (for LimeSDR)
+Support "/" in Pluto-generated DVB-S/S2 Service Info
 
 202202240
 Partial implementation of Web Access
