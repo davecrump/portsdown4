@@ -3130,30 +3130,53 @@ int CheckLangstonePlutoIP()
   FILE *fp;
   char response_line[255];
 
-  if (file_exist("/home/pi/Langstone/run") != 0)
+  if (strcmp(langstone_version, "v1pluto") == 0)
+  {
+    fp = popen("grep '^export PLUTO_IP=' /home/pi/Langstone/run | cut -c17-", "r");
+    if (fp == NULL)
+    {
+      printf("Failed to run command\n" );
+      return 1;
+    }
+
+    /* Read the output a line at a time - output it. */
+    while (fgets(response_line, 250, fp) != NULL)
+    {
+      if (strlen(response_line) > 1)
+      {
+        response_line[strlen(response_line) - 1] = '\0';  // Strip trailing cr
+        strcpy(LangstonePlutoIP, response_line);
+      }
+    }
+    pclose(fp);
+  }
+  else if ((strcmp(langstone_version, "v2pluto") == 0)
+        || (strcmp(langstone_version, "v2lime") == 0))
+  {
+    fp = popen("grep '^export PLUTO_IP=' /home/pi/Langstone/run_pluto | cut -c17-", "r");
+    if (fp == NULL)
+    {
+      printf("Failed to run command\n" );
+      return 1;
+    }
+
+    /* Read the output a line at a time - output it. */
+    while (fgets(response_line, 250, fp) != NULL)
+    {
+      if (strlen(response_line) > 1)
+      {
+        response_line[strlen(response_line) - 1] = '\0';  // Strip trailing cr
+        strcpy(LangstonePlutoIP, response_line);
+      }
+    }
+    pclose(fp);
+  }
+  else
   {
     MsgBox2("Langstone not installed", "Please install Langstone, then set Pluto IP");
     wait_touch();
     return 1;
   }
-
-  fp = popen("grep '^export PLUTO_IP=' /home/pi/Langstone/run | cut -c17-", "r");
-  if (fp == NULL)
-  {
-    printf("Failed to run command\n" );
-    return 1;
-  }
-
-  /* Read the output a line at a time - output it. */
-  while (fgets(response_line, 250, fp) != NULL)
-  {
-    if (strlen(response_line) > 1)
-    {
-      response_line[strlen(response_line) - 1] = '\0';  // Strip trailing cr
-      strcpy(LangstonePlutoIP, response_line);
-    }
-  }
-  pclose(fp);
   return 0;
 }
 
@@ -6011,7 +6034,7 @@ int getTouchSampleThread(int *rawX, int *rawY, int *rawPressure)
 
       if((*rawX != -1) && (*rawY != -1) && (StartTouch == 1))  // 1a
       {
-        printf("\n7 inch Touchscreen Touch Event: rawX = %d, rawY = %d, rawPressure = %d\n\n", 
+        printf("7 inch Touchscreen Touch Event: rawX = %d, rawY = %d, rawPressure = %d\n", 
                 *rawX, *rawY, *rawPressure);
         return 1;
       }
@@ -6081,7 +6104,7 @@ int getTouchSampleThread(int *rawX, int *rawY, int *rawPressure)
 
       if((*rawX != -1) && (*rawY != -1) && (touchfinished == true))  // 1a
       {
-        printf("\nDFRobot Touch Event: rawX = %d, rawY = %d, rawPressure = %d\n\n", 
+        printf("DFRobot Touch Event: rawX = %d, rawY = %d, rawPressure = %d\n", 
                 *rawX, *rawY, *rawPressure);
         awaitingtouchstart = true;
         touchfinished = false;
@@ -6202,7 +6225,7 @@ FFUNC touchscreenClick(ffunc_session_t * session)
       web_x = x;                 // web_x is a global int
       web_y = y;                 // web_y is a global int
       strcpy(WebClickForAction, "yes");
-      printf("\nWeb Click Event x: %d, y: %d\n\n", web_x, web_y);
+      printf("Web Click Event x: %d, y: %d\n", web_x, web_y);
     }
   }
   else
@@ -14991,10 +15014,10 @@ void ChangePlutoIPLangstone()  // For Langstone
   char PlutoIPCopy[31];
   char LinuxCommand[255];
 
-  // Check that Langstone is loaded
-  if ((strcmp(langstone_version, "v1pluto") == 0)
-  ||  (strcmp(langstone_version, "v2lime") == 0)
-  ||  (strcmp(langstone_version, "v2pluto") == 0))
+  // Check if Langstone is not loaded
+  if ((strcmp(langstone_version, "v1pluto") != 0)
+  &&  (strcmp(langstone_version, "v2lime") != 0)
+  &&  (strcmp(langstone_version, "v2pluto") != 0))
   {
     MsgBox2("Langstone not installed", "Please install Langstone, then set Pluto IP");
     wait_touch();
@@ -15024,14 +15047,28 @@ void ChangePlutoIPLangstone()  // For Langstone
   {
     printf("Langstone Pluto IP set to: %s\n", KeyboardReturn);
     strcpy(LangstonePlutoIP, KeyboardReturn);
-  
-    // Save IP to Langstone/run file
-    snprintf(LinuxCommand, 254, "sed -i \"s/^export PLUTO_IP=.*/export PLUTO_IP=%s/\" /home/pi/Langstone/run", LangstonePlutoIP);
-    system(LinuxCommand);
 
-    // Save IP to Langstone/stop file
-    snprintf(LinuxCommand, 254, "sed -i \"s/PLUTO_IP=.*/PLUTO_IP=%s/\" /home/pi/Langstone/stop", LangstonePlutoIP);
-    system(LinuxCommand);
+    if (strcmp(langstone_version, "v1pluto") == 0)
+    {
+      // Save IP to Langstone/run file
+      snprintf(LinuxCommand, 254, "sed -i \"s/^export PLUTO_IP=.*/export PLUTO_IP=%s/\" /home/pi/Langstone/run", LangstonePlutoIP);
+      system(LinuxCommand);
+
+      // Save IP to Langstone/stop file
+      snprintf(LinuxCommand, 254, "sed -i \"s/PLUTO_IP=.*/PLUTO_IP=%s/\" /home/pi/Langstone/stop", LangstonePlutoIP);
+      system(LinuxCommand);
+    }
+    if ((strcmp(langstone_version, "v2pluto") == 0)
+     || (strcmp(langstone_version, "v2lime") == 0))
+    {
+      // Save IP to Langstone/run_pluto file
+      snprintf(LinuxCommand, 254, "sed -i \"s/^export PLUTO_IP=.*/export PLUTO_IP=%s/\" /home/pi/Langstone/run_pluto", LangstonePlutoIP);
+      system(LinuxCommand);
+
+      // Save IP to Langstone/stop_pluto file
+      snprintf(LinuxCommand, 254, "sed -i \"s/PLUTO_IP=.*/PLUTO_IP=%s/\" /home/pi/Langstone/stop_pluto", LangstonePlutoIP);
+      system(LinuxCommand);
+    }
   }
 }
 
@@ -18528,6 +18565,10 @@ void waituntil(int w,int h)
             printf("Updating Langstone V1\n");
             SetButtonStatus(ButtonNumber(39, 2), 1);
             UpdateWindow();
+            usleep(200000);
+            setBackColour(0, 0, 0);
+            clearScreen();
+            MsgBox4("Updating Langstone V1", " ", "Please Wait", " ");
             UpdateLangstone(1);
           }
           if ((strcmp(langstone_version, "v2pluto") == 0)
@@ -18536,6 +18577,10 @@ void waituntil(int w,int h)
             printf("Updating Langstone V2\n");
             SetButtonStatus(ButtonNumber(39, 2), 1);
             UpdateWindow();
+            usleep(200000);
+            setBackColour(0, 0, 0);
+            clearScreen();
+            MsgBox4("Updating Langstone V2", " ", "Please Wait", " ");
             UpdateLangstone(2);
           }
           setBackColour(0, 0, 0);
@@ -18582,6 +18627,47 @@ void waituntil(int w,int h)
           setBackColour(0, 0, 0);
           Start_Highlights_Menu1();
           UpdateWindow();
+          break;
+        case 9:                                     // Select Langstone (Or go to menu for install)
+          if (strcmp(langstone_version, "v1pluto") == 0)
+          {
+            SetButtonStatus(ButtonNumber(39, 9), 1);  // and highlight button
+            UpdateWindow();
+            RebootPluto(1);                           // Reboot Pluto and wait for recovery                          
+            do_Langstone();
+            SetButtonStatus(ButtonNumber(39, 9), 0);  // unhighlight button
+            setBackColour(0, 0, 0);
+            clearScreen();
+            UpdateWindow();
+          }
+          else if (strcmp(langstone_version, "v2pluto") == 0)
+          {
+            SetButtonStatus(ButtonNumber(39, 9), 1);  // and highlight button
+            UpdateWindow();
+            RebootPluto(1);                           // Reboot Pluto and wait for recovery                          
+            do_Langstone();
+            SetButtonStatus(ButtonNumber(39, 9), 0);  // unhighlight button
+            setBackColour(0, 0, 0);
+            clearScreen();
+            UpdateWindow();
+          }
+          else if (strcmp(langstone_version, "v2lime") == 0)
+          {
+            SetButtonStatus(ButtonNumber(39, 9), 1);  // and highlight button
+            UpdateWindow();
+            do_Langstone();
+            SetButtonStatus(ButtonNumber(39, 9), 0);  // unhighlight button
+            setBackColour(0, 0, 0);
+            clearScreen();
+            UpdateWindow();
+          }
+          else                                                    // Langstone not installed yet
+          {
+            printf("MENU 39 \n");
+            CurrentMenu=39;
+            Start_Highlights_Menu39();
+            UpdateWindow();
+          }
           break;
         default:
           printf("Menu 39 Error\n");
@@ -23540,6 +23626,11 @@ void Define_Menu39()
   AddButtonStatus(button,"Langstone^use Pluto",&Blue);
   AddButtonStatus(button,"Langstone^use Lime",&Blue);
   AddButtonStatus(button,"Langstone^use Pluto",&Grey);
+
+  button = CreateButton(39, 9);
+  AddButtonStatus(button,"Start^Langstone",&Blue);
+  AddButtonStatus(button,"Start^Langstone",&Green);
+  AddButtonStatus(button," ",&Grey);
 }
 
 void Start_Highlights_Menu39()
@@ -23552,6 +23643,7 @@ void Start_Highlights_Menu39()
     SetButtonStatus(ButtonNumber(39, 5), 0);
     SetButtonStatus(ButtonNumber(39, 6), 0);
     SetButtonStatus(ButtonNumber(39, 7), 2);
+    SetButtonStatus(ButtonNumber(39, 9), 2);
   }
   if (strcmp(langstone_version, "v1pluto") == 0)
   {
