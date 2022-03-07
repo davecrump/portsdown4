@@ -5,7 +5,12 @@
 cd /home/pi
 
 # Stop Langstone if it is running (it shouldn't be)
-/home/pi/Langstone/stop_both
+# /home/pi/Langstone/stop_both
+# Without frills, this has the same effect:
+
+killall python >/dev/null 2>&1
+killall /home/pi/Langstone/GUI_Lime >/dev/null 2>&1
+killall /home/pi/Langstone/GUI_Pluto >/dev/null 2>&1
 
 # Keep a copy of the old Config files
 cp -f /home/pi/Langstone/Langstone_Lime.conf /home/pi/rpidatv/scripts/configs/Langstone_Lime.conf
@@ -35,7 +40,6 @@ chmod +x /home/pi/Langstone/run_both
 chmod +x /home/pi/Langstone/stop_both
 
 /home/pi/Langstone/build
-/home/pi/Langstone/set_sdr
 
 exit
 
