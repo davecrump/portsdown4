@@ -15341,15 +15341,15 @@ void InstallLangstone(int NoButton)
     if (NoButton == 5)
     {
       system("/home/pi/rpidatv/add_langstone.sh &");
-      MsgBox4("Installing Langstone V1 Software", "This can take up to 5 minutes", " ", "Please wait for Reboot");
+      MsgBox4("Installing Langstone V1 Software", "This can take up to 15 minutes", " ", "Please wait for Reboot");
     }
     if (NoButton == 6)
     {
       system("/home/pi/rpidatv/add_langstone2.sh &");
-      MsgBox4("Installing Langstone V2 Software", "This can take up to 5 minutes", " ", "Please wait for Reboot");
+      MsgBox4("Installing Langstone V2 Software", "This can take up to 15 minutes", " ", "Please wait for Reboot");
     }
 
-    for (i = 0; i < 600; i++)
+    for (i = 0; i < 900; i++)
     {
       usleep(1000000);
     }
