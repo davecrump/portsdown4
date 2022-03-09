@@ -88,8 +88,6 @@ else
   ECCONTRAST=" "
 fi
 
-"${VAR1}World"
-
 # Check Pi Cam orientation
 # Set for avc2ts and ffmpeg modes
 if [ "$PICAM" == "normal" ]; then
