@@ -4900,7 +4900,7 @@ void CheckLimeReady()
       }
       else
       {
-        MsgBox4("No LimeSDR USB Detected", "Check connections", "or select another output device.", "Touch Screen to Continue");
+        MsgBox4("No LimeSDR USB Detected", "Check connections - use USB3", "or select another output device.", "Touch Screen to Continue");
       }
       wait_touch();
     }
@@ -19900,7 +19900,7 @@ void Define_Menu2()
   AddButtonStatus(button, " ", &Green);
 
   button = CreateButton(2, 17);
-  AddButtonStatus(button, "LimeSDR Mini^Band Viewer", &Blue);
+  AddButtonStatus(button, "LimeSDR^Band Viewer", &Blue);
 
   button = CreateButton(2, 18);
   AddButtonStatus(button, "RTL-TCP^Server", &Blue);
