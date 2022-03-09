@@ -36,6 +36,8 @@ src/rpidatv
 src/bandview/bandview
 src/dvb_t_stack/Release/
 src/power_meter/power_meter
+src/sweeper/sweeper
+src/streamrx/streamrx
 scripts/configs/Langstone.conf
 bin/adf4351
 bin/avc2ts

@@ -172,6 +172,7 @@ sudo apt-get -y dist-upgrade # Upgrade all the installed packages to their lates
 # --------- Install new packages as Required ---------
 
 echo
+
 # Install libiio and dependencies if required (used for Pluto SigGen)
 if [ ! -d  /home/pi/libiio ]; then
   echo "Installing libiio and dependencies"
@@ -187,6 +188,17 @@ if [ ! -d  /home/pi/libiio ]; then
   cd /home/pi
 else
   echo "Found libiio installed"
+  echo
+fi
+
+# Install nginx and fastcgi for web access
+if [ ! -d  /etc/nginx ]; then
+  echo "Installing nginx light web server for web access"
+  echo
+  sudo apt-get -y install nginx-light                                     # For web access
+  sudo apt-get -y install libfcgi-dev                                     # For web control
+else
+  echo "Found nginx light web server installed"
   echo
 fi
 
@@ -267,6 +279,12 @@ cp -f -r portsdown4-master/src rpidatv
 rm -f rpidatv/video/*.jpg
 cp -f -r portsdown4-master/video rpidatv
 cp -f -r portsdown4-master/version_history.txt rpidatv/version_history.txt
+cp -f portsdown4-master/add_langstone.sh rpidatv/add_langstone.sh
+cp -f portsdown4-master/add_langstone2.sh rpidatv/add_langstone2.sh
+
+# Copy the "web not enabled" image into the user's back-up image folder
+cp portsdown4-master/scripts/images/web_not_enabled.png "$PATHUBACKUP"/images/web_not_enabled.png
+
 rm master.zip
 rm -rf portsdown4-master
 cd /home/pi
@@ -584,6 +602,29 @@ if ! grep -q picam= "$PATHSCRIPT"/portsdown_config.txt; then
   echo "vlcvolume=256" >> "$PATHSCRIPT"/portsdown_config.txt
 fi
 
+# Add Web Control setting to config file if not included  202203010
+if ! grep -q webcontrol= "$PATHSCRIPT"/portsdown_config.txt; then
+  # File needs updating
+  # Delete any blank lines first
+  sed -i -e '/^$/d' "$PATHSCRIPT"/portsdown_config.txt
+  # Add the new entry and a new line 
+  echo "webcontrol=disabled" >> "$PATHSCRIPT"/portsdown_config.txt
+fi
+
+# Add langstone setting to config file if not included  202203070
+if ! grep -q langstone= "$PATHSCRIPT"/portsdown_config.txt; then
+  # File needs updating
+  # Delete any blank lines first
+  sed -i -e '/^$/d' "$PATHSCRIPT"/portsdown_config.txt
+  # Add the new entry and a new line
+  if [ -d  /home/pi/Langstone ]; then                 
+    # Langstone V1 already installed
+    echo "langstone=v1pluto" >> "$PATHSCRIPT"/portsdown_config.txt
+  else
+    echo "langstone=none" >> "$PATHSCRIPT"/portsdown_config.txt
+  fi
+fi
+
 # Add New presets and LimeRFE controls to presets file if not included  202107010
 if ! grep -q d0label= "$PATHSCRIPT"/portsdown_presets.txt; then
   # File needs updating
@@ -608,6 +649,11 @@ if ! grep -q site1d0numbers= "$PATHSCRIPT"/portsdown_C_codes.txt; then
   cp "$PATHSCRIPT"/configs/portsdown_C_codes.txt.factory "$PATHSCRIPT"/portsdown_C_codes.txt
 fi
 
+# Configure the nginx web server
+sudo systemctl stop nginx
+rm -rf /home/pi/webroot
+cp -r /home/pi/rpidatv/scripts/configs/webroot /home/pi/webroot
+sudo cp /home/pi/rpidatv/scripts/configs/nginx.conf /etc/nginx/nginx.conf
 
 DisplayUpdateMsg "Step 9 of 10\nFinishing Off\n\nXXXXXXXXX-"
 

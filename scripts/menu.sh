@@ -1688,6 +1688,7 @@ do_display_setup()
   Radio5=OFF
   Radio6=OFF
   Radio7=OFF
+  Radio8=OFF
   case "$MODE_DISPLAY" in
   Tontec35)
     Radio1=ON
@@ -1710,13 +1711,16 @@ do_display_setup()
   Element14_7)
     Radio7=ON
   ;;
+  dfrobot5)
+    Radio8=ON
+  ;;
   *)
     Radio1=ON
   ;;		
   esac
 
   chdisplay=$(whiptail --title "$StrDisplaySetupTitle" --radiolist \
-    "$StrDisplaySetupContext" 20 78 9 \
+    "$StrDisplaySetupContext" 20 78 10 \
     "Tontec35" "$DisplaySetupTontec" $Radio1 \
     "HDMITouch" "$DisplaySetupHDMI" $Radio2 \
     "Waveshare" "$DisplaySetupRpiLCD" $Radio3 \
@@ -1724,6 +1728,7 @@ do_display_setup()
     "Waveshare4" "$DisplaySetupRpi4LCD" $Radio5 \
     "Console" "$DisplaySetupConsole" $Radio6 \
     "Element14_7" "Element 14 RPi 7 inch Display" $Radio7 \
+    "dfrobot5" "DF Robot DFR0550 5 inch Display" $Radio8 \
  	 3>&2 2>&1 1>&3)
 
   if [ $? -eq 0 ]; then                     ## If the selection has changed
@@ -1752,6 +1757,7 @@ do_display_setup()
       Waveshare4) INSERTFILE=$PATHCONFIGS"/waveshare.txt" ;;
       Console)   INSERTFILE=$PATHCONFIGS"/console.txt" ;;
       Element14_7)  INSERTFILE=$PATHCONFIGS"/element14_7.txt" ;;
+      dfrobot5)  INSERTFILE=$PATHCONFIGS"/dfrobot5.txt" ;;
     esac
 
     ## Replace whatever is between the markers with the driver text
@@ -1771,6 +1777,7 @@ do_display_setup()
       Waveshare4) sudo cp /home/pi/rpidatv/scripts/configs/freqshow/waveshare4_pointercal /etc/pointercal ;;
       Console)   sudo cp /home/pi/rpidatv/scripts/configs/freqshow/waveshare_pointercal /etc/pointercal ;;
       Element14_7)  sudo cp /home/pi/rpidatv/scripts/configs/freqshow/waveshare_pointercal /etc/pointercal ;;
+      dfrobot5)  sudo cp /home/pi/rpidatv/scripts/configs/freqshow/waveshare_pointercal /etc/pointercal ;;
     esac
 
     set_config_var display "$chdisplay" $PCONFIGFILE
@@ -1794,10 +1801,35 @@ do_WiFi_Off()
   cp $PATHCONFIGS"/text.wifi_off" /home/pi/.wifi_off ## Disable at start-up
 }
 
-do_Enable_DigiThin()
+
+do_Web_Control()
 {
-whiptail --title "Not implemented yet" --msgbox "Not Implemented yet.  Please press enter to continue" 8 78
+  WEBCONTROL=$(get_config_var webcontrol $PCONFIGFILE)
+  Radio1=OFF
+  Radio2=OFF
+
+  if [[ "$WEBCONTROL" == "enabled" ]]; then
+    Radio1=ON
+  else
+    Radio2=ON
+  fi
+
+  ch_Web_Control=$(whiptail --title "Enable or Disable Web Control" --radiolist \
+    "Select Option with spacebar then press enter" 20 78 5 \
+    "Enabled" "Enable Web Control" $Radio1 \
+    "Disabled" "Disable Web Control" $Radio2 \
+ 	 3>&2 2>&1 1>&3)
+
+  if [ $? -eq 0 ]; then                     ## If the selection has changed
+
+    if [[ "$ch_Web_Control" == "Enabled" ]]; then
+      set_config_var webcontrol "enabled" $PCONFIGFILE
+    else
+      set_config_var webcontrol "disabled" $PCONFIGFILE
+    fi
+  fi
 }
+
 
 do_EasyCap()
 {
@@ -2888,7 +2920,7 @@ menuchoice=$(whiptail --title "$StrSystemTitle" --menu "$StrSystemContext" 20 78
     "3 Show IP" "$StrIPMenu" \
     "4 WiFi Set-up" "SSID and password"  \
     "5 WiFi Off" "Turn the WiFi Off" \
-    "6 Enable DigiThin" "Not Implemented Yet" \
+    "6 Web Control" "Enable or Disable Web Control" \
     "7 Set-up EasyCap" "Set input socket and PAL/NTSC"  \
     "8 Audio Input" "Select USB Dongle or EasyCap"  \
     "9 Attenuator" "Select Output Attenuator Type"  \
@@ -2902,7 +2934,7 @@ menuchoice=$(whiptail --title "$StrSystemTitle" --menu "$StrSystemContext" 20 78
 	  3\ *) do_IP_setup ;;
       4\ *) do_WiFi_setup ;;
       5\ *) do_WiFi_Off   ;;
-      6\ *) do_Enable_DigiThin ;;
+      6\ *) do_Web_Control ;;
       7\ *) do_EasyCap ;;
       8\ *) do_audio_switch;;
       9\ *) do_attenuator;;

@@ -42,6 +42,7 @@ Rewitten by Dave, G8GKQ
 #include "touch.h"
 #include "Graphics.h"
 #include "lmrx_utils.h"
+#include "ffunc.h"
 
 #define KWHT  "\x1B[37m"
 #define KYEL  "\x1B[33m"
@@ -67,9 +68,9 @@ Rewitten by Dave, G8GKQ
 
 char ImageFolder[63]="/home/pi/rpidatv/image/";
 
-int fd=0;
+int fd = 0;                           // File Descriptor for touchscreen touch messages
 int wscreen, hscreen;
-float scaleXvalue, scaleYvalue; // Coeff ratio from Screen/TouchArea
+float scaleXvalue, scaleYvalue;       // Coeff ratio from Screen/TouchArea
 int wbuttonsize;
 int hbuttonsize;
 
@@ -326,6 +327,7 @@ char QOFreqButts[10][31] = {"10494.75^2405.25", "10495.25^2405.75", "10495.75^24
 char StartApp[63];            // Startup app on boot
 char PlutoIP[63];             // Portsdown Pluto IP address
 char LangstonePlutoIP[63];    // Langstone Pluto IP address
+char langstone_version[31] = "none";
 
 
 // Touch display variables
@@ -333,85 +335,381 @@ int Inversed=0;               //Display is inversed (Waveshare=1)
 int PresetStoreTrigger = 0;   //Set to 1 if awaiting preset being stored
 int FinishedButton = 0;       // Used to indicate screentouch during TX or RX
 int touch_response = 0;       // set to 1 on touch and used to reboot display if it locks up
+int TouchX;
+int TouchY;
+int TouchPressure;
+int TouchTrigger = 0;
+bool touchneedsinitialisation = true;
+
+// Web Control globals
+bool webcontrol = false;           // Enables remote control of touchscreen functions
+char ProgramName[255];             // used to pass rpidatvgui char string to listener
+int *web_x_ptr;                // pointer
+int *web_y_ptr;                // pointer
+int web_x;                     // click x 0 - 799 from left
+int web_y;                     // click y 0 - 480 from top
+bool webclicklistenerrunning = false; // Used to only start thread if required
+
+char WebClickForAction[7] = "no";  // no/yes
 
 // Threads for Touchscreen monitoring
-pthread_t thfft;        //
+
 pthread_t thbutton;     //
 pthread_t thview;       //
 pthread_t thwait3;      //  Used to count 3 seconds for WebCam reset after transmit
+pthread_t thwebclick;
+pthread_t thtouchscreen;  // listens to the touchscreen   
 
-// Function Prototypes
 
-void Start_Highlights_Menu1();
-void Start_Highlights_Menu2();
-void Start_Highlights_Menu3();
-void Start_Highlights_Menu4();
-void Start_Highlights_Menu5();
-void Start_Highlights_Menu6();
-void Start_Highlights_Menu7();
-void Start_Highlights_Menu8();
-void Start_Highlights_Menu9();
-void Start_Highlights_Menu10();
-void Start_Highlights_Menu11();
-void Start_Highlights_Menu12();
-void Start_Highlights_Menu13();
-void Start_Highlights_Menu14();
-void Start_Highlights_Menu15();
-void Start_Highlights_Menu16();
-void Start_Highlights_Menu17();
-void Start_Highlights_Menu18();
-void Start_Highlights_Menu19();
-void Start_Highlights_Menu20();
-void Start_Highlights_Menu21();
-void Start_Highlights_Menu22();
-void Start_Highlights_Menu23();
-void Start_Highlights_Menu24();
-void Start_Highlights_Menu25();
-void Start_Highlights_Menu26();
-void Start_Highlights_Menu27();
-void Start_Highlights_Menu28();
-void Start_Highlights_Menu29();
-void Start_Highlights_Menu30();
-void Start_Highlights_Menu31();
-void Start_Highlights_Menu32();
-void Start_Highlights_Menu33();
-void Start_Highlights_Menu34();
-void Start_Highlights_Menu35();
-void Start_Highlights_Menu36();
-void Start_Highlights_Menu37();
-void Start_Highlights_Menu38();
-void Start_Highlights_Menu39();
-void Start_Highlights_Menu40();
-void Start_Highlights_Menu42();
-void Start_Highlights_Menu43();
-void Start_Highlights_Menu44();
-void Start_Highlights_Menu45();
-void Start_Highlights_Menu46();
-void Start_Highlights_Menu47();
+// ************** Function Prototypes **********************************//
 
-void MsgBox(char *);
-void MsgBox2(char *, char *);
-void MsgBox4(char *, char *, char *, char *);
-void wait_touch();
-void waituntil(int, int);
-void Keyboard(char *, char *, int);
-void DoFreqChange();
-void CompVidStart();
-void ReceiveLOStart();
-void MonitorStop();
-void DisplayLogo();
-int getTouchSample(int *, int *, int *);
-void TransformTouchMap(int, int);
-int ButtonNumber(int, int);
+void GetConfigParam(char *PathConfigFile, char *Param, char *Value);
+void SetConfigParam(char *PathConfigFile, char *Param, char *Value);
+void strcpyn(char *outstring, char *instring, int n);
+void DisplayHere(char *DisplayCaption);
+void GetPiAudioCard(char card[15]);
+void GetMicAudioCard(char mic[15]);
+void GetPiCamDev(char picamdev[15]);
+void togglescreentype();
+int GetLinuxVer();
+void GetIPAddr(char IPAddress[256]);
+void GetIPAddr2(char IPAddress[256]);
+void GetSWVers(char SVersion[256]);
+void GetLatestVers(char LatestVersion[256]);
+int CheckGoogle();
+int CheckJetson();
+int valid_digit(char *ip_str);
+int is_valid_ip(char *ip_str);
+void DisplayUpdateMsg(char* Version, char* Step);
+void PrepSWUpdate();
+void ExecuteUpdate(int NoButton);
+void LimeFWUpdate(int button);
+void GetGPUTemp(char GPUTemp[256]);
+void GetCPUTemp(char CPUTemp[256]);
+void GetThrottled(char Throttled[256]);
+void SetAudioLevels();
+void ReadModeInput(char coding[256], char vsource[256]);
+void ReadModeOutput(char Moutput[256]);
+int file_exist (char *filename);
+void ReadModeEasyCap();
+void ReadPiCamOrientation();
+void ReadCaptionState();
+void ReadTestCardState();
+void ReadAudioState();
+void ReadWebControl();
+void ReadAttenState();
+void ReadBand();
+void ReadBandDetails();
+void ReadCallLocPID();
+void ReadLangstone();
+void ReadTSConfig();
+void ReadADFRef();
+void GetSerNo(char SerNo[256]);
+int CalcTSBitrate();
+void GetDevices(char DeviceName1[256], char DeviceName2[256]);
+void GetUSBVidDev(char VidDevName[256]);
+int DetectLogitechWebcam();
+int CheckC920();
+int CheckC920Type();
+int CheckLangstonePlutoIP();
+void InitialiseGPIO();
+void ReadPresets();
+int CheckRTL();
+int CheckFTDI();
+void ChangeMicGain();
+void SaveRTLPreset(int PresetButton);
+void RecallRTLPreset(int PresetButton);
+void ChangeRTLFreq();
+void ChangeRTLSquelch();
+void ChangeRTLGain();
+void ChangeRTLppm();
+int DetectLimeNETMicro();
+void ReadRTLPresets();
+void ReadRXPresets();
+void ReadLMRXPresets();
+void ChangeLMRXIP();
+void ChangeLMRXPort();
+void ChangeLMRXOffset();
+void ChangeLMTST();
+void ChangeLMSW();
+void ChangeLMChan();
+void AutosetLMRXOffset();
+void SaveCurrentRX();
+void SelectRTLmode(int NoButton);
+void RTLstart();
+void RTLstop();
+void ReadStreamPresets();
+int CheckExpressConnect();
+int CheckExpressRunning();
+int StartExpressServer();
+int DetectUSBAudio();
+void CheckExpress();
 int CheckLimeMiniConnect();
 int CheckLimeUSBConnect();
-void YesNo(int);
-static void cleanexit(int);
+int CheckPlutoConnect();
+int CheckPlutoIPConnect();
+int GetPlutoXO();
+int GetPlutoAD();
+int GetPlutoCPU();
+void CheckPlutoReady();
+void CheckLimeReady();
+void LimeInfo();
 int LimeGWRev();
-void LMRX(int);
-void MakeFreqText(int);
-void IPTSConfig(int);
-int file_exist(char *);
+int LimeGWVer();
+int LimeFWVer();
+int LimeHWVer();
+void LimeMiniTest();
+void LimeUtilInfo();
+void DisplayLogo();
+void TransformTouchMap(int x, int y);
+int IsButtonPushed(int NbButton,int x,int y);
+int IsMenuButtonPushed(int x,int y);
+int IsImageToBeChanged(int x,int y);
+int InitialiseButtons();
+int AddButton(int x,int y,int w,int h);
+int ButtonNumber(int MenuIndex, int Button);
+int CreateButton(int MenuIndex, int ButtonPosition);
+int AddButtonStatus(int ButtonIndex,char *Text,color_t *Color);
+void AmendButtonStatus(int ButtonIndex, int ButtonStatusIndex, char *Text, color_t *Color);
+void DrawButton(int ButtonIndex);
+void SetButtonStatus(int ButtonIndex,int Status);
+int openTouchScreen(int NoDevice);
+int getTouchScreenDetails(int *screenXmin,int *screenXmax,int *screenYmin,int *screenYmax);
+int getTouchSampleThread(int *rawX, int *rawY, int *rawPressure);
+int getTouchSample(int *rawX, int *rawY, int *rawPressure);
+void *WaitTouchscreenEvent(void * arg);
+void *WebClickListener(void * arg);
+void parseClickQuerystring(char *query_string, int *x_ptr, int *y_ptr);
+FFUNC touchscreenClick(ffunc_session_t * session);
+void togglewebcontrol();
+void UpdateWeb();
+void ShowMenuText();
+void ShowTitle();
+void UpdateWindow();
+void ApplyTXConfig();
+void EnforceValidTXMode();
+void EnforceValidFEC();
+void GreyOut1();
+void GreyOutReset11();
+void GreyOut11();
+void GreyOut12();
+void GreyOut15();
+void GreyOutReset25();
+void GreyOut25();
+void GreyOutReset42();
+void GreyOut42();
+void GreyOutReset44();
+void GreyOut44();
+void GreyOut45();
+void SelectInGroup(int StartButton,int StopButton,int NoButton,int Status);
+void SelectInGroupOnMenu(int Menu, int StartButton, int StopButton, int NumberButton, int Status);
+void SelectTX(int NoButton);
+void SelectPilots();
+void SelectFrames();
+void SelectEncoding(int NoButton);
+void SelectOP(int NoButton);
+void SelectFormat(int NoButton);
+void SelectSource(int NoButton);
+void SelectFreq(int NoButton);
+void SelectSR(int NoButton);
+void SelectFec(int NoButton);
+void SelectLMSR(int NoButton);
+void SelectLMFREQ(int NoButton);
+void ResetLMParams();
+void SelectS2Fec(int NoButton);
+void SelectPTT(int NoButton,int Status);
+void ChangeTestCard(int NoButton);
+void SelectSTD(int NoButton);
+void SelectGuard(int NoButton);
+void SelectQAM(int NoButton);
+void ChangeBandDetails(int NoButton);
+void DoFreqChange();
+void SelectBand(int NoButton);
+void SelectVidIP(int NoButton);
+void SelectAudio(int NoButton);
+void SelectAtten(int NoButton);
+void SetAttenLevel();
+void SetDeviceLevel();
+void AdjustVLCVolume(int adjustment);
+void SetReceiveLOFreq(int NoButton);
+void SavePreset(int PresetButton);
+void RecallPreset(int PresetButton);
+void SelectVidSource(int NoButton);
+void ChangeVidBand(int NoButton);
+void ReceiveLOStart();
+void CompVidInitialise();
+void CompVidStart();
+void CompVidStop();
+void TransmitStart();
+void *Wait3Seconds(void * arg);
+void TransmitStop();
+void *WaitButtonEvent(void * arg);
+void *WaitButtonVideo(void * arg);
+void *WaitButtonSnap(void * arg);
+void *WaitButtonLMRX(void * arg);
+void *WaitButtonStream(void * arg);
+int CheckStream();
+int CheckVLCStream();
+void DisplayStream(int NoButton);
+void DisplayStreamVLC(int NoButton);
+void AmendStreamPreset(int NoButton);
+void SelectStreamer(int NoButton);
+void SeparateStreamKey(char streamkey[127], char streamname[63], char key[63]);
+void AmendStreamerPreset(int NoButton);
+void chopN(char *str, size_t n);
+void checkTunerSettings();
+void LMRX(int NoButton);
+void CycleLNBVolts();
+void wait_touch();
+void MsgBox(char *message);
+void MsgBox2(char *message1, char *message2);
+void MsgBox4(char *message1, char *message2, char *message3, char *message4);
+void YesNo(int i);
+void InfoScreen();
+void RangeBearing();
+void BeaconBearing();
+void AmendBeacon(int i);
+int CalcBearing(char *myLocator, char *remoteLocator);
+int CalcRange(char *myLocator, char *remoteLocator);
+bool CheckLocator(char *Loc);
+float Locator_To_Lat(char *Loc);
+float Locator_To_Lon(char *Loc);
+float GcDistance( const float lat1, const float lon1, const float lat2, const float lon2, const char *unit );
+int GcBearing( const float lat1, const float lon1, const float lat2, const float lon2 );
+void rtl_tcp();
+void do_snap();
+void do_snapcheck();
+static void cleanexit(int exit_code);
+void do_Langstone();
+void do_video_monitor(int button);
+void MonitorStop();
+void IPTSConfig(int NoButton);
+void Keyboard(char RequestText[64], char InitText[64], int MaxLength);
+void ChangePresetFreq(int NoButton);
+void ChangeLMPresetFreq(int NoButton);
+void ChangePresetSR(int NoButton);
+void ChangeLMPresetSR(int NoButton);
+void ChangeCall();
+void ChangeLocator();
+void ReadContestSites();
+void ManageContestCodes(int NoButton);
+void ChangeStartApp(int NoButton);
+void ChangePlutoIP();
+void ChangePlutoIPLangstone();
+void ChangePlutoXO();
+void ChangePlutoAD();
+void ChangePlutoCPU();
+void RebootPluto(int context);
+void CheckPlutoFirmware();
+void UpdateLangstone(int version_number);
+void InstallLangstone(int NoButton);
+void ChangeADFRef(int NoButton);
+void ChangePID(int NoButton);
+void ControlLimeCal();
+void ToggleLimeRFE();
+void ChangeJetsonIP();
+void ChangeLKVIP();
+void ChangeLKVPort();
+void ChangeJetsonUser();
+void ChangeJetsonPW();
+void ChangeJetsonRPW();
+void waituntil(int w,int h);
+void Define_Menu1();
+void Start_Highlights_Menu1();
+void Define_Menu2();
+void Start_Highlights_Menu2();
+void Define_Menu3();
+void Start_Highlights_Menu3();
+void Define_Menu4();
+void Start_Highlights_Menu4();
+void Define_Menu5();
+void Start_Highlights_Menu5();
+void Define_Menu6();
+void Start_Highlights_Menu6();
+void Define_Menu7();
+void Start_Highlights_Menu7();
+void Define_Menu8();
+void Start_Highlights_Menu8();
+void Define_Menu9();
+void Start_Highlights_Menu9();
+void Define_Menu10();
+void Start_Highlights_Menu10();
+void Define_Menu11();
+void Start_Highlights_Menu11();
+void Define_Menu12();
+void Start_Highlights_Menu12();
+void Define_Menu13();
+void Start_Highlights_Menu13();
+void Define_Menu14();
+void Start_Highlights_Menu14();
+void Define_Menu15();
+void Start_Highlights_Menu15();
+void Define_Menu16();
+void MakeFreqText(int index);
+void Start_Highlights_Menu16();
+void Define_Menu17();
+void Start_Highlights_Menu17();
+void Define_Menu18();
+void Start_Highlights_Menu18();
+void Define_Menu19();
+void Start_Highlights_Menu19();
+void Define_Menu20();
+void Start_Highlights_Menu20();
+void Define_Menu21();
+void Start_Highlights_Menu21();
+void Define_Menu22();
+void Start_Highlights_Menu22();
+void Define_Menu23();
+void Start_Highlights_Menu23();
+void Define_Menu24();
+void Start_Highlights_Menu24();
+void Define_Menu25();
+void Start_Highlights_Menu25();
+void Define_Menu26();
+void Start_Highlights_Menu26();
+void Define_Menu27();
+void Start_Highlights_Menu27();
+void Define_Menu28();
+void Start_Highlights_Menu28();
+void Define_Menu29();
+void Start_Highlights_Menu29();
+void Define_Menu30();
+void Start_Highlights_Menu30();
+void Define_Menu31();
+void Start_Highlights_Menu31();
+void Define_Menu32();
+void Start_Highlights_Menu32();
+void Define_Menu33();
+void Start_Highlights_Menu33();
+void Define_Menu34();
+void Start_Highlights_Menu34();
+void Define_Menu35();
+void Start_Highlights_Menu35();
+void Define_Menu36();
+void Start_Highlights_Menu36();
+void Define_Menu37();
+void Start_Highlights_Menu37();
+void Define_Menu38();
+void Start_Highlights_Menu38();
+void Define_Menu39();
+void Start_Highlights_Menu39();
+void Define_Menu40();
+void Start_Highlights_Menu40();
+void Define_Menu42();
+void Start_Highlights_Menu42();
+void Define_Menu43();
+void Start_Highlights_Menu43();
+void Define_Menu44();
+void Start_Highlights_Menu44();
+void Define_Menu45();
+void Start_Highlights_Menu45();
+void Define_Menu46();
+void Start_Highlights_Menu46();
+void Define_Menu47();
+void Start_Highlights_Menu47();
+void Define_Menu41();
+
+// **************************************************************************** //
 
 /***************************************************************************//**
  * @brief Looks up the value of a Param in PathConfigFile and sets value
@@ -608,6 +906,7 @@ void DisplayHere(char *DisplayCaption)
   system(ConvertCommand);
 
   system("sudo fbi -T 1 -noverbose -a /home/pi/tmp/streamcaption.png  >/dev/null 2>/dev/null");  // Add logo image
+  UpdateWeb();
 }
 
 
@@ -699,6 +998,19 @@ void GetPiCamDev(char picamdev[15])
 
   /* close */
   pclose(fp);
+}
+
+void togglescreentype()
+{
+  if (strcmp(DisplayType, "Element14_7") == 0)
+  {
+    strcpy(DisplayType, "dfrobot5");
+  }
+  else
+  {
+    strcpy(DisplayType, "Element14_7");
+  }
+  SetConfigParam(PATH_PCONFIG, "display", DisplayType);
 }
 
 /***************************************************************************//**
@@ -1959,7 +2271,7 @@ void ReadAudioState()
 void ReadVLCVolume()
 {
   char VLCVolumeText[15];
-  GetConfigParam(PATH_PCONFIG,"vlcvolume", VLCVolumeText);
+  GetConfigParam(PATH_PCONFIG, "vlcvolume", VLCVolumeText);
   CurrentVLCVolume = atoi(VLCVolumeText);
   if (CurrentVLCVolume < 0)
   {
@@ -1971,6 +2283,33 @@ void ReadVLCVolume()
   }
 }
 
+
+/***************************************************************************//**
+ * @brief Reads webcontrol state from portsdown_config.txt
+ *        
+ * @param nil
+ *
+ * @return void
+*******************************************************************************/
+
+void ReadWebControl()
+{
+  char WebControlText[15];
+
+  GetConfigParam(PATH_PCONFIG, "webcontrol", WebControlText);
+
+  if (strcmp(WebControlText, "enabled") == 0)
+  {
+    webcontrol = true;
+    pthread_create (&thwebclick, NULL, &WebClickListener, NULL);
+    webclicklistenerrunning = true;
+  }
+  else
+  {
+    webcontrol = false;
+    system("cp /home/pi/rpidatv/scripts/images/web_not_enabled.png /home/pi/tmp/screen.png");
+  }
+}
 
 /***************************************************************************//**
  * @brief Reads the current Attenuator from portsdown_config.txt
@@ -2184,6 +2523,11 @@ void ReadLangstone()
   strcpy(Param, "plutoip");
   GetConfigParam(PATH_PCONFIG, Param, Value);
   strcpy(PlutoIP, Value);
+
+  strcpy(Param, "langstone");
+  strcpy(Value, "none");   // default
+  GetConfigParam(PATH_PCONFIG, Param, Value);
+  strcpy(langstone_version, Value);
 }
 
 /***************************************************************************//**
@@ -2786,30 +3130,53 @@ int CheckLangstonePlutoIP()
   FILE *fp;
   char response_line[255];
 
-  if (file_exist("/home/pi/Langstone/run") != 0)
+  if (strcmp(langstone_version, "v1pluto") == 0)
+  {
+    fp = popen("grep '^export PLUTO_IP=' /home/pi/Langstone/run | cut -c17-", "r");
+    if (fp == NULL)
+    {
+      printf("Failed to run command\n" );
+      return 1;
+    }
+
+    /* Read the output a line at a time - output it. */
+    while (fgets(response_line, 250, fp) != NULL)
+    {
+      if (strlen(response_line) > 1)
+      {
+        response_line[strlen(response_line) - 1] = '\0';  // Strip trailing cr
+        strcpy(LangstonePlutoIP, response_line);
+      }
+    }
+    pclose(fp);
+  }
+  else if ((strcmp(langstone_version, "v2pluto") == 0)
+        || (strcmp(langstone_version, "v2lime") == 0))
+  {
+    fp = popen("grep '^export PLUTO_IP=' /home/pi/Langstone/run_pluto | cut -c17-", "r");
+    if (fp == NULL)
+    {
+      printf("Failed to run command\n" );
+      return 1;
+    }
+
+    /* Read the output a line at a time - output it. */
+    while (fgets(response_line, 250, fp) != NULL)
+    {
+      if (strlen(response_line) > 1)
+      {
+        response_line[strlen(response_line) - 1] = '\0';  // Strip trailing cr
+        strcpy(LangstonePlutoIP, response_line);
+      }
+    }
+    pclose(fp);
+  }
+  else
   {
     MsgBox2("Langstone not installed", "Please install Langstone, then set Pluto IP");
     wait_touch();
     return 1;
   }
-
-  fp = popen("grep '^export PLUTO_IP=' /home/pi/Langstone/run | cut -c17-", "r");
-  if (fp == NULL)
-  {
-    printf("Failed to run command\n" );
-    return 1;
-  }
-
-  /* Read the output a line at a time - output it. */
-  while (fgets(response_line, 250, fp) != NULL)
-  {
-    if (strlen(response_line) > 1)
-    {
-      response_line[strlen(response_line) - 1] = '\0';  // Strip trailing cr
-      strcpy(LangstonePlutoIP, response_line);
-    }
-  }
-  pclose(fp);
   return 0;
 }
 
@@ -4533,7 +4900,7 @@ void CheckLimeReady()
       }
       else
       {
-        MsgBox4("No LimeSDR USB Detected", "Check connections", "or select another output device.", "Touch Screen to Continue");
+        MsgBox4("No LimeSDR USB Detected", "Check connections - use USB3", "or select another output device.", "Touch Screen to Continue");
       }
       wait_touch();
     }
@@ -4586,6 +4953,7 @@ void LimeInfo()
   /* close */
   pclose(fp);
   Text2(wscreen/12, 1.2 * linepitch, "Touch Screen to Continue", font_ptr);
+  UpdateWeb();
 }
 
 /***************************************************************************//**
@@ -5006,6 +5374,7 @@ void LimeMiniTest()
   }
   setForeColour(255, 255, 255);    // White text
   Text2(wscreen*5/12, 1, "Touch Screen to Continue", font_ptr);
+  UpdateWeb();
 }
 
 
@@ -5053,6 +5422,7 @@ void LimeUtilInfo()
   /* close */
   pclose(fp);
   Text2(wscreen/12, 1.2 * th, "Touch Screen to Continue", font_ptr);
+  UpdateWeb();
 }
 
 /***************************************************************************//**
@@ -5066,15 +5436,8 @@ void LimeUtilInfo()
 void DisplayLogo()
 {
   system("sudo fbi -T 1 -noverbose -a \"/home/pi/rpidatv/scripts/images/BATC_Black.png\" >/dev/null 2>/dev/null");
+  UpdateWeb();
   system("(sleep 1; sudo killall -9 fbi >/dev/null 2>/dev/null) &");
-}
-
-
-int mymillis()
-{
-  struct timeval tv;
-  gettimeofday(&tv, NULL);
-  return (tv.tv_sec) * 1000 + (tv.tv_usec)/1000;
 }
 
 
@@ -5127,7 +5490,6 @@ int IsButtonPushed(int NbButton,int x,int y)
   if((scaledX<=(ButtonArray[NbButton].x+ButtonArray[NbButton].w-margin))&&(scaledX>=ButtonArray[NbButton].x+margin) &&
     (scaledY<=(ButtonArray[NbButton].y+ButtonArray[NbButton].h-margin))&&(scaledY>=ButtonArray[NbButton].y+margin))
   {
-    // ButtonArray[NbButton].LastEventTime=mymillis(); No longer used
     return 1;
   }
   else
@@ -5162,7 +5524,6 @@ int IsMenuButtonPushed(int x,int y)
         && (scaledY <= (ButtonArray[i + cmo].y + ButtonArray[i + cmo].h - margin))
         && (scaledY >= ButtonArray[i + cmo].y + margin))  // and touched
       {
-        // ButtonArray[NbButton].LastEventTime=mymillis(); No longer used
         NbButton = i;          // Set the button number to return
         break;                 // Break out of loop as button has been found
       }
@@ -5216,7 +5577,6 @@ int AddButton(int x,int y,int w,int h)
   NewButton->h=h;
   NewButton->NoStatus=0;
   NewButton->IndexStatus=0;
-  // NewButton->LastEventTime=mymillis();  No longer used
   return IndexButtonInArray++;
 }
 
@@ -5600,58 +5960,315 @@ int getTouchScreenDetails(int *screenXmin,int *screenXmax,int *screenYmin,int *s
   return IsAtouchDevice;
 }
 
+
+int getTouchSampleThread(int *rawX, int *rawY, int *rawPressure)
+{
+  int i;
+  static bool awaitingtouchstart;
+  static bool touchfinished;
+
+  if (touchneedsinitialisation == true)
+  {
+    awaitingtouchstart = true;
+    touchfinished = true;
+    touchneedsinitialisation = false;
+  }
+
+  /* how many bytes were read */
+  size_t rb;
+
+  /* the events (up to 64 at once) */
+  struct input_event ev[64];
+
+  if (strcmp(DisplayType, "Element14_7") == 0)
+  {
+    // Program flow blocks here until there is a touch event
+    rb = read(fd, ev, sizeof(struct input_event) * 64);
+
+    *rawX = -1;
+    *rawY = -1;
+    int StartTouch = 0;
+
+    for (i = 0;  i <  (rb / sizeof(struct input_event)); i++)
+    {
+      if (ev[i].type ==  EV_SYN)
+      {
+        //printf("Event type is %s%s%s = Start of New Event\n",
+        //        KYEL, events[ev[i].type], KWHT);
+      }
+
+      else if (ev[i].type == EV_KEY && ev[i].code == 330 && ev[i].value == 1)
+      {
+        StartTouch = 1;
+        //printf("Event type is %s%s%s & Event code is %sTOUCH(330)%s & Event value is %s1%s = Touch Starting\n",
+        //        KYEL,events[ev[i].type],KWHT,KYEL,KWHT,KYEL,KWHT);
+      }
+
+      else if (ev[i].type == EV_KEY && ev[i].code == 330 && ev[i].value == 0)
+      {
+        //StartTouch=0;
+        //printf("Event type is %s%s%s & Event code is %sTOUCH(330)%s & Event value is %s0%s = Touch Finished\n",
+        //        KYEL,events[ev[i].type],KWHT,KYEL,KWHT,KYEL,KWHT);
+      }
+
+      else if (ev[i].type == EV_ABS && ev[i].code == 0 && ev[i].value > 0)
+      {
+        //printf("Event type is %s%s%s & Event code is %sX(0)%s & Event value is %s%d%s\n",
+        //        KYEL, events[ev[i].type], KWHT, KYEL, KWHT, KYEL, ev[i].value, KWHT);
+	    *rawX = ev[i].value;
+      }
+
+      else if (ev[i].type == EV_ABS  && ev[i].code == 1 && ev[i].value > 0)
+      {
+        //printf("Event type is %s%s%s & Event code is %sY(1)%s & Event value is %s%d%s\n",
+        //        KYEL, events[ev[i].type], KWHT, KYEL, KWHT, KYEL, ev[i].value, KWHT);
+        *rawY = ev[i].value;
+      }
+
+      else if (ev[i].type == EV_ABS  && ev[i].code == 24 && ev[i].value > 0)
+      {
+        //printf("Event type is %s%s%s & Event code is %sPressure(24)%s & Event value is %s%d%s\n",
+        //        KYEL, events[ev[i].type], KWHT, KYEL, KWHT, KYEL, ev[i].value,KWHT);
+        *rawPressure = ev[i].value;
+      }
+
+      if((*rawX != -1) && (*rawY != -1) && (StartTouch == 1))  // 1a
+      {
+        printf("7 inch Touchscreen Touch Event: rawX = %d, rawY = %d, rawPressure = %d\n", 
+                *rawX, *rawY, *rawPressure);
+        return 1;
+      }
+    }
+  }
+
+  if (strcmp(DisplayType, "dfrobot5") == 0)
+  {
+    // Program flow blocks here until there is a touch event
+    rb = read(fd, ev, sizeof(struct input_event) * 64);
+
+    if (awaitingtouchstart == true)
+    {    
+      *rawX = -1;
+      *rawY = -1;
+      touchfinished = false;
+    }
+
+    for (i = 0;  i <  (rb / sizeof(struct input_event)); i++)
+    {
+      //printf("rawX = %d, rawY = %d, rawPressure = %d, \n\n", *rawX, *rawY, *rawPressure);
+
+      if (ev[i].type ==  EV_SYN)
+      {
+        //printf("Event type is %s%s%s = Start of New Event\n",
+        //        KYEL, events[ev[i].type], KWHT);
+      }
+
+      else if (ev[i].type == EV_KEY && ev[i].code == 330 && ev[i].value == 1)
+      {
+        awaitingtouchstart = false;
+        touchfinished = false;
+
+        //printf("Event type is %s%s%s & Event code is %sTOUCH(330)%s & Event value is %s1%s = Touch Starting\n",
+        //        KYEL,events[ev[i].type],KWHT,KYEL,KWHT,KYEL,KWHT);
+      }
+
+      else if (ev[i].type == EV_KEY && ev[i].code == 330 && ev[i].value == 0)
+      {
+        awaitingtouchstart = false;
+        touchfinished = true;
+
+        //printf("Event type is %s%s%s & Event code is %sTOUCH(330)%s & Event value is %s0%s = Touch Finished\n",
+        //        KYEL,events[ev[i].type],KWHT,KYEL,KWHT,KYEL,KWHT);
+      }
+
+      else if (ev[i].type == EV_ABS && ev[i].code == 0 && ev[i].value > 0)
+      {
+        //printf("Event type is %s%s%s & Event code is %sX(0)%s & Event value is %s%d%s\n",
+        //        KYEL, events[ev[i].type], KWHT, KYEL, KWHT, KYEL, ev[i].value, KWHT);
+        *rawX = ev[i].value;
+      }
+
+      else if (ev[i].type == EV_ABS  && ev[i].code == 1 && ev[i].value > 0)
+      {
+        //printf("Event type is %s%s%s & Event code is %sY(1)%s & Event value is %s%d%s\n",
+        //        KYEL, events[ev[i].type], KWHT, KYEL, KWHT, KYEL, ev[i].value, KWHT);
+        *rawY = ev[i].value;
+      }
+
+      else if (ev[i].type == EV_ABS  && ev[i].code == 24 && ev[i].value > 0)
+      {
+        //printf("Event type is %s%s%s & Event code is %sPressure(24)%s & Event value is %s%d%s\n",
+        //        KYEL, events[ev[i].type], KWHT, KYEL, KWHT, KYEL, ev[i].value,KWHT);
+        *rawPressure = ev[i].value;
+      }
+
+      if((*rawX != -1) && (*rawY != -1) && (touchfinished == true))  // 1a
+      {
+        printf("DFRobot Touch Event: rawX = %d, rawY = %d, rawPressure = %d\n", 
+                *rawX, *rawY, *rawPressure);
+        awaitingtouchstart = true;
+        touchfinished = false;
+        return 1;
+      }
+    }
+  }
+  return 0;
+}
+
+
 int getTouchSample(int *rawX, int *rawY, int *rawPressure)
 {
-	int i;
-        /* how many bytes were read */
-        size_t rb;
-        /* the events (up to 64 at once) */
-        struct input_event ev[64];
-	//static int Last_event=0; //not used?
-	rb=read(fd,ev,sizeof(struct input_event)*64);
-	*rawX=-1;*rawY=-1;
-	int StartTouch=0;
-        for (i = 0;  i <  (rb / sizeof(struct input_event)); i++){
-              if (ev[i].type ==  EV_SYN)
-		{
-                         //printf("Event type is %s%s%s = Start of New Event\n",KYEL,events[ev[i].type],KWHT);
-		}
-                else if (ev[i].type == EV_KEY && ev[i].code == 330 && ev[i].value == 1)
-		{
-			StartTouch=1;
-                        //printf("Event type is %s%s%s & Event code is %sTOUCH(330)%s & Event value is %s1%s = Touch Starting\n", KYEL,events[ev[i].type],KWHT,KYEL,KWHT,KYEL,KWHT);
-		}
-                else if (ev[i].type == EV_KEY && ev[i].code == 330 && ev[i].value == 0)
-		{
-			//StartTouch=0;
-			//printf("Event type is %s%s%s & Event code is %sTOUCH(330)%s & Event value is %s0%s = Touch Finished\n", KYEL,events[ev[i].type],KWHT,KYEL,KWHT,KYEL,KWHT);
-		}
-                else if (ev[i].type == EV_ABS && ev[i].code == 0 && ev[i].value > 0){
-                        //printf("Event type is %s%s%s & Event code is %sX(0)%s & Event value is %s%d%s\n", KYEL,events[ev[i].type],KWHT,KYEL,KWHT,KYEL,ev[i].value,KWHT);
-			*rawX = ev[i].value;
-		}
-                else if (ev[i].type == EV_ABS  && ev[i].code == 1 && ev[i].value > 0){
-                        //printf("Event type is %s%s%s & Event code is %sY(1)%s & Event value is %s%d%s\n", KYEL,events[ev[i].type],KWHT,KYEL,KWHT,KYEL,ev[i].value,KWHT);
-			*rawY = ev[i].value;
-		}
-                else if (ev[i].type == EV_ABS  && ev[i].code == 24 && ev[i].value > 0){
-                        //printf("Event type is %s%s%s & Event code is %sPressure(24)%s & Event value is %s%d%s\n", KYEL,events[ev[i].type],KWHT,KYEL,KWHT,KYEL,ev[i].value,KWHT);
-			*rawPressure = ev[i].value;
-		}
-		if((*rawX!=-1)&&(*rawY!=-1)&&(StartTouch==1))
-		{
-			/*if(Last_event-mymillis()>500)
-			{
-				Last_event=mymillis();
-				return 1;
-			}*/
-			//StartTouch=0;
-			return 1;
-		}
-
-	}
-	return 0;
+  while (true)
+  {
+    if (TouchTrigger == 1)
+    {
+      *rawX = TouchX;
+      *rawY = TouchY;
+      *rawPressure = TouchPressure;
+      TouchTrigger = 0;
+      return 1;
+    }
+    else if ((webcontrol == true) && (strcmp(WebClickForAction, "yes") == 0))
+    {
+      *rawX = web_x;
+      *rawY = web_y;
+      *rawPressure = 0;
+      strcpy(WebClickForAction, "no");
+      printf("Web rawX = %d, rawY = %d, rawPressure = %d\n", *rawX, *rawY, *rawPressure);
+      return 1;
+    }
+    else
+    {
+      usleep(1000);
+    }
+  }
+  return 0;
 }
+
+void *WaitTouchscreenEvent(void * arg)
+{
+  int TouchTriggerTemp;
+  int rawX;
+  int rawY;
+  int rawPressure;
+  while (true)
+  {
+    TouchTriggerTemp = getTouchSampleThread(&rawX, &rawY, &rawPressure);
+    TouchX = rawX;
+    TouchY = rawY;
+    TouchPressure = rawPressure;
+    TouchTrigger = TouchTriggerTemp;
+  }
+  return NULL;
+}
+
+void *WebClickListener(void * arg)
+{
+  while (webcontrol)
+  {
+    //(void)argc;
+	//return ffunc_run(ProgramName);
+	ffunc_run(ProgramName);
+  }
+  webclicklistenerrunning = false;
+  printf("Exiting WebClickListener\n");
+  return NULL;
+}
+
+void parseClickQuerystring(char *query_string, int *x_ptr, int *y_ptr)
+{
+  char *query_ptr = strdup(query_string),
+  *tokens = query_ptr,
+  *p = query_ptr;
+
+  while ((p = strsep (&tokens, "&\n")))
+  {
+    char *var = strtok (p, "="),
+         *val = NULL;
+    if (var && (val = strtok (NULL, "=")))
+    {
+      if(strcmp("x", var) == 0)
+      {
+        *x_ptr = atoi(val);
+      }
+      else if(strcmp("y", var) == 0)
+      {
+        *y_ptr = atoi(val);
+      }
+    }
+  }
+}
+
+FFUNC touchscreenClick(ffunc_session_t * session)
+{
+  ffunc_str_t payload;
+
+  if( (webcontrol == false) || ffunc_read_body(session, &payload) )
+  {
+    if( webcontrol == false)
+    {
+      return;
+    }
+
+    ffunc_write_out(session, "Status: 200 OK\r\n");
+    ffunc_write_out(session, "Content-Type: text/plain\r\n\r\n");
+    ffunc_write_out(session, "%s\n", "click received.");
+    fprintf(stderr, "Received click POST: %s (%d)\n", payload.data?payload.data:"", payload.len);
+
+    int x = -1;
+    int y = -1;
+    parseClickQuerystring(payload.data, &x, &y);
+    printf("After Parse: x: %d, y: %d\n", x, y);
+
+    if((x >= 0) && (y >= 0))
+    {
+      web_x = x;                 // web_x is a global int
+      web_y = y;                 // web_y is a global int
+      strcpy(WebClickForAction, "yes");
+      printf("Web Click Event x: %d, y: %d\n", web_x, web_y);
+    }
+  }
+  else
+  {
+    ffunc_write_out(session, "Status: 400 Bad Request\r\n");
+    ffunc_write_out(session, "Content-Type: text/plain\r\n\r\n");
+    ffunc_write_out(session, "%s\n", "payload not found.");
+  }
+}
+
+
+void togglewebcontrol()
+{
+  if(webcontrol == false)
+  {
+    SetConfigParam(PATH_PCONFIG, "webcontrol", "enabled");
+    webcontrol = true;
+    if (webclicklistenerrunning == false)
+    {
+      printf("Creating thread as webclick listener is not running\n");
+      pthread_create (&thwebclick, NULL, &WebClickListener, NULL);
+      printf("Created webclick listener thread\n");
+    }
+  }
+  else
+  {
+    system("cp /home/pi/rpidatv/scripts/images/web_not_enabled.png /home/pi/tmp/screen.png");
+    SetConfigParam(PATH_PCONFIG, "webcontrol", "disabled");
+    webcontrol = false;
+  }
+}
+
+
+void UpdateWeb()
+{
+  // Called after any screen update to update the web page if required.
+
+  if(webcontrol == true)
+  {
+    system("/home/pi/rpidatv/scripts/single_screen_grab_for_web.sh &");
+  }
+}
+
 
 void ShowMenuText()
 {
@@ -5671,6 +6288,7 @@ void ShowMenuText()
   {
     Text2(wscreen / 12, hscreen - (3 + line) * linepitch, MenuText[line], font_ptr);
   }
+  UpdateWeb();
 }
 
 void ShowTitle()
@@ -5756,6 +6374,7 @@ void UpdateWindow()
   {
     ShowMenuText();
   }
+  UpdateWeb();
 }
 
 void ApplyTXConfig()
@@ -8657,35 +9276,6 @@ void TransmitStop()
 }
 
 
-void *DisplayFFT(void * arg)
-{
-  FILE * pFileIQ = NULL;
-  int fft_size=FFT_SIZE;
-  fftwf_complex *fftin;
-  fftin = (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * fft_size);
-  fftout = (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * fft_size);
-  fftwf_plan plan ;
-  plan = fftwf_plan_dft_1d(fft_size, fftin, fftout, FFTW_FORWARD, FFTW_ESTIMATE );
-
-  system("mkfifo fifo.iq >/dev/null 2>/dev/null");
-  printf("Entering FFT thread\n");
-  pFileIQ = fopen("fifo.iq", "r");
-
-  while(FinishedButton2 == 0)
-  {
-    fread( fftin,sizeof(fftwf_complex),FFT_SIZE,pFileIQ);
-
-    if((strcmp(RXgraphics[0], "ON") == 0))
-    {
-      fftwf_execute( plan );
-      fseek(pFileIQ,(1200000-FFT_SIZE)*sizeof(fftwf_complex),SEEK_CUR);
-    }
-  }
-  fftwf_free(fftin);
-  fftwf_free(fftout);
-  return NULL;
-}
-
 void *WaitButtonEvent(void * arg)
 {
   int rawX, rawY, rawPressure;
@@ -10084,10 +10674,6 @@ void LMRX(int NoButton)
     touch_response = 0; 
     break;
 
-/*  Deleted
-  case 2:
-*/
-
   case 6:
     printf("STARTING VLC with FFMPEG DVB-T RX\n");
 
@@ -11481,6 +12067,7 @@ void LMRX(int NoButton)
 
             // Display large MER number
             LargeText2(wscreen * 18 / 40, hscreen * 19 / 48, 5, MERNtext, &font_dejavu_sans_32);
+            UpdateWeb();
           }
           stat_string[0] = '\0';
         }
@@ -11645,6 +12232,7 @@ void LMRX(int NoButton)
                 rectangle(ls, bar_centre, wdth, hscreen - bar_centre, 0, 0, 0); // Black above centre
               }
             }
+            UpdateWeb();
           }
           stat_string[0] = '\0';
         }
@@ -11791,6 +12379,7 @@ void LMRX(int NoButton)
               Text2(wscreen * 1.0 / 40.0, hscreen - 8.0 * linepitch, FREQtext, font_ptr);
             }
             Text2(wscreen * 1.0 / 40.0, hscreen - 11.5 * linepitch, "Touch Centre of screen to exit", font_ptr);
+            UpdateWeb();
           }
           stat_string[0] = '\0';
         }
@@ -11853,7 +12442,7 @@ void wait_touch()
   printf("wait_touch called\n");
 
   // Check if screen touched, if not, wait 0.1s and check again
-  while(getTouchSample(&rawX, &rawY, &rawPressure)==0)
+  while(getTouchSample(&rawX, &rawY, &rawPressure) == 0)
   {
     usleep(100000);
   }
@@ -11872,6 +12461,7 @@ void MsgBox(char *message)
   clearScreen();
   TextMid2(wscreen / 2, hscreen /2, message, font_ptr);
   TextMid2(wscreen / 2, 20, "Touch Screen to Continue", font_ptr);
+  UpdateWeb();
 
   printf("MsgBox called and waiting for touch\n");
 }
@@ -11890,6 +12480,7 @@ void MsgBox2(char *message1, char *message2)
   TextMid2(wscreen / 2, hscreen / 2 + linepitch, message1, font_ptr);
   TextMid2(wscreen / 2, hscreen / 2 - linepitch, message2, font_ptr);
   TextMid2(wscreen / 2, 20, "Touch Screen to Continue", font_ptr);
+  UpdateWeb();
 
   printf("MsgBox2 called and waiting for touch\n");
 }
@@ -11909,6 +12500,7 @@ void MsgBox4(char *message1, char *message2, char *message3, char *message4)
   TextMid2(wscreen / 2, hscreen - 2 * (linepitch * 2), message2, font_ptr);
   TextMid2(wscreen / 2, hscreen - 3 * (linepitch * 2), message3, font_ptr);
   TextMid2(wscreen / 2, hscreen - 4 * (linepitch * 2), message4, font_ptr);
+  UpdateWeb();
 
   // printf("MsgBox4 called\n");
 }
@@ -12229,6 +12821,7 @@ void InfoScreen()
   TextMid2(wscreen / 2, hscreen - linenumber * linepitch, "Touch Screen to Continue", font_ptr);
 
   printf("Info Screen called and waiting for touch\n");
+  UpdateWeb();
   wait_touch();
 }
 
@@ -12360,6 +12953,8 @@ void RangeBearing()
   TextMid2(wscreen/2, 20, "Touch Screen to Continue",  font_ptr);
 
   printf("Locator Bearing called and waiting for touch\n");
+  UpdateWeb();
+
   wait_touch();
 }
 
@@ -12435,6 +13030,7 @@ void BeaconBearing()
   }
 
   TextMid2(wscreen/2, 20, "Touch Screen to Continue",  font_ptr);
+  UpdateWeb();
 
   printf("Beacon Bearing called and waiting for touch\n");
   wait_touch();
@@ -12824,6 +13420,7 @@ void do_snapcheck()
       strcat(fbicmd, ".jpg >/dev/null 2>/dev/null");
       system(fbicmd);
       LastDisplayedSnap = Snap;
+      UpdateWeb();
     }
 
     if (getTouchSample(&rawX, &rawY, &rawPressure)==0) continue;
@@ -12868,37 +13465,54 @@ static void cleanexit(int exit_code)
   exit(exit_code);
 }
 
-void do_freqshow()
-{
-  if (strcmp(DisplayType, "Element14_7") == 0)  // load modified freqshow.py
-  {
-    system("cp -f /home/pi/rpidatv/scripts/configs/freqshow/freqshow.py.7inch /home/pi/FreqShow/freqshow.py");
-  }
-  else   // load orignal freqshow.py
-  {
-    system("cp -f /home/pi/rpidatv/scripts/configs/freqshow/waveshare_freqshow.py /home/pi/FreqShow/freqshow.py");
-  }
-
-  // Exit and load freqshow
-  cleanexit(131);
-}
 
 void do_Langstone()
 {
   // Check that audio dongle exists before exit, otherwise display error message
   if (DetectUSBAudio() == 0)
   {
-    // Check that Pluto IP is set correctly otherwise display error message
-    if (CheckPlutoIPConnect() == 0)
+    if (strcmp(langstone_version, "v1pluto") == 0)
     {
-      cleanexit(135);  // Start Langstone
+      // Check that Pluto IP is set correctly otherwise display error message
+      if (CheckPlutoIPConnect() == 0)
+      {
+        cleanexit(135);  // Start Langstone
+      }
+      else
+      {
+        MsgBox4("Pluto IP not set in Pluto Config", "or Pluto not connected",
+                "Please correct and try again", "Touch Screen to Continue");
+        wait_touch();
+      } 
     }
-    else
+    if (strcmp(langstone_version, "v2pluto") == 0)
     {
-      MsgBox4("Pluto IP not set in Pluto Config", "or Pluto not connected",
-              "Please correct and try again", "Touch Screen to Continue");
-      wait_touch();
-    } 
+      // Check that Pluto IP is set correctly otherwise display error message
+      if (CheckPlutoIPConnect() == 0)
+      {
+        cleanexit(146);  // Start Langstone v2 for Pluto
+      }
+      else
+      {
+        MsgBox4("Pluto IP not set in Pluto Config", "or Pluto not connected",
+                "Please correct and try again", "Touch Screen to Continue");
+        wait_touch();
+      } 
+    }
+    if (strcmp(langstone_version, "v2lime") == 0)
+    {
+      // Check that Pluto IP is set correctly otherwise display error message
+      if ((CheckLimeMiniConnect() == 0) || (CheckLimeUSBConnect() == 0))
+      {
+        cleanexit(145);  // Start Langstone V2 for Lime
+      }
+      else
+      {
+        MsgBox4("No LimeSDR connected", " ",
+                "Please correct and try again", "Touch Screen to Continue");
+        wait_touch();
+      } 
+    }
   }
   else
   {
@@ -14400,8 +15014,10 @@ void ChangePlutoIPLangstone()  // For Langstone
   char PlutoIPCopy[31];
   char LinuxCommand[255];
 
-  // Check that Langstone is loaded
-  if (file_exist("/home/pi/Langstone/run") != 0)
+  // Check if Langstone is not loaded
+  if ((strcmp(langstone_version, "v1pluto") != 0)
+  &&  (strcmp(langstone_version, "v2lime") != 0)
+  &&  (strcmp(langstone_version, "v2pluto") != 0))
   {
     MsgBox2("Langstone not installed", "Please install Langstone, then set Pluto IP");
     wait_touch();
@@ -14431,14 +15047,28 @@ void ChangePlutoIPLangstone()  // For Langstone
   {
     printf("Langstone Pluto IP set to: %s\n", KeyboardReturn);
     strcpy(LangstonePlutoIP, KeyboardReturn);
-  
-    // Save IP to Langstone/run file
-    snprintf(LinuxCommand, 254, "sed -i \"s/^export PLUTO_IP=.*/export PLUTO_IP=%s/\" /home/pi/Langstone/run", LangstonePlutoIP);
-    system(LinuxCommand);
 
-    // Save IP to Langstone/stop file
-    snprintf(LinuxCommand, 254, "sed -i \"s/PLUTO_IP=.*/PLUTO_IP=%s/\" /home/pi/Langstone/stop", LangstonePlutoIP);
-    system(LinuxCommand);
+    if (strcmp(langstone_version, "v1pluto") == 0)
+    {
+      // Save IP to Langstone/run file
+      snprintf(LinuxCommand, 254, "sed -i \"s/^export PLUTO_IP=.*/export PLUTO_IP=%s/\" /home/pi/Langstone/run", LangstonePlutoIP);
+      system(LinuxCommand);
+
+      // Save IP to Langstone/stop file
+      snprintf(LinuxCommand, 254, "sed -i \"s/PLUTO_IP=.*/PLUTO_IP=%s/\" /home/pi/Langstone/stop", LangstonePlutoIP);
+      system(LinuxCommand);
+    }
+    if ((strcmp(langstone_version, "v2pluto") == 0)
+     || (strcmp(langstone_version, "v2lime") == 0))
+    {
+      // Save IP to Langstone/run_pluto file
+      snprintf(LinuxCommand, 254, "sed -i \"s/^export PLUTO_IP=.*/export PLUTO_IP=%s/\" /home/pi/Langstone/run_pluto", LangstonePlutoIP);
+      system(LinuxCommand);
+
+      // Save IP to Langstone/stop_pluto file
+      snprintf(LinuxCommand, 254, "sed -i \"s/PLUTO_IP=.*/PLUTO_IP=%s/\" /home/pi/Langstone/stop_pluto", LangstonePlutoIP);
+      system(LinuxCommand);
+    }
   }
 }
 
@@ -14661,19 +15291,35 @@ void CheckPlutoFirmware()
 }
 
 
-void UpdateLangstone()
+void UpdateLangstone(int version_number)
 {
   if (CheckGoogle() == 0)  // First check internet conection
   {
-    system("/home/pi/rpidatv/scripts/update_langstone.sh");
-    usleep(1000000);
-    if (file_exist("/home/pi/Langstone/GUI") == 0)
+    if (version_number == 1)
     {
-      MsgBox4("Langstone Successfully Updated"," ", " ", "Touch Screen to Continue");
+      system("/home/pi/rpidatv/scripts/update_langstone.sh");
+      usleep(1000000);
+      if (file_exist("/home/pi/Langstone/GUI") == 0)
+      {
+        MsgBox4("Langstone V1 Successfully Updated"," ", " ", "Touch Screen to Continue");
+      }
+      else
+      {
+        MsgBox4("Langstone not Updated","Try again, ", "or try manual update", " ");
+      }
     }
-    else
+    if (version_number == 2)
     {
-      MsgBox4("Langstone not Updated","Try again, ", "or try manual update", " ");
+      system("/home/pi/rpidatv/scripts/update_langstone2.sh");
+      usleep(1000000);
+      if (file_exist("/home/pi/Langstone/LangstoneGUI_Lime.c") == 0)
+      {
+        MsgBox4("Langstone V2 Successfully Updated"," ", " ", "Touch Screen to Continue");
+      }
+      else
+      {
+        MsgBox4("Langstone not Updated","Try again, ", "or try manual update", " ");
+      }
     }
   }
   else
@@ -14685,15 +15331,25 @@ void UpdateLangstone()
   UpdateWindow();
 }
 
-void InstallLangstone()
+
+void InstallLangstone(int NoButton)
 {
   int i;
 
   if (CheckGoogle() == 0)  // First check internet conection
   {
-    system("/home/pi/rpidatv/add_langstone.sh &");
-    MsgBox4("Installing Langstone Software", "This can take up to 5 minutes", " ", "Please wait for Reboot");
-    for (i = 0; i < 300; i++)
+    if (NoButton == 5)
+    {
+      system("/home/pi/rpidatv/add_langstone.sh &");
+      MsgBox4("Installing Langstone V1 Software", "This can take up to 15 minutes", " ", "Please wait for Reboot");
+    }
+    if (NoButton == 6)
+    {
+      system("/home/pi/rpidatv/add_langstone2.sh &");
+      MsgBox4("Installing Langstone V2 Software", "This can take up to 15 minutes", " ", "Please wait for Reboot");
+    }
+
+    for (i = 0; i < 900; i++)
     {
       usleep(1000000);
     }
@@ -15092,7 +15748,7 @@ void waituntil(int w,int h)
     }
 
     // Screen has been touched or returning from recieve
-    printf("x=%d y=%d\n", rawX, rawY);
+    printf("Actioning Event in waituntil x=%d y=%d\n", rawX, rawY);
 
     // React differently depending on context: char ScreenState[255]
 
@@ -15547,7 +16203,7 @@ void waituntil(int w,int h)
           UpdateWindow();
           break;
         case 15:                                     // Select Langstone (Or go to menu for install)
-          if (file_exist("/home/pi/Langstone/LangstoneGUI.c") == 0)
+          if (strcmp(langstone_version, "v1pluto") == 0)
           {
             SetButtonStatus(ButtonNumber(2, 15), 1);  // and highlight button
             UpdateWindow();
@@ -15558,12 +16214,31 @@ void waituntil(int w,int h)
             clearScreen();
             UpdateWindow();
           }
-          else                                        // if not installed, present Menu 39 with install option
+          else if (strcmp(langstone_version, "v2pluto") == 0)
+          {
+            SetButtonStatus(ButtonNumber(2, 15), 1);  // and highlight button
+            UpdateWindow();
+            RebootPluto(1);                           // Reboot Pluto and wait for recovery                          
+            do_Langstone();
+            SetButtonStatus(ButtonNumber(2, 15), 0);  // unhighlight button
+            setBackColour(0, 0, 0);
+            clearScreen();
+            UpdateWindow();
+          }
+          else if (strcmp(langstone_version, "v2lime") == 0)
+          {
+            SetButtonStatus(ButtonNumber(2, 15), 1);  // and highlight button
+            UpdateWindow();
+            do_Langstone();
+            SetButtonStatus(ButtonNumber(2, 15), 0);  // unhighlight button
+            setBackColour(0, 0, 0);
+            clearScreen();
+            UpdateWindow();
+          }
+          else                                                    // Langstone not installed yet
           {
             printf("MENU 39 \n");
             CurrentMenu=39;
-            setBackColour(0, 0, 0);
-            clearScreen();
             Start_Highlights_Menu39();
             UpdateWindow();
           }
@@ -17885,30 +18560,59 @@ void waituntil(int w,int h)
           UpdateWindow();
           break;
         case 2:                               // Update Langstone
-          if (file_exist("/home/pi/Langstone/LangstoneGUI.c") == 0)  // Langstone installed
+          if (strcmp(langstone_version, "v1pluto") == 0)  // Langstone V1 installed
           {
-            printf("Updating the Langstone\n");
+            printf("Updating Langstone V1\n");
             SetButtonStatus(ButtonNumber(39, 2), 1);
             UpdateWindow();
-            UpdateLangstone();
+            usleep(200000);
             setBackColour(0, 0, 0);
             clearScreen();
-            SetButtonStatus(ButtonNumber(39, 2), 0);
+            MsgBox4("Updating Langstone V1", " ", "Please Wait", " ");
+            UpdateLangstone(1);
           }
+          if ((strcmp(langstone_version, "v2pluto") == 0)
+           || (strcmp(langstone_version, "v2lime") == 0))   // Langstone V2 installed
+          {
+            printf("Updating Langstone V2\n");
+            SetButtonStatus(ButtonNumber(39, 2), 1);
+            UpdateWindow();
+            usleep(200000);
+            setBackColour(0, 0, 0);
+            clearScreen();
+            MsgBox4("Updating Langstone V2", " ", "Please Wait", " ");
+            UpdateLangstone(2);
+          }
+          setBackColour(0, 0, 0);
+          clearScreen();
+          SetButtonStatus(ButtonNumber(39, 2), 0);
           Start_Highlights_Menu39();
           UpdateWindow();
           break;
-        case 5:                               // Install Langsstone
-          if (file_exist("/home/pi/Langstone/LangstoneGUI.c") != 0)  // Langstone not installed
+        case 5:                               // Install Langstone V1
+        case 6:                               // Install Langstone V2
+          printf("Installing Langstone V1 or V2\n");
+          SetButtonStatus(ButtonNumber(39, 5), 1);
+          UpdateWindow();
+          usleep(200000);
+          InstallLangstone(i);
+          Start_Highlights_Menu39();
+          UpdateWindow();
+          break;
+        case 7:                               // Toggle between Langstone V2 Lime and Langstone V2 Pluto 
+          printf("Changing Langstone V2 between Pluto and Lime\n");
+          if (strcmp(langstone_version, "v2lime") == 0)
           {
-            printf("Installing Langstone\n");
-            SetButtonStatus(ButtonNumber(39, 5), 1);
-            UpdateWindow();
-            usleep(200000);
-            InstallLangstone();
-            Start_Highlights_Menu39();
-            UpdateWindow();
+            strcpy(langstone_version, "v2pluto");
+            SetConfigParam(PATH_PCONFIG, "langstone", "v2pluto");
           }
+          else if (strcmp(langstone_version, "v2pluto") == 0)
+          {
+            strcpy(langstone_version, "v2lime");
+            SetConfigParam(PATH_PCONFIG, "langstone", "v2lime");
+          }
+          Start_Highlights_Menu39();
+          UpdateWindow();
           break;
         case 4:                               // Exit
           SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 1);
@@ -17923,6 +18627,47 @@ void waituntil(int w,int h)
           setBackColour(0, 0, 0);
           Start_Highlights_Menu1();
           UpdateWindow();
+          break;
+        case 9:                                     // Select Langstone (Or go to menu for install)
+          if (strcmp(langstone_version, "v1pluto") == 0)
+          {
+            SetButtonStatus(ButtonNumber(39, 9), 1);  // and highlight button
+            UpdateWindow();
+            RebootPluto(1);                           // Reboot Pluto and wait for recovery                          
+            do_Langstone();
+            SetButtonStatus(ButtonNumber(39, 9), 0);  // unhighlight button
+            setBackColour(0, 0, 0);
+            clearScreen();
+            UpdateWindow();
+          }
+          else if (strcmp(langstone_version, "v2pluto") == 0)
+          {
+            SetButtonStatus(ButtonNumber(39, 9), 1);  // and highlight button
+            UpdateWindow();
+            RebootPluto(1);                           // Reboot Pluto and wait for recovery                          
+            do_Langstone();
+            SetButtonStatus(ButtonNumber(39, 9), 0);  // unhighlight button
+            setBackColour(0, 0, 0);
+            clearScreen();
+            UpdateWindow();
+          }
+          else if (strcmp(langstone_version, "v2lime") == 0)
+          {
+            SetButtonStatus(ButtonNumber(39, 9), 1);  // and highlight button
+            UpdateWindow();
+            do_Langstone();
+            SetButtonStatus(ButtonNumber(39, 9), 0);  // unhighlight button
+            setBackColour(0, 0, 0);
+            clearScreen();
+            UpdateWindow();
+          }
+          else                                                    // Langstone not installed yet
+          {
+            printf("MENU 39 \n");
+            CurrentMenu=39;
+            Start_Highlights_Menu39();
+            UpdateWindow();
+          }
           break;
         default:
           printf("Menu 39 Error\n");
@@ -17958,6 +18703,20 @@ void waituntil(int w,int h)
           clearScreen();
           setBackColour(0, 0, 0);
           Start_Highlights_Menu1();
+          UpdateWindow();
+          break;
+        case 5:                               // RX UDP Out IP Address
+          ChangeLMRXIP();
+          CurrentMenu = 40;
+          setBackColour(0, 0, 0);
+          clearScreen();
+          UpdateWindow();
+          break;
+        case 6:                               // RX UDP Out IP Port
+          ChangeLMRXPort();
+          CurrentMenu = 40;
+          setBackColour(0, 0, 0);
+          clearScreen();
           UpdateWindow();
           break;
         default:
@@ -18165,12 +18924,22 @@ void waituntil(int w,int h)
           Start_Highlights_Menu43();
           UpdateWindow();
           break;
-        case 12:                               // Select Start-up App
+        case 10:                               // Web Control Enable/disable
+          togglewebcontrol();
+          Start_Highlights_Menu43();
+          UpdateWindow();
+          break;
+        case 11:                               // Select Start-up App
           printf("MENU 34 \n"); 
           CurrentMenu=34;
           setBackColour(0, 0, 0);
           clearScreen();
           Start_Highlights_Menu34();
+          UpdateWindow();
+          break;
+        case 12:                               // Screen 5 inch or 7 inch
+          togglescreentype();
+          Start_Highlights_Menu43();
           UpdateWindow();
           break;
         case 13:                               // Invert Pi Cam
@@ -19131,7 +19900,7 @@ void Define_Menu2()
   AddButtonStatus(button, " ", &Green);
 
   button = CreateButton(2, 17);
-  AddButtonStatus(button, "LimeSDR Mini^Band Viewer", &Blue);
+  AddButtonStatus(button, "LimeSDR^Band Viewer", &Blue);
 
   button = CreateButton(2, 18);
   AddButtonStatus(button, "RTL-TCP^Server", &Blue);
@@ -19152,8 +19921,10 @@ void Define_Menu2()
 
 void Start_Highlights_Menu2()
 {
-  //Check Langstone status
-  if (file_exist("/home/pi/Langstone/LangstoneGUI.c") == 0)
+  // Check Langstone status
+  if ((strcmp(langstone_version, "v1pluto") == 0)
+   || (strcmp(langstone_version, "v2pluto") == 0)
+   || (strcmp(langstone_version, "v2lime") == 0))
   {
     AmendButtonStatus(ButtonNumber(2, 15), 0, "Switch to^Langstone", &Blue);
     AmendButtonStatus(ButtonNumber(2, 15), 1, "Switch to^Langstone", &Green);
@@ -22842,22 +23613,58 @@ void Define_Menu39()
   AddButtonStatus(button, "Exit", &LBlue);
 
   button = CreateButton(39, 5);
-  AddButtonStatus(button,"Install^Langstone now",&Blue);
-  AddButtonStatus(button,"Install^Langstone now",&Green);
-  AddButtonStatus(button,"Langstone^Installed",&Grey);
+  AddButtonStatus(button,"Install^Langstone V1",&Blue);
+  AddButtonStatus(button,"Install^Langstone V1",&Green);
+  AddButtonStatus(button,"Langstone V1^Installed",&Grey);
+
+  button = CreateButton(39, 6);
+  AddButtonStatus(button,"Install^Langstone V2",&Blue);
+  AddButtonStatus(button,"Install^Langstone V2",&Green);
+  AddButtonStatus(button,"Langstone V2^Installed",&Grey);
+
+  button = CreateButton(39, 7);
+  AddButtonStatus(button,"Langstone^use Pluto",&Blue);
+  AddButtonStatus(button,"Langstone^use Lime",&Blue);
+  AddButtonStatus(button,"Langstone^use Pluto",&Grey);
+
+  button = CreateButton(39, 9);
+  AddButtonStatus(button,"Start^Langstone",&Blue);
+  AddButtonStatus(button,"Start^Langstone",&Green);
+  AddButtonStatus(button," ",&Grey);
 }
 
 void Start_Highlights_Menu39()
 {
   //Check Langstone status
-  if (file_exist("/home/pi/Langstone/LangstoneGUI.c") == 0)
-  {
-    SetButtonStatus(ButtonNumber(39, 5), 2);
-  }
-  else
+  //printf("Langstone Version set as: %s\n", langstone_version);
+  if (strcmp(langstone_version, "none") == 0)
   {
     SetButtonStatus(ButtonNumber(39, 2), 2);
     SetButtonStatus(ButtonNumber(39, 5), 0);
+    SetButtonStatus(ButtonNumber(39, 6), 0);
+    SetButtonStatus(ButtonNumber(39, 7), 2);
+    SetButtonStatus(ButtonNumber(39, 9), 2);
+  }
+  if (strcmp(langstone_version, "v1pluto") == 0)
+  {
+    SetButtonStatus(ButtonNumber(39, 2), 0);
+    SetButtonStatus(ButtonNumber(39, 5), 2);
+    SetButtonStatus(ButtonNumber(39, 6), 0);
+    SetButtonStatus(ButtonNumber(39, 7), 2);
+  }
+  if (strcmp(langstone_version, "v2lime") == 0)
+  {
+    SetButtonStatus(ButtonNumber(39, 2), 0);
+    SetButtonStatus(ButtonNumber(39, 5), 0);
+    SetButtonStatus(ButtonNumber(39, 6), 2);
+    SetButtonStatus(ButtonNumber(39, 7), 1);
+  }
+  if (strcmp(langstone_version, "v2pluto") == 0)
+  {
+    SetButtonStatus(ButtonNumber(39, 2), 0);
+    SetButtonStatus(ButtonNumber(39, 5), 0);
+    SetButtonStatus(ButtonNumber(39, 6), 2);
+    SetButtonStatus(ButtonNumber(39, 7), 0);
   }
 }
 
@@ -22884,6 +23691,12 @@ void Define_Menu40()
   button = CreateButton(40, 4);
   AddButtonStatus(button, "Exit", &DBlue);
   AddButtonStatus(button, "Exit", &LBlue);
+
+  button = CreateButton(40, 5);
+  AddButtonStatus(button, "Edit RX Out^IP Address", &Blue);
+
+  button = CreateButton(40, 6);
+  AddButtonStatus(button,"Edit RX Out^IP Port",&Blue);
 }
 
 void Start_Highlights_Menu40()
@@ -23063,26 +23876,26 @@ void Define_Menu43()
   AddButtonStatus(button, "SD Button^Disabled", &Green);
 
   // 3rd Row, Menu 43
+  button = CreateButton(43, 10);
+  AddButtonStatus(button, "Web Control^Enabled", &Blue);
+  AddButtonStatus(button, "Web Control^Disabled", &Blue);
 
-//  button = CreateButton(43, 10);
-//  AddButtonStatus(button, "", &Blue);
-//  AddButtonStatus(button, "", &Green);
-
-//  button = CreateButton(43, 11);
-//  AddButtonStatus(button, "", &Blue);
-//  AddButtonStatus(button, "", &Green);
+  button = CreateButton(43, 11);
+  AddButtonStatus(button, "Start-up^App", &Blue);
 
   button = CreateButton(43, 12);
-  AddButtonStatus(button, "Start-up^App", &Blue);
+  AddButtonStatus(button, "Screen Type^7 inch", &Blue);
+  AddButtonStatus(button, "Screen Type^5 inch", &Blue);
 
   button = CreateButton(43, 13);
   AddButtonStatus(button, "Invert^Pi Cam", &Blue);
   AddButtonStatus(button, "Un-invert^Pi Cam", &Blue);
 
+
   button = CreateButton(43, 14);
-  AddButtonStatus(button, "Invert^7 inch", &Blue);
-  AddButtonStatus(button, "Invert^7 inch", &Green);
-  AddButtonStatus(button, "Invert^7 inch", &Grey);
+  AddButtonStatus(button, "Invert^Touchscreen", &Blue);
+  AddButtonStatus(button, "Invert^Touchscreen", &Green);
+  AddButtonStatus(button, "Invert^Touchscreen", &Grey);
 }
 
 void Start_Highlights_Menu43()
@@ -23094,6 +23907,26 @@ void Start_Highlights_Menu43()
   else
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 9), 2);
+  }
+
+  if (webcontrol == true)
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 10), 0);
+  }
+  else
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 10), 1);
+  }
+
+  if (strcmp(DisplayType, "Element14_7") == 0)
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 12), 0);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 14), 0);
+  }
+  if (strcmp(DisplayType, "dfrobot5") == 0)
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 12), 1);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 14), 2);
   }
 
   if (strcmp(CurrentPiCamOrientation, "normal") != 0)
@@ -23842,7 +24675,8 @@ terminate(int dummy)
 
 // main initializes the system and starts Menu 1 
 
-int main(int argc, char **argv)
+//int main(int argc, char **argv)
+int main(int argc, char *argv[])
 {
   int NoDeviceEvent=0;
   wscreen = 800;
@@ -23856,6 +24690,8 @@ int main(int argc, char **argv)
   char SetStandard[255];
   char vcoding[256];
   char vsource[256];
+
+  strcpy(ProgramName, argv[0]);
 
   // Catch sigaction and call terminate
   for (i = 0; i < 16; i++)
@@ -23924,13 +24760,13 @@ int main(int argc, char **argv)
 
   // Calculate screen parameters
   scaleXvalue = ((float)screenXmax-screenXmin) / wscreen;
-  printf ("X Scale Factor = %f\n", scaleXvalue);
-  printf ("wscreen = %d\n", wscreen);
-  printf ("screenXmax = %d\n", screenXmax);
-  printf ("screenXmim = %d\n", screenXmin);
+  // printf ("X Scale Factor = %f\n", scaleXvalue);
+  // printf ("wscreen = %d\n", wscreen);
+  // printf ("screenXmax = %d\n", screenXmax);
+  // printf ("screenXmim = %d\n", screenXmin);
   scaleYvalue = ((float)screenYmax-screenYmin) / hscreen;
-  printf ("Y Scale Factor = %f\n", scaleYvalue);
-  printf ("hscreen = %d\n", hscreen);
+  // printf ("Y Scale Factor = %f\n", scaleYvalue);
+  // printf ("hscreen = %d\n", hscreen);
 
   // Define button grid
   // -25 keeps right hand side symmetrical with left hand side
@@ -23939,6 +24775,9 @@ int main(int argc, char **argv)
 
   // Initialise direct access to the 7 inch screen
   initScreen();
+
+  // Create Touchscreen thread
+  pthread_create (&thtouchscreen, NULL, &WaitTouchscreenEvent, NULL);
 
   // Read in the presets from the Config files
   ReadPresets();
@@ -23962,6 +24801,7 @@ int main(int argc, char **argv)
   ReadTSConfig();
   ReadContestSites();
   ReadVLCVolume();
+  ReadWebControl();
 
   SetAudioLevels();
 
@@ -24044,6 +24884,13 @@ int main(int argc, char **argv)
   // Clear the screen ready for Menu 1
   setBackColour(255, 255, 255);          // White background
   clearScreen();
+
+  // Initialise web access
+
+  web_x = -1;
+  web_y = -1;
+  web_x_ptr = &web_x;
+  web_y_ptr = &web_y;
 
   // Display Menu 1
   Start_Highlights_Menu1();

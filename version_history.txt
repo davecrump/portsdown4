@@ -1,3 +1,13 @@
+202203071
+Initial Implementation of Web Access
+Support for DFRobot 5 inch Screen
+Integrate Langstone V2 (for LimeSDR and Pluto)
+Support "/" in Pluto-generated DVB-S/S2 Service Info
+
+202202240
+Partial implementation of Web Access
+Update new builds to use Buster Legacy OS
+
 202201110
 Update git clone to use https in install file
 
