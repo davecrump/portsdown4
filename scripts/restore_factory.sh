@@ -54,6 +54,10 @@ cp -f $PATHSCRIPT"/configs/portsdown_C_codes.txt.factory" $PATHSCRIPT"/portsdown
 cp -f /home/pi/rpidatv/src/bandview/bandview_config.txt /home/pi/rpidatv/src/bandview/bandview_config.txt.bak
 cp -f /home/pi/rpidatv/src/bandview/bandview_config.txt.factory /home/pi/rpidatv/src/bandview/bandview_config.txt
 
+# airspyview_config.txt
+cp -f /home/pi/rpidatv/src/airspyview/airspyview_config.txt /home/pi/rpidatv/src/airspyview/airspyview_config.txt.bak
+cp -f /home/pi/rpidatv/src/airspyview/airspyview_config.txt.factory /home/pi/rpidatv/src/airspyview/airspyview_config.txt
+
 # nf_meter_config.txt
 cp -f /home/pi/rpidatv/src/nf_meter/nf_meter_config.txt /home/pi/rpidatv/src/nf_meter/nf_meter_config.txt.bak
 cp -f /home/pi/rpidatv/src/nf_meter/nf_meter_config.txt.factory /home/pi/rpidatv/src/nf_meter/nf_meter_config.txt

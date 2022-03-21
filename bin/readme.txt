@@ -7,6 +7,8 @@ adf4351 is compiled from adf4351.c
 
 avc2ts is compiled from /home/pi/avc2ts
 
+airspyview is compiled
+
 CombiTunerExpress is downloaded
 
 dvb_t_stack is compiled

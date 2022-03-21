@@ -48,10 +48,11 @@ EOF
 # 133  Run Update Script for development load
 # 134  Exit from rpidatvgui requesting start of the XY Display
 # 135  Run the Langstone TRX V1
-# 136  Exit from rpidatvgui requesting start of BandViewer
+# 136  Exit from rpidatvgui requesting start of LimeSDR BandViewer
 # 137  Exit from rpidatvgui requesting start of Power Meter
 # 138  Exit from rpidatvgui requesting start of NF Meter
 # 139  Exit from rpidatvgui requesting start of Sweeper
+# 140  Exit from rpidatvgui requesting start of Airspy BandViewer
 # 145  Run the Langstone TRX V2 Lime
 # 146  Run the Langstone TRX V2 Pluto
 # 160  Shutdown from GUI
@@ -146,6 +147,11 @@ while [ "$GUI_RETURN_CODE" -gt 127 ] || [ "$GUI_RETURN_CODE" -eq 0 ];  do
     139)
       sleep 1
       /home/pi/rpidatv/bin/sweeper
+      GUI_RETURN_CODE="$?"
+    ;;
+    140)
+      sleep 1
+      /home/pi/rpidatv/bin/airspyview
       GUI_RETURN_CODE="$?"
     ;;
     145)                              # Langstone V2 Lime
