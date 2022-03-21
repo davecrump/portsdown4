@@ -1,5 +1,5 @@
 title=Portsdown Airspy Band Viewer
-centrefreq=747500
+centrefreq=437000
 span=2500
 limegain=15
 pfreq1=146500
