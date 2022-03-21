@@ -444,6 +444,7 @@ int CheckExpressRunning();
 int StartExpressServer();
 int DetectUSBAudio();
 void CheckExpress();
+int CheckAirspyConnect();
 int CheckLimeMiniConnect();
 int CheckLimeUSBConnect();
 int CheckPlutoConnect();
@@ -556,7 +557,6 @@ void AmendStreamPreset(int NoButton);
 void SelectStreamer(int NoButton);
 void SeparateStreamKey(char streamkey[127], char streamname[63], char key[63]);
 void AmendStreamerPreset(int NoButton);
-void chopN(char *str, size_t n);
 void checkTunerSettings();
 void LMRX(int NoButton);
 void CycleLNBVolts();
@@ -4550,6 +4550,39 @@ void CheckExpress()
       StartExpressServer();
     }
   }
+}
+
+
+/***************************************************************************//**
+ * @brief Checks whether an Airspy is connected
+ *
+ * @param 
+ *
+ * @return 0 if present, 1 if absent
+*******************************************************************************/
+
+int CheckAirspyConnect()
+{
+  FILE *fp;
+  char response[255];
+  int responseint;
+
+  /* Open the command for reading. */
+  fp = popen("lsusb | grep -q 'Airspy' ; echo $?", "r");
+  if (fp == NULL) {
+    printf("Failed to run command\n" );
+    exit(1);
+  }
+
+  /* Read the output a line at a time - output it. */
+  while (fgets(response, 7, fp) != NULL)
+  {
+    responseint = atoi(response);
+  }
+
+  /* close */
+  pclose(fp);
+  return responseint;
 }
 
 
@@ -9378,7 +9411,9 @@ void *WaitButtonLMRX(void * arg)
 
     TransformTouchMap(rawX, rawY);  // Sorts out orientation and approx scaling of the touch map
 
-    if((scaledX <= 5 * wscreen / 40)  && (scaledY <= hscreen) && (scaledY <= 2 * hscreen / 12)) // Bottom left
+    //if((scaledX <= 5 * wscreen / 40)  && (scaledY <= hscreen) && (scaledY <= 2 * hscreen / 12)) // Bottom left
+
+    if((scaledX <= 5 * wscreen / 40)  &&  (scaledY <= 2 * hscreen / 12)) // Bottom left
     {
       printf("In snap zone, so take snap.\n");
       system("/home/pi/rpidatv/scripts/snap2.sh");
@@ -9388,7 +9423,8 @@ void *WaitButtonLMRX(void * arg)
       printf("In restart VLC zone, so set for reset.\n");
       VLCResetRequest = true;
     }
-    else if((scaledX <= 15 * wscreen / 40) && (scaledX >= wscreen / 40) && (scaledY <= hscreen) && (scaledY >= 2 * hscreen / 12))
+    //else if((scaledX <= 15 * wscreen / 40) && (scaledX >= wscreen / 40) && (scaledY <= hscreen) && (scaledY >= 2 * hscreen / 12))
+    else if ((scaledX <= 15 * wscreen / 40) && (scaledY <= 10 * hscreen / 12) && (scaledY >= 2 * hscreen / 12))
     {
       printf("In parameter zone, so toggle parameter view.\n");
       if (FinishedButton == 2)  // Toggle parameters on/off 
@@ -9410,7 +9446,6 @@ void *WaitButtonLMRX(void * arg)
       //printf("Volume Down.\n");
       AdjustVLCVolume(-51);
     }
-
     else
     {
       printf("Out of zone.  End receive requested.\n");
@@ -9961,20 +9996,6 @@ void AmendStreamerPreset(int NoButton)
 }
 
 
-void chopN(char *str, size_t n)
-{
-  size_t len = strlen(str);
-  if ((n > len) || (n == 0))
-  {
-    return;
-  }
-  else
-  {
-    memmove(str, str+n, len - n + 1);
-  }
-}
-
-
 void checkTunerSettings()
 {
   int basefreq;
@@ -10033,7 +10054,6 @@ void LMRX(int NoButton)
   #define PATH_SCRIPT_LMRXMER "/home/pi/rpidatv/scripts/lmmer.sh 2>&1"
   #define PATH_SCRIPT_LMRXUDP "/home/pi/rpidatv/scripts/lmudp.sh 2>&1"
   #define PATH_SCRIPT_LMRXOMX "/home/pi/rpidatv/scripts/lmomx.sh 2>&1"
-  // #define PATH_SCRIPT_LMRXVLCFF "/home/pi/rpidatv/scripts/lmvlcff.sh"
   #define PATH_SCRIPT_LMRXVLCFFUDP "/home/pi/rpidatv/scripts/lmvlcffudp.sh"
   #define PATH_SCRIPT_LMRXVLCFFUDP2 "/home/pi/rpidatv/scripts/lmvlcffudp2.sh"
 
@@ -10049,9 +10069,10 @@ void LMRX(int NoButton)
   float refMER;
   int MERcount = 0;
   float FREQ;
-  int STATE;
+  int STATE = 0;
   int SR;
   char Value[63];
+  bool Overlay_displayed = false;
 
   // To be Global Paramaters:
 
@@ -10065,11 +10086,9 @@ void LMRX(int NoButton)
   char SRtext[63];
   char ServiceProvidertext[255] = " ";
   char Servicetext[255] = " ";
-  char MODCODtext[63];
+
   char FECtext[63] = " ";
   char Modulationtext[63] = " ";
-  char VidEncodingtext[63] = " ";
-  char AudEncodingtext[63] = " ";
   char Encodingtext[63] = " ";
   char vlctext[255];
   char AGCtext[255];
@@ -10078,8 +10097,6 @@ void LMRX(int NoButton)
   uint16_t AGC1 = 0;
   uint16_t AGC2 = 3200;
   float MERThreshold = 0;
-  int EncodingCode = 0;
-  int MODCOD;
   int Parameters_currently_displayed = 1;  // 1 for displayed, 0 for blank
   float previousMER = 0;
   int FirstLock = 0;  // set to 1 on first lock, and 2 after parameter fade
@@ -10103,14 +10120,25 @@ void LMRX(int NoButton)
   int TunerPollCount = 0;
   bool TunerFound = FALSE;
 
+  char ExtraText[63];
+
   // Set globals
   FinishedButton = 1;
   VLCResetRequest = false;
 
   // Display the correct background
-  if ((NoButton == 0) || (NoButton == 1) || (NoButton == 2) || (NoButton == 5))   // Picture and LNB autoset modes
+  if ((NoButton == 1) || (NoButton == 5))   // OMX and LNB autoset modes
   {
     strcpy(LinuxCommand, "sudo fbi -T 1 -noverbose -a /home/pi/rpidatv/scripts/images/RX_Black.png ");
+    strcat(LinuxCommand, ">/dev/null 2>/dev/null");
+    system(LinuxCommand);
+    strcpy(LinuxCommand, "(sleep 1; sudo killall -9 fbi >/dev/null 2>/dev/null) &");
+    system(LinuxCommand);
+  }
+  else if ((NoButton == 0) || (NoButton == 2))   // VLC modes
+  {
+    strcpy(LinuxCommand, "sudo fbi -T 1 -noverbose -a /home/pi/rpidatv/scripts/images/RX_overlay.png ");
+    Overlay_displayed = true;
     strcat(LinuxCommand, ">/dev/null 2>/dev/null");
     system(LinuxCommand);
     strcpy(LinuxCommand, "(sleep 1; sudo killall -9 fbi >/dev/null 2>/dev/null) &");
@@ -10121,7 +10149,6 @@ void LMRX(int NoButton)
     setBackColour(0, 0, 0);
     clearScreen();
   }
-
 
   // Initialise and calculate the text display
   setForeColour(255, 255, 255);    // White text
@@ -10141,6 +10168,17 @@ void LMRX(int NoButton)
   // Create Wait Button thread
   pthread_create (&thbutton, NULL, &WaitButtonLMRX, NULL);
 
+  // case 0 = DVB-S/S2 VLCFFUDP
+  // case 1 = DVB-S/S2 OMXPlayer
+  // case 2 = DVB-S/S2 VLCFFUDP2 No scan
+  // case 3 = DVB-S/S2 UDP
+  // case 4 = Beacon MER
+  // case 5 = Autoset LNB LO Freq
+  // case 6 = DVB-T VLC
+  // case 7 = not used
+  // case 8 = not used
+  // case 9 = DVB-T UDP
+
   // Switch for DVB-T
   if (strcmp(RXmod, "DVB-T") == 0)
   {
@@ -10156,7 +10194,6 @@ void LMRX(int NoButton)
 
   switch (NoButton)
   {
-
   case 0:
   case 2:
 
@@ -10210,7 +10247,7 @@ void LMRX(int NoButton)
           if (TunerPollCount > 15)
           {
             strcpy(line5, "Waiting for MiniTiouner to Respond");
-            Text2(wscreen * 1 / 40, hscreen - 1 * linepitch, line5, font_ptr);
+            Text2(wscreen * 6 / 40, hscreen - 1 * linepitch, line5, font_ptr);
             TunerPollCount = 0;
           }
         }
@@ -10224,31 +10261,16 @@ void LMRX(int NoButton)
         {
           TunerFound = TRUE;
 
+          if (Overlay_displayed == true)
+          {
+            clearScreen();
+            Overlay_displayed = false;
+          }
+
           if ((stat_string[0] == '1') && (stat_string[1] == ','))  // Decoder State
           {
-            strcpy(STATEtext, stat_string);
-            chopN(STATEtext, 2);
-            STATE = atoi(STATEtext);
-            switch(STATE)
-            {
-              case 0:
-              strcpy(STATEtext, "Initialising");
-              break;
-              case 1:
-              strcpy(STATEtext, "Searching");
-              break;
-              case 2:
-              strcpy(STATEtext, "Found Headers");
-              break;
-              case 3:
-              strcpy(STATEtext, "DVB-S Lock");
-              break;
-              case 4:
-              strcpy(STATEtext, "DVB-S2 Lock");
-              break;
-              default:
-              snprintf(STATEtext, 10, "%d", STATE);
-            }
+            // Return State as an integer and a string
+            STATE = LMDecoderState(stat_string, STATEtext);
           }
 
           if ((stat_string[0] == '6') && (stat_string[1] == ','))  // Frequency
@@ -10286,226 +10308,21 @@ void LMRX(int NoButton)
 
           if ((stat_string[0] == '1') && (stat_string[1] == '8'))  // MODCOD
           {
-            strcpy(MODCODtext, stat_string);
-            chopN(MODCODtext, 3);
-            MODCOD = atoi(MODCODtext);
-            //STATE = 4;
-            if (STATE == 3)                                        // DVB-S
-            {
-              switch(MODCOD)
-              {
-                case 0:
-                  strcpy(FECtext, "FEC 1/2");
-                  MERThreshold = 1.7; //
-                break;
-                case 1:
-                  strcpy(FECtext, "FEC 2/3");
-                  MERThreshold = 3.3; //
-                break;
-                case 2:
-                  strcpy(FECtext, "FEC 3/4");
-                  MERThreshold = 4.2; //
-                break;
-                case 3:
-                  strcpy(FECtext, "FEC 5/6");
-                  MERThreshold = 5.1; //
-                break;
-                case 4:
-                  strcpy(FECtext, "FEC 6/7");
-                  MERThreshold = 5.5; //
-                break;
-                case 5:
-                  strcpy(FECtext, "FEC 7/8");
-                  MERThreshold = 5.8; //
-                break;
-                default:
-                  strcpy(FECtext, "FEC -");
-                  MERThreshold = 0; //
-                  strcat(FECtext, MODCODtext);
-                break;
-              }
-              strcpy(Modulationtext, "QPSK");
-            }
-            if (STATE == 4)                                        // DVB-S2
-            {
-              switch(MODCOD)
-              {
-                case 1:
-                  strcpy(FECtext, "FEC 1/4");
-                  MERThreshold = -2.3; //
-                break;
-                case 2:
-                  strcpy(FECtext, "FEC 1/3");
-                  MERThreshold = -1.2; //
-                break;
-                case 3:
-                  strcpy(FECtext, "FEC 2/5");
-                  MERThreshold = -0.3; //
-                break;
-                case 4:
-                  strcpy(FECtext, "FEC 1/2");
-                  MERThreshold = 1.0; //
-                break;
-                case 5:
-                  strcpy(FECtext, "FEC 3/5");
-                  MERThreshold = 2.3; //
-                break;
-                case 6:
-                  strcpy(FECtext, "FEC 2/3");
-                  MERThreshold = 3.1; //
-                break;
-                case 7:
-                  strcpy(FECtext, "FEC 3/4");
-                  MERThreshold = 4.1; //
-                break;
-                case 8:
-                  strcpy(FECtext, "FEC 4/5");
-                  MERThreshold = 4.7; //
-                break;
-                case 9:
-                  strcpy(FECtext, "FEC 5/6");
-                  MERThreshold = 5.2; //
-                break;
-                case 10:
-                  strcpy(FECtext, "FEC 8/9");
-                  MERThreshold = 6.2; //
-                break;
-                case 11:
-                  strcpy(FECtext, "FEC 9/10");
-                  MERThreshold = 6.5; //
-                break;
-                case 12:
-                  strcpy(FECtext, "FEC 3/5");
-                  MERThreshold = 5.5; //
-                break;
-                case 13:
-                  strcpy(FECtext, "FEC 2/3");
-                  MERThreshold = 6.6; //
-                break;
-                case 14:
-                  strcpy(FECtext, "FEC 3/4");
-                  MERThreshold = 7.9; //
-                break;
-                case 15:
-                  strcpy(FECtext, "FEC 5/6");
-                  MERThreshold = 9.4; //
-                break;
-                case 16:
-                  strcpy(FECtext, "FEC 8/9");
-                  MERThreshold = 10.7; //
-                break;
-                case 17:
-                  strcpy(FECtext, "FEC 9/10");
-                  MERThreshold = 11.0; //
-                break;
-                case 18:
-                  strcpy(FECtext, "FEC 2/3");
-                  MERThreshold = 9.0; //
-                break;
-                case 19:
-                  strcpy(FECtext, "FEC 3/4");
-                  MERThreshold = 10.2; //
-                break;
-                case 20:
-                  strcpy(FECtext, "FEC 4/5");
-                  MERThreshold = 11.0; //
-                break;
-                case 21:
-                  strcpy(FECtext, "FEC 5/6");
-                  MERThreshold = 11.6; //
-                break;
-                case 22:
-                  strcpy(FECtext, "FEC 8/9");
-                  MERThreshold = 12.9; //
-                break;
-                case 23:
-                  strcpy(FECtext, "FEC 9/10");
-                  MERThreshold = 13.2; //
-                break;
-                case 24:
-                  strcpy(FECtext, "FEC 3/4");
-                  MERThreshold = 12.8; //
-                break;
-                case 25:
-                  strcpy(FECtext, "FEC 4/5");
-                  MERThreshold = 13.7; //
-                break;
-                case 26:
-                  strcpy(FECtext, "FEC 5/6");
-                  MERThreshold = 14.3; //
-                break;
-                case 27:
-                  strcpy(FECtext, "FEC 8/9");
-                  MERThreshold = 15.7; //
-                break;
-                case 28:
-                  strcpy(FECtext, "FEC 9/10");
-                  MERThreshold = 16.1; //
-                break;
-                default:
-                  strcpy(FECtext, "FEC -");
-                  MERThreshold = 0; //
-                break;
-              }
-              if ((MODCOD >= 1) && (MODCOD <= 11 ))
-              {
-                strcpy(Modulationtext, "QPSK");
-              }
-              if ((MODCOD >= 12) && (MODCOD <= 17 ))
-              {
-                strcpy(Modulationtext, "8PSK");
-              }
-              if ((MODCOD >= 18) && (MODCOD <= 23 ))
-              {
-                strcpy(Modulationtext, "16APSK");
-              }
-              if ((MODCOD >= 24) && (MODCOD <= 28 ))
-              {
-                strcpy(Modulationtext, "32APSK");
-              }
-            }
+            MERThreshold = LMLookupMODCOD(stat_string, STATE, FECtext, Modulationtext);
           }
 
           if ((stat_string[0] == '1') && (stat_string[1] == '7'))  // Video and audio encoding
           {
-            strcpy(Encodingtext, stat_string);
-            chopN(Encodingtext, 3);
-            EncodingCode = atoi(Encodingtext);
-            switch(EncodingCode)
+            if (LMLookupVidEncoding(stat_string, ExtraText) == 0)
             {
-              case 2:
-                strcpy(VidEncodingtext, "MPEG-2");
-              break;
-              case 3:
-                strcpy(AudEncodingtext, " MPA");
-              break;
-              case 4:
-                strcpy(AudEncodingtext, " MPA");
-              break;
-              case 15:
-                strcpy(AudEncodingtext, " AAC");
-              break;
-              case 16:
-                strcpy(VidEncodingtext, "H263");
-              break;
-              case 27:
-                strcpy(VidEncodingtext, "H264");
-              break;
-              case 32:
-                strcpy(AudEncodingtext, " MPA");
-              break;
-              case 36:
-                strcpy(VidEncodingtext, "H265");
-              break;
-              case 129:
-                strcpy(AudEncodingtext, " AC3");
-              break;
-              default:
-                printf("New Encoding Code = %d\n", EncodingCode);
-              break;
+              strcpy(Encodingtext, ExtraText);
             }
-            strcpy(Encodingtext, VidEncodingtext);
-            strcat(Encodingtext, AudEncodingtext);
+            strcpy(ExtraText, "");
+
+            if (LMLookupAudEncoding(stat_string, ExtraText) == 0)
+            {
+              strcat(Encodingtext, ExtraText);
+            }
           }
 
           if ((stat_string[0] == '3') && (stat_string[1] == '5'))  // AGC1 Setting
@@ -10672,6 +10489,7 @@ void LMRX(int NoButton)
     pclose(fp);
     system("sudo killall lmvlcffudp.sh >/dev/null 2>/dev/null");
     touch_response = 0; 
+    printf("VLC has shut down\n");
     break;
 
   case 6:
@@ -11306,29 +11124,8 @@ void LMRX(int NoButton)
 
           if ((stat_string[0] == '1') && (stat_string[1] == ','))  // Decoder State
           {
-            strcpy(STATEtext, stat_string);
-            chopN(STATEtext, 2);
-            STATE = atoi(STATEtext);
-            switch(STATE)
-            {
-              case 0:
-              strcpy(STATEtext, "Initialising");
-              break;
-              case 1:
-              strcpy(STATEtext, "Searching");
-              break;
-              case 2:
-              strcpy(STATEtext, "Found Headers");
-              break;
-              case 3:
-              strcpy(STATEtext, "DVB-S Lock");
-              break;
-              case 4:
-              strcpy(STATEtext, "DVB-S2 Lock");
-              break;
-              default:
-              snprintf(STATEtext, 10, "%d", STATE);
-            }
+            // Return State as an integer and a string
+            STATE = LMDecoderState(stat_string, STATEtext);
           }
 
           if ((stat_string[0] == '6') && (stat_string[1] == ','))  // Frequency
@@ -11366,226 +11163,21 @@ void LMRX(int NoButton)
 
           if ((stat_string[0] == '1') && (stat_string[1] == '8'))  // MODCOD
           {
-            strcpy(MODCODtext, stat_string);
-            chopN(MODCODtext, 3);
-            MODCOD = atoi(MODCODtext);
-            //STATE = 4;
-            if (STATE == 3)                                        // DVB-S
-            {
-              switch(MODCOD)
-              {
-                case 0:
-                  strcpy(FECtext, "FEC 1/2");
-                  MERThreshold = 1.7; //
-                break;
-                case 1:
-                  strcpy(FECtext, "FEC 2/3");
-                  MERThreshold = 3.3; //
-                break;
-                case 2:
-                  strcpy(FECtext, "FEC 3/4");
-                  MERThreshold = 4.2; //
-                break;
-                case 3:
-                  strcpy(FECtext, "FEC 5/6");
-                  MERThreshold = 5.1; //
-                break;
-                case 4:
-                  strcpy(FECtext, "FEC 6/7");
-                  MERThreshold = 5.5; //
-                break;
-                case 5:
-                  strcpy(FECtext, "FEC 7/8");
-                  MERThreshold = 5.8; //
-                break;
-                default:
-                  strcpy(FECtext, "FEC -");
-                  MERThreshold = 0; //
-                  strcat(FECtext, MODCODtext);
-                break;
-              }
-              strcpy(Modulationtext, "QPSK");
-            }
-            if (STATE == 4)                                        // DVB-S2
-            {
-              switch(MODCOD)
-              {
-                case 1:
-                  strcpy(FECtext, "FEC 1/4");
-                  MERThreshold = -2.3; //
-                break;
-                case 2:
-                  strcpy(FECtext, "FEC 1/3");
-                  MERThreshold = -1.2; //
-                break;
-                case 3:
-                  strcpy(FECtext, "FEC 2/5");
-                  MERThreshold = -0.3; //
-                break;
-                case 4:
-                  strcpy(FECtext, "FEC 1/2");
-                  MERThreshold = 1.0; //
-                break;
-                case 5:
-                  strcpy(FECtext, "FEC 3/5");
-                  MERThreshold = 2.3; //
-                break;
-                case 6:
-                  strcpy(FECtext, "FEC 2/3");
-                  MERThreshold = 3.1; //
-                break;
-                case 7:
-                  strcpy(FECtext, "FEC 3/4");
-                  MERThreshold = 4.1; //
-                break;
-                case 8:
-                  strcpy(FECtext, "FEC 4/5");
-                  MERThreshold = 4.7; //
-                break;
-                case 9:
-                  strcpy(FECtext, "FEC 5/6");
-                  MERThreshold = 5.2; //
-                break;
-                case 10:
-                  strcpy(FECtext, "FEC 8/9");
-                  MERThreshold = 6.2; //
-                break;
-                case 11:
-                  strcpy(FECtext, "FEC 9/10");
-                  MERThreshold = 6.5; //
-                break;
-                case 12:
-                  strcpy(FECtext, "FEC 3/5");
-                  MERThreshold = 5.5; //
-                break;
-                case 13:
-                  strcpy(FECtext, "FEC 2/3");
-                  MERThreshold = 6.6; //
-                break;
-                case 14:
-                  strcpy(FECtext, "FEC 3/4");
-                  MERThreshold = 7.9; //
-                break;
-                case 15:
-                  strcpy(FECtext, "FEC 5/6");
-                  MERThreshold = 9.4; //
-                break;
-                case 16:
-                  strcpy(FECtext, "FEC 8/9");
-                  MERThreshold = 10.7; //
-                break;
-                case 17:
-                  strcpy(FECtext, "FEC 9/10");
-                  MERThreshold = 11.0; //
-                break;
-                case 18:
-                  strcpy(FECtext, "FEC 2/3");
-                  MERThreshold = 9.0; //
-                break;
-                case 19:
-                  strcpy(FECtext, "FEC 3/4");
-                  MERThreshold = 10.2; //
-                break;
-                case 20:
-                  strcpy(FECtext, "FEC 4/5");
-                  MERThreshold = 11.0; //
-                break;
-                case 21:
-                  strcpy(FECtext, "FEC 5/6");
-                  MERThreshold = 11.6; //
-                break;
-                case 22:
-                  strcpy(FECtext, "FEC 8/9");
-                  MERThreshold = 12.9; //
-                break;
-                case 23:
-                  strcpy(FECtext, "FEC 9/10");
-                  MERThreshold = 13.2; //
-                break;
-                case 24:
-                  strcpy(FECtext, "FEC 3/4");
-                  MERThreshold = 12.8; //
-                break;
-                case 25:
-                  strcpy(FECtext, "FEC 4/5");
-                  MERThreshold = 13.7; //
-                break;
-                case 26:
-                  strcpy(FECtext, "FEC 5/6");
-                  MERThreshold = 14.3; //
-                break;
-                case 27:
-                  strcpy(FECtext, "FEC 8/9");
-                  MERThreshold = 15.7; //
-                break;
-                case 28:
-                  strcpy(FECtext, "FEC 9/10");
-                  MERThreshold = 16.1; //
-                break;
-                default:
-                  strcpy(FECtext, "FEC -");
-                  MERThreshold = 0; //
-                break;
-              }
-              if ((MODCOD >= 1) && (MODCOD <= 11 ))
-              {
-                strcpy(Modulationtext, "QPSK");
-              }
-              if ((MODCOD >= 12) && (MODCOD <= 17 ))
-              {
-                strcpy(Modulationtext, "8PSK");
-              }
-              if ((MODCOD >= 18) && (MODCOD <= 23 ))
-              {
-                strcpy(Modulationtext, "16APSK");
-              }
-              if ((MODCOD >= 24) && (MODCOD <= 28 ))
-              {
-                strcpy(Modulationtext, "32APSK");
-              }
-            }
+            MERThreshold = LMLookupMODCOD(stat_string, STATE, FECtext, Modulationtext);
           }
 
           if ((stat_string[0] == '1') && (stat_string[1] == '7'))  // Video and audio encoding
           {
-            strcpy(Encodingtext, stat_string);
-            chopN(Encodingtext, 3);
-            EncodingCode = atoi(Encodingtext);
-            switch(EncodingCode)
+            if (LMLookupVidEncoding(stat_string, ExtraText) == 0)
             {
-              case 2:
-                strcpy(VidEncodingtext, "MPEG-2");
-              break;
-              case 3:
-                strcpy(AudEncodingtext, " MPA");
-              break;
-              case 4:
-                strcpy(AudEncodingtext, " MPA");
-              break;
-              case 15:
-                strcpy(AudEncodingtext, " AAC");
-              break;
-              case 16:
-                strcpy(VidEncodingtext, "H263");
-              break;
-              case 27:
-                strcpy(VidEncodingtext, "H264");
-              break;
-              case 32:
-                strcpy(AudEncodingtext, " MPA");
-              break;
-              case 36:
-                strcpy(VidEncodingtext, "H265");
-              break;
-              case 129:
-                strcpy(AudEncodingtext, " AC3");
-              break;
-              default:
-                printf("New Encoding Code = %d\n", EncodingCode);
-              break;
+              strcpy(Encodingtext, ExtraText);
             }
-            strcpy(Encodingtext, VidEncodingtext);
-            strcat(Encodingtext, AudEncodingtext);
+            strcpy(ExtraText, "");
+
+            if (LMLookupAudEncoding(stat_string, ExtraText) == 0)
+            {
+              strcat(Encodingtext, ExtraText);
+            }
           }
 
           if ((stat_string[0] == '3') && (stat_string[1] == '5'))  // AGC1 Setting
@@ -11714,29 +11306,8 @@ void LMRX(int NoButton)
 
           if ((stat_string[0] == '1') && (stat_string[1] == ','))  // Decoder State
           {
-            strcpy(STATEtext, stat_string);
-            chopN(STATEtext, 2);
-            STATE = atoi(STATEtext);
-            switch(STATE)
-            {
-              case 0:
-              strcpy(STATEtext, "Initialising");
-              break;
-              case 1:
-              strcpy(STATEtext, "Searching");
-              break;
-              case 2:
-              strcpy(STATEtext, "Found Headers");
-              break;
-              case 3:
-              strcpy(STATEtext, "DVB-S Lock");
-              break;
-              case 4:
-              strcpy(STATEtext, "DVB-S2 Lock");
-              break;
-              default:
-              snprintf(STATEtext, 10, "%d", STATE);
-            }
+            // Return State as an integer and a string
+            STATE = LMDecoderState(stat_string, STATEtext);
           }
 
           if ((stat_string[0] == '6') && (stat_string[1] == ','))  // Frequency
@@ -11774,226 +11345,21 @@ void LMRX(int NoButton)
 
           if ((stat_string[0] == '1') && (stat_string[1] == '8'))  // MODCOD
           {
-            strcpy(MODCODtext, stat_string);
-            chopN(MODCODtext, 3);
-            MODCOD = atoi(MODCODtext);
-            //STATE = 4;
-            if (STATE == 3)                                        // DVB-S
-            {
-              switch(MODCOD)
-              {
-                case 0:
-                  strcpy(FECtext, "FEC 1/2");
-                  MERThreshold = 1.7; //
-                break;
-                case 1:
-                  strcpy(FECtext, "FEC 2/3");
-                  MERThreshold = 3.3; //
-                break;
-                case 2:
-                  strcpy(FECtext, "FEC 3/4");
-                  MERThreshold = 4.2; //
-                break;
-                case 3:
-                  strcpy(FECtext, "FEC 5/6");
-                  MERThreshold = 5.1; //
-                break;
-                case 4:
-                  strcpy(FECtext, "FEC 6/7");
-                  MERThreshold = 5.5; //
-                break;
-                case 5:
-                  strcpy(FECtext, "FEC 7/8");
-                  MERThreshold = 5.8; //
-                break;
-                default:
-                  strcpy(FECtext, "FEC - ");
-                  MERThreshold = 0; //
-                  strcat(FECtext, MODCODtext);
-                break;
-              }
-              strcpy(Modulationtext, "QPSK");
-            }
-            if (STATE == 4)                                        // DVB-S2
-            {
-              switch(MODCOD)
-              {
-                case 1:
-                  strcpy(FECtext, "FEC 1/4");
-                  MERThreshold = -2.3; //
-                break;
-                case 2:
-                  strcpy(FECtext, "FEC 1/3");
-                  MERThreshold = -1.2; //
-                break;
-                case 3:
-                  strcpy(FECtext, "FEC 2/5");
-                  MERThreshold = -0.3; //
-                break;
-                case 4:
-                  strcpy(FECtext, "FEC 1/2");
-                  MERThreshold = 1.0; //
-                break;
-                case 5:
-                  strcpy(FECtext, "FEC 3/5");
-                  MERThreshold = 2.3; //
-                break;
-                case 6:
-                  strcpy(FECtext, "FEC 2/3");
-                  MERThreshold = 3.1; //
-                break;
-                case 7:
-                  strcpy(FECtext, "FEC 3/4");
-                  MERThreshold = 4.1; //
-                break;
-                case 8:
-                  strcpy(FECtext, "FEC 4/5");
-                  MERThreshold = 4.7; //
-                break;
-                case 9:
-                  strcpy(FECtext, "FEC 5/6");
-                  MERThreshold = 5.2; //
-                break;
-                case 10:
-                  strcpy(FECtext, "FEC 8/9");
-                  MERThreshold = 6.2; //
-                break;
-                case 11:
-                  strcpy(FECtext, "FEC 9/10");
-                  MERThreshold = 6.5; //
-                break;
-                case 12:
-                  strcpy(FECtext, "FEC 3/5");
-                  MERThreshold = 5.5; //
-                break;
-                case 13:
-                  strcpy(FECtext, "FEC 2/3");
-                  MERThreshold = 6.6; //
-                break;
-                case 14:
-                  strcpy(FECtext, "FEC 3/4");
-                  MERThreshold = 7.9; //
-                break;
-                case 15:
-                  strcpy(FECtext, "FEC 5/6");
-                  MERThreshold = 9.4; //
-                break;
-                case 16:
-                  strcpy(FECtext, "FEC 8/9");
-                  MERThreshold = 10.7; //
-                break;
-                case 17:
-                  strcpy(FECtext, "FEC 9/10");
-                  MERThreshold = 11.0; //
-                break;
-                case 18:
-                  strcpy(FECtext, "FEC 2/3");
-                  MERThreshold = 9.0; //
-                break;
-                case 19:
-                  strcpy(FECtext, "FEC 3/4");
-                  MERThreshold = 10.2; //
-                break;
-                case 20:
-                  strcpy(FECtext, "FEC 4/5");
-                  MERThreshold = 11.0; //
-                break;
-                case 21:
-                  strcpy(FECtext, "FEC 5/6");
-                  MERThreshold = 11.6; //
-                break;
-                case 22:
-                  strcpy(FECtext, "FEC 8/9");
-                  MERThreshold = 12.9; //
-                break;
-                case 23:
-                  strcpy(FECtext, "FEC 9/10");
-                  MERThreshold = 13.2; //
-                break;
-                case 24:
-                  strcpy(FECtext, "FEC 3/4");
-                  MERThreshold = 12.8; //
-                break;
-                case 25:
-                  strcpy(FECtext, "FEC 4/5");
-                  MERThreshold = 13.7; //
-                break;
-                case 26:
-                  strcpy(FECtext, "FEC 5/6");
-                  MERThreshold = 14.3; //
-                break;
-                case 27:
-                  strcpy(FECtext, "FEC 8/9");
-                  MERThreshold = 15.7; //
-                break;
-                case 28:
-                  strcpy(FECtext, "FEC 9/10");
-                  MERThreshold = 16.1; //
-                break;
-                default:
-                  strcpy(FECtext, "FEC -");
-                  MERThreshold = 0; //
-                break;
-              }
-              if ((MODCOD >= 1) && (MODCOD <= 11 ))
-              {
-                strcpy(Modulationtext, "QPSK");
-              }
-              if ((MODCOD >= 12) && (MODCOD <= 17 ))
-              {
-                strcpy(Modulationtext, "8PSK");
-              }
-              if ((MODCOD >= 18) && (MODCOD <= 23 ))
-              {
-                strcpy(Modulationtext, "16APSK");
-              }
-              if ((MODCOD >= 24) && (MODCOD <= 28 ))
-              {
-                strcpy(Modulationtext, "32APSK");
-              }
-            }
+            MERThreshold = LMLookupMODCOD(stat_string, STATE, FECtext, Modulationtext);
           }
 
           if ((stat_string[0] == '1') && (stat_string[1] == '7'))  // Video and audio encoding
           {
-            strcpy(Encodingtext, stat_string);
-            chopN(Encodingtext, 3);
-            EncodingCode = atoi(Encodingtext);
-            switch(EncodingCode)
+            if (LMLookupVidEncoding(stat_string, ExtraText) == 0)
             {
-              case 2:
-                strcpy(VidEncodingtext, "MPEG-2");
-              break;
-              case 3:
-                strcpy(AudEncodingtext, " MPA");
-              break;
-              case 4:
-                strcpy(AudEncodingtext, " MPA");
-              break;
-              case 15:
-                strcpy(AudEncodingtext, " AAC");
-              break;
-              case 16:
-                strcpy(VidEncodingtext, "H263");
-              break;
-              case 27:
-                strcpy(VidEncodingtext, "H264");
-              break;
-              case 32:
-                strcpy(AudEncodingtext, " MPA");
-              break;
-              case 36:
-                strcpy(VidEncodingtext, "H265");
-              break;
-              case 129:
-                strcpy(AudEncodingtext, " AC3");
-              break;
-              default:
-                printf("New Encoding Code = %d\n", EncodingCode);
-              break;
+              strcpy(Encodingtext, ExtraText);
             }
-            strcpy(Encodingtext, VidEncodingtext);
-            strcat(Encodingtext, AudEncodingtext);
+            strcpy(ExtraText, "");
+
+            if (LMLookupAudEncoding(stat_string, ExtraText) == 0)
+            {
+              strcat(Encodingtext, ExtraText);
+            }
           }
 
           if ((stat_string[0] == '3') && (stat_string[1] == '5'))  // AGC1 Setting
@@ -12118,29 +11484,8 @@ void LMRX(int NoButton)
 
           if ((stat_string[0] == '1') && (stat_string[1] == ','))  // Decoder State
           {
-            strcpy(STATEtext, stat_string);
-            chopN(STATEtext, 2);
-            STATE = atoi(STATEtext);
-            switch(STATE)
-            {
-              case 0:
-              strcpy(STATEtext, "Initialising.");
-              break;
-              case 1:
-              strcpy(STATEtext, "Searching.");
-              break;
-              case 2:
-              strcpy(STATEtext, "Found Headers.");
-              break;
-              case 3:
-              strcpy(STATEtext, "DVB-S Lock.");
-              break;
-              case 4:
-              strcpy(STATEtext, "DVB-S2 Lock.");
-              break;
-              default:
-              snprintf(STATEtext, 10, "%d", STATE);
-            }
+            // Return State as an integer and a string
+            STATE = LMDecoderState(stat_string, STATEtext);
             strcat(STATEtext, " MER:");
           }
 
@@ -12285,29 +11630,8 @@ void LMRX(int NoButton)
 
           if ((stat_string[0] == '1') && (stat_string[1] == ','))  // Decoder State
           {
-            strcpy(STATEtext, stat_string);
-            chopN(STATEtext, 2);
-            STATE = atoi(STATEtext);
-            switch(STATE)
-            {
-              case 0:
-              strcpy(STATEtext, "Initialising.");
-              break;
-              case 1:
-              strcpy(STATEtext, "Searching.");
-              break;
-              case 2:
-              strcpy(STATEtext, "Found Headers.");
-              break;
-              case 3:
-              strcpy(STATEtext, "DVB-S Lock.");
-              break;
-              case 4:
-              strcpy(STATEtext, "DVB-S2 Lock.");
-              break;
-              default:
-              snprintf(STATEtext, 10, "%d", STATE);
-            }
+            // Return State as an integer and a string
+            STATE = LMDecoderState(stat_string, STATEtext);
           }
 
           if ((stat_string[0] == '6') && (stat_string[1] == ','))  // Frequency
@@ -16247,16 +15571,24 @@ void waituntil(int w,int h)
           DisplayLogo();
           cleanexit(130);
           break;
-        case 17:                              // Lime Band Viewer
-          if((CheckLimeMiniConnect() == 0) || (CheckLimeUSBConnect() == 0))
+        case 17:                              //  Band Viewer.  Check for Airspy first, them LimeSDR
+          if (CheckAirspyConnect() == 0)
           {
             DisplayLogo();
-            cleanexit(136);
+            cleanexit(140);
           }
-          else
-          {
-            MsgBox("No LimeSDR Connected");
-            wait_touch();
+          else 
+          { 
+            if((CheckLimeMiniConnect() == 0) || (CheckLimeUSBConnect() == 0))
+            {
+              DisplayLogo();
+              cleanexit(136);
+            }
+            else
+            {
+              MsgBox("No LimeSDR or Airspy Connected");
+              wait_touch();
+            }
           }
           UpdateWindow();
           break;
@@ -16845,16 +16177,25 @@ void waituntil(int w,int h)
           cleanexit(130);
           break;
         case 11:                                                 // BandViewer
-          if((CheckLimeMiniConnect() == 0) || (CheckLimeUSBConnect() == 0))
+          if (CheckAirspyConnect() == 0)
           {
             DisplayLogo();
-            cleanexit(136);
+            cleanexit(140);
           }
-          else
-          {
-            MsgBox("No LimeSDR Connected");
-            wait_touch();
+          else 
+          { 
+            if((CheckLimeMiniConnect() == 0) || (CheckLimeUSBConnect() == 0))
+            {
+              DisplayLogo();
+              cleanexit(136);
+            }
+            else
+            {
+              MsgBox("No LimeSDR or Airspy Connected");
+              wait_touch();
+            }
           }
+          UpdateWindow();
           break;
         case 12:                                                 // Power Meter
           DisplayLogo();
@@ -19267,7 +18608,18 @@ void waituntil(int w,int h)
           Start_Highlights_Menu46();
           UpdateWindow();
           break;
-
+        case 14:                                         // Show overlay
+          strcpy(LinuxCommand, "sudo fbi -T 1 -noverbose -a /home/pi/rpidatv/scripts/images/RX_overlay.png ");
+          strcat(LinuxCommand, ">/dev/null 2>/dev/null");
+          system(LinuxCommand);
+          strcpy(LinuxCommand, "(sleep 1; sudo killall -9 fbi >/dev/null 2>/dev/null) &");
+          system(LinuxCommand);
+          wait_touch();
+          setBackColour(0, 0, 0);
+          clearScreen();
+          Start_Highlights_Menu46();
+          UpdateWindow();
+          break;
         default:
           printf("Menu 46 Error\n");
         }
@@ -19900,7 +19252,7 @@ void Define_Menu2()
   AddButtonStatus(button, " ", &Green);
 
   button = CreateButton(2, 17);
-  AddButtonStatus(button, "LimeSDR^Band Viewer", &Blue);
+  AddButtonStatus(button, "Band Viewer^ ", &Blue);
 
   button = CreateButton(2, 18);
   AddButtonStatus(button, "RTL-TCP^Server", &Blue);
@@ -24186,6 +23538,9 @@ void Define_Menu46()
   button = CreateButton(46, 13);
   AddButtonStatus(button, "Modulation^DVB-S/S2", &Blue);
   AddButtonStatus(button, "Modulation^DVB-S/S2", &Blue);
+
+  button = CreateButton(46, 14);
+  AddButtonStatus(button, "Show Touch^Overlay", &Blue);
 }
 
 void Start_Highlights_Menu46()

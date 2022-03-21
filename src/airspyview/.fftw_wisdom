@@ -1,0 +1,4 @@
+(fftw-3.3.8 fftw_wisdom #x4be12fff #x7b2df9b2 #xa5975329 #x385b0041
+  (fftw_codelet_n1_32 0 #x1040 #x1040 #x0 #x98ad40a6 #xbd681917 #xad78b6cb #xebd44381)
+  (fftw_codelet_t1_16 0 #x1040 #x1040 #x0 #x0cfb050a #x5f6b49da #xfb542ac7 #x20f0af05)
+)

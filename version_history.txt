@@ -1,3 +1,7 @@
+202203210
+Display RX Touch Map briefly on RX selection
+Initial version of Airspy Bandviewer
+
 202203071
 Initial Implementation of Web Access
 Support for DFRobot 5 inch Screen

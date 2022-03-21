@@ -83,6 +83,8 @@ sudo apt-get -y install libaio-dev libserialport-dev libxml2-dev libavahi-client
 sudo apt-get -y install nginx-light                                     # For web access
 sudo apt-get -y install libfcgi-dev                                     # For web control
 
+sudo apt-get -y install libairspy-dev                                   # For Airspy Bandviewer
+
 # Install WiringPi
 cd /tmp
 wget https://project-downloads.drogon.net/wiringpi-latest.deb
@@ -405,6 +407,17 @@ cp bandview ../../bin/
 # This file works for both BandViewer and NF Meter
 cp .fftwf_wisdom /home/pi/.fftwf_wisdom
 cd /home/pi
+
+# Compile Airspy Band Viewer
+echo
+echo "----------------------------------------"
+echo "----- Compiling Airspy Band Viewer -----"
+echo "----------------------------------------"
+cd /home/pi/rpidatv/src/airspyview
+make
+cp airspyview ../../bin/
+cd /home/pi
+
 
 # Compile Power Meter
 echo
