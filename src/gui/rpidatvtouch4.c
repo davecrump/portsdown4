@@ -3113,6 +3113,23 @@ int CheckC920Type()
     }
   }
 
+  fp = popen("lsusb | grep '095d:3001'", "r");  // Polycom EagleEye Mini
+  if (fp == NULL)
+  {
+    printf("Failed to run command\n" );
+    exit(1);
+  }
+
+  /* Read the output a line at a time - output it. */
+  while (fgets(response_line, 250, fp) != NULL)
+  {
+    if (strlen(response_line) > 1)
+    {
+      pclose(fp);
+      return 4;
+    }
+  }
+
   pclose(fp);
   return 0;
 }
@@ -10509,6 +10526,13 @@ void LMRX(int NoButton)
       printf("Failed to open status fifo\n");
     }
 
+    if (Overlay_displayed == true)
+    {
+      clearScreen();
+      Overlay_displayed = false;
+      strcpy(line5, "Waiting for a Knucker Tuner to Respond");
+    }
+
     // Flush status message string
     stat_string[0]='\0';
 
@@ -10544,12 +10568,14 @@ void LMRX(int NoButton)
           {
             strcpy(line5, "Found Knucker Tuner");
             TunerFound = TRUE;
+            Text2(wscreen * 1 / 40, hscreen - 1 * linepitch, line5, font_ptr);
           }
           else
           {
             if (strcmp(stat_string, "Tuner not found") == 0)
             {
               strcpy(line5, "Please connect a Knucker Tuner");
+              Text2(wscreen * 1 / 40, hscreen - 1 * linepitch, line5, font_ptr);
             }
           }
         
@@ -12090,6 +12116,11 @@ void InfoScreen()
   if (CheckC920Type() == 3)
   {
     strcat(BitRate, "  Webcam: C920 (new with no H264)");
+  }
+
+  if (CheckC920Type() == 4)
+  {
+    strcat(BitRate, "  Webcam: Polycom EagleEye Mini");
   }
 
   // Initialise and calculate the text display

@@ -28,8 +28,6 @@ SRC = 	$(SRCDIR)/libairspy/libairspy/src/*.c \
 		$(SRCDIR)/airspyview.c\
 		$(SRCDIR)/screen.c \
 		$(SRCDIR)/graphics.c \
-		$(SRCDIR)/lime.c \
-		$(SRCDIR)/fft.c \
 		$(SRCDIR)/airspyfft.c \
 		$(SRCDIR)/timing.c \
 		$(SRCDIR)/temperature.c \
@@ -38,8 +36,7 @@ SRC = 	$(SRCDIR)/libairspy/libairspy/src/*.c \
 		$(SRCDIR)/font/dejavu_sans_20.c \
 		$(SRCDIR)/font/dejavu_sans_22.c \
 		$(SRCDIR)/font/dejavu_sans_28.c \
-		$(SRCDIR)/font/dejavu_sans_32.c \
-		$(SRCDIR)/buffer/buffer_circular.c
+		$(SRCDIR)/font/dejavu_sans_32.c 
 
 # ========================================================================================
 # External Libraries
@@ -47,11 +44,11 @@ SRC = 	$(SRCDIR)/libairspy/libairspy/src/*.c \
 # LIBSDIR = libwebsockets/build/include
 # OBSDIR = libwebsockets/build/lib
 
-LIBS = -lm -lbcm_host -pthread `pkg-config --libs libairspy` -lusb-1.0 -lfftw3 -lfftw3f -lwiringPi -Wl,-Bstatic -Wl,-Bdynamic
-LIBS += -L/opt/vc/lib -lLimeSuite 
+LIBS = -lm -lbcm_host -pthread `pkg-config --libs libairspy` -lusb-1.0 -lfftw3 -lwiringPi -Wl,-Bstatic -Wl,-Bdynamic
+LIBS += -L/opt/vc/lib 
 
 CFLAGS += `pkg-config --cflags libairspy`
-
+#
 # ========================================================================================
 # Makerules
 

@@ -24,10 +24,8 @@
 #include "touch.h"
 #include "graphics.h"
 #include "timing.h"
-#include "lime.h"
-#include "fft.h"
+
 #include "airspyfft.h"
-#include "buffer/buffer_circular.h"
 #include "libairspy/libairspy/src/airspy.h"
 #include "/usr/include/libusb-1.0/libusb.h"
 pthread_t thbutton;
@@ -92,6 +90,12 @@ int FinishedButton = 0;
 int i;
 bool freeze = false;
 bool frozen = false;
+
+bool prepnewscanwidth = false;
+bool readyfornewscanwidth = false;
+
+
+
 bool activescan = false;
 bool PeakPlot = false;
 //int y[501];               // Actual displayed values on the chart
@@ -107,6 +111,9 @@ int rbw = 0;
 int reflevel = 99;
 char PlotTitle[63] = "-";
 bool ContScan = false;
+
+int fft_size = 500;                  // Variable based on scan width
+float fft_time_smooth = 0.999;       // Set for scan width
 
 int centrefreq = 437000;
 int span = 10000;
@@ -201,13 +208,12 @@ void RedrawDisplay();
 
 static bool app_exit = false;
 
-extern double frequency_actual_rx;
+double frequency_actual_rx = 437000000;
 uint32_t CentreFreq;                   // Used for Airspy
-extern double bandwidth;
+double bandwidth = 1e7;
 uint32_t SpanWidth;                    // Used for airspy
-//extern int y[515];
-extern uint16_t y2[1024];
-extern uint16_t y3[1024];
+
+extern uint16_t y3[1250];
 extern int force_exit;
 bool wfall;
 
@@ -215,8 +221,7 @@ extern pthread_mutex_t histogram;
 
 
 static pthread_t screen_thread_obj;
-//static pthread_t lime_thread_obj;
-//static pthread_t fft_thread_obj;
+
 static pthread_t airspy_fft_thread_obj;
 
 ///////////////////////////////////////////// SCREEN AND TOUCH UTILITIES ////////////////////////
@@ -1512,32 +1517,32 @@ void SetSpanWidth(int button)
     usleep(10);                                   // wait till the end of the scan
   }
 
+  prepnewscanwidth = true;
+  while(readyfornewscanwidth == false)
+  {
+    usleep(10);                                   // wait till fft has stopped
+  }
+
   switch (button)
   {
-    //case 2:
-    //  span = 512;
-    //break;
-    //case 3:
-    //  span = 1024;
-    //break;
+    case 2:
+      span = 1000;
+    break;
+    case 3:
+      span = 2000;
+    break;
     case 4:
-      span = 2500;
+      span = 5000;
     break;
     case 5:
       span = 10000;
     break;
-    //case 6:
-    //  span = 10240;
-    //break;
-    //case 7:
-    //  span = 20480;
-    //break;
   }
 
   // Store the new span
   snprintf(ValueToSave, 63, "%d", span);
   SetConfigParam(PATH_CONFIG, "span", ValueToSave);
-  printf("span set to %d \n", span);
+  printf("Span set to %d kHz\n", span);
 
   // Trigger the span change
   CalcSpan();
@@ -1848,14 +1853,44 @@ void ShiftFrequency(int button)
 
 void CalcSpan()    // takes centre frequency and span and calulates startfreq and stopfreq
 {
-  //startfreq = centrefreq - (span * 125) / 256;
-  //stopfreq =  centrefreq + (span * 125) / 256;
   startfreq = centrefreq - (span / 2);
   stopfreq =  centrefreq + (span / 2);
   frequency_actual_rx = 1000.0 * (float)(centrefreq);
   CentreFreq = (uint32_t)frequency_actual_rx;
   bandwidth = (float)(span * 1000);
-  SpanWidth = span * 1000; //for airspy
+
+  // Calculate Airspy sample rate based on desired display
+  if (span > 2500)
+  {
+    SpanWidth = 10000000;
+  }
+  else
+  {
+    SpanWidth = 2500000;
+  }
+
+  // Calculate fft size
+  fft_size = SpanWidth / (span * 2);
+
+  printf("fft size calculated as %d\n", fft_size);
+
+
+  // Set fft smoothing time
+  switch (span)
+  {
+    case 1000:                                            // 1 MHz
+      fft_time_smooth = 0.996;
+    break;
+    case 2000:                                            // 2 MHz
+      fft_time_smooth = 0.998;
+    break;
+    case 5000:                                            // 5 MHz
+      fft_time_smooth = 0.9985;
+    break;
+    case 10000:                                           // 10 MHz
+      fft_time_smooth = 0.999;
+    break;
+  }
 
   // set a sensible time constant for the fft display
   if (bandwidth >= 2048000)
@@ -2435,23 +2470,22 @@ void *WaitButtonEvent(void * arg)
           break;
         case 4:                                            // 
           break;
-        case 5:                                            // NF Meter
-          Range20dB = false;
-          RedrawDisplay();
-          NFMeter = true;
-          if (NFCalibrated == false)
-          {
-            CurrentMenu=12;
-            //Start_Highlights_Menu12();
-          }
-          else
-          {
-            CurrentMenu=13;
-            //Start_Highlights_Menu13();
-          }
- 
-          UpdateWindow();
-          break;
+        //case 5:                                            // NF Meter
+        //  Range20dB = false;
+        //  RedrawDisplay();
+        //  NFMeter = true;
+        //  if (NFCalibrated == false)
+        //  {
+        //    CurrentMenu=12;
+        //    //Start_Highlights_Menu12();
+        //  }
+        //  else
+        //  {
+        //    CurrentMenu=13;
+        //    //Start_Highlights_Menu13();
+        //  }
+        //  UpdateWindow();
+        //  break;
         case 6:                                            // 
           printf("Config Menu 9 Requested\n");
           CurrentMenu = 9;
@@ -2499,9 +2533,9 @@ void *WaitButtonEvent(void * arg)
           UpdateWindow();
           freeze = false;
           break;
-        //case 2:                                            // 0.5
-        //case 3:                                            // 1
-        case 4:                                            // 2.5
+        case 2:                                            // 1
+        case 3:                                            // 2
+        case 4:                                            // 5
         case 5:                                            // 10
         //case 6:                                            // 10
         //case 7:                                            // 20
@@ -3139,8 +3173,8 @@ void Define_Menu5()                                          // Mode Menu
   //AddButtonStatus(button, "Y Plot", &Blue);
   //AddButtonStatus(button, " ", &Green);
 
-  button = CreateButton(5, 5);
-  AddButtonStatus(button, "Noise^Figure", &Blue);
+  //button = CreateButton(5, 5);
+  //AddButtonStatus(button, "Noise^Figure", &Blue);
   //AddButtonStatus(button, " ", &Green);
 
   button = CreateButton(5, 6);
@@ -3166,17 +3200,17 @@ void Define_Menu6()                                           // Span Menu
   AddButtonStatus(button, "Span^Menu", &Black);
   AddButtonStatus(button, " ", &Green);
 
-  //button = CreateButton(6, 2);
-  //AddButtonStatus(button, "500 kHz", &Blue);
-  //AddButtonStatus(button, "500 kHz", &Green);
+  button = CreateButton(6, 2);
+  AddButtonStatus(button, "1 MHz", &Blue);
+  AddButtonStatus(button, "1 MHz", &Green);
 
-  //button = CreateButton(6, 3);
-  //AddButtonStatus(button, "1 MHz", &Blue);
-  //AddButtonStatus(button, "1 MHz", &Green);
+  button = CreateButton(6, 3);
+  AddButtonStatus(button, "2 MHz", &Blue);
+  AddButtonStatus(button, "2 MHz", &Green);
 
   button = CreateButton(6, 4);
-  AddButtonStatus(button, "2.5 MHz", &Blue);
-  AddButtonStatus(button, "2.5 MHz", &Green);
+  AddButtonStatus(button, "5 MHz", &Blue);
+  AddButtonStatus(button, "5 MHz", &Green);
 
   button = CreateButton(6, 5);
   AddButtonStatus(button, "10 MHz", &Blue);
@@ -3200,23 +3234,23 @@ void Define_Menu6()                                           // Span Menu
 
 void Start_Highlights_Menu6()
 {
-  //if (span == 512)
-  //{
-  //  SetButtonStatus(ButtonNumber(CurrentMenu, 2), 1);
-  //}
-  //else
-  //{
-  //  SetButtonStatus(ButtonNumber(CurrentMenu, 2), 0);
-  //}
-  //if (span == 1024)
-  //{
-  //  SetButtonStatus(ButtonNumber(CurrentMenu, 3), 1);
-  //}
-  //else
-  //{
-  //  SetButtonStatus(ButtonNumber(CurrentMenu, 3), 0);
-  //}
-  if (span == 2500)
+  if (span == 1000)
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 2), 1);
+  }
+  else
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 2), 0);
+  }
+  if (span == 2000)
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 3), 1);
+  }
+  else
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 3), 0);
+  }
+  if (span == 5000)
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 4), 1);
   }
@@ -4278,12 +4312,6 @@ int main(void)
     sigaction(i, &sa, NULL);
   }
 
-  // Set up wiringPi module
-  //if (wiringPiSetup() < 0)
-  //{
-  //  return 0;
-  //}
-
   // Check for presence of touchscreen
   for(NoDeviceEvent = 0; NoDeviceEvent < 7; NoDeviceEvent++)
   {
@@ -4360,36 +4388,6 @@ int main(void)
     initScreen();
   }
 
-  MsgBox4("Starting the Band Viewer", "Profiling FFTs on first use", "Please wait 80 seconds", "No delay next time");
-
-  printf("Profiling FFTs..\n");
-  fftwf_import_wisdom_from_filename("/home/pi/.fftwf_wisdom");
-  printf(" - Main Band FFT\n");
-  main_fft_init();
-  fftwf_export_wisdom_to_filename("/home/pi/.fftwf_wisdom");
-  printf("FFTs Done.\n");
-
-  /* Setting up buffers */
-  buffer_circular_init(&buffer_circular_iq_main, sizeof(buffer_iqsample_t), 4096*1024);
-
-  /* LimeSDR Thread */
-  //if(pthread_create(&lime_thread_obj, NULL, lime_thread, &app_exit))
-  //{
-  //    fprintf(stderr, "Error creating %s pthread\n", "Lime");
-  //    return 1;
-  //}
-  //pthread_setname_np(lime_thread_obj, "Lime");
-
-  printf("Starting FFT Thread\n");
-
-  /* Band FFT Thread */
-  //if(pthread_create(&fft_thread_obj, NULL, fft_thread, &app_exit))
-  //{
-  //    fprintf(stderr, "Error creating %s pthread\n", "FFT");
-  //    return 1;
-  //}
-  //pthread_setname_np(fft_thread_obj, "FFT");
-
   /* AirSpy FFT Thread */
   if(pthread_create(&airspy_fft_thread_obj, NULL, airspy_fft_thread, &app_exit))
   {
@@ -4397,7 +4395,6 @@ int main(void)
       return 1;
   }
   pthread_setname_np(airspy_fft_thread_obj, "AIRSPY_FFT");
-
 
   if (wfall == true)
   {
@@ -4433,19 +4430,13 @@ int main(void)
     float Y2;
     Tson = Tsoff * (1 + pow(10, (ENR / 10)));
     float T2;
-    printf("ENR = %f dB.  Tson = %f degrees K\n", ENR, Tson);
+    //printf("ENR = %f dB.  Tson = %f degrees K\n", ENR, Tson);
     float NF;
     char NFText[15];
 
 
     while(true)
     {
-      //do  // Wait here for refresh?
-      //{
-      //  usleep(1);
-      //}
-      //while (ContScan == false);
-
       activescan = true;
 
       NFTotalHot2 = 0;
@@ -4490,7 +4481,7 @@ int main(void)
           SampleCount = 0;
         }
       }
-      for (pixel = 8; pixel < 507; pixel++)
+      for (pixel = 8; pixel <= 506; pixel++)
       {
         //pthread_mutex_lock(&histogram);
         DrawTrace((pixel - 6), y3[pixel - 2], y3[pixel - 1], y3[pixel]);
@@ -4532,11 +4523,6 @@ int main(void)
         }
         frozen = false;
       }
-
-      //if (NFMeter)
-      //{
-      //  printf("%d ", NFTotalHot2);
-      //}
 
       activescan = false;
 

@@ -1,3 +1,8 @@
+202203290
+Correct Touch map for DVB-T
+Airspy Bandviewer enhancements
+Basic support for PolyComm EagleEye Webcam
+
 202203210
 Display RX Touch Map briefly on RX selection
 Initial version of Airspy Bandviewer
