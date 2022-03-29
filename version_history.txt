@@ -1,3 +1,6 @@
+202203291
+Bugfix Boot to Langstone V2
+
 202203290
 Correct Touch map for DVB-T
 Airspy Bandviewer enhancements
