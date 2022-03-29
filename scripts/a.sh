@@ -982,6 +982,23 @@ fi
         fi
       fi
 
+      if [ "$WEBCAM_TYPE" == "EagleEye" ]; then
+        INPUT_FORMAT="yuyv422"
+        if [ "$FORMAT" == "16:9" ]; then
+          VIDEO_WIDTH=640
+          VIDEO_HEIGHT=360
+        elif [ "$FORMAT" == "720p" ]; then
+          VIDEO_WIDTH=1280
+          VIDEO_HEIGHT=720
+        elif [ "$FORMAT" == "1080p" ]; then
+          VIDEO_WIDTH=1920
+          VIDEO_HEIGHT=1080
+        else
+          VIDEO_WIDTH=640
+          VIDEO_HEIGHT=480
+        fi
+      fi
+
       # Overide Audio settings if not using webcam mic
       # "auto" and "webcam" UNCHANGED. "mic", and "video" here
       # "bleeps" and "no_audio" not implemented
@@ -1057,7 +1074,7 @@ fi
         || [ "$WEBCAM_TYPE" == "B910" ] || [ "$WEBCAM_TYPE" == "C910" ]; then
           AUDIO_SAMPLE=32000
         fi
-        if [ "$WEBCAM_TYPE" == "C930e" ]; then
+        if [ "$WEBCAM_TYPE" == "C930e" ] || [ "$WEBCAM_TYPE" == "EagleEye" ]; then
           AUDIO_SAMPLE=48000
         fi
       fi
@@ -1131,6 +1148,28 @@ fi
         fi
       fi
 
+      if [ "$WEBCAM_TYPE" == "EagleEye" ]; then
+        AUDIO_SAMPLE=48000
+        AUDIO_CHANNELS=1
+        if [ "$BITRATE_VIDEO" -gt 190000 ]; then  # 333KS FEC 1/2 or better
+          if [ "$FORMAT" == "16:9" ]; then
+            v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=640,height=360,pixelformat=0 --set-parm=25
+            VIDEO_WIDTH=640
+            VIDEO_HEIGHT=360
+            VIDEO_FPS=25
+          else
+            v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=640,height=480,pixelformat=0 --set-parm=25
+            VIDEO_WIDTH=640
+            VIDEO_HEIGHT=480
+            VIDEO_FPS=25
+          fi
+        else
+          v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=352,height=288,pixelformat=0 --set-parm=15
+          VIDEO_WIDTH=352
+          VIDEO_HEIGHT=288
+          VIDEO_FPS=15
+        fi
+      fi
       ANALOGCAMNAME=$VID_WEBCAM
     fi
 

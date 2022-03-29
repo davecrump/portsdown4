@@ -20,26 +20,27 @@
 #include "libairspy/libairspy/src/airspy.h"
 #include "timing.h"
 
-#define FFT_SIZE 512                 // Note - FFT size needs to be 512 for this to work
-#define FFT_TIME_SMOOTH 0.999f       // 0.0 - 1.0
-
 extern bool NewFreq;                 // Set to true to indicate that frequency needs changing
 extern uint32_t CentreFreq;          // Frequency from main
 extern bool NewSpan;                 // Set to true to indicate that span needs changing
+extern bool prepnewscanwidth;
+extern bool readyfornewscanwidth;
+
 extern uint32_t SpanWidth;           // Sample rate from main
 extern bool NewGain;                 // Set to true to indicate that gain needs changing
 extern float gain;                   // Gain (0 - 21) from main
 extern bool Range20dB;
 extern int BaseLine20dB;
+extern int fft_size;                 // Number of fft samples.  Depends on scan width
+extern float fft_time_smooth; 
 
+extern int span;      
 
-uint16_t y3[FFT_SIZE];               // Histogram values in range 0 - 399
+int fft_offset;
 
+uint16_t y3[1250];               // Histogram values in range 0 - 399
 
-//#define AIRSPY_SAMPLE   10000000
-//#define AIRSPY_SAMPLE     2500000
-
-//#define AIRSPY_SERIAL	0x644064DC2354AACD // WB
+//#define AIRSPY_SERIAL	0x644064DC2354AACD // Set if multiple Airspys connected
 
 int force_exit = 0;
 
@@ -48,25 +49,28 @@ pthread_t fftThread;
 
 /** AirSpy Vars **/
 struct airspy_device* device = NULL;
+
 /* Sample type -> 32bit Complex Float */
 enum airspy_sample_type sample_type_val = AIRSPY_SAMPLE_FLOAT32_IQ;
+
 /* Sample rate */
-//uint32_t sample_rate_val = AIRSPY_SAMPLE;
 uint32_t sample_rate_val;
+
 /* DC Bias Tee -> 0 (disabled) */
 uint32_t biast_val = 0;
+
 /* Linear Gain */
 #define LINEAR
-//uint32_t linearity_gain_val = 12; // MAX=21
-;;uint32_t linearity_gain_val = 20; // MAX=21
-uint32_t linearity_gain_val;
+uint32_t linearity_gain_val;   // MAX=21
+
 /* Sensitive Gain */
 //#define SENSITIVE
 uint32_t sensitivity_gain_val = 10; // MAX=21
+
 /* Frequency */
 uint32_t freq_hz;
 
-double hanning_window_const[FFT_SIZE];
+double hanning_window_const[1250];
 
 int airspy_rx(airspy_transfer_t* transfer);
 
@@ -78,21 +82,24 @@ fftw_plan   fft_plan;
 pthread_mutex_t histogram;
 
 static const char *fftw_wisdom_filename = ".fftw_wisdom";
-static float fft_output_data[FFT_SIZE];
+static float fft_output_data[1250];
 
 void setup_fft(void)
 {
   int i;
 
   // Set up FFTW
-  fft_in = (fftw_complex*) fftw_malloc(sizeof(fftw_complex) * FFT_SIZE);
-  fft_out = (fftw_complex*) fftw_malloc(sizeof(fftw_complex) * FFT_SIZE);
+  fft_in = (fftw_complex*) fftw_malloc(sizeof(fftw_complex) * fft_size);
+  fft_out = (fftw_complex*) fftw_malloc(sizeof(fftw_complex) * fft_size);
   i = fftw_import_wisdom_from_filename(fftw_wisdom_filename);
+
+  // Always calculate fft plan
+  i = 0;
   if (i == 0)
   {
     printf("Computing fft plan...\n");
   }
-  fft_plan = fftw_plan_dft_1d(FFT_SIZE, fft_in, fft_out, FFTW_FORWARD, FFTW_EXHAUSTIVE);
+  fft_plan = fftw_plan_dft_1d(fft_size, fft_in, fft_out, FFTW_FORWARD, FFTW_EXHAUSTIVE);
 
   if (i == 0)
   {
@@ -117,7 +124,6 @@ static void close_airspy(void)
 	    {
 		    printf("airspy_close() failed: %s (%d)\n", airspy_error_name(result), result);
 	    }
-	
 	    airspy_exit();
     }
 }
@@ -237,7 +243,7 @@ int airspy_rx(airspy_transfer_t* transfer)
             transfer->samples,
             (AIRSPY_BUFFER_COPY_SIZE * FLOAT32_EL_SIZE_BYTE)
         );
-        rf_buffer.size = AIRSPY_BUFFER_COPY_SIZE / (FFT_SIZE * 2);
+        rf_buffer.size = AIRSPY_BUFFER_COPY_SIZE / (fft_size * 2);
         pthread_cond_signal(&rf_buffer.signal);
         pthread_mutex_unlock(&rf_buffer.mutex);
     }
@@ -245,7 +251,7 @@ int airspy_rx(airspy_transfer_t* transfer)
 }
 
 typedef struct {
-	float data[FFT_SIZE];
+	float data[1250];
 	pthread_mutex_t mutex;
 } fft_buffer_t;
 
@@ -261,9 +267,9 @@ void *thread_fft(void *dummy)
     fftw_complex    pt;
     double           pwr, lpwr;
 
-	double pwr_scale = 1.0 / ((float)FFT_SIZE * (float)FFT_SIZE);
+	double pwr_scale = 1.0 / ((float)fft_size * (float)fft_size);
 
-    while(1)
+    while ((NewSpan == false) && (prepnewscanwidth == false))
     {
     	/* Lock input buffer */
     	pthread_mutex_lock(&rf_buffer.mutex);
@@ -274,10 +280,10 @@ void *thread_fft(void *dummy)
 	    	pthread_cond_wait(&rf_buffer.signal, &rf_buffer.mutex);
     	}
 
-    	offset = rf_buffer.index * FFT_SIZE * 2;
+    	offset = rf_buffer.index * fft_size * 2;
 
     	/* Copy data out of rf buffer into fft_input buffer */
-    	for (i = 0; i < FFT_SIZE; i++)
+    	for (i = 0; i < fft_size; i++)
 	    {
 	        fft_in[i][0] = ((float*)rf_buffer.data)[offset+(2*i)] * hanning_window_const[i];
 	        fft_in[i][1] = ((float*)rf_buffer.data)[offset+(2*i)+1] * hanning_window_const[i];
@@ -294,30 +300,29 @@ void *thread_fft(void *dummy)
     	/* Lock output buffer */
     	pthread_mutex_lock(&fft_buffer.mutex);
 
-    	for (i = 0; i < FFT_SIZE; i++)
+    	for (i = 0; i < fft_size; i++)
 	    {
 	        /* shift, normalize and convert to dBFS */
-	        if (i < FFT_SIZE / 2)
+	        if (i < fft_size / 2)
 	        {
-	            pt[0] = fft_out[FFT_SIZE / 2 + i][0] / FFT_SIZE;
-	            pt[1] = fft_out[FFT_SIZE / 2 + i][1] / FFT_SIZE;
+	            pt[0] = fft_out[fft_size / 2 + i][0] / fft_size;
+	            pt[1] = fft_out[fft_size / 2 + i][1] / fft_size;
 	        }
 	        else
 	        {
-	            pt[0] = fft_out[i - FFT_SIZE / 2][0] / FFT_SIZE;
-	            pt[1] = fft_out[i - FFT_SIZE / 2][1] / FFT_SIZE;
+	            pt[0] = fft_out[i - fft_size / 2][0] / fft_size;
+	            pt[1] = fft_out[i - fft_size / 2][1] / fft_size;
 	        }
 	        pwr = pwr_scale * (pt[0] * pt[0]) + (pt[1] * pt[1]);
 	        lpwr = 10.f * log10(pwr + 1.0e-20);
 	        
-	        fft_buffer.data[i] = (lpwr * (1.f - FFT_TIME_SMOOTH)) + (fft_buffer.data[i] * FFT_TIME_SMOOTH);
+	        fft_buffer.data[i] = (lpwr * (1.f - fft_time_smooth)) + (fft_buffer.data[i] * fft_time_smooth);
 	    }
-
 
 	    /* Unlock output buffer */
     	pthread_mutex_unlock(&fft_buffer.mutex);
     }
-
+  return NULL;
 }
 
 
@@ -329,16 +334,18 @@ void fft_to_buffer()
   // Lock FFT output buffer for reading
   pthread_mutex_lock(&fft_buffer.mutex);
 
-  for (j = 0; j < FFT_SIZE; j++)
+  for (j = 0; j < fft_size; j++)
   {
     fft_output_data[j] = fft_buffer.data[j];
   }
+
+  //printf(" fft_buffer.data[400] = %f\n", fft_buffer.data[400]);
 
   // Unlock FFT output buffer
   pthread_mutex_unlock(&fft_buffer.mutex);
 
   // Scale and limit the samples
-  for(j = 0; j < FFT_SIZE; j++)
+  for(j = 0; j < fft_size; j++)
   {
     // Add 110 to put the baseline at -110 dB
     fft_output_data[j] = fft_output_data[j] + 110.0;
@@ -363,13 +370,39 @@ void fft_to_buffer()
     }
   }
 
+  // y3 needs valid values from [6] to [506]
+  // Only [7] through [505] are displayed (499 columns)
+  // [6] is lowest cal line
+  // [256] is middle cal line
+  // [506] is highest cal line
+
+
+
   // Lock the histogram buffer for writing
   pthread_mutex_lock(&histogram);
+  
+  y3[6] = fft_output_data[7 + fft_offset];
 
-  for (j = 0; j < FFT_SIZE; j++)
+  for (j = 7; j <= 505; j++)
   {
-    y3[j] = fft_output_data[j];
+    y3[j] = fft_output_data[j + fft_offset];
   }
+
+  y3[506] = fft_output_data[505 + fft_offset];
+
+  // If span is 10 MHz, blank the outer reaches
+  //if (span == 10000)
+  //{
+  //   for (j = 6; j < 32; j++)
+  //   {
+  //     y3[j] = 1;
+  //   }
+  //   for (j = 481; j < 507; j++)
+  //   {
+  //     y3[j] = 1;
+  //   }
+  //}
+
 
   // Unlock the histogram buffer
   pthread_mutex_unlock(&histogram);
@@ -389,12 +422,24 @@ void *airspy_fft_thread(void *arg)
   sample_rate_val = SpanWidth;
   linearity_gain_val = (uint32_t)gain;
 
-  // Initialise fft
-  printf("Initialising FFT (%d bin).. \n", FFT_SIZE);
-  setup_fft();
-  for (i = 0; i < FFT_SIZE; i++)
+  fft_offset = (fft_size / 2) - 256;
+
+  // zero all the buffers
+  for(i = 0; i <= 1249; i++)
   {
-    hanning_window_const[i] = 0.5 * (1.0 - cos(2*M_PI*(((double)i)/FFT_SIZE)));
+    y3[i] = 1;
+    hanning_window_const[i] = 0;
+    fft_buffer.data[i] = -100.0;
+    fft_output_data[i] = 1;
+  }
+
+
+  // Initialise fft
+  printf("Initialising FFT (%d bin).. \n", fft_size);
+  setup_fft();
+  for (i = 0; i < fft_size; i++)
+  {
+    hanning_window_const[i] = 0.5 * (1.0 - cos(2*M_PI*(((double)i)/fft_size)));
   }
   printf("Done.\n");
 
@@ -425,10 +470,12 @@ void *airspy_fft_thread(void *arg)
     {
       fft_to_buffer();
 
-      // Reset timer
+      // Reset timer for 20 Hz refresh
       last_output = monotonic_ms();
 
-      // Check for parameter change
+      // Check for parameter changes (loop ends here if none)
+
+      // Change of Frequency
       if (NewFreq == true)
       {
         freq_hz = CentreFreq;
@@ -441,13 +488,76 @@ void *airspy_fft_thread(void *arg)
 	      airspy_exit();
         }
       }
-      if (NewSpan == true)
+
+      // Change of Display Span
+      if (prepnewscanwidth == true)
       {
+        // Shut it all down
         close_airspy();
+        close_fftw();
+        //closelog();
+
+        usleep(1000000);
+
+        // Notify touchscreen that parameters can be changed
+        readyfornewscanwidth = true;
+
+        // zero all the buffers
+        for (i = 0; i <= 1249; i++)
+        {
+          y3[i] = 1;
+          hanning_window_const[i] = 0;
+          fft_buffer.data[i] = -100.0;
+          fft_output_data[i] = 1;
+        }
+
+        // Wait for new parameters to be calculated
+        while (NewSpan == false)
+        {
+          usleep(100);
+        }
+
+        // Set the new sample rate
         sample_rate_val = SpanWidth;
-        setup_airspy();
+
+        usleep(100000);
+
+        // set the new fft centre
+        fft_offset = (fft_size / 2) - 256;
+
+        // Initialise fft
+        printf("Initialising FFT (%d bin).. \n", fft_size);
+        setup_fft();
+        for (i = 0; i < fft_size; i++)
+        {
+          hanning_window_const[i] = 0.5 * (1.0 - cos(2*M_PI*(((double)i)/fft_size)));
+        }
+        printf("FFT Intitialised\n");
+
+        //Initialise Airspy
+        printf("Initialising AirSpy (%.01f MSPS, %.03f MHz).. \n",(float)sample_rate_val/1000000,(float)freq_hz/1000000);
+        if(!setup_airspy())
+        {
+	      printf("AirSpy init failed.\n");
+        }
+        printf("Airspy Initialised\n");
+
+        // Reset trigger parameters
         NewSpan = false;
+        prepnewscanwidth = false;
+        //readyfornewscanwidth = false;
+
+        // Start Airspy fft thread
+        printf("Starting Airspy FFT Thread.. \n");
+        if (pthread_create(&fftThread, NULL, thread_fft, NULL))
+        {
+          printf("Error creating Airspy FFT thread\n");
+        }
+        pthread_setname_np(fftThread, "FFT Calculation");
+        printf("Airspy FFT Running\n");
       }
+
+      // Change of gain
       if (NewGain == true)
       {
         close_airspy();
