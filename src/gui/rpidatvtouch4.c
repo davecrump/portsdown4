@@ -14320,7 +14320,8 @@ void ChangeStartApp(int NoButton)
     strcpy(StartApp, "Display_boot");
     break;
   case 6:
-    if (file_exist("/home/pi/Langstone/LangstoneGUI.c") == 0)
+    if ((strcmp(langstone_version, "v1pluto") == 0) || (strcmp(langstone_version, "v2lime") == 0)
+     || (strcmp(langstone_version, "v2pluto") == 0))
     {
       SetConfigParam(PATH_PCONFIG, "startup", "Langstone_boot");
       strcpy(StartApp, "Langstone_boot");
@@ -22760,7 +22761,8 @@ void Start_Highlights_Menu34()
   }
 
   // Over-ride if Langstone not installed (set to Grey)
-  if (file_exist("/home/pi/Langstone/LangstoneGUI.c") != 0)
+  if ((strcmp(langstone_version, "v1pluto") != 0) && (strcmp(langstone_version, "v2lime") != 0)
+   && (strcmp(langstone_version, "v2pluto") != 0))
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 6), 2);
   }

@@ -72,7 +72,21 @@ case "$MODE_STARTUP" in
   ;;
   Langstone_boot)
     # Start the Langstone
-    GUI_RETURN_CODE=135
+    LANGSTONE_VERSION=$(get_config_var langstone $PCONFIGFILE)
+    case "$LANGSTONE_VERSION" in
+      v1pluto)
+        GUI_RETURN_CODE=135
+      ;;
+      v2lime)
+        GUI_RETURN_CODE=145
+      ;;
+      v2pluto)
+        GUI_RETURN_CODE=146
+      ;;
+      none)
+        GUI_RETURN_CODE=129
+      ;;
+    esac
   ;;
   Bandview_boot)
     # Start the Band Viewer
