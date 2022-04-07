@@ -391,6 +391,14 @@ detect_video()
       sed -n '/046d:081b/,/dev/p' | grep 'dev' | tr -d '\t')"
   fi
 
+  if [ "${#VID_WEBCAM}" -lt "10" ]; then # $VID_WEBCAM currently empty
+
+    # List the video devices, select the 2 lines for a Polycom EagleEye device, then
+    # select the line with the device details and delete the leading tab
+    VID_WEBCAM="$(v4l2-ctl --list-devices 2> /dev/null | \
+      sed -n '/EagleEye/,/dev/p' | grep 'dev' | tr -d '\t')"
+  fi
+
   printf "The first Webcam device string is $VID_WEBCAM\n"
 
   # List the video devices, select the 2 lines for any usb device, then
@@ -527,6 +535,13 @@ detect_video()
     lsusb | grep -q "046d:0823"
     if [ $? == 0 ]; then
       WEBCAM_TYPE="C310"
+    fi
+  fi
+
+  if [ "$WEBCAM_TYPE" == "None" ]; then
+    lsusb | grep -q "095d:3001"
+    if [ $? == 0 ]; then
+      WEBCAM_TYPE="EagleEye"
     fi
   fi
 

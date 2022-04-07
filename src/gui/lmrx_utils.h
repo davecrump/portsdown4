@@ -21,5 +21,11 @@
 #include <sys/types.h> 
 
 int CalcInputPwr(uint16_t AGC1, uint16_t AGC2);
+int LMDecoderState(char *stat_string, char *STATEtext);
+void chopN(char *str, size_t n);
+int LMLookupVidEncoding(char *stat_string, char *VEncodingtext);
+int LMLookupAudEncoding(char *stat_string, char *AEncodingtext);
+float LMLookupMODCOD(char *stat_string, int State, char *Modtext, char *MCtext);
+
 
 #endif /* _LMRX_UTILS_H__ */

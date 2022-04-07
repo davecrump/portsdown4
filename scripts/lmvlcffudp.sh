@@ -133,6 +133,7 @@ if [[ ! -f /home/pi/tmp/vlcprimed ]]; then
   echo shutdown | nc 127.0.0.1 1111
 fi
 
+
 # Create the ts fifo
 sudo rm longmynd_main_ts >/dev/null 2>/dev/null
 mkfifo longmynd_main_ts

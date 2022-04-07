@@ -1,3 +1,15 @@
+202203291
+Bugfix Boot to Langstone V2
+
+202203290
+Correct Touch map for DVB-T
+Airspy Bandviewer enhancements
+Basic support for PolyComm EagleEye Webcam
+
+202203210
+Display RX Touch Map briefly on RX selection
+Initial version of Airspy Bandviewer
+
 202203071
 Initial Implementation of Web Access
 Support for DFRobot 5 inch Screen

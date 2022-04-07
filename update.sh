@@ -139,6 +139,9 @@ cp -f -r "$PATHSCRIPT"/limecalfreq.txt "$PATHUBACKUP"/limecalfreq.txt
 # Make a safe copy of the Band Viewer config
 cp -f -r /home/pi/rpidatv/src/bandview/bandview_config.txt "$PATHUBACKUP"/bandview_config.txt
 
+# Make a safe copy of the Airspy Band Viewer config
+cp -f -r /home/pi/rpidatv/src/airspyview/airspyview_config.txt "$PATHUBACKUP"/airspyview_config.txt
+
 # Make a safe copy of the Contest Codes
 cp -f -r "$PATHSCRIPT"/portsdown_C_codes.txt "$PATHUBACKUP"/portsdown_C_codes.txt
 
@@ -201,6 +204,8 @@ else
   echo "Found nginx light web server installed"
   echo
 fi
+
+sudo apt-get -y install libairspy-dev                                   # For Airspy Bandviewer
 
 # -----------Update LimeSuite if required -------------
 
@@ -282,8 +287,9 @@ cp -f -r portsdown4-master/version_history.txt rpidatv/version_history.txt
 cp -f portsdown4-master/add_langstone.sh rpidatv/add_langstone.sh
 cp -f portsdown4-master/add_langstone2.sh rpidatv/add_langstone2.sh
 
-# Copy the "web not enabled" image into the user's back-up image folder
+# Copy the recently added images into the user's back-up image folder
 cp portsdown4-master/scripts/images/web_not_enabled.png "$PATHUBACKUP"/images/web_not_enabled.png
+cp portsdown4-master/scripts/images/RX_overlay.png "$PATHUBACKUP"/images/RX_overlay.png
 
 rm master.zip
 rm -rf portsdown4-master
@@ -404,6 +410,17 @@ cp bandview ../../bin/
 cp .fftwf_wisdom /home/pi/.fftwf_wisdom
 cd /home/pi
 
+# Compile Airspy Band Viewer
+echo
+echo "----------------------------------------"
+echo "----- Compiling Airspy Band Viewer -----"
+echo "----------------------------------------"
+cd /home/pi/rpidatv/src/airspyview
+make
+cp airspyview ../../bin/
+cd /home/pi
+
+
 # Compile Power Meter
 echo
 echo "---------------------------------"
@@ -490,6 +507,9 @@ cp -f -r "$PATHUBACKUP"/limecalfreq.txt "$PATHSCRIPT"/limecalfreq.txt
 
 # Restore the user's original Band Viewer config (but not yet as it keeps changing)
 # cp -f -r "$PATHUBACKUP"/bandview_config.txt /home/pi/rpidatv/src/bandview/bandview_config.txt
+
+# Restore the user's original Airspy Band Viewer config
+ cp -f -r "$PATHUBACKUP"/airspyview_config.txt /home/pi/rpidatv/src/airspyview/airspyview_config.txt
 
 # Restore the user's original Contest Codes
 cp -f -r "$PATHUBACKUP"/portsdown_C_codes.txt "$PATHSCRIPT"/portsdown_C_codes.txt 

@@ -58,4 +58,5 @@ bin/siggen
 bin/plutotx
 bin/power_meter
 bin/sweeper
+bin/airspyview
 

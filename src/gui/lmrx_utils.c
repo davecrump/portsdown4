@@ -129,3 +129,310 @@ int CalcInputPwr(uint16_t AGC1, uint16_t AGC2)
   }
   return InputPwr;
 }
+
+void chopN(char *str, size_t n)  // note - duplicated in main!!
+{
+  size_t len = strlen(str);
+  if ((n > len) || (n == 0))
+  {
+    return;
+  }
+  else
+  {
+    memmove(str, str+n, len - n + 1);
+  }
+}
+
+
+int LMDecoderState(char *stat_string, char *STATEtext)
+{
+  char STATEnumbers[63];
+  int STATE = 0;
+
+  strcpy(STATEnumbers, stat_string);
+  chopN(STATEnumbers, 2);
+  STATE = atoi(STATEnumbers);
+  switch(STATE)
+  {
+    case 0:
+      strcpy(STATEtext, "Initialising");
+      break;
+    case 1:
+      strcpy(STATEtext, "Searching");
+      break;
+    case 2:
+      strcpy(STATEtext, "Found Headers");
+      break;
+    case 3:
+      strcpy(STATEtext, "DVB-S Lock");
+      break;
+    case 4:
+      strcpy(STATEtext, "DVB-S2 Lock");
+      break;
+    default:
+    snprintf(STATEtext, 10, "%d", STATE);
+  }
+  return STATE;
+}
+
+
+
+int LMLookupVidEncoding(char *stat_string, char *VEncodingtext)
+{
+  char LocalEncodingtext[63];
+  int EncodingCode = 0;
+  int IsVideo = 0;
+
+  strcpy(LocalEncodingtext, stat_string);
+  chopN(LocalEncodingtext, 3);
+  EncodingCode = atoi(LocalEncodingtext);
+  switch(EncodingCode)
+  {
+    case 2:
+      strcpy(VEncodingtext, "MPEG-2");
+    break;
+    case 16:
+      strcpy(VEncodingtext, "H263");
+    break;
+    case 27:
+      strcpy(VEncodingtext, "H264");
+    break;
+    case 36:
+      strcpy(VEncodingtext, "H265");
+    break;
+    default:
+      IsVideo = 1;
+    break;
+  }
+  return IsVideo;
+}
+
+
+int LMLookupAudEncoding(char *stat_string, char *AEncodingtext)
+{
+  char LocalEncodingtext[63];
+  int EncodingCode = 0;
+  int IsAudio = 0;
+
+  strcpy(LocalEncodingtext, stat_string);
+  chopN(LocalEncodingtext, 3);
+  EncodingCode = atoi(LocalEncodingtext);
+  switch(EncodingCode)
+  {
+    case 3:
+      strcpy(AEncodingtext, " MPA");
+    break;
+    case 4:
+      strcpy(AEncodingtext, " MPA");
+    break;
+    case 15:
+      strcpy(AEncodingtext, " AAC");
+    break;
+    case 32:
+      strcpy(AEncodingtext, " MPA");
+    break;
+    case 129:
+      strcpy(AEncodingtext, " AC3");
+    break;
+    default:
+      IsAudio = 1;
+    break;
+  }
+  return IsAudio;
+}
+
+
+float LMLookupMODCOD(char *stat_string, int State, char *Modtext, char *MCtext)
+{
+  char LocalMCtext[63];
+  int MC;
+  float MERThresh;
+
+  strcpy(LocalMCtext, stat_string);
+  chopN(LocalMCtext, 3);
+  MC = atoi(LocalMCtext);
+
+  if (State == 3)                     // QPSK
+  {
+    strcpy(Modtext, "QPSK");
+    switch(MC)
+    {
+      case 0:
+        strcpy(MCtext, "FEC 1/2");
+        MERThresh = 1.7; //
+       break;
+       case 1:
+         strcpy(MCtext, "FEC 2/3");
+         MERThresh = 3.3; //
+       break;
+       case 2:
+         strcpy(MCtext, "FEC 3/4");
+         MERThresh = 4.2; //
+       break;
+       case 3:
+         strcpy(MCtext, "FEC 5/6");
+         MERThresh = 5.1; //
+       break;
+       case 4:
+         strcpy(MCtext, "FEC 6/7");
+         MERThresh = 5.5; //
+       break;
+       case 5:
+         strcpy(MCtext, "FEC 7/8");
+         MERThresh = 5.8; //
+       break;
+       default:
+         strcpy(MCtext, "FEC -");
+         MERThresh = 0; //
+         strcat(MCtext, LocalMCtext);
+       break;
+    }
+  }
+
+  if (State == 4)                                        // DVB-S2
+  {
+    switch(MC)
+    {
+      case 1:
+        strcpy(MCtext, "FEC 1/4");
+        MERThresh = -2.3; //
+      break;
+      case 2:
+        strcpy(MCtext, "FEC 1/3");
+        MERThresh = -1.2; //
+      break;
+      case 3:
+         strcpy(MCtext, "FEC 2/5");
+         MERThresh = -0.3; //
+       break;
+       case 4:
+         strcpy(MCtext, "FEC 1/2");
+         MERThresh = 1.0; //
+       break;
+       case 5:
+         strcpy(MCtext, "FEC 3/5");
+         MERThresh = 2.3; //
+       break;
+       case 6:
+         strcpy(MCtext, "FEC 2/3");
+         MERThresh = 3.1; //
+        break;
+        case 7:
+          strcpy(MCtext, "FEC 3/4");
+          MERThresh = 4.1; //
+        break;
+        case 8:
+          strcpy(MCtext, "FEC 4/5");
+          MERThresh = 4.7; //
+        break;
+        case 9:
+          strcpy(MCtext, "FEC 5/6");
+          MERThresh = 5.2; //
+        break;
+        case 10:
+          strcpy(MCtext, "FEC 8/9");
+          MERThresh = 6.2; //
+        break;
+        case 11:
+          strcpy(MCtext, "FEC 9/10");
+          MERThresh = 6.5; //
+        break;
+        case 12:
+          strcpy(MCtext, "FEC 3/5");
+          MERThresh = 5.5; //
+        break;
+        case 13:
+          strcpy(MCtext, "FEC 2/3");
+          MERThresh = 6.6; //
+        break;
+        case 14:
+          strcpy(MCtext, "FEC 3/4");
+          MERThresh = 7.9; //
+        break;
+        case 15:
+           strcpy(MCtext, "FEC 5/6");
+           MERThresh = 9.4; //
+        break;
+        case 16:
+          strcpy(MCtext, "FEC 8/9");
+          MERThresh = 10.7; //
+        break;
+        case 17:
+          strcpy(MCtext, "FEC 9/10");
+          MERThresh = 11.0; //
+        break;
+        case 18:
+          strcpy(MCtext, "FEC 2/3");
+          MERThresh = 9.0; //
+        break;
+        case 19:
+          strcpy(MCtext, "FEC 3/4");
+          MERThresh = 10.2; //
+        break;
+        case 20:
+          strcpy(MCtext, "FEC 4/5");
+          MERThresh = 11.0; //
+        break;
+        case 21:
+          strcpy(MCtext, "FEC 5/6");
+          MERThresh = 11.6; //
+        break;
+        case 22:
+          strcpy(MCtext, "FEC 8/9");
+          MERThresh = 12.9; //
+        break;
+        case 23:
+          strcpy(MCtext, "FEC 9/10");
+          MERThresh = 13.2; //
+        break;
+        case 24:
+           strcpy(MCtext, "FEC 3/4");
+           MERThresh = 12.8; //
+        break;
+        case 25:
+          strcpy(MCtext, "FEC 4/5");
+          MERThresh = 13.7; //
+        break;
+        case 26:
+          strcpy(MCtext, "FEC 5/6");
+          MERThresh = 14.3; //
+        break;
+        case 27:
+          strcpy(MCtext, "FEC 8/9");
+          MERThresh = 15.7; //
+        break;
+        case 28:
+          strcpy(MCtext, "FEC 9/10");
+          MERThresh = 16.1; //
+        break;
+        default:
+          strcpy(MCtext, "FEC -");
+          MERThresh = 0; //
+        break;
+    }
+
+    if ((MC >= 1) && (MC <= 11 ))
+    {
+      strcpy(Modtext, "QPSK");
+    }
+    else if ((MC >= 12) && (MC <= 17 ))
+    {
+      strcpy(Modtext, "8PSK");
+    }
+    else if ((MC >= 18) && (MC <= 23 ))
+    {
+      strcpy(Modtext, "16APSK");
+    }
+    else if ((MC >= 24) && (MC <= 28 ))
+    {
+      strcpy(Modtext, "32APSK");
+    }
+    else
+    {
+      strcpy(Modtext, " ");
+    }
+  }
+  //printf("Mod: %s, FEC: %s, threshold %f\n", Modtext, MCtext, MERThresh);
+  return MERThresh;
+}
+
