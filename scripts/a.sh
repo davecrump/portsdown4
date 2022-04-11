@@ -124,6 +124,7 @@ case "$FEC" in
   "35" )
     FECNUM="3"
     FECDEN="5"
+    PFEC="35"
   ;;
   "2" | "23" )
     FECNUM="2"
@@ -597,7 +598,7 @@ case "$MODE_INPUT" in
         VIDEO_HEIGHT=576
       fi
 
-      Rotate image if required
+      # Rotate image if required
       if [ "$PICAM" != "normal" ]; then
         v4l2-ctl -d $VID_PICAM --set-ctrl=rotate=180
       else

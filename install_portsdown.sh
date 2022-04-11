@@ -233,14 +233,14 @@ echo "--------------------------------------------"
 
 # For libmpegts
 cd /home/pi/avc2ts
-git clone https://github.com/F5OEO/libmpegts
+git clone https://github.com/F5OEO/libmpegts.git
 cd libmpegts
 ./configure
 make
 cd ../
 
 # For libfdkaac
-git clone https://github.com/mstorsjo/fdk-aac
+git clone https://github.com/mstorsjo/fdk-aac.git
 cd fdk-aac
 ./autogen.sh
 ./configure
@@ -303,7 +303,7 @@ echo "--------------------------------------"
 cd /home/pi/rpidatv/src/limesdr_toolbox
 
 # Install sub project dvb modulation
-git clone https://github.com/F5OEO/libdvbmod
+git clone https://github.com/F5OEO/libdvbmod.git
 cd libdvbmod/libdvbmod
 make
 cd ../DvbTsToIQ/
