@@ -1,3 +1,8 @@
+202204110
+Increase compatibility of USB mic gain setting
+Minor Pluto transmit bugfixes
+Set default Longmynd timeout and reset to 5 seconds
+
 202203291
 Bugfix Boot to Langstone V2
 

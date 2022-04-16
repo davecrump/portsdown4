@@ -1678,6 +1678,7 @@ void SetAudioLevels()
 {
   char MicGain[15];
   char aMixerCmd[127];
+  int MicLevelPercent;
 
   // Read the mic gain (may not be defined)
   GetConfigParam(PATH_PCONFIG,"micgain", MicGain);
@@ -1689,10 +1690,14 @@ void SetAudioLevels()
     MicLevel = 26;
   }
 
+  // Apply as apercentage as some cards are not 0 - 30 but 0 - 17
+  MicLevelPercent = (MicLevel * 10) / 3;
+
   // Apply to cards 1 and 2 in case the EasyCap has grabbed the card 1 ID
-  snprintf(aMixerCmd, 126, "amixer -c 1 -- sset Mic Capture %d > /dev/null 2>&1", MicLevel);
+  snprintf(aMixerCmd, 126, "amixer -c 1 -- sset Mic Capture %d%% > /dev/null 2>&1", MicLevelPercent);
   system(aMixerCmd);
-  snprintf(aMixerCmd, 126, "amixer -c 2 -- sset Mic Capture %d > /dev/null 2>&1", MicLevel);
+
+  snprintf(aMixerCmd, 126, "amixer -c 2 -- sset Mic Capture %d%% > /dev/null 2>&1", MicLevelPercent);
   system(aMixerCmd);
 
   // And set all the output levels to Max
@@ -13149,11 +13154,11 @@ void Keyboard(char RequestText[64], char InitText[64], int MaxLength)
     {
       SetButtonStatus(ButtonNumber(41, token), 1);
       DrawButton(ButtonNumber(41, token));
-      UpdateWindow();
+      //UpdateWindow();
       usleep(300000);
       SetButtonStatus(ButtonNumber(41, token), 0);
       DrawButton(ButtonNumber(41, token));
-      UpdateWindow();
+      //UpdateWindow();
     }
 
     if (token == 8)  // Enter pressed
