@@ -37,6 +37,8 @@ Rewitten by Dave, G8GKQ
 #include <sys/stat.h> 
 #include <sys/types.h> 
 #include <time.h>
+#include <lime/LimeSuite.h>
+#include <lime/limeRFE.h>
 
 #include "font/font.h"
 #include "touch.h"
@@ -312,11 +314,14 @@ bool AwaitingContestNumberSaveSeln = false;
 bool AwaitingContestNumberViewSeln = false;
 
 // Lime Control
-float LimeCalFreq = 0;  // -2 cal never, -1 = cal every time, 0 = cal next time, freq = no cal if no change
-int LimeRFEState = 0;   // 0 = disabled, 1 = enabled
-int LimeRFEPort  = 1;   // 1 = txrx, 2 = tx, 3 = 30MHz
-int LimeRFERXAtt = 0;   // 0, 2, 4, 6, 8, 10 12 or 14
+float LimeCalFreq = 0;    // -2 cal never, -1 = cal every time, 0 = cal next time, freq = no cal if no change
+int LimeRFEState = 0;     // 0 = disabled, 1 = enabled
+int LimeRFEPort  = 1;     // 1 = txrx, 2 = tx, 3 = 30MHz
+int LimeRFERXAtt = 0;     // 0-7 representing 0-14dB 
 int LimeNETMicroDet = 0;  // 0 = Not detected, 1 = detected.  Tested on entry to Lime Config menu
+int LimeRFEMode = 0;      // 0 is RX , 1 is TX
+rfe_dev_t* rfe = NULL;    // handle for LimeRFE
+int RFEHWVer = -1;        // hardware version
 
 // QO-100 Transmit Freqs
 char QOFreq[10][31] = {"2405.25", "2405.75", "2406.25", "2406.75", "2407.25", "2407.75", "2408.25", "2408.75", "2409.25", "2409.75"};
@@ -354,12 +359,12 @@ char WebClickForAction[7] = "no";  // no/yes
 
 // Threads for Touchscreen monitoring
 
-pthread_t thbutton;     //
-pthread_t thview;       //
-pthread_t thwait3;      //  Used to count 3 seconds for WebCam reset after transmit
-pthread_t thwebclick;
-pthread_t thtouchscreen;  // listens to the touchscreen   
-
+pthread_t thbutton;       //
+pthread_t thview;         //
+pthread_t thwait3;        //  Used to count 3 seconds for WebCam reset after transmit
+pthread_t thwebclick;     //  Listens for mouse clicks from web interface
+pthread_t thtouchscreen;  //  listens to the touchscreen   
+pthread_t thrfe15;        //  Turns LimeRFE on after 15 seconds
 
 // ************** Function Prototypes **********************************//
 
@@ -607,6 +612,11 @@ void ChangeADFRef(int NoButton);
 void ChangePID(int NoButton);
 void ControlLimeCal();
 void ToggleLimeRFE();
+void SetLimeRFERXAtt();
+void LimeRFEInit();
+void LimeRFETX();
+void LimeRFERX();
+void LimeRFEClose();
 void ChangeJetsonIP();
 void ChangeLKVIP();
 void ChangeLKVPort();
@@ -7911,6 +7921,9 @@ void ChangeBandDetails(int NoButton)
   int ExpLevel = -1;
   int ExpPorts = -1;
   int LimeGain = -1;
+  int RFEState = -1;
+  int RFEAtt = 1;
+  int RFEPort = -1;
   int PlutoLevel = 1;
   float LO = 1000001;
   char Numbers[10] ="";
@@ -8039,6 +8052,90 @@ void ChangeBandDetails(int NoButton)
   strcat(Param, "limegain");
   SetConfigParam(PATH_PPRESETS ,Param, KeyboardReturn);
 
+
+  // Lime RFE Enable
+  strcpy(Param, TabBand[band]);
+  strcat(Param, "limerfe");
+  GetConfigParam(PATH_PPRESETS, Param, Value);
+  if (strcmp(Value, "enabled") == 0)
+  {
+    RFEState = 1;
+  }
+  else
+  {
+    RFEState = 0;
+  }
+
+  snprintf(Value, 30, "%d", RFEState);
+  RFEState = -1;
+  while ((RFEState < 0 ) || (RFEState > 1) || (strlen(KeyboardReturn) < 1))  
+  {
+    snprintf(Prompt, 63, "Lime RFE Enable for %s. 0=off, 1=on:", TabBandLabel[band]);
+    Keyboard(Prompt, Value, 6);
+    RFEState = atof(KeyboardReturn);
+  }
+  strcpy(Param, TabBand[band]);
+  strcat(Param, "limerfe");
+  if (RFEState == 1)
+  {
+    strcpy(Value, "enabled");
+  }
+  else
+  {
+    strcpy(Value, "disabled");
+  }
+  SetConfigParam(PATH_PPRESETS ,Param, Value);
+
+  // Lime RFE Tx Port
+  strcpy(Param, TabBand[band]);
+  strcat(Param, "limerfeport");
+  GetConfigParam(PATH_PPRESETS, Param, Value);
+  if (strcmp(Value, "txrx") == 0)
+  {
+    RFEPort = 1;
+  }
+  else
+  {
+    RFEPort = 2;
+  }
+  snprintf(Value, 30, "%d", RFEPort);
+  RFEPort = 0;
+  while ((RFEPort < 1 ) || (RFEPort > 2) || (strlen(KeyboardReturn) < 1))  
+  {
+    snprintf(Prompt, 63, "LimeRFE Tx Port for %s Band. 1=txrx, 2=tx:", TabBandLabel[band]);
+    Keyboard(Prompt, Value, 6);
+    RFEPort = atof(KeyboardReturn);
+  }
+  strcpy(Param, TabBand[band]);
+  strcat(Param, "limerfeport");
+  if (RFEPort == 1)
+  {
+    strcpy(Value, "txrx");
+  }
+  else
+  {
+    strcpy(Value, "tx");
+  }  
+  SetConfigParam(PATH_PPRESETS ,Param, Value);
+
+  // Lime RFE Attenuator Level
+  strcpy(Param, TabBand[band]);
+  strcat(Param, "limerferxatt");
+  GetConfigParam(PATH_PPRESETS, Param, Value);
+  RFEAtt=atoi(Value);
+  snprintf(Value, 30, "%d", RFEAtt * 2);
+  RFEAtt= - 1;
+  while ((RFEAtt < 0) || (RFEAtt > 14) || (strlen(KeyboardReturn) < 1))  
+  {
+    snprintf(Prompt, 63, "Set LimeRFE Rx Atten for %s. 0-14 (dB):", TabBandLabel[band]);
+    Keyboard(Prompt, Value, 6);
+    RFEAtt = atof(KeyboardReturn);
+  }
+  strcpy(Param, TabBand[band]);
+  strcat(Param, "limerferxatt");
+  snprintf(Value, 30, "%d", RFEAtt / 2);
+  SetConfigParam(PATH_PPRESETS ,Param, Value);
+
   // Pluto Power
   snprintf(ActualValue, 30, "%d", TabBandPlutoLevel[band]);
   while ((PlutoLevel < -71) || (PlutoLevel > 0) || (strlen(KeyboardReturn) < 1))  // PlutoLevel init at 1
@@ -8076,7 +8173,7 @@ void ChangeBandDetails(int NoButton)
   strcpy(TabBandNumbers[band], Numbers);
   strcpy(Param, TabBand[band]);
   strcat(Param, "numbers");
-  SetConfigParam(PATH_PPRESETS ,Param, Numbers);
+  SetConfigParam(PATH_PPRESETS, Param, Numbers);
 
   // Then, if it is the current band, call DoFreqChange
   if (band == CurrentBand)
@@ -8276,6 +8373,15 @@ void DoFreqChange()
   LimeRFERXAtt = atoi(Value);
   strcpy(Param, "limerferxatt");
   SetConfigParam(PATH_PCONFIG ,Param, Value);
+
+  if (LimeRFEState == 1)
+  {
+    LimeRFEInit();
+  }
+  else
+  {
+    LimeRFEClose();
+  }
 
   // Set the Band (and filter) Switching
   printf("CTLfilter called\n");
@@ -9194,6 +9300,11 @@ void TransmitStart()
   // Run the Extra script for TX start
   system("/home/pi/rpidatv/scripts/TXstartextras.sh &");
 
+  if (LimeRFEState == 1)
+  {
+    LimeRFETX();
+  }
+
   // Call a.sh to transmit
   system(PATH_SCRIPT_A);
 }
@@ -9217,6 +9328,11 @@ void TransmitStop()
 
   // If transmit menu is displayed, blue-out the TX button here
   // code to be added
+
+  if (LimeRFEState == 1)
+  {
+    LimeRFERX();
+  }
 
   // Turn the VCO off
   system("sudo /home/pi/rpidatv/bin/adf4351 off");
@@ -14911,14 +15027,322 @@ void ToggleLimeRFE()
     LimeRFEState = 0;
     SetConfigParam(PATH_PCONFIG, "limerfe", "disabled");
     SetConfigParam(PATH_PPRESETS, bandtext, "disabled");
+    LimeRFEClose();
   }
   else                    // Disabled
   {
     LimeRFEState = 1;
     SetConfigParam(PATH_PCONFIG, "limerfe", "enabled");
     SetConfigParam(PATH_PPRESETS, bandtext, "enabled");
+    LimeRFEInit();
   }
 }
+
+
+void SetLimeRFERXAtt()
+{
+  char bandtext [15];
+  char Param[31];
+  char Prompt[127];
+  char Value[31];
+  int  RFEAtt;
+   
+  // Get the current band from portsdown_config.txt
+  //GetConfigParam(PATH_PCONFIG, "band", bandtext);
+  //strcat(bandtext, "limerfe");
+
+  // Lime RFE Attenuator Level
+  //strcpy(Param, TabBand[band]);
+  GetConfigParam(PATH_PCONFIG, "band", bandtext);
+  strcpy(Param, bandtext);
+  strcat(Param, "limerferxatt");
+  GetConfigParam(PATH_PPRESETS, Param, Value);
+  RFEAtt=atoi(Value);
+  snprintf(Value, 30, "%d", RFEAtt * 2);
+  RFEAtt= - 1;
+  while ((RFEAtt < 0) || (RFEAtt > 14) || (strlen(KeyboardReturn) < 1))  
+  {
+    snprintf(Prompt, 63, "Set LimeRFE Rx Atten for %s. 0-14 (dB):", TabBandLabel[CurrentBand]);
+    Keyboard(Prompt, Value, 6);
+    RFEAtt = atoi(KeyboardReturn);
+  }
+  LimeRFERXAtt = RFEAtt / 2;
+  snprintf(Value, 30, "%d", RFEAtt / 2);
+  SetConfigParam(PATH_PCONFIG, "limerferxatt", Value);
+  SetConfigParam(PATH_PPRESETS, Param, Value);
+  LimeRFEInit();
+}
+
+
+void LimeRFEInit()
+{
+  FILE *fp;
+  char response[127];
+
+  if(rfe == NULL)             // don't do this if the port is already open
+  {
+    // Don't initialise if not required
+    if(LimeRFEState == 0)
+    {
+      return;
+    }
+
+    // List the ttyUSBs (should return /dev/ttyUSB0)
+    fp = popen("ls --format=single-column /dev/ttyUSB*", "r");
+    if (fp == NULL)
+    {
+      printf("Failed to run command ls --format=single-column /dev/ttyUSB* \n" );
+      return;
+    }
+
+    // Read the output a line at a time and see if it works
+    while ((fgets(response, 16, fp) != NULL)  && (rfe == NULL))
+    {
+      response[strcspn(response, "\n")] = 0;                 // strip off the trailing \n
+      printf("Attempting to open %s for LimeRFE\n", response);
+      rfe = RFE_Open(response, NULL);
+      if (rfe != NULL)
+      {
+        printf("RFE on %s opened\n", response);
+      }
+    }
+
+    // Close the File
+    pclose(fp);
+
+    if (rfe == NULL)
+    {
+      printf("Failed to Open LimeRFE for use\n");
+    }
+  }
+  int RFE_CID = 1;
+  int RFE_PORT_TX = 2;                    // TX port. 1 is TX/RX, 2 is TX, 3 is HF
+  int RFE_PORT_RX = 1;                    // RX port can only be 1 (TX/RX) or 3 (HF)
+  int RFE_RX_ATT = 7;                     // RX attenuator setting.  0-7 representing 0-14dB
+  float RealFreq = 146.5;
+  char Value[127] = "146.5";
+  unsigned char RFEInfo[7];
+
+  // Look up the current transmit frequency and other parameters
+  GetConfigParam(PATH_PCONFIG, "freqoutput", Value);
+  RealFreq = atof(Value);
+
+  RFE_PORT_TX = LimeRFEPort;              // Get the configured Tx port
+  RFE_RX_ATT = LimeRFERXAtt;              // Get the rx attenuator setting.   0-7 representing 0-14dB
+
+  if (RFEHWVer == -1)   // Hardware version unknown so look it up
+  {
+    RFE_GetInfo(rfe, RFEInfo);
+    RFEHWVer = RFEInfo[1];
+  }
+
+  if (RFEHWVer == 3)    // Development Version 0.3  NOTE Firmware needs changing to make this happen
+  {
+    if (RealFreq <= 30)
+    {
+      RFE_CID = 3;      // HAM_0030
+      RFE_PORT_TX = 3;  // Force HF output Port  for this band
+      RFE_PORT_RX = 3;
+    }
+    else if ((RealFreq > 30) && (RealFreq <= 140))
+    {
+      RFE_CID = 1;      // WB_1000
+    }
+    else if ((RealFreq > 140) && (RealFreq <= 150))
+    {
+      RFE_CID = 5;      // HAM_0145
+    }
+    else if ((RealFreq > 150) && (RealFreq <= 425))
+    {
+      RFE_CID = 1;      // WB_1000
+    }
+    else if ((RealFreq > 425) && (RealFreq <= 445))
+    {
+      RFE_CID = 7;      // HAM_0435
+    }
+    else if ((RealFreq > 445) && (RealFreq <= 1000))
+    {
+      RFE_CID = 1;      // WB_1000
+    }
+    else if ((RealFreq > 1000) && (RealFreq <= 1230))
+    {
+      RFE_CID = 2;      // WB_4000
+    }
+    else if ((RealFreq > 1230) && (RealFreq <= 1330))
+    {
+      RFE_CID = 9;      // HAM_1280
+    }
+    else if ((RealFreq > 1330) && (RealFreq <= 2300))
+    {
+      RFE_CID = 2;      // WB_4000
+    }
+    else if ((RealFreq > 2300) && (RealFreq <= 2500))
+    {
+      RFE_CID = 10;      // HAM2400
+    }
+    else if ((RealFreq > 2500) && (RealFreq <= 3350))
+    {
+      RFE_CID = 2;      // WB_4000
+    }
+    else if ((RealFreq > 3350) && (RealFreq <= 3500))
+    {
+      RFE_CID = 11;      // HAM3500
+    }
+    else
+    {
+      RFE_CID = 2;      // WB_4000
+    }
+  }
+  else                 // Production Version or unknown
+  {
+    if (RealFreq < 50)
+    {
+      RFE_CID = 3;      // HAM_0030
+      RFE_PORT_TX = 3;  // Force HF output Port for this band
+      RFE_PORT_RX = 3;
+    }
+    else if ((RealFreq >= 50) && (RealFreq < 85))
+    {
+      RFE_CID = 4;      // HAM_0070
+      RFE_PORT_TX = 3;  // Force HF output Port for this band
+      RFE_PORT_RX = 3;
+    }
+    else if ((RealFreq >= 85) && (RealFreq < 140))
+    {
+      RFE_CID = 1;      // WB_1000
+    }
+    else if ((RealFreq >= 140) && (RealFreq < 150))
+    {
+      RFE_CID = 5;      // HAM_0145
+    }
+    else if ((RealFreq >= 150) && (RealFreq < 190))
+    {
+      RFE_CID = 1;      // WB_1000
+    }
+    else if ((RealFreq >= 190) && (RealFreq < 260))
+    {
+      RFE_CID = 6;      // HAM_0220
+    }
+    else if ((RealFreq >= 260) && (RealFreq < 400))
+    {
+      RFE_CID = 1;      // WB_1000
+    }
+    else if ((RealFreq >= 400) && (RealFreq < 500))
+    {
+      RFE_CID = 7;      // HAM_0435
+    }
+    else if ((RealFreq >= 500) && (RealFreq < 900))
+    {
+      RFE_CID = 1;      // WB_1000
+    }
+    else if ((RealFreq >= 900) && (RealFreq < 930))
+    {
+      RFE_CID = 8;      // HAM_0920
+    }
+    else if ((RealFreq >= 930) && (RealFreq < 1000))
+    {
+      RFE_CID = 1;      // WB_1000
+    }
+    else if ((RealFreq >= 1000) && (RealFreq < 1200))
+    {
+      RFE_CID = 2;      // WB_4000
+    }
+    else if ((RealFreq >= 1200) && (RealFreq < 1500))
+    {
+      RFE_CID = 9;      // HAM_1280
+    }
+    else if ((RealFreq >= 1500) && (RealFreq < 2200))
+    {
+      RFE_CID = 2;      // WB_4000
+    }
+    else if ((RealFreq >= 2200) && (RealFreq < 2600))
+    {
+      RFE_CID = 10;      // HAM2400
+    }
+    else if ((RealFreq >= 2600) && (RealFreq < 3200))
+    {
+      RFE_CID = 2;      // WB_4000
+    }
+    else if ((RealFreq >= 3200) && (RealFreq < 3500))
+    {
+      RFE_CID = 11;      // HAM3500
+    }
+    else
+    {
+      RFE_CID = 2;      // WB_4000
+    }
+  }
+  RFE_Configure(rfe, RFE_CID, RFE_CID, RFE_PORT_RX, RFE_PORT_TX, RFE_MODE_RX, RFE_NOTCH_OFF, RFE_RX_ATT, 0, 0);
+  LimeRFEMode = 0;
+
+  printf("LimeRFE Version %d Configured for freq band %d\n Tx output port %d Rx input port %d\n Rx Attenuator = %d dB\n",
+          RFEHWVer, RFE_CID, RFE_PORT_TX, RFE_PORT_RX, RFE_RX_ATT * 2);
+}
+
+
+void *LimeRFEPTTDelay(void * arg)
+{
+  int seconds = 0;
+
+  do	
+  {
+    usleep(1000000);  // Sleep 1 second
+    seconds = seconds + 1;
+    // printf ("LimeRFE Waiting for transmit %d\n", seconds);
+  }
+  while((seconds < 15) && (GetButtonStatus(20) == 1));  // Wait 15 seconds if still on TX
+
+  if((GetButtonStatus(20) == 1) && (digitalRead(GPIO_PTT) == 1))  // Still on TX and PTT enabled
+  {
+    LimeRFEMode = 1;
+    RFE_Mode(rfe, RFE_MODE_TX);
+    printf ("LimeRFE switching to transmit \n\n");
+  }
+  return NULL;
+}
+
+
+void LimeRFETX()
+{
+  if (rfe != NULL)  // Don't do this if we don't have a handle for the LimeRFE
+  {
+
+    // Create thread with 12 second delay then TX
+    pthread_create (&thrfe15, NULL, &LimeRFEPTTDelay, NULL);
+    //pthread_detach(thrfe15);  // It will then free its resources when it exits
+    //pthread_join(thrfe15, NULL);
+ }
+}
+
+
+void LimeRFERX()
+{
+  if (rfe != NULL)  // Don't do this if we don't have a handle for the LimeRFE
+  {
+    LimeRFEMode = 0;
+	RFE_Mode(rfe, RFE_MODE_RX);
+    printf("LimeRFE switched to Receive Mode\n");
+  }
+}
+
+
+void LimeRFEClose()
+{
+  if (rfe != NULL)  // Don't do this if we don't have a handle for the LimeRFE
+  {
+    LimeRFEMode = 0;
+
+	//Reset LimeRFE
+	RFE_Reset(rfe);
+    printf("LimeRFE Reset\n");
+
+	//Close port
+	RFE_Close(rfe);
+	printf("LimeRFE Port closed\n");
+    rfe = NULL;
+  }
+}
+
 
 void ChangeJetsonIP()
 {
@@ -15491,6 +15915,7 @@ void waituntil(int w,int h)
           system("sudo killall express_server >/dev/null 2>/dev/null");
           system("sudo rm /tmp/expctrl >/dev/null 2>/dev/null");
           sync();            // Prevents shutdown hang in Stretch
+          LimeRFEClose();
           usleep(1000000);
           cleanexit(160);    // Commands scheduler to initiate shutdown
           break;
@@ -17841,6 +18266,11 @@ void waituntil(int w,int h)
         printf("Button Event %d, Entering Menu 37 Case Statement\n",i);
         switch (i)
         {
+        case 0:                               // Set LimeRFE RX Attenuator
+          SetLimeRFERXAtt();
+          Start_Highlights_Menu37();
+          UpdateWindow();
+          break;
         case 1:                               // Lime FW Update 1.30
         case 2:                               // Lime FW Update DVB
           printf("Lime Firmware Update %d\n", i);
@@ -17889,6 +18319,20 @@ void waituntil(int w,int h)
           system("/home/pi/rpidatv/bin/limesdr_stopchannel"); // reset Lime
           setBackColour(0, 0, 0);
           clearScreen();
+          UpdateWindow();
+          break;
+        case 8:                               // Toggle LimeRFE between TX and RX
+          if ((LimeRFEMode == 0) && (LimeRFEState == 1))    // RX and enabled
+          {
+            LimeRFEMode = 1;
+            RFE_Mode(rfe, RFE_MODE_TX);
+          }
+          else if ((LimeRFEMode == 1) && (LimeRFEState == 1))    // TX and enabled
+          {
+            LimeRFEMode = 0;
+            LimeRFERX();
+          }
+          Start_Highlights_Menu37();
           UpdateWindow();
           break;
         case 9:                               // Cycle through Lime Cal options
@@ -18102,8 +18546,6 @@ void waituntil(int w,int h)
         }
         continue;   // Completed Menu 40 action, go and wait for touch
       }
-
-
 
       if (CurrentMenu == 42)  // Menu 42 Output Device
       {
@@ -22887,9 +23329,8 @@ void Define_Menu37()
 
   // Bottom Row, Menu 37
 
-  //button = CreateButton(37, 0);
-  //AddButtonStatus(button, "Update to^FW 1.29", &Blue);
-  //AddButtonStatus(button, "Update to^FW 1.29", &Green);
+  button = CreateButton(37, 0);
+  AddButtonStatus(button, "LimeRFE RX^Atten", &Blue);
 
   button = CreateButton(37, 1);
   AddButtonStatus(button, "Update to^FW 1.30", &Blue);
@@ -22920,9 +23361,10 @@ void Define_Menu37()
   AddButtonStatus(button, "Lime^Report", &Blue);
   AddButtonStatus(button, "Lime^Report", &Green);
 
-  //button = CreateButton(37, 8);
-  //AddButtonStatus(button, "Update^Lime FW", &Blue);
-  //AddButtonStatus(button, "Update^Lime FW", &Green);
+  button = CreateButton(37, 8);
+  AddButtonStatus(button, "LimeRFE^Mode RX", &Grey);
+  AddButtonStatus(button, "LimeRFE^Mode RX", &Blue);
+  AddButtonStatus(button, "LimeRFE^Mode TX", &Red);
 
   button = CreateButton(37, 9);
   AddButtonStatus(button, "Calibrate^Every TX", &Blue);
@@ -22930,7 +23372,19 @@ void Define_Menu37()
 
 void Start_Highlights_Menu37()
 {
+  char caption[63];
   // Lime Config Menu
+
+  // Button 0 LimeRFE RX Attenuator
+  if (LimeRFEState == 1)  // Enabled
+  {
+    snprintf(caption, 60, "LimeRFE RX^Atten = %ddB", 2 * LimeRFERXAtt);
+    AmendButtonStatus(ButtonNumber(37, 0), 0, caption, &Blue);
+  }
+  else
+  {
+    AmendButtonStatus(ButtonNumber(37, 0), 0, "LimeRFE RX^Atten", &Grey);
+  }
 
   // Button 3 LimeRFE Enable/Disable
   if (LimeRFEState == 1)  // Enabled
@@ -22941,6 +23395,24 @@ void Start_Highlights_Menu37()
   {
     AmendButtonStatus(ButtonNumber(37, 3), 0, "LimeRFE^Disabled", &Blue);
   }
+
+  // Button 8 LimeRFE RX/TX
+  if (LimeRFEState == 1)  // Enabled
+  {
+    if (LimeRFEMode == 1)  // TX
+    {
+      SetButtonStatus(ButtonNumber(37, 8), 2);
+    }
+    else                   // RX
+    {
+      SetButtonStatus(ButtonNumber(37, 8), 1);
+    }
+  }
+  else                    // Disabled
+  {
+    SetButtonStatus(ButtonNumber(37, 8), 0);
+  }
+
 
   // Button 9, Lime Calibration
   if (LimeCalFreq < -1.5)  // Never Calibrate
@@ -24047,6 +24519,7 @@ terminate(int dummy)
 
   strcpy(ModeInput, "DESKTOP"); // Set input so webcam reset script is not called
   TransmitStop();
+  LimeRFEClose();
   RTLstop();
   system("sudo killall vlc >/dev/null 2>/dev/null");
   system("sudo killall lmudp.sh >/dev/null 2>/dev/null");
@@ -24273,6 +24746,9 @@ int main(int argc, char *argv[])
 
   // Start the receive downconverter LO if required
   ReceiveLOStart();
+
+  // Initialise the LimeRFE if required
+  LimeRFEInit();
 
   // Clear the screen ready for Menu 1
   setBackColour(255, 255, 255);          // White background
