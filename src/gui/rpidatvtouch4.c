@@ -495,6 +495,10 @@ void UpdateWindow();
 void ApplyTXConfig();
 void EnforceValidTXMode();
 void EnforceValidFEC();
+int SelectFromList(int CurrentSelection, char ListEntry[100][63], int ListLength);
+int CheckWifiEnabled();
+int CheckWifiConnection(char Network_SSID[63]);
+void WiFiConfig(int NoButton);
 void GreyOut1();
 void GreyOutReset11();
 void GreyOut11();
@@ -5510,7 +5514,7 @@ void TransformTouchMap(int x, int y)
 {
   // This function takes the raw (0 - 4095 on each axis) touch data x and y
   // and transforms it to approx 0 - wscreen and 0 - hscreen in globals scaledX 
-  // and scaledY prior to final correction by CorrectTouchMap  
+  // and scaledY 
 
   int shiftX, shiftY;
   double factorX, factorY;
@@ -6988,6 +6992,561 @@ void EnforceValidFEC()
     SetConfigParam(PATH_PCONFIG, Param, Value);
   }
 }
+
+
+int SelectFromList(int CurrentSelection, char ListEntry[100][63], int ListLength)
+{
+  // Entry with CurrentSelection = 0 means no current selection
+  // Entry with CurrentSelection = -1 means no selection.  Returns -1
+
+  char TableNumberText[7];
+
+  int ButtonWidth = 160;
+  int ButtonHeight = 65;
+  char Button1Caption[15] = "Previous Page";
+  char Button2Caption[15] = "Cancel";
+  char Button3Caption[15] = "Select";
+  char Button4Caption[15] = "Next Page";
+  char Button5Caption[15] = "Exit";
+  int ButtonY = 10;
+  int Button1X = 10;
+  int Button2X = 217;
+  int Button3X = 423;
+  int Button4X = 630;
+  int Button5X = 320;
+  color_t Button1_Color = Blue;
+  color_t Button2_Color = Blue;
+  color_t Button3_Color = Blue;
+  color_t Button4_Color = Blue;
+  color_t Button5_Color = Blue;
+  int margin = 10;
+
+  const font_t *font_ptr = &font_dejavu_sans_24;
+  int txtht =  font_ptr->ascent;
+  int linepitch;
+
+  int rawX, rawY, rawPressure;
+
+  bool NotExit = true;
+
+  int i;
+  int j;
+  int CurrentPage;
+  int PageCount;
+  char PageText[63];
+  int SelectedEntry;
+  int TopEntry;
+  int BottomEntry;
+  int ReturnValue;
+
+  linepitch = (14 * txtht) / 10;  // =32
+
+  SelectedEntry = CurrentSelection;
+  if ((CurrentSelection == 0) || (CurrentSelection == -1))  // No highlighted entry on initial display
+  {
+    CurrentPage = 1;
+  }
+  else
+  {
+    CurrentPage = (CurrentSelection + 9) / 10;
+  }
+
+  linepitch = (14 * txtht) / 10;  // 32
+  
+  if (ListLength < 1)
+  {
+    PageCount = 1;
+  }
+  else if (ListLength > 100)
+  {
+    return 0;
+  }
+  else
+  {
+    PageCount = (ListLength + 9) / 10;
+  }
+
+  while (NotExit)  // Repeat from here for each refresh
+  {
+    setForeColour(255, 255, 255);    // White text
+    setBackColour(0, 0, 0);          // on Black
+
+    clearScreen();
+
+    TopEntry = (CurrentPage - 1) * 10 + 1;
+    if (TopEntry + 9 > ListLength)
+    {
+      BottomEntry = ListLength;
+    }
+    else
+    {
+      BottomEntry = TopEntry + 9;
+    }
+
+    // Display the Title Line
+    Text2(wscreen / 40, hscreen - linepitch, ListEntry[0], font_ptr);
+    snprintf(PageText, 63, "Page %d of %d", CurrentPage, PageCount);
+    Text2((wscreen * 30) / 40, hscreen - linepitch, PageText, font_ptr);
+
+    // Display each row of the list in turn
+    for(i = TopEntry; i <= BottomEntry ; i++)
+    {
+      j = i - TopEntry + 1;
+      snprintf(TableNumberText, 4, "%d", i);
+      if (SelectedEntry != i)
+      {
+        Text2(wscreen / 40, hscreen - (j + 2) * linepitch, TableNumberText, font_ptr);
+        Text2((wscreen * 5) / 40, hscreen - (j + 2) * linepitch, ListEntry[i], font_ptr);
+      }
+      else
+      {
+        setForeColour(0, 0, 0);    // Black text
+        setBackColour(255, 255, 255);          // on White
+        Text2(wscreen / 40, hscreen - (j + 2) * linepitch, TableNumberText, font_ptr);
+        Text2((wscreen * 5) / 40, hscreen - (j + 2) * linepitch, ListEntry[i], font_ptr);
+        setForeColour(255, 255, 255);    // White text
+        setBackColour(0, 0, 0);          // on Black
+      }
+    }
+
+    // Set Button Colours
+    if (CurrentPage > 1)
+    {
+      Button1_Color = Blue;
+    }
+    else
+    {
+      Button1_Color = Grey;
+    }
+    if (CurrentPage < PageCount)
+    {
+      Button4_Color = Blue;
+    }
+    else
+    {
+      Button4_Color = Grey;
+    }
+
+    // Draw the basic button
+    rectangle(Button1X, ButtonY, ButtonWidth, ButtonHeight, 
+              Button1_Color.r,
+              Button1_Color.g,
+              Button1_Color.b);
+
+    // Set text and background colours
+    setForeColour(255, 255, 255);				   // White text
+    setBackColour(Button1_Color.r,
+                Button1_Color.g,
+                Button1_Color.b);
+  
+    TextMid2(Button1X + ButtonWidth / 2, ButtonY + ButtonHeight / 2, Button1Caption, &font_dejavu_sans_20);
+
+    if( CurrentSelection != -1)  // Draw Cancel and Select Buttons
+    {
+      rectangle(Button2X, ButtonY, ButtonWidth, ButtonHeight, 
+                Button2_Color.r,
+                Button2_Color.g,
+                Button2_Color.b);
+
+      // Set text and background colours
+      setForeColour(255, 255, 255);				   // White text
+      setBackColour(Button2_Color.r,
+                    Button2_Color.g,
+                    Button2_Color.b);
+  
+      TextMid2(Button2X + ButtonWidth / 2, ButtonY + ButtonHeight / 2, Button2Caption, &font_dejavu_sans_20);
+
+      rectangle(Button3X, ButtonY, ButtonWidth, ButtonHeight, 
+                Button3_Color.r,
+                Button3_Color.g,
+                Button3_Color.b);
+
+      // Set text and background colours
+      setForeColour(255, 255, 255);				   // White text
+      setBackColour(Button3_Color.r,
+                    Button3_Color.g,
+                    Button3_Color.b);
+  
+      TextMid2(Button3X + ButtonWidth / 2, ButtonY + ButtonHeight / 2, Button3Caption, &font_dejavu_sans_20);
+    }
+    else  // Draw Exit Button
+    {
+      rectangle(Button5X, ButtonY, ButtonWidth, ButtonHeight, 
+                Button5_Color.r,
+                Button5_Color.g,
+                Button5_Color.b);
+
+      // Set text and background colours
+      setForeColour(255, 255, 255);				   // White text
+      setBackColour(Button5_Color.r,
+                    Button5_Color.g,
+                    Button5_Color.b);
+  
+      TextMid2(Button5X + ButtonWidth / 2, ButtonY + ButtonHeight / 2, Button5Caption, &font_dejavu_sans_20);
+    }
+
+    rectangle(Button4X, ButtonY, ButtonWidth, ButtonHeight, 
+              Button4_Color.r,
+              Button4_Color.g,
+              Button4_Color.b);
+
+    // Set text and background colours
+    setForeColour(255, 255, 255);				   // White text
+    setBackColour(Button4_Color.r,
+                  Button4_Color.g,
+                  Button4_Color.b);
+  
+    TextMid2(Button4X + ButtonWidth / 2, ButtonY + ButtonHeight / 2, Button4Caption, &font_dejavu_sans_20);
+
+    printf("List displayed and waiting for touch\n");
+    UpdateWeb();
+
+    // Wait for key press
+    if (getTouchSample(&rawX, &rawY, &rawPressure) == 0) continue;
+
+    TransformTouchMap(rawX, rawY);  // returns scaledX, scaledY with bottom left origin to 800, 480
+    //printf("X::: %d Y::: %d\n", scaledX, scaledY);
+
+    // Check if a line has been highlighted
+    for (j = 1; j <= 10; j++)
+    {
+      if ((scaledY <= (418 - 32 * j) + 16)  && (scaledY > (418 - 32 * j) - 16) && (CurrentSelection != -1))
+      {
+        SelectedEntry = TopEntry + j - 1;
+      }
+    }
+
+    if ((scaledX <= (Button1X + ButtonWidth - margin)) && (scaledX >= Button1X + margin) &&
+        (scaledY <= (ButtonY + ButtonHeight - margin)) && (scaledY >= ButtonY + margin))
+    {
+      if (CurrentPage > 1)
+      {
+        CurrentPage = CurrentPage - 1;
+      }
+    }
+
+    if ((scaledX <= (Button4X + ButtonWidth - margin)) && (scaledX >= Button4X + margin) &&
+        (scaledY <= (ButtonY + ButtonHeight - margin)) && (scaledY >= ButtonY + margin))
+    {
+      if (CurrentPage < PageCount)
+      {
+        CurrentPage = CurrentPage + 1;
+      }
+    }
+    if (CurrentSelection != -1)  // Display list and select value
+    {
+      if ((scaledX <= (Button2X + ButtonWidth - margin)) && (scaledX >= Button2X + margin) &&
+          (scaledY <= (ButtonY + ButtonHeight - margin)) && (scaledY >= ButtonY + margin))
+      {
+        ReturnValue = CurrentSelection;
+        NotExit = false;
+      }
+
+      if ((scaledX <= (Button3X + ButtonWidth - margin)) && (scaledX >= Button3X + margin) &&
+          (scaledY <= (ButtonY + ButtonHeight - margin)) && (scaledY >= ButtonY + margin))
+      {
+        ReturnValue = SelectedEntry;
+        NotExit = false;
+      }
+    }
+    else  // Display list only, no selection
+    {
+      if ((scaledX <= (Button5X + ButtonWidth - margin)) && (scaledX >= Button5X + margin) &&
+          (scaledY <= (ButtonY + ButtonHeight - margin)) && (scaledY >= ButtonY + margin))
+      {
+        ReturnValue = -1;
+        NotExit = false;
+      }
+    }
+  }
+  printf("Returning Value %d from Select From List\n", ReturnValue);
+  return ReturnValue;
+}
+
+
+int CheckWifiEnabled()
+{
+  // Returns 0 if WiFi enabled, 1 if not
+
+  FILE *fp;
+  char response[255];
+  int responseint;
+
+  // Open the command for reading
+  fp = popen("ifconfig | grep -q 'wlan0' ; echo $?", "r");
+  if (fp == NULL) {
+    printf("Failed to run command\n" );
+    exit(1);
+  }
+
+  /* Read the output a line at a time - output it. */
+  while (fgets(response, 7, fp) != NULL)
+  {
+    responseint = atoi(response);
+    // printf("WiFi response %s, %d\n", response, responseint);
+  }
+
+  pclose(fp);
+  return responseint;
+}
+
+
+int CheckWifiConnection(char Network_SSID[63])
+{
+  // Returns 0 if WiFi connected with SSID, 1 if not
+
+  FILE *fp;
+  char response[255];
+  int responseint;
+
+  // Open the command for reading
+  fp = popen("iwconfig 2>/dev/null | grep 'ESSID' ", "r");
+  if (fp == NULL) {
+    printf("Failed to run command\n" );
+    exit(1);
+  }
+
+  /* Read the output a line at a time - output it. */
+  while (fgets(response, 63, fp) != NULL)
+  {
+    response[strlen(response) - 2] = '\0';  // Remove trailing CR
+
+    //printf("Response = -%s-\n", response + 29);
+
+    if (strncmp(response + 29, "off/any", 7) == 0)
+    {
+      responseint = 1;
+      strcpy(Network_SSID, "Not connected");
+    }
+    else
+    {
+      responseint = 0;
+      strcpy(Network_SSID, response + 29);
+    }
+  }
+  pclose(fp);
+  return responseint;
+}
+
+
+void WiFiConfig(int NoButton)
+{
+  char ListEntry[100][63];
+  int CurrentSelection = 0;
+  int ListLength = 0;
+  FILE *fp;
+  char response_line[255];
+  int j;
+  int NewSelection = 0;
+  char PassPhrase[63];
+  char Prompt[127];
+  char SystemCommand[255];
+  char Network_SSID[63];
+
+  strcpy(ListEntry[0], "Empty List Title");
+
+  switch (NoButton)
+  {
+    case 5:                               //
+      strcpy(ListEntry[0], "WiFi Networks Detected:");
+      CurrentSelection = -1;
+      j = 0;
+
+      fp = popen("sudo iwlist wlan0 scan | grep 'ESSID'", "r");
+      if (fp == NULL)
+      {
+        printf("Failed to run command\n" );
+        exit(1);
+      }
+
+      // Read the output a line at a time - output it
+      while (fgets(response_line, 250, fp) != NULL)
+      {
+        if ((strlen(response_line) > 1) && (j >= 0) && (j < 100))
+        {
+          j = j + 1;
+          if (strlen(response_line) > 90)
+          {
+            response_line[89] = '\0';  // Limit line length to 62 + 27
+          }
+
+          response_line[strlen(response_line) - 2] = '\0';  // Remove trailing " and CR
+
+          if (strlen(response_line) == 27) 
+          {
+            strcpy(ListEntry[j], "Hidden Network");
+          }
+          else if (strncmp(response_line + 28, "x00", 3) == 0)  // Check for null byte associated with hidden networks
+          {
+            strcpy(ListEntry[j], "Hidden Network");
+          }
+          else
+          { 
+            strcpy(ListEntry[j], response_line + 27);
+          }
+          //printf("%s\n", ListEntry[j]);
+        }
+      }
+      pclose(fp);
+      ListLength = j;
+      if (j == 0)
+      {
+        strcpy(ListEntry[0], "No WiFi Networks Detected:");
+      }
+      SelectFromList(CurrentSelection, ListEntry, ListLength);
+      break;
+
+    case 6:                               //
+      strcpy(ListEntry[0], "WiFi Networks Detected:");
+      CurrentSelection = 0;
+      j = 0;
+
+      fp = popen("sudo iwlist wlan0 scan | grep 'ESSID'", "r");
+      if (fp == NULL)
+      {
+        printf("Failed to run command\n" );
+        exit(1);
+      }
+
+      // Read the output a line at a time - output it
+      while (fgets(response_line, 250, fp) != NULL)
+      {
+        if ((strlen(response_line) > 1) && (j >= 0) && (j < 100))
+        {
+          j = j + 1;
+          if (strlen(response_line) > 90)
+          {
+            response_line[89] = '\0';  // Limit line length to 62 + 27
+          }
+
+          response_line[strlen(response_line) - 2] = '\0';  // Remove trailing " and CR
+
+          if (strlen(response_line) == 27) 
+          {
+            strcpy(ListEntry[j], "Hidden Network");
+          }
+          else if (strncmp(response_line + 28, "x00", 3) == 0)  // Check for null byte associated with hidden networks
+          {
+            strcpy(ListEntry[j], "Hidden Network");
+          }
+          else
+          { 
+            strcpy(ListEntry[j], response_line + 27);
+          }
+          //printf("%s\n", ListEntry[j]);
+        }
+      }
+      pclose(fp);
+      ListLength = j;
+      if (j == 0)
+      {
+        strcpy(ListEntry[0], "No WiFi Networks Detected:");
+      }
+      NewSelection = SelectFromList(CurrentSelection, ListEntry, ListLength);
+
+      if (NewSelection == 0)
+      {
+        return;
+      }
+
+      if (strcmp(ListEntry[NewSelection], "Hidden Network") == 0)
+      {
+        return;  // Maybe react better to this later
+      }
+
+      snprintf(Prompt, 94, "Enter the PassPhrase for SSID %s", ListEntry[NewSelection]);
+      KeyboardReturn[0] = '\0';
+      while (strlen(KeyboardReturn) < 1)
+      {
+        Keyboard(Prompt, "", 15);
+      }
+      strcpy(PassPhrase, KeyboardReturn);
+
+      snprintf(SystemCommand, 254, "~/rpidatv/scripts/AddWifiNetwork.sh %s %s", ListEntry[NewSelection], PassPhrase);
+      system(SystemCommand);
+      // printf("SystemCommand %s\n", SystemCommand);
+
+      break;
+
+    case 7:                               // Check Wifi Connection
+      if (CheckWifiEnabled() == 1)
+      {
+        MsgBox4("Wifi Not Enabled", "", "", "Touch Screen to Continue");
+        wait_touch();
+      }
+      else
+      {
+        if (CheckWifiConnection(Network_SSID) == 1)
+        {
+          MsgBox4("Wifi Enabled", "but not connected", "", "Touch Screen to Continue");
+          wait_touch();
+        }
+        else
+        {
+          MsgBox4("Wifi Enabled", "and connected to", Network_SSID, "Touch Screen to Continue");
+          wait_touch();
+        }
+      }
+      break;
+
+    case 8:                                                                                 // Enable Wifi
+      system("sudo ifconfig wlan0 down >/dev/null 2>/dev/null");                            // First, Disable it
+      system("sudo ifconfig wlan0 up >/dev/null 2>/dev/null");                              // Enable it
+      system("rm ~/.wifi_off >/dev/null 2>/dev/null");                                      // Enable at start-up
+      system("wpa_cli -i wlan0 reconfigure >/dev/null 2>/dev/null");                        // Make it Connect
+      usleep (1000000);                                                                     // Pause
+      system("sudo rfkill unblock 0 >/dev/null 2>/dev/null");                               // Unblock the RF
+      break;
+
+    case 3:                                                                                     // Disable Wifi
+      system("sudo ifconfig wlan0 down >/dev/null 2>/dev/null");                                // Disable it now
+      system("cp ~/rpidatv/scripts/configs/text.wifi_off ~/.wifi_off >/dev/null 2>/dev/null");  // Disable at start-up
+      break;
+
+    case 9:                                                                                 // Reset Wifi
+
+      system("sudo ifconfig wlan0 down >/dev/null 2>/dev/null");                            // First, Disable it
+      system("sudo raspi-config nonint do_wifi_country GB>/dev/null 2>/dev/null");          // Make sure country is set
+
+      system("sudo rm /etc/wpa_supplicant/wpa_supplicant.conf >/dev/null 2>/dev/null");     // Delete Config
+
+      system("sudo cp ~/rpidatv/scripts/configs/wpa_supplicant.conf /etc/wpa_supplicant/wpa_supplicant.conf >/dev/null 2>/dev/null");
+                                                                                            // Copy in new config
+
+      system("sudo chown root /etc/wpa_supplicant/wpa_supplicant.conf >/dev/null 2>/dev/null");
+                                                                                            // and set ownership
+
+      system("sudo ifconfig wlan0 up >/dev/null 2>/dev/null");                              // Enable it
+      system("rm ~/.wifi_off >/dev/null 2>/dev/null");                                      // Enable at start-up
+      system("wpa_cli -i wlan0 reconfigure >/dev/null 2>/dev/null");                        // Load the config
+      usleep (1000000);                                                                     // Pause
+      system("sudo rfkill unblock 0 >/dev/null 2>/dev/null");                               // Unblock the RF
+      break;
+
+    case 1:                               //
+  CurrentSelection = 11;
+  ListLength = 12;
+
+  strcpy(ListEntry[0], "List Title");
+  strcpy(ListEntry[1], "List Entry 1");
+  strcpy(ListEntry[2], "List Entry 2");
+  strcpy(ListEntry[3], "List Entry 3");
+  strcpy(ListEntry[4], "List Entry 4");
+  strcpy(ListEntry[5], "List Entry 5");
+  strcpy(ListEntry[6], "List Entry 6");
+  strcpy(ListEntry[7], "List Entry 7");
+  strcpy(ListEntry[8], "List Entry 8");
+  strcpy(ListEntry[9], "List Entry 9");
+  strcpy(ListEntry[10], "List Entry 10");
+  strcpy(ListEntry[11], "List Entry 11");
+  strcpy(ListEntry[12], "List Entry 12");
+
+   
+      SelectFromList(CurrentSelection, ListEntry, ListLength);
+      break;
+  }
+}
+
 
 void GreyOut1()
 {
@@ -18235,11 +18794,27 @@ void waituntil(int w,int h)
         continue;   // Completed Menu 35 action, go and wait for touch
       }
 
-      if (CurrentMenu == 36)  // Menu 36 WiFi Configuration
+      if (CurrentMenu == 36)  // Menu 36  Configuration
       {
         printf("Button Event %d, Entering Menu 36 Case Statement\n",i);
         switch (i)
         {
+        case 3:                               // Disable Wifi
+        case 7:                               // Check connection
+        case 8:                               // Enable Wifi
+        case 9:                               // List Networks
+        case 5:                               // Initialise Wifi
+        case 6:                               // Set-up Network
+          SetButtonStatus(ButtonNumber(36, i), 1);  // Set button green while waiting
+          UpdateWindow();
+          WiFiConfig(i);
+          SetButtonStatus(ButtonNumber(36, i), 0);
+          CurrentMenu = 36;
+          setBackColour(0, 0, 0);
+          clearScreen();
+          Start_Highlights_Menu36();
+          UpdateWindow();
+          break;
         case 4:                               // Cancel
           SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 1);
           printf("Cancelling WiFi Config Menu\n");
@@ -23293,32 +23868,63 @@ void Define_Menu36()
 
   // Bottom Row, Menu 36
 
+
+
+  button = CreateButton(36, 3);
+  AddButtonStatus(button, "Disable^WiFi", &Blue);
+  AddButtonStatus(button, "Disable^WiFi", &Green);
+  AddButtonStatus(button, "Disable^WiFi", &Grey);
+
   button = CreateButton(36, 4);
   AddButtonStatus(button, "Exit", &DBlue);
   AddButtonStatus(button, "Exit", &LBlue);
 
-//  button = CreateButton(36, 0);
-//  AddButtonStatus(button, "Install^Lime", &Blue);
-//  AddButtonStatus(button, "Install^Lime", &Green);
-
-//  button = CreateButton(36, 1);
-//  AddButtonStatus(button, "Update^Lime", &Blue);
-//  AddButtonStatus(button, "Update^Lime", &Green);
-
   // 2nd Row, Menu 36
 
-//  button = CreateButton(36, 6);
-//  AddButtonStatus(button, "Update^Lime FW", &Blue);
-//  AddButtonStatus(button, "Update^Lime FW", &Green);
+  button = CreateButton(36, 5);
+  AddButtonStatus(button, "List WiFi^Networks", &Blue);
+  AddButtonStatus(button, "List WiFi^Networks", &Green);
+  AddButtonStatus(button, "List WiFi^Networks", &Grey);
 
-//  button = CreateButton(36, 7);
-//  AddButtonStatus(button, "Lime^Info", &Blue);
-//  AddButtonStatus(button, "Lime^Info", &Green);
+  button = CreateButton(36, 6);
+  AddButtonStatus(button, "Set-up WiFi^Network", &Blue);
+  AddButtonStatus(button, "Set-up WiFi^Network", &Green);
+  AddButtonStatus(button, "Set-up WiFi^Network", &Grey);
+
+  button = CreateButton(36, 7);
+  AddButtonStatus(button, "Check WiFi^Status", &Blue);
+  AddButtonStatus(button, "Check WiFi^Status", &Green);
+  AddButtonStatus(button, "Check WiFi^Status", &Grey);
+
+  button = CreateButton(36, 8);
+  AddButtonStatus(button, "Enable^WiFi", &Blue);
+  AddButtonStatus(button, "Enable^WiFi", &Green);
+  AddButtonStatus(button, "Enable^WiFi", &Grey);
+
+  button = CreateButton(36, 9);
+  AddButtonStatus(button, "Reset^WiFi", &Blue);
+  AddButtonStatus(button, "Reset^WiFi", &Green);
+  AddButtonStatus(button, "Reset^WiFi", &Grey);
 }
 
 void Start_Highlights_Menu36()
 {
-  // Nothing here yet
+  if (CheckWifiEnabled() == 1)  // Wifi not enabled
+  {
+    SetButtonStatus(ButtonNumber(36, 5), 2);  // Grey out the "List WiFi Networks" Button
+    SetButtonStatus(ButtonNumber(36, 6), 2);  // Grey out the "Set up WiFi Network" Button
+  }
+  else
+  {
+    if (GetButtonStatus(ButtonNumber(36, 5)) == 2) // "List WiFi Networks" is grey
+    {
+      SetButtonStatus(ButtonNumber(36, 5), 0);  // Set to Blue
+    }
+    if (GetButtonStatus(ButtonNumber(36, 6)) == 2) // "Set up WiFi Network" is grey
+    {
+      SetButtonStatus(ButtonNumber(36, 6), 0);  // Set to Blue
+    }
+  }
 }
 
 void Define_Menu37()
