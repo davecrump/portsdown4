@@ -375,6 +375,9 @@ sudo rm /etc/wpa_supplicant/wpa_supplicant.conf
 sudo cp /home/pi/rpidatv/scripts/configs/wpa_supplicant.conf /etc/wpa_supplicant/wpa_supplicant.conf
 sudo chown root /etc/wpa_supplicant/wpa_supplicant.conf
 
+# Disable Wifi on Initial Start
+cp ~/rpidatv/scripts/configs/text.wifi_off ~/.wifi_off >/dev/null 2>/dev/null
+
 # Compile the Signal Generator
 echo
 echo "------------------------------------------"
