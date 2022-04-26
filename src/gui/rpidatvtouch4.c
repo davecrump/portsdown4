@@ -379,6 +379,7 @@ void togglescreentype();
 int GetLinuxVer();
 void GetIPAddr(char IPAddress[256]);
 void GetIPAddr2(char IPAddress[256]);
+void Get_wlan0_IPAddr(char IPAddress[255]);
 void GetSWVers(char SVersion[256]);
 void GetLatestVers(char LatestVersion[256]);
 int CheckGoogle();
@@ -1093,6 +1094,8 @@ void GetIPAddr(char IPAddress[256])
   /* close */
   pclose(fp);
 }
+
+
 /***************************************************************************//**
  * @brief Looks up the current second IPV4 address
  *
@@ -1107,6 +1110,36 @@ void GetIPAddr2(char IPAddress[256])
 
   /* Open the command for reading. */
   fp = popen("ifconfig | grep -Eo \'inet (addr:)?([0-9]*\\.){3}[0-9]*\' | grep -Eo \'([0-9]*\\.){3}[0-9]*\' | grep -v \'127.0.0.1\' | sed -n '2 p'", "r");
+  if (fp == NULL) {
+    printf("Failed to run command\n" );
+    exit(1);
+  }
+
+  /* Read the output a line at a time - output it. */
+  while (fgets(IPAddress, 16, fp) != NULL)
+  {
+    //printf("%s", IPAddress);
+  }
+
+  /* close */
+  pclose(fp);
+}
+
+
+/***************************************************************************//**
+ * @brief Looks up the current wireless (wlan0) IPV4 address
+ *
+ * @param IPAddress (str) IP Address to be passed as a string
+ *
+ * @return void
+*******************************************************************************/
+
+void Get_wlan0_IPAddr(char IPAddress[255])
+{
+  FILE *fp;
+
+  /* Open the command for reading. */
+  fp = popen("ifconfig | grep -A1 \'wlan0\' | grep -Eo \'inet (addr:)?([0-9]*\\.){3}[0-9]*\' | grep -Eo \'([0-9]*\\.){3}[0-9]*\' | grep -v \'127.0.0.1\' ", "r");
   if (fp == NULL) {
     printf("Failed to run command\n" );
     exit(1);
@@ -7342,6 +7375,7 @@ void WiFiConfig(int NoButton)
   char Prompt[127];
   char SystemCommand[255];
   char Network_SSID[63];
+  char wlan0IPAddress[255];
 
   strcpy(ListEntry[0], "Empty List Title");
 
@@ -7391,13 +7425,13 @@ void WiFiConfig(int NoButton)
       ListLength = j;
       if (j == 0)
       {
-        strcpy(ListEntry[0], "No WiFi Networks Detected:");
+        strcpy(ListEntry[0], "No WiFi Networks Detected");
       }
       SelectFromList(CurrentSelection, ListEntry, ListLength);
       break;
 
     case 6:                               //
-      strcpy(ListEntry[0], "WiFi Networks Detected:");
+      strcpy(ListEntry[0], "Select one of these WiFi Networks:");
       CurrentSelection = 0;
       j = 0;
 
@@ -7440,7 +7474,7 @@ void WiFiConfig(int NoButton)
       ListLength = j;
       if (j == 0)
       {
-        strcpy(ListEntry[0], "No WiFi Networks Detected:");
+        strcpy(ListEntry[0], "No WiFi Networks Detected");
       }
       NewSelection = SelectFromList(CurrentSelection, ListEntry, ListLength);
 
@@ -7483,7 +7517,8 @@ void WiFiConfig(int NoButton)
         }
         else
         {
-          MsgBox4("Wifi Enabled", "and connected to", Network_SSID, "Touch Screen to Continue");
+          Get_wlan0_IPAddr(wlan0IPAddress);
+          MsgBox4("Wifi Enabled and connected to", Network_SSID, wlan0IPAddress, "Touch Screen to Continue");
           wait_touch();
         }
       }
