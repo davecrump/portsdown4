@@ -119,6 +119,7 @@ rm $TRANSFILE                               ## Delete the transfer file
 sudo chown root:root $PATHCONFIGS"/wpa_supcopy.txt"
 sudo cp $PATHCONFIGS"/wpa_supcopy.txt" /etc/wpa_supplicant/wpa_supplicant.conf
 sudo rm $PATHCONFIGS"/wpa_supcopy.txt"
+rm $PATHCONFIGS"/wpa_text.txt"
 
 stty echo
 

@@ -23,7 +23,7 @@ PATHCONFIGS="/home/pi/rpidatv/scripts/configs"  ## Path to config files
 ## Build text for supplicant file
 ## Include Country (required for Stretch)
 
-rm $PATHCONFIGS"/wpa_text.txt"
+rm $PATHCONFIGS"/wpa_text.txt" >/dev/null 2>/dev/null
 
 echo -e "network={" >> $PATHCONFIGS"/wpa_text.txt"
 echo -e "    ssid="\"""$SSID"\"" >> $PATHCONFIGS"/wpa_text.txt"
@@ -61,16 +61,17 @@ rm $TRANSFILE                               ## Delete the transfer file
 
 sudo chown root:root $PATHCONFIGS"/wpa_supcopy.txt"
 sudo cp $PATHCONFIGS"/wpa_supcopy.txt" /etc/wpa_supplicant/wpa_supplicant.conf
-sudo rm $PATHCONFIGS"/wpa_supcopy.txt"
+sudo rm $PATHCONFIGS"/wpa_supcopy.txt" >/dev/null 2>/dev/null
+rm $PATHCONFIGS"/wpa_text.txt" >/dev/null 2>/dev/null
 
 ##bring wifi down and up again, then reset
 
 sudo ip link set wlan0 down
 sudo ip link set wlan0 up
-wpa_cli -i wlan0 reconfigure
+wpa_cli -i wlan0 reconfigure >/dev/null 2>/dev/null
 
 ## Make sure that it is not soft-blocked
 sleep 1
-sudo rfkill unblock 0
+sudo rfkill unblock 0 >/dev/null 2>/dev/null
 
 exit
