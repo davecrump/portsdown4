@@ -1,3 +1,7 @@
+202205050
+Add 5th bit to bandswitching options
+Upgrade Basic OS for new builds
+
 202204240
 Add Wifi Control functions to touchscreen Menu
 
