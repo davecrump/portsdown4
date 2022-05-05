@@ -1,86 +1,29 @@
 #!/bin/bash
 
-# Script used to set up WiFi from rpidatv menu
-# Stretch version
-reset  # Clear the screen
+# "$1" is SSID
+# "$2" is passphrase
 
-# Check that wifi has not been disabled
-
-if [ -f ~/.wifi_off ]; then
-    printf "WiFi was disabled at start-up.\n"
-    printf "You cannot set up the WiFi until it is re-enabled.\n"
-    printf "Do you want to re-enable it and reboot immediately? (y/n)\n"
-    read -n 1
-    printf "\n"
-    if [ "$REPLY" = "Y" ]; then
-	echo "rebooting"
-        rm ~/.wifi_off
-	sudo reboot now
-    fi
-    if [ "$REPLY" = "y" ]; then
-        echo "rebooting"
-        rm ~/.wifi_off
-        sudo reboot now
-    fi
-    exit
-fi
-
-## Wifi is enabled so
-## Check current network name
-
-printf "Current WiFi Status:\n\n"
-NETCONN=$(iwgetid)
-
-  if [ "${#NETCONN}" -le 1 ] ; then
-    NetCaption="Not connected"
-  else
-    NetCaption="Connected to: "$NETCONN
-  fi
-
-printf "$NetCaption""\n"
-
-printf "\nDo you want to set up a new network? (y/n)\n"
-read -n 1
-printf "\n"
-if [ "$REPLY" = "N" ]; then
-    exit
-fi
-if [ "$REPLY" = "n" ]; then
-   exit
-fi
+# Script used to set up WiFi from rpidatv gui
 
 ## Set up new network
 
-printf "\nThe following networks are available:\n"
-printf "\n"
-sudo iwlist wlan0 scan | grep 'ESSID'
-printf "\n"
-printf "Type the SSID of the network that you want to connect to (without qoutes) and press enter\n"
-printf "\n"
 
-read SSID
+SSID=$1
+PW=$2
 
-printf "\n"
-printf "Type the network password and press enter\n"
-printf "Characters will not be displayed\n"
-printf "\n"
-
-stty -echo
-
-read PW
-
-stty echo
-printf "\nWorking....\n\n"
-stty -echo
+# echo SSID $SSID
+# echo PW $PW
 
 PSK_TEXT=$(wpa_passphrase "$SSID" "$PW" | grep 'psk=' | grep -v '#psk')
+
+# echo PSK_TEXT $PSK_TEXT
 
 PATHCONFIGS="/home/pi/rpidatv/scripts/configs"  ## Path to config files
 
 ## Build text for supplicant file
 ## Include Country (required for Stretch)
 
-rm $PATHCONFIGS"/wpa_text.txt"
+rm $PATHCONFIGS"/wpa_text.txt" >/dev/null 2>/dev/null
 
 echo -e "network={" >> $PATHCONFIGS"/wpa_text.txt"
 echo -e "    ssid="\"""$SSID"\"" >> $PATHCONFIGS"/wpa_text.txt"
@@ -118,23 +61,17 @@ rm $TRANSFILE                               ## Delete the transfer file
 
 sudo chown root:root $PATHCONFIGS"/wpa_supcopy.txt"
 sudo cp $PATHCONFIGS"/wpa_supcopy.txt" /etc/wpa_supplicant/wpa_supplicant.conf
-sudo rm $PATHCONFIGS"/wpa_supcopy.txt"
-rm $PATHCONFIGS"/wpa_text.txt"
-
-stty echo
+sudo rm $PATHCONFIGS"/wpa_supcopy.txt" >/dev/null 2>/dev/null
+rm $PATHCONFIGS"/wpa_text.txt" >/dev/null 2>/dev/null
 
 ##bring wifi down and up again, then reset
 
 sudo ip link set wlan0 down
 sudo ip link set wlan0 up
-wpa_cli -i wlan0 reconfigure
+wpa_cli -i wlan0 reconfigure >/dev/null 2>/dev/null
 
 ## Make sure that it is not soft-blocked
 sleep 1
-sudo rfkill unblock 0
-
-printf "WiFi Configured\n"
-
-sleep 2
+sudo rfkill unblock 0 >/dev/null 2>/dev/null
 
 exit

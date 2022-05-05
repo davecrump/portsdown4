@@ -37,6 +37,8 @@ Rewitten by Dave, G8GKQ
 #include <sys/stat.h> 
 #include <sys/types.h> 
 #include <time.h>
+#include <lime/LimeSuite.h>
+#include <lime/limeRFE.h>
 
 #include "font/font.h"
 #include "touch.h"
@@ -312,11 +314,14 @@ bool AwaitingContestNumberSaveSeln = false;
 bool AwaitingContestNumberViewSeln = false;
 
 // Lime Control
-float LimeCalFreq = 0;  // -2 cal never, -1 = cal every time, 0 = cal next time, freq = no cal if no change
-int LimeRFEState = 0;   // 0 = disabled, 1 = enabled
-int LimeRFEPort  = 1;   // 1 = txrx, 2 = tx, 3 = 30MHz
-int LimeRFERXAtt = 0;   // 0, 2, 4, 6, 8, 10 12 or 14
+float LimeCalFreq = 0;    // -2 cal never, -1 = cal every time, 0 = cal next time, freq = no cal if no change
+int LimeRFEState = 0;     // 0 = disabled, 1 = enabled
+int LimeRFEPort  = 1;     // 1 = txrx, 2 = tx, 3 = 30MHz
+int LimeRFERXAtt = 0;     // 0-7 representing 0-14dB 
 int LimeNETMicroDet = 0;  // 0 = Not detected, 1 = detected.  Tested on entry to Lime Config menu
+int LimeRFEMode = 0;      // 0 is RX , 1 is TX
+rfe_dev_t* rfe = NULL;    // handle for LimeRFE
+int RFEHWVer = -1;        // hardware version
 
 // QO-100 Transmit Freqs
 char QOFreq[10][31] = {"2405.25", "2405.75", "2406.25", "2406.75", "2407.25", "2407.75", "2408.25", "2408.75", "2409.25", "2409.75"};
@@ -354,12 +359,12 @@ char WebClickForAction[7] = "no";  // no/yes
 
 // Threads for Touchscreen monitoring
 
-pthread_t thbutton;     //
-pthread_t thview;       //
-pthread_t thwait3;      //  Used to count 3 seconds for WebCam reset after transmit
-pthread_t thwebclick;
-pthread_t thtouchscreen;  // listens to the touchscreen   
-
+pthread_t thbutton;       //
+pthread_t thview;         //
+pthread_t thwait3;        //  Used to count 3 seconds for WebCam reset after transmit
+pthread_t thwebclick;     //  Listens for mouse clicks from web interface
+pthread_t thtouchscreen;  //  listens to the touchscreen   
+pthread_t thrfe15;        //  Turns LimeRFE on after 15 seconds
 
 // ************** Function Prototypes **********************************//
 
@@ -374,6 +379,7 @@ void togglescreentype();
 int GetLinuxVer();
 void GetIPAddr(char IPAddress[256]);
 void GetIPAddr2(char IPAddress[256]);
+void Get_wlan0_IPAddr(char IPAddress[255]);
 void GetSWVers(char SVersion[256]);
 void GetLatestVers(char LatestVersion[256]);
 int CheckGoogle();
@@ -490,6 +496,10 @@ void UpdateWindow();
 void ApplyTXConfig();
 void EnforceValidTXMode();
 void EnforceValidFEC();
+int SelectFromList(int CurrentSelection, char ListEntry[100][63], int ListLength);
+int CheckWifiEnabled();
+int CheckWifiConnection(char Network_SSID[63]);
+void WiFiConfig(int NoButton);
 void GreyOut1();
 void GreyOutReset11();
 void GreyOut11();
@@ -607,6 +617,11 @@ void ChangeADFRef(int NoButton);
 void ChangePID(int NoButton);
 void ControlLimeCal();
 void ToggleLimeRFE();
+void SetLimeRFERXAtt();
+void LimeRFEInit();
+void LimeRFETX();
+void LimeRFERX();
+void LimeRFEClose();
 void ChangeJetsonIP();
 void ChangeLKVIP();
 void ChangeLKVPort();
@@ -1079,6 +1094,8 @@ void GetIPAddr(char IPAddress[256])
   /* close */
   pclose(fp);
 }
+
+
 /***************************************************************************//**
  * @brief Looks up the current second IPV4 address
  *
@@ -1093,6 +1110,36 @@ void GetIPAddr2(char IPAddress[256])
 
   /* Open the command for reading. */
   fp = popen("ifconfig | grep -Eo \'inet (addr:)?([0-9]*\\.){3}[0-9]*\' | grep -Eo \'([0-9]*\\.){3}[0-9]*\' | grep -v \'127.0.0.1\' | sed -n '2 p'", "r");
+  if (fp == NULL) {
+    printf("Failed to run command\n" );
+    exit(1);
+  }
+
+  /* Read the output a line at a time - output it. */
+  while (fgets(IPAddress, 16, fp) != NULL)
+  {
+    //printf("%s", IPAddress);
+  }
+
+  /* close */
+  pclose(fp);
+}
+
+
+/***************************************************************************//**
+ * @brief Looks up the current wireless (wlan0) IPV4 address
+ *
+ * @param IPAddress (str) IP Address to be passed as a string
+ *
+ * @return void
+*******************************************************************************/
+
+void Get_wlan0_IPAddr(char IPAddress[255])
+{
+  FILE *fp;
+
+  /* Open the command for reading. */
+  fp = popen("ifconfig | grep -A1 \'wlan0\' | grep -Eo \'inet (addr:)?([0-9]*\\.){3}[0-9]*\' | grep -Eo \'([0-9]*\\.){3}[0-9]*\' | grep -v \'127.0.0.1\' ", "r");
   if (fp == NULL) {
     printf("Failed to run command\n" );
     exit(1);
@@ -5500,7 +5547,7 @@ void TransformTouchMap(int x, int y)
 {
   // This function takes the raw (0 - 4095 on each axis) touch data x and y
   // and transforms it to approx 0 - wscreen and 0 - hscreen in globals scaledX 
-  // and scaledY prior to final correction by CorrectTouchMap  
+  // and scaledY 
 
   int shiftX, shiftY;
   double factorX, factorY;
@@ -6979,6 +7026,563 @@ void EnforceValidFEC()
   }
 }
 
+
+int SelectFromList(int CurrentSelection, char ListEntry[100][63], int ListLength)
+{
+  // Entry with CurrentSelection = 0 means no current selection
+  // Entry with CurrentSelection = -1 means no selection.  Returns -1
+
+  char TableNumberText[7];
+
+  int ButtonWidth = 160;
+  int ButtonHeight = 65;
+  char Button1Caption[15] = "Previous Page";
+  char Button2Caption[15] = "Cancel";
+  char Button3Caption[15] = "Select";
+  char Button4Caption[15] = "Next Page";
+  char Button5Caption[15] = "Exit";
+  int ButtonY = 10;
+  int Button1X = 10;
+  int Button2X = 217;
+  int Button3X = 423;
+  int Button4X = 630;
+  int Button5X = 320;
+  color_t Button1_Color = Blue;
+  color_t Button2_Color = Blue;
+  color_t Button3_Color = Blue;
+  color_t Button4_Color = Blue;
+  color_t Button5_Color = Blue;
+  int margin = 10;
+
+  const font_t *font_ptr = &font_dejavu_sans_24;
+  int txtht =  font_ptr->ascent;
+  int linepitch;
+
+  int rawX, rawY, rawPressure;
+
+  bool NotExit = true;
+
+  int i;
+  int j;
+  int CurrentPage;
+  int PageCount;
+  char PageText[63];
+  int SelectedEntry;
+  int TopEntry;
+  int BottomEntry;
+  int ReturnValue;
+
+  linepitch = (14 * txtht) / 10;  // =32
+
+  SelectedEntry = CurrentSelection;
+  if ((CurrentSelection == 0) || (CurrentSelection == -1))  // No highlighted entry on initial display
+  {
+    CurrentPage = 1;
+  }
+  else
+  {
+    CurrentPage = (CurrentSelection + 9) / 10;
+  }
+
+  linepitch = (14 * txtht) / 10;  // 32
+  
+  if (ListLength < 1)
+  {
+    PageCount = 1;
+  }
+  else if (ListLength > 100)
+  {
+    return 0;
+  }
+  else
+  {
+    PageCount = (ListLength + 9) / 10;
+  }
+
+  while (NotExit)  // Repeat from here for each refresh
+  {
+    setForeColour(255, 255, 255);    // White text
+    setBackColour(0, 0, 0);          // on Black
+
+    clearScreen();
+
+    TopEntry = (CurrentPage - 1) * 10 + 1;
+    if (TopEntry + 9 > ListLength)
+    {
+      BottomEntry = ListLength;
+    }
+    else
+    {
+      BottomEntry = TopEntry + 9;
+    }
+
+    // Display the Title Line
+    Text2(wscreen / 40, hscreen - linepitch, ListEntry[0], font_ptr);
+    snprintf(PageText, 63, "Page %d of %d", CurrentPage, PageCount);
+    Text2((wscreen * 30) / 40, hscreen - linepitch, PageText, font_ptr);
+
+    // Display each row of the list in turn
+    for(i = TopEntry; i <= BottomEntry ; i++)
+    {
+      j = i - TopEntry + 1;
+      snprintf(TableNumberText, 4, "%d", i);
+      if (SelectedEntry != i)
+      {
+        Text2(wscreen / 40, hscreen - (j + 2) * linepitch, TableNumberText, font_ptr);
+        Text2((wscreen * 5) / 40, hscreen - (j + 2) * linepitch, ListEntry[i], font_ptr);
+      }
+      else
+      {
+        setForeColour(0, 0, 0);    // Black text
+        setBackColour(255, 255, 255);          // on White
+        Text2(wscreen / 40, hscreen - (j + 2) * linepitch, TableNumberText, font_ptr);
+        Text2((wscreen * 5) / 40, hscreen - (j + 2) * linepitch, ListEntry[i], font_ptr);
+        setForeColour(255, 255, 255);    // White text
+        setBackColour(0, 0, 0);          // on Black
+      }
+    }
+
+    // Set Button Colours
+    if (CurrentPage > 1)
+    {
+      Button1_Color = Blue;
+    }
+    else
+    {
+      Button1_Color = Grey;
+    }
+    if (CurrentPage < PageCount)
+    {
+      Button4_Color = Blue;
+    }
+    else
+    {
+      Button4_Color = Grey;
+    }
+
+    // Draw the basic button
+    rectangle(Button1X, ButtonY, ButtonWidth, ButtonHeight, 
+              Button1_Color.r,
+              Button1_Color.g,
+              Button1_Color.b);
+
+    // Set text and background colours
+    setForeColour(255, 255, 255);				   // White text
+    setBackColour(Button1_Color.r,
+                Button1_Color.g,
+                Button1_Color.b);
+  
+    TextMid2(Button1X + ButtonWidth / 2, ButtonY + ButtonHeight / 2, Button1Caption, &font_dejavu_sans_20);
+
+    if( CurrentSelection != -1)  // Draw Cancel and Select Buttons
+    {
+      rectangle(Button2X, ButtonY, ButtonWidth, ButtonHeight, 
+                Button2_Color.r,
+                Button2_Color.g,
+                Button2_Color.b);
+
+      // Set text and background colours
+      setForeColour(255, 255, 255);				   // White text
+      setBackColour(Button2_Color.r,
+                    Button2_Color.g,
+                    Button2_Color.b);
+  
+      TextMid2(Button2X + ButtonWidth / 2, ButtonY + ButtonHeight / 2, Button2Caption, &font_dejavu_sans_20);
+
+      rectangle(Button3X, ButtonY, ButtonWidth, ButtonHeight, 
+                Button3_Color.r,
+                Button3_Color.g,
+                Button3_Color.b);
+
+      // Set text and background colours
+      setForeColour(255, 255, 255);				   // White text
+      setBackColour(Button3_Color.r,
+                    Button3_Color.g,
+                    Button3_Color.b);
+  
+      TextMid2(Button3X + ButtonWidth / 2, ButtonY + ButtonHeight / 2, Button3Caption, &font_dejavu_sans_20);
+    }
+    else  // Draw Exit Button
+    {
+      rectangle(Button5X, ButtonY, ButtonWidth, ButtonHeight, 
+                Button5_Color.r,
+                Button5_Color.g,
+                Button5_Color.b);
+
+      // Set text and background colours
+      setForeColour(255, 255, 255);				   // White text
+      setBackColour(Button5_Color.r,
+                    Button5_Color.g,
+                    Button5_Color.b);
+  
+      TextMid2(Button5X + ButtonWidth / 2, ButtonY + ButtonHeight / 2, Button5Caption, &font_dejavu_sans_20);
+    }
+
+    rectangle(Button4X, ButtonY, ButtonWidth, ButtonHeight, 
+              Button4_Color.r,
+              Button4_Color.g,
+              Button4_Color.b);
+
+    // Set text and background colours
+    setForeColour(255, 255, 255);				   // White text
+    setBackColour(Button4_Color.r,
+                  Button4_Color.g,
+                  Button4_Color.b);
+  
+    TextMid2(Button4X + ButtonWidth / 2, ButtonY + ButtonHeight / 2, Button4Caption, &font_dejavu_sans_20);
+
+    printf("List displayed and waiting for touch\n");
+    UpdateWeb();
+
+    // Wait for key press
+    if (getTouchSample(&rawX, &rawY, &rawPressure) == 0) continue;
+
+    TransformTouchMap(rawX, rawY);  // returns scaledX, scaledY with bottom left origin to 800, 480
+    //printf("X::: %d Y::: %d\n", scaledX, scaledY);
+
+    // Check if a line has been highlighted
+    for (j = 1; j <= 10; j++)
+    {
+      if ((scaledY <= (418 - 32 * j) + 16)  && (scaledY > (418 - 32 * j) - 16) && (CurrentSelection != -1))
+      {
+        SelectedEntry = TopEntry + j - 1;
+      }
+    }
+
+    if ((scaledX <= (Button1X + ButtonWidth - margin)) && (scaledX >= Button1X + margin) &&
+        (scaledY <= (ButtonY + ButtonHeight - margin)) && (scaledY >= ButtonY + margin))
+    {
+      if (CurrentPage > 1)
+      {
+        CurrentPage = CurrentPage - 1;
+      }
+    }
+
+    if ((scaledX <= (Button4X + ButtonWidth - margin)) && (scaledX >= Button4X + margin) &&
+        (scaledY <= (ButtonY + ButtonHeight - margin)) && (scaledY >= ButtonY + margin))
+    {
+      if (CurrentPage < PageCount)
+      {
+        CurrentPage = CurrentPage + 1;
+      }
+    }
+    if (CurrentSelection != -1)  // Display list and select value
+    {
+      if ((scaledX <= (Button2X + ButtonWidth - margin)) && (scaledX >= Button2X + margin) &&
+          (scaledY <= (ButtonY + ButtonHeight - margin)) && (scaledY >= ButtonY + margin))
+      {
+        ReturnValue = CurrentSelection;
+        NotExit = false;
+      }
+
+      if ((scaledX <= (Button3X + ButtonWidth - margin)) && (scaledX >= Button3X + margin) &&
+          (scaledY <= (ButtonY + ButtonHeight - margin)) && (scaledY >= ButtonY + margin))
+      {
+        ReturnValue = SelectedEntry;
+        NotExit = false;
+      }
+    }
+    else  // Display list only, no selection
+    {
+      if ((scaledX <= (Button5X + ButtonWidth - margin)) && (scaledX >= Button5X + margin) &&
+          (scaledY <= (ButtonY + ButtonHeight - margin)) && (scaledY >= ButtonY + margin))
+      {
+        ReturnValue = -1;
+        NotExit = false;
+      }
+    }
+  }
+  printf("Returning Value %d from Select From List\n", ReturnValue);
+  return ReturnValue;
+}
+
+
+int CheckWifiEnabled()
+{
+  // Returns 0 if WiFi enabled, 1 if not
+
+  FILE *fp;
+  char response[255];
+  int responseint;
+
+  // Open the command for reading
+  fp = popen("ifconfig | grep -q 'wlan0' ; echo $?", "r");
+  if (fp == NULL) {
+    printf("Failed to run command\n" );
+    exit(1);
+  }
+
+  /* Read the output a line at a time - output it. */
+  while (fgets(response, 7, fp) != NULL)
+  {
+    responseint = atoi(response);
+    // printf("WiFi response %s, %d\n", response, responseint);
+  }
+
+  pclose(fp);
+  return responseint;
+}
+
+
+int CheckWifiConnection(char Network_SSID[63])
+{
+  // Returns 0 if WiFi connected with SSID, 1 if not
+
+  FILE *fp;
+  char response[255];
+  int responseint;
+
+  // Open the command for reading
+  fp = popen("iwconfig 2>/dev/null | grep 'ESSID' ", "r");
+  if (fp == NULL) {
+    printf("Failed to run command\n" );
+    exit(1);
+  }
+
+  /* Read the output a line at a time - output it. */
+  while (fgets(response, 63, fp) != NULL)
+  {
+    response[strlen(response) - 2] = '\0';  // Remove trailing CR
+
+    //printf("Response = -%s-\n", response + 29);
+
+    if (strncmp(response + 29, "off/any", 7) == 0)
+    {
+      responseint = 1;
+      strcpy(Network_SSID, "Not connected");
+    }
+    else
+    {
+      responseint = 0;
+      strcpy(Network_SSID, response + 29);
+    }
+  }
+  pclose(fp);
+  return responseint;
+}
+
+
+void WiFiConfig(int NoButton)
+{
+  char ListEntry[100][63];
+  int CurrentSelection = 0;
+  int ListLength = 0;
+  FILE *fp;
+  char response_line[255];
+  int j;
+  int NewSelection = 0;
+  char PassPhrase[63];
+  char Prompt[127];
+  char SystemCommand[255];
+  char Network_SSID[63];
+  char wlan0IPAddress[255];
+
+  strcpy(ListEntry[0], "Empty List Title");
+
+  switch (NoButton)
+  {
+    case 5:                               //
+      strcpy(ListEntry[0], "WiFi Networks Detected:");
+      CurrentSelection = -1;
+      j = 0;
+
+      fp = popen("sudo iwlist wlan0 scan | grep 'ESSID'", "r");
+      if (fp == NULL)
+      {
+        printf("Failed to run command\n" );
+        exit(1);
+      }
+
+      // Read the output a line at a time - output it
+      while (fgets(response_line, 250, fp) != NULL)
+      {
+        if ((strlen(response_line) > 1) && (j >= 0) && (j < 100))
+        {
+          j = j + 1;
+          if (strlen(response_line) > 90)
+          {
+            response_line[89] = '\0';  // Limit line length to 62 + 27
+          }
+
+          response_line[strlen(response_line) - 2] = '\0';  // Remove trailing " and CR
+
+          if (strlen(response_line) == 27) 
+          {
+            strcpy(ListEntry[j], "Hidden Network");
+          }
+          else if (strncmp(response_line + 28, "x00", 3) == 0)  // Check for null byte associated with hidden networks
+          {
+            strcpy(ListEntry[j], "Hidden Network");
+          }
+          else
+          { 
+            strcpy(ListEntry[j], response_line + 27);
+          }
+          //printf("%s\n", ListEntry[j]);
+        }
+      }
+      pclose(fp);
+      ListLength = j;
+      if (j == 0)
+      {
+        strcpy(ListEntry[0], "No WiFi Networks Detected");
+      }
+      SelectFromList(CurrentSelection, ListEntry, ListLength);
+      break;
+
+    case 6:                               //
+      strcpy(ListEntry[0], "Select one of these WiFi Networks:");
+      CurrentSelection = 0;
+      j = 0;
+
+      fp = popen("sudo iwlist wlan0 scan | grep 'ESSID'", "r");
+      if (fp == NULL)
+      {
+        printf("Failed to run command\n" );
+        exit(1);
+      }
+
+      // Read the output a line at a time - output it
+      while (fgets(response_line, 250, fp) != NULL)
+      {
+        if ((strlen(response_line) > 1) && (j >= 0) && (j < 100))
+        {
+          j = j + 1;
+          if (strlen(response_line) > 90)
+          {
+            response_line[89] = '\0';  // Limit line length to 62 + 27
+          }
+
+          response_line[strlen(response_line) - 2] = '\0';  // Remove trailing " and CR
+
+          if (strlen(response_line) == 27) 
+          {
+            strcpy(ListEntry[j], "Hidden Network");
+          }
+          else if (strncmp(response_line + 28, "x00", 3) == 0)  // Check for null byte associated with hidden networks
+          {
+            strcpy(ListEntry[j], "Hidden Network");
+          }
+          else
+          { 
+            strcpy(ListEntry[j], response_line + 27);
+          }
+          //printf("%s\n", ListEntry[j]);
+        }
+      }
+      pclose(fp);
+      ListLength = j;
+      if (j == 0)
+      {
+        strcpy(ListEntry[0], "No WiFi Networks Detected");
+      }
+      NewSelection = SelectFromList(CurrentSelection, ListEntry, ListLength);
+
+      if (NewSelection == 0)
+      {
+        return;
+      }
+
+      if (strcmp(ListEntry[NewSelection], "Hidden Network") == 0)
+      {
+        return;  // Maybe react better to this later
+      }
+
+      snprintf(Prompt, 94, "Enter the PassPhrase for SSID %s", ListEntry[NewSelection]);
+      KeyboardReturn[0] = '\0';
+      while (strlen(KeyboardReturn) < 1)
+      {
+        Keyboard(Prompt, "", 15);
+      }
+      strcpy(PassPhrase, KeyboardReturn);
+
+      snprintf(SystemCommand, 254, "~/rpidatv/scripts/AddWifiNetwork.sh %s %s", ListEntry[NewSelection], PassPhrase);
+      system(SystemCommand);
+      // printf("SystemCommand %s\n", SystemCommand);
+
+      break;
+
+    case 7:                               // Check Wifi Connection
+      if (CheckWifiEnabled() == 1)
+      {
+        MsgBox4("Wifi Not Enabled", "", "", "Touch Screen to Continue");
+        wait_touch();
+      }
+      else
+      {
+        if (CheckWifiConnection(Network_SSID) == 1)
+        {
+          MsgBox4("Wifi Enabled", "but not connected", "", "Touch Screen to Continue");
+          wait_touch();
+        }
+        else
+        {
+          Get_wlan0_IPAddr(wlan0IPAddress);
+          MsgBox4("Wifi Enabled and connected to", Network_SSID, wlan0IPAddress, "Touch Screen to Continue");
+          wait_touch();
+        }
+      }
+      break;
+
+    case 8:                                                                                 // Enable Wifi
+      system("sudo ifconfig wlan0 down >/dev/null 2>/dev/null");                            // First, Disable it
+      system("sudo ifconfig wlan0 up >/dev/null 2>/dev/null");                              // Enable it
+      system("rm ~/.wifi_off >/dev/null 2>/dev/null");                                      // Enable at start-up
+      system("wpa_cli -i wlan0 reconfigure >/dev/null 2>/dev/null");                        // Make it Connect
+      usleep (1000000);                                                                     // Pause
+      system("sudo rfkill unblock 0 >/dev/null 2>/dev/null");                               // Unblock the RF
+      break;
+
+    case 3:                                                                                     // Disable Wifi
+      system("sudo ifconfig wlan0 down >/dev/null 2>/dev/null");                                // Disable it now
+      system("cp ~/rpidatv/scripts/configs/text.wifi_off ~/.wifi_off >/dev/null 2>/dev/null");  // Disable at start-up
+      break;
+
+    case 9:                                                                                 // Reset Wifi
+
+      system("sudo ifconfig wlan0 down >/dev/null 2>/dev/null");                            // First, Disable it
+      system("sudo raspi-config nonint do_wifi_country GB>/dev/null 2>/dev/null");          // Make sure country is set
+
+      system("sudo rm /etc/wpa_supplicant/wpa_supplicant.conf >/dev/null 2>/dev/null");     // Delete Config
+
+      system("sudo cp ~/rpidatv/scripts/configs/wpa_supplicant.conf /etc/wpa_supplicant/wpa_supplicant.conf >/dev/null 2>/dev/null");
+                                                                                            // Copy in new config
+
+      system("sudo chown root /etc/wpa_supplicant/wpa_supplicant.conf >/dev/null 2>/dev/null");
+                                                                                            // and set ownership
+
+      system("sudo ifconfig wlan0 up >/dev/null 2>/dev/null");                              // Enable it
+      system("rm ~/.wifi_off >/dev/null 2>/dev/null");                                      // Enable at start-up
+      system("wpa_cli -i wlan0 reconfigure >/dev/null 2>/dev/null");                        // Load the config
+      usleep (1000000);                                                                     // Pause
+      system("sudo rfkill unblock 0 >/dev/null 2>/dev/null");                               // Unblock the RF
+      break;
+
+    case 1:                               //
+  CurrentSelection = 11;
+  ListLength = 12;
+
+  strcpy(ListEntry[0], "List Title");
+  strcpy(ListEntry[1], "List Entry 1");
+  strcpy(ListEntry[2], "List Entry 2");
+  strcpy(ListEntry[3], "List Entry 3");
+  strcpy(ListEntry[4], "List Entry 4");
+  strcpy(ListEntry[5], "List Entry 5");
+  strcpy(ListEntry[6], "List Entry 6");
+  strcpy(ListEntry[7], "List Entry 7");
+  strcpy(ListEntry[8], "List Entry 8");
+  strcpy(ListEntry[9], "List Entry 9");
+  strcpy(ListEntry[10], "List Entry 10");
+  strcpy(ListEntry[11], "List Entry 11");
+  strcpy(ListEntry[12], "List Entry 12");
+
+   
+      SelectFromList(CurrentSelection, ListEntry, ListLength);
+      break;
+  }
+}
+
+
 void GreyOut1()
 {
   // Called at the top of any StartHighlight1 to grey out inappropriate selections
@@ -7911,6 +8515,9 @@ void ChangeBandDetails(int NoButton)
   int ExpLevel = -1;
   int ExpPorts = -1;
   int LimeGain = -1;
+  int RFEState = -1;
+  int RFEAtt = 1;
+  int RFEPort = -1;
   int PlutoLevel = 1;
   float LO = 1000001;
   char Numbers[10] ="";
@@ -8039,6 +8646,90 @@ void ChangeBandDetails(int NoButton)
   strcat(Param, "limegain");
   SetConfigParam(PATH_PPRESETS ,Param, KeyboardReturn);
 
+
+  // Lime RFE Enable
+  strcpy(Param, TabBand[band]);
+  strcat(Param, "limerfe");
+  GetConfigParam(PATH_PPRESETS, Param, Value);
+  if (strcmp(Value, "enabled") == 0)
+  {
+    RFEState = 1;
+  }
+  else
+  {
+    RFEState = 0;
+  }
+
+  snprintf(Value, 30, "%d", RFEState);
+  RFEState = -1;
+  while ((RFEState < 0 ) || (RFEState > 1) || (strlen(KeyboardReturn) < 1))  
+  {
+    snprintf(Prompt, 63, "Lime RFE Enable for %s. 0=off, 1=on:", TabBandLabel[band]);
+    Keyboard(Prompt, Value, 6);
+    RFEState = atof(KeyboardReturn);
+  }
+  strcpy(Param, TabBand[band]);
+  strcat(Param, "limerfe");
+  if (RFEState == 1)
+  {
+    strcpy(Value, "enabled");
+  }
+  else
+  {
+    strcpy(Value, "disabled");
+  }
+  SetConfigParam(PATH_PPRESETS ,Param, Value);
+
+  // Lime RFE Tx Port
+  strcpy(Param, TabBand[band]);
+  strcat(Param, "limerfeport");
+  GetConfigParam(PATH_PPRESETS, Param, Value);
+  if (strcmp(Value, "txrx") == 0)
+  {
+    RFEPort = 1;
+  }
+  else
+  {
+    RFEPort = 2;
+  }
+  snprintf(Value, 30, "%d", RFEPort);
+  RFEPort = 0;
+  while ((RFEPort < 1 ) || (RFEPort > 2) || (strlen(KeyboardReturn) < 1))  
+  {
+    snprintf(Prompt, 63, "LimeRFE Tx Port for %s Band. 1=txrx, 2=tx:", TabBandLabel[band]);
+    Keyboard(Prompt, Value, 6);
+    RFEPort = atof(KeyboardReturn);
+  }
+  strcpy(Param, TabBand[band]);
+  strcat(Param, "limerfeport");
+  if (RFEPort == 1)
+  {
+    strcpy(Value, "txrx");
+  }
+  else
+  {
+    strcpy(Value, "tx");
+  }  
+  SetConfigParam(PATH_PPRESETS ,Param, Value);
+
+  // Lime RFE Attenuator Level
+  strcpy(Param, TabBand[band]);
+  strcat(Param, "limerferxatt");
+  GetConfigParam(PATH_PPRESETS, Param, Value);
+  RFEAtt=atoi(Value);
+  snprintf(Value, 30, "%d", RFEAtt * 2);
+  RFEAtt= - 1;
+  while ((RFEAtt < 0) || (RFEAtt > 14) || (strlen(KeyboardReturn) < 1))  
+  {
+    snprintf(Prompt, 63, "Set LimeRFE Rx Atten for %s. 0-14 (dB):", TabBandLabel[band]);
+    Keyboard(Prompt, Value, 6);
+    RFEAtt = atof(KeyboardReturn);
+  }
+  strcpy(Param, TabBand[band]);
+  strcat(Param, "limerferxatt");
+  snprintf(Value, 30, "%d", RFEAtt / 2);
+  SetConfigParam(PATH_PPRESETS ,Param, Value);
+
   // Pluto Power
   snprintf(ActualValue, 30, "%d", TabBandPlutoLevel[band]);
   while ((PlutoLevel < -71) || (PlutoLevel > 0) || (strlen(KeyboardReturn) < 1))  // PlutoLevel init at 1
@@ -8076,7 +8767,7 @@ void ChangeBandDetails(int NoButton)
   strcpy(TabBandNumbers[band], Numbers);
   strcpy(Param, TabBand[band]);
   strcat(Param, "numbers");
-  SetConfigParam(PATH_PPRESETS ,Param, Numbers);
+  SetConfigParam(PATH_PPRESETS, Param, Numbers);
 
   // Then, if it is the current band, call DoFreqChange
   if (band == CurrentBand)
@@ -8276,6 +8967,15 @@ void DoFreqChange()
   LimeRFERXAtt = atoi(Value);
   strcpy(Param, "limerferxatt");
   SetConfigParam(PATH_PCONFIG ,Param, Value);
+
+  if (LimeRFEState == 1)
+  {
+    LimeRFEInit();
+  }
+  else
+  {
+    LimeRFEClose();
+  }
 
   // Set the Band (and filter) Switching
   printf("CTLfilter called\n");
@@ -9194,6 +9894,11 @@ void TransmitStart()
   // Run the Extra script for TX start
   system("/home/pi/rpidatv/scripts/TXstartextras.sh &");
 
+  if (LimeRFEState == 1)
+  {
+    LimeRFETX();
+  }
+
   // Call a.sh to transmit
   system(PATH_SCRIPT_A);
 }
@@ -9217,6 +9922,11 @@ void TransmitStop()
 
   // If transmit menu is displayed, blue-out the TX button here
   // code to be added
+
+  if (LimeRFEState == 1)
+  {
+    LimeRFERX();
+  }
 
   // Turn the VCO off
   system("sudo /home/pi/rpidatv/bin/adf4351 off");
@@ -14911,14 +15621,322 @@ void ToggleLimeRFE()
     LimeRFEState = 0;
     SetConfigParam(PATH_PCONFIG, "limerfe", "disabled");
     SetConfigParam(PATH_PPRESETS, bandtext, "disabled");
+    LimeRFEClose();
   }
   else                    // Disabled
   {
     LimeRFEState = 1;
     SetConfigParam(PATH_PCONFIG, "limerfe", "enabled");
     SetConfigParam(PATH_PPRESETS, bandtext, "enabled");
+    LimeRFEInit();
   }
 }
+
+
+void SetLimeRFERXAtt()
+{
+  char bandtext [15];
+  char Param[31];
+  char Prompt[127];
+  char Value[31];
+  int  RFEAtt;
+   
+  // Get the current band from portsdown_config.txt
+  //GetConfigParam(PATH_PCONFIG, "band", bandtext);
+  //strcat(bandtext, "limerfe");
+
+  // Lime RFE Attenuator Level
+  //strcpy(Param, TabBand[band]);
+  GetConfigParam(PATH_PCONFIG, "band", bandtext);
+  strcpy(Param, bandtext);
+  strcat(Param, "limerferxatt");
+  GetConfigParam(PATH_PPRESETS, Param, Value);
+  RFEAtt=atoi(Value);
+  snprintf(Value, 30, "%d", RFEAtt * 2);
+  RFEAtt= - 1;
+  while ((RFEAtt < 0) || (RFEAtt > 14) || (strlen(KeyboardReturn) < 1))  
+  {
+    snprintf(Prompt, 63, "Set LimeRFE Rx Atten for %s. 0-14 (dB):", TabBandLabel[CurrentBand]);
+    Keyboard(Prompt, Value, 6);
+    RFEAtt = atoi(KeyboardReturn);
+  }
+  LimeRFERXAtt = RFEAtt / 2;
+  snprintf(Value, 30, "%d", RFEAtt / 2);
+  SetConfigParam(PATH_PCONFIG, "limerferxatt", Value);
+  SetConfigParam(PATH_PPRESETS, Param, Value);
+  LimeRFEInit();
+}
+
+
+void LimeRFEInit()
+{
+  FILE *fp;
+  char response[127];
+
+  if(rfe == NULL)             // don't do this if the port is already open
+  {
+    // Don't initialise if not required
+    if(LimeRFEState == 0)
+    {
+      return;
+    }
+
+    // List the ttyUSBs (should return /dev/ttyUSB0)
+    fp = popen("ls --format=single-column /dev/ttyUSB*", "r");
+    if (fp == NULL)
+    {
+      printf("Failed to run command ls --format=single-column /dev/ttyUSB* \n" );
+      return;
+    }
+
+    // Read the output a line at a time and see if it works
+    while ((fgets(response, 16, fp) != NULL)  && (rfe == NULL))
+    {
+      response[strcspn(response, "\n")] = 0;                 // strip off the trailing \n
+      printf("Attempting to open %s for LimeRFE\n", response);
+      rfe = RFE_Open(response, NULL);
+      if (rfe != NULL)
+      {
+        printf("RFE on %s opened\n", response);
+      }
+    }
+
+    // Close the File
+    pclose(fp);
+
+    if (rfe == NULL)
+    {
+      printf("Failed to Open LimeRFE for use\n");
+    }
+  }
+  int RFE_CID = 1;
+  int RFE_PORT_TX = 2;                    // TX port. 1 is TX/RX, 2 is TX, 3 is HF
+  int RFE_PORT_RX = 1;                    // RX port can only be 1 (TX/RX) or 3 (HF)
+  int RFE_RX_ATT = 7;                     // RX attenuator setting.  0-7 representing 0-14dB
+  float RealFreq = 146.5;
+  char Value[127] = "146.5";
+  unsigned char RFEInfo[7];
+
+  // Look up the current transmit frequency and other parameters
+  GetConfigParam(PATH_PCONFIG, "freqoutput", Value);
+  RealFreq = atof(Value);
+
+  RFE_PORT_TX = LimeRFEPort;              // Get the configured Tx port
+  RFE_RX_ATT = LimeRFERXAtt;              // Get the rx attenuator setting.   0-7 representing 0-14dB
+
+  if (RFEHWVer == -1)   // Hardware version unknown so look it up
+  {
+    RFE_GetInfo(rfe, RFEInfo);
+    RFEHWVer = RFEInfo[1];
+  }
+
+  if (RFEHWVer == 3)    // Development Version 0.3  NOTE Firmware needs changing to make this happen
+  {
+    if (RealFreq <= 30)
+    {
+      RFE_CID = 3;      // HAM_0030
+      RFE_PORT_TX = 3;  // Force HF output Port  for this band
+      RFE_PORT_RX = 3;
+    }
+    else if ((RealFreq > 30) && (RealFreq <= 140))
+    {
+      RFE_CID = 1;      // WB_1000
+    }
+    else if ((RealFreq > 140) && (RealFreq <= 150))
+    {
+      RFE_CID = 5;      // HAM_0145
+    }
+    else if ((RealFreq > 150) && (RealFreq <= 425))
+    {
+      RFE_CID = 1;      // WB_1000
+    }
+    else if ((RealFreq > 425) && (RealFreq <= 445))
+    {
+      RFE_CID = 7;      // HAM_0435
+    }
+    else if ((RealFreq > 445) && (RealFreq <= 1000))
+    {
+      RFE_CID = 1;      // WB_1000
+    }
+    else if ((RealFreq > 1000) && (RealFreq <= 1230))
+    {
+      RFE_CID = 2;      // WB_4000
+    }
+    else if ((RealFreq > 1230) && (RealFreq <= 1330))
+    {
+      RFE_CID = 9;      // HAM_1280
+    }
+    else if ((RealFreq > 1330) && (RealFreq <= 2300))
+    {
+      RFE_CID = 2;      // WB_4000
+    }
+    else if ((RealFreq > 2300) && (RealFreq <= 2500))
+    {
+      RFE_CID = 10;      // HAM2400
+    }
+    else if ((RealFreq > 2500) && (RealFreq <= 3350))
+    {
+      RFE_CID = 2;      // WB_4000
+    }
+    else if ((RealFreq > 3350) && (RealFreq <= 3500))
+    {
+      RFE_CID = 11;      // HAM3500
+    }
+    else
+    {
+      RFE_CID = 2;      // WB_4000
+    }
+  }
+  else                 // Production Version or unknown
+  {
+    if (RealFreq < 50)
+    {
+      RFE_CID = 3;      // HAM_0030
+      RFE_PORT_TX = 3;  // Force HF output Port for this band
+      RFE_PORT_RX = 3;
+    }
+    else if ((RealFreq >= 50) && (RealFreq < 85))
+    {
+      RFE_CID = 4;      // HAM_0070
+      RFE_PORT_TX = 3;  // Force HF output Port for this band
+      RFE_PORT_RX = 3;
+    }
+    else if ((RealFreq >= 85) && (RealFreq < 140))
+    {
+      RFE_CID = 1;      // WB_1000
+    }
+    else if ((RealFreq >= 140) && (RealFreq < 150))
+    {
+      RFE_CID = 5;      // HAM_0145
+    }
+    else if ((RealFreq >= 150) && (RealFreq < 190))
+    {
+      RFE_CID = 1;      // WB_1000
+    }
+    else if ((RealFreq >= 190) && (RealFreq < 260))
+    {
+      RFE_CID = 6;      // HAM_0220
+    }
+    else if ((RealFreq >= 260) && (RealFreq < 400))
+    {
+      RFE_CID = 1;      // WB_1000
+    }
+    else if ((RealFreq >= 400) && (RealFreq < 500))
+    {
+      RFE_CID = 7;      // HAM_0435
+    }
+    else if ((RealFreq >= 500) && (RealFreq < 900))
+    {
+      RFE_CID = 1;      // WB_1000
+    }
+    else if ((RealFreq >= 900) && (RealFreq < 930))
+    {
+      RFE_CID = 8;      // HAM_0920
+    }
+    else if ((RealFreq >= 930) && (RealFreq < 1000))
+    {
+      RFE_CID = 1;      // WB_1000
+    }
+    else if ((RealFreq >= 1000) && (RealFreq < 1200))
+    {
+      RFE_CID = 2;      // WB_4000
+    }
+    else if ((RealFreq >= 1200) && (RealFreq < 1500))
+    {
+      RFE_CID = 9;      // HAM_1280
+    }
+    else if ((RealFreq >= 1500) && (RealFreq < 2200))
+    {
+      RFE_CID = 2;      // WB_4000
+    }
+    else if ((RealFreq >= 2200) && (RealFreq < 2600))
+    {
+      RFE_CID = 10;      // HAM2400
+    }
+    else if ((RealFreq >= 2600) && (RealFreq < 3200))
+    {
+      RFE_CID = 2;      // WB_4000
+    }
+    else if ((RealFreq >= 3200) && (RealFreq < 3500))
+    {
+      RFE_CID = 11;      // HAM3500
+    }
+    else
+    {
+      RFE_CID = 2;      // WB_4000
+    }
+  }
+  RFE_Configure(rfe, RFE_CID, RFE_CID, RFE_PORT_RX, RFE_PORT_TX, RFE_MODE_RX, RFE_NOTCH_OFF, RFE_RX_ATT, 0, 0);
+  LimeRFEMode = 0;
+
+  printf("LimeRFE Version %d Configured for freq band %d\n Tx output port %d Rx input port %d\n Rx Attenuator = %d dB\n",
+          RFEHWVer, RFE_CID, RFE_PORT_TX, RFE_PORT_RX, RFE_RX_ATT * 2);
+}
+
+
+void *LimeRFEPTTDelay(void * arg)
+{
+  int seconds = 0;
+
+  do	
+  {
+    usleep(1000000);  // Sleep 1 second
+    seconds = seconds + 1;
+    // printf ("LimeRFE Waiting for transmit %d\n", seconds);
+  }
+  while((seconds < 15) && (GetButtonStatus(20) == 1));  // Wait 15 seconds if still on TX
+
+  if((GetButtonStatus(20) == 1) && (digitalRead(GPIO_PTT) == 1))  // Still on TX and PTT enabled
+  {
+    LimeRFEMode = 1;
+    RFE_Mode(rfe, RFE_MODE_TX);
+    printf ("LimeRFE switching to transmit \n\n");
+  }
+  return NULL;
+}
+
+
+void LimeRFETX()
+{
+  if (rfe != NULL)  // Don't do this if we don't have a handle for the LimeRFE
+  {
+
+    // Create thread with 12 second delay then TX
+    pthread_create (&thrfe15, NULL, &LimeRFEPTTDelay, NULL);
+    //pthread_detach(thrfe15);  // It will then free its resources when it exits
+    //pthread_join(thrfe15, NULL);
+ }
+}
+
+
+void LimeRFERX()
+{
+  if (rfe != NULL)  // Don't do this if we don't have a handle for the LimeRFE
+  {
+    LimeRFEMode = 0;
+	RFE_Mode(rfe, RFE_MODE_RX);
+    printf("LimeRFE switched to Receive Mode\n");
+  }
+}
+
+
+void LimeRFEClose()
+{
+  if (rfe != NULL)  // Don't do this if we don't have a handle for the LimeRFE
+  {
+    LimeRFEMode = 0;
+
+	//Reset LimeRFE
+	RFE_Reset(rfe);
+    printf("LimeRFE Reset\n");
+
+	//Close port
+	RFE_Close(rfe);
+	printf("LimeRFE Port closed\n");
+    rfe = NULL;
+  }
+}
+
 
 void ChangeJetsonIP()
 {
@@ -15491,6 +16509,7 @@ void waituntil(int w,int h)
           system("sudo killall express_server >/dev/null 2>/dev/null");
           system("sudo rm /tmp/expctrl >/dev/null 2>/dev/null");
           sync();            // Prevents shutdown hang in Stretch
+          LimeRFEClose();
           usleep(1000000);
           cleanexit(160);    // Commands scheduler to initiate shutdown
           break;
@@ -17810,11 +18829,27 @@ void waituntil(int w,int h)
         continue;   // Completed Menu 35 action, go and wait for touch
       }
 
-      if (CurrentMenu == 36)  // Menu 36 WiFi Configuration
+      if (CurrentMenu == 36)  // Menu 36  Configuration
       {
         printf("Button Event %d, Entering Menu 36 Case Statement\n",i);
         switch (i)
         {
+        case 3:                               // Disable Wifi
+        case 7:                               // Check connection
+        case 8:                               // Enable Wifi
+        case 9:                               // List Networks
+        case 5:                               // Initialise Wifi
+        case 6:                               // Set-up Network
+          SetButtonStatus(ButtonNumber(36, i), 1);  // Set button green while waiting
+          UpdateWindow();
+          WiFiConfig(i);
+          SetButtonStatus(ButtonNumber(36, i), 0);
+          CurrentMenu = 36;
+          setBackColour(0, 0, 0);
+          clearScreen();
+          Start_Highlights_Menu36();
+          UpdateWindow();
+          break;
         case 4:                               // Cancel
           SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 1);
           printf("Cancelling WiFi Config Menu\n");
@@ -17841,6 +18876,11 @@ void waituntil(int w,int h)
         printf("Button Event %d, Entering Menu 37 Case Statement\n",i);
         switch (i)
         {
+        case 0:                               // Set LimeRFE RX Attenuator
+          SetLimeRFERXAtt();
+          Start_Highlights_Menu37();
+          UpdateWindow();
+          break;
         case 1:                               // Lime FW Update 1.30
         case 2:                               // Lime FW Update DVB
           printf("Lime Firmware Update %d\n", i);
@@ -17889,6 +18929,20 @@ void waituntil(int w,int h)
           system("/home/pi/rpidatv/bin/limesdr_stopchannel"); // reset Lime
           setBackColour(0, 0, 0);
           clearScreen();
+          UpdateWindow();
+          break;
+        case 8:                               // Toggle LimeRFE between TX and RX
+          if ((LimeRFEMode == 0) && (LimeRFEState == 1))    // RX and enabled
+          {
+            LimeRFEMode = 1;
+            RFE_Mode(rfe, RFE_MODE_TX);
+          }
+          else if ((LimeRFEMode == 1) && (LimeRFEState == 1))    // TX and enabled
+          {
+            LimeRFEMode = 0;
+            LimeRFERX();
+          }
+          Start_Highlights_Menu37();
           UpdateWindow();
           break;
         case 9:                               // Cycle through Lime Cal options
@@ -18102,8 +19156,6 @@ void waituntil(int w,int h)
         }
         continue;   // Completed Menu 40 action, go and wait for touch
       }
-
-
 
       if (CurrentMenu == 42)  // Menu 42 Output Device
       {
@@ -22851,32 +23903,63 @@ void Define_Menu36()
 
   // Bottom Row, Menu 36
 
+
+
+  button = CreateButton(36, 3);
+  AddButtonStatus(button, "Disable^WiFi", &Blue);
+  AddButtonStatus(button, "Disable^WiFi", &Green);
+  AddButtonStatus(button, "Disable^WiFi", &Grey);
+
   button = CreateButton(36, 4);
   AddButtonStatus(button, "Exit", &DBlue);
   AddButtonStatus(button, "Exit", &LBlue);
 
-//  button = CreateButton(36, 0);
-//  AddButtonStatus(button, "Install^Lime", &Blue);
-//  AddButtonStatus(button, "Install^Lime", &Green);
-
-//  button = CreateButton(36, 1);
-//  AddButtonStatus(button, "Update^Lime", &Blue);
-//  AddButtonStatus(button, "Update^Lime", &Green);
-
   // 2nd Row, Menu 36
 
-//  button = CreateButton(36, 6);
-//  AddButtonStatus(button, "Update^Lime FW", &Blue);
-//  AddButtonStatus(button, "Update^Lime FW", &Green);
+  button = CreateButton(36, 5);
+  AddButtonStatus(button, "List WiFi^Networks", &Blue);
+  AddButtonStatus(button, "List WiFi^Networks", &Green);
+  AddButtonStatus(button, "List WiFi^Networks", &Grey);
 
-//  button = CreateButton(36, 7);
-//  AddButtonStatus(button, "Lime^Info", &Blue);
-//  AddButtonStatus(button, "Lime^Info", &Green);
+  button = CreateButton(36, 6);
+  AddButtonStatus(button, "Set-up WiFi^Network", &Blue);
+  AddButtonStatus(button, "Set-up WiFi^Network", &Green);
+  AddButtonStatus(button, "Set-up WiFi^Network", &Grey);
+
+  button = CreateButton(36, 7);
+  AddButtonStatus(button, "Check WiFi^Status", &Blue);
+  AddButtonStatus(button, "Check WiFi^Status", &Green);
+  AddButtonStatus(button, "Check WiFi^Status", &Grey);
+
+  button = CreateButton(36, 8);
+  AddButtonStatus(button, "Enable^WiFi", &Blue);
+  AddButtonStatus(button, "Enable^WiFi", &Green);
+  AddButtonStatus(button, "Enable^WiFi", &Grey);
+
+  button = CreateButton(36, 9);
+  AddButtonStatus(button, "Reset^WiFi", &Blue);
+  AddButtonStatus(button, "Reset^WiFi", &Green);
+  AddButtonStatus(button, "Reset^WiFi", &Grey);
 }
 
 void Start_Highlights_Menu36()
 {
-  // Nothing here yet
+  if (CheckWifiEnabled() == 1)  // Wifi not enabled
+  {
+    SetButtonStatus(ButtonNumber(36, 5), 2);  // Grey out the "List WiFi Networks" Button
+    SetButtonStatus(ButtonNumber(36, 6), 2);  // Grey out the "Set up WiFi Network" Button
+  }
+  else
+  {
+    if (GetButtonStatus(ButtonNumber(36, 5)) == 2) // "List WiFi Networks" is grey
+    {
+      SetButtonStatus(ButtonNumber(36, 5), 0);  // Set to Blue
+    }
+    if (GetButtonStatus(ButtonNumber(36, 6)) == 2) // "Set up WiFi Network" is grey
+    {
+      SetButtonStatus(ButtonNumber(36, 6), 0);  // Set to Blue
+    }
+  }
 }
 
 void Define_Menu37()
@@ -22887,9 +23970,8 @@ void Define_Menu37()
 
   // Bottom Row, Menu 37
 
-  //button = CreateButton(37, 0);
-  //AddButtonStatus(button, "Update to^FW 1.29", &Blue);
-  //AddButtonStatus(button, "Update to^FW 1.29", &Green);
+  button = CreateButton(37, 0);
+  AddButtonStatus(button, "LimeRFE RX^Atten", &Blue);
 
   button = CreateButton(37, 1);
   AddButtonStatus(button, "Update to^FW 1.30", &Blue);
@@ -22920,9 +24002,10 @@ void Define_Menu37()
   AddButtonStatus(button, "Lime^Report", &Blue);
   AddButtonStatus(button, "Lime^Report", &Green);
 
-  //button = CreateButton(37, 8);
-  //AddButtonStatus(button, "Update^Lime FW", &Blue);
-  //AddButtonStatus(button, "Update^Lime FW", &Green);
+  button = CreateButton(37, 8);
+  AddButtonStatus(button, "LimeRFE^Mode RX", &Grey);
+  AddButtonStatus(button, "LimeRFE^Mode RX", &Blue);
+  AddButtonStatus(button, "LimeRFE^Mode TX", &Red);
 
   button = CreateButton(37, 9);
   AddButtonStatus(button, "Calibrate^Every TX", &Blue);
@@ -22930,7 +24013,19 @@ void Define_Menu37()
 
 void Start_Highlights_Menu37()
 {
+  char caption[63];
   // Lime Config Menu
+
+  // Button 0 LimeRFE RX Attenuator
+  if (LimeRFEState == 1)  // Enabled
+  {
+    snprintf(caption, 60, "LimeRFE RX^Atten = %ddB", 2 * LimeRFERXAtt);
+    AmendButtonStatus(ButtonNumber(37, 0), 0, caption, &Blue);
+  }
+  else
+  {
+    AmendButtonStatus(ButtonNumber(37, 0), 0, "LimeRFE RX^Atten", &Grey);
+  }
 
   // Button 3 LimeRFE Enable/Disable
   if (LimeRFEState == 1)  // Enabled
@@ -22941,6 +24036,24 @@ void Start_Highlights_Menu37()
   {
     AmendButtonStatus(ButtonNumber(37, 3), 0, "LimeRFE^Disabled", &Blue);
   }
+
+  // Button 8 LimeRFE RX/TX
+  if (LimeRFEState == 1)  // Enabled
+  {
+    if (LimeRFEMode == 1)  // TX
+    {
+      SetButtonStatus(ButtonNumber(37, 8), 2);
+    }
+    else                   // RX
+    {
+      SetButtonStatus(ButtonNumber(37, 8), 1);
+    }
+  }
+  else                    // Disabled
+  {
+    SetButtonStatus(ButtonNumber(37, 8), 0);
+  }
+
 
   // Button 9, Lime Calibration
   if (LimeCalFreq < -1.5)  // Never Calibrate
@@ -24047,6 +25160,7 @@ terminate(int dummy)
 
   strcpy(ModeInput, "DESKTOP"); // Set input so webcam reset script is not called
   TransmitStop();
+  LimeRFEClose();
   RTLstop();
   system("sudo killall vlc >/dev/null 2>/dev/null");
   system("sudo killall lmudp.sh >/dev/null 2>/dev/null");
@@ -24273,6 +25387,9 @@ int main(int argc, char *argv[])
 
   // Start the receive downconverter LO if required
   ReceiveLOStart();
+
+  // Initialise the LimeRFE if required
+  LimeRFEInit();
 
   // Clear the screen ready for Menu 1
   setBackColour(255, 255, 255);          // White background

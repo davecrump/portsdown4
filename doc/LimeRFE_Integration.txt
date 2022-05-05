@@ -1,0 +1,45 @@
+LimeRFE Integration
+
+The following Global variables are used:
+
+int LimeRFEState = 0;     // 0 = disabled, 1 = enabled
+int LimeRFEPort  = 1;     // 1 = txrx, 2 = tx, 3 = 30MHz
+int LimeRFERXAtt = 0;     // 0-7 representing 0-14dB
+int LimeRFEMode = 0;      // 0 is RX , 1 is TX
+
+rfe_dev_t* rfe = NULL;    // handle for LimeRFE
+int RFEHWVer = -1;        // hardware version
+
+On start up, these globals are read in from portsdown_config.txt by the function ReadModeOutput().
+
+limerfe=enabled  # or disabled
+limerfeport=txrx # or tx else 30 MHz
+limerferxatt=7   # 0 - 7
+
+Then LimeRFEInit() starts it up.  It does nothing if not required.  It opens the Lime RFE and sets the frequency band, ports and attenuator.  So the LimeRFE is in receive mode.  Until:
+
+When TX is selected. LimeRFETX() is called.  This calls the thread LimeRFEPTTDelay() which starts a 15 second timer.  If at the end of that transmit is still active, the RFE_Mode is switched to TX.
+
+Transmit stop calls LimeRFERX() which sets the LimeRFE mode to RX.
+
+On band or frequency change, DoFreqChange() is called, which reads 
+
+limerfe=enabled
+limerfeport  and
+limerferxatt
+
+from portsdown_presets, sets the global variable and writes to Portsdown Config.
+
+Menu 37 (Lime Config) has the LimeRFE Enable/disable button, which sets the enable for the current configuration and the current band.  It also has a LimeRFE RX Atten setting button, which again, works for the current band.
+
+Menu 37 also has a LimeRFE Mode RX/TX button for testing the LimeRFE transmit functionality.  Output ports need to be set on the Band Setting menu.
+
+Note that the stock LimeRFE firmware always reports Hardware Version 1.6, even for version 0.3 hardware.  I have modified my Version 0.3 model to report correctly by amending one line of the Arduiono sketch.
+
+DGC 19 April 2022
+
+
+
+
+
+
