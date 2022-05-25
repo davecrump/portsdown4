@@ -12727,6 +12727,8 @@ void InfoScreen()
 {
   char result[255];
   char result2[255] = " ";
+  int fec = 0;
+  char FECtext[127];
 
   // Look up and format all the parameters to be displayed
 
@@ -12784,11 +12786,26 @@ void InfoScreen()
   strcat(TXParams1, result);
   strcat(TXParams1, "  FEC ");
   GetConfigParam(PATH_PCONFIG, "fec", result);
-  result[1] = '\0'; 
-  strcat(TXParams1, result);
-  strcat(TXParams1, "/");
-  sprintf(result, "%d", atoi(result)+1);
-  strcat(TXParams1, result);
+  fec = atoi(result);
+  switch(fec)
+  {
+    case 1:strcpy(FECtext,  "1/2") ; break;
+    case 2:strcpy(FECtext,  "2/3") ; break;
+    case 3:strcpy(FECtext,  "3/4") ; break;
+    case 5:strcpy(FECtext,  "5/6") ; break;
+    case 7:strcpy(FECtext,  "7/8") ; break;
+    case 14:strcpy(FECtext, "1/4") ; break;
+    case 13:strcpy(FECtext, "1/3") ; break;
+    case 12:strcpy(FECtext, "1/2") ; break;
+    case 35:strcpy(FECtext, "3/5") ; break;
+    case 23:strcpy(FECtext, "2/3") ; break;
+    case 34:strcpy(FECtext, "3/4") ; break;
+    case 56:strcpy(FECtext, "5/6") ; break;
+    case 89:strcpy(FECtext, "8/9") ; break;
+    case 91:strcpy(FECtext, "9/10") ; break;
+    default:strcpy(FECtext, "Not known") ; break;
+  }
+  strcat(TXParams1, FECtext);
 
   char TXParams2[255];
   char vcoding[255];
