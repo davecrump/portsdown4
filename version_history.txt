@@ -1,3 +1,10 @@
+202205250
+Correct DVB-S2 FEC Indication on Info Screen
+
+202205050
+Add 5th bit to bandswitching options
+Upgrade Basic OS for new builds
+
 202204240
 Add Wifi Control functions to touchscreen Menu
 

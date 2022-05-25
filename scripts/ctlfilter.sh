@@ -54,19 +54,20 @@ filter_bit1=26
 #filter_bit0 MSB of filter control word = BCM 20 / Header 38
 filter_bit2=20
 
-#band_bit_0 LSB of band switching word = BCM 1 / Header 28  Changed for RPi 4
-#band_bit0=1
-#band_bit_0 LSB of band switching word = BCM 1 / Header 32  Changed for RPi 4
+#band_bit_0 LSB of band switching word = BCM 12 / Header 32  Changed for RPi 4
 band_bit0=12
 
-#band_bit_1 MSB of band switching word = BCM 19 / Header 35
+#band_bit_1 of band switching word = BCM 19 / Header 35
 band_bit1=19
 
-#band_bit_3 MSB of band switching word = BCM 25 / Header 22
+#tverter_bit (bit 2): 0 for direct, 1 for transverter = BCM 4 / Header 7
+tverter_bit=4
+
+#band_bit_3 of band switching word = BCM 25 / Header 22
 band_bit3=25
 
-#tverter_bit: 0 for direct, 1 for transverter = BCM 4 / Header 7
-tverter_bit=4
+#band_bit_4 MSB (new) of band switching word = BCM 23 / Header 16
+band_bit4=23
 
 # pdown bit: 0 for Portsdown, 1 for Langstone = BCM 9 / Header 21
 pdown_bit=9
@@ -79,6 +80,7 @@ gpio -g mode $band_bit0 out
 gpio -g mode $band_bit1 out
 gpio -g mode $tverter_bit out
 gpio -g mode $band_bit3 out
+gpio -g mode $band_bit4 out
 gpio -g mode $pdown_bit out
 
 # Set Portsdown id bit low
@@ -139,10 +141,11 @@ fi
 
 ############### Set band GPIOs ##############
 
+# EXPPORTS is in the range 0 to 31
 EXPPORTS=$(get_config_var expports $PCONFIGFILE)
-if [ "$EXPPORTS" -gt "15" ]; then  # Set in range 0 - 15.  16 to 31 was used in the past
-    let EXPPORTS=$EXPPORTS-16
-fi
+
+# Save value for DATV Express use
+DEXPPORTS=$EXPPORTS
 
 # In Keyed TX modes, Band D2 is used to indicate TX, so don't set the band.
 MODE_STARTUP=$(get_config_var startup $PCONFIGFILE)
@@ -150,53 +153,41 @@ if [ "$MODE_STARTUP" == "Keyed_TX_boot" ] || [ "$MODE_STARTUP" == "Keyed_Stream_
    || [ "$MODE_STARTUP" == "Cont_Stream_boot" ]; then
       : # Do nothing
 else
-  case "$EXPPORTS" in
-  "0" | "8" )
-    gpio -g write $band_bit0 0;
-    gpio -g write $band_bit1 0;
-    gpio -g write $tverter_bit 0;
-  ;;
-  "1" | "9" )
-    gpio -g write $band_bit0 1;
-    gpio -g write $band_bit1 0;
-    gpio -g write $tverter_bit 0;
-  ;;
-  "2" | "10" )
-    gpio -g write $band_bit0 0;
-    gpio -g write $band_bit1 1;
-    gpio -g write $tverter_bit 0;
-  ;;
-  "3" | "11" )
-    gpio -g write $band_bit0 1;
-    gpio -g write $band_bit1 1;
-    gpio -g write $tverter_bit 0;
-  ;;
-  "4" | "12" )
-    gpio -g write $band_bit0 0;
-    gpio -g write $band_bit1 0;
-    gpio -g write $tverter_bit 1;
-  ;;
-  "5" | "13" )
-    gpio -g write $band_bit0 1;
-    gpio -g write $band_bit1 0;
-    gpio -g write $tverter_bit 1;
-  ;;
-  "6" | "14" )
-    gpio -g write $band_bit0 0;
-    gpio -g write $band_bit1 1;
-    gpio -g write $tverter_bit 1;
-  ;;
-  "7" | "15" )
-    gpio -g write $band_bit0 1;
-    gpio -g write $band_bit1 1;
-    gpio -g write $tverter_bit 1;
-  ;;
-  esac
+
+  # Check each bit in turn starting with high bit
+
+  if [ "$EXPPORTS" -gt "15" ]; then 
+    gpio -g write $band_bit4 1;
+    let EXPPORTS=$EXPPORTS-16
+  else
+    gpio -g write $band_bit4 0;
+  fi
 
   if [ "$EXPPORTS" -gt "7" ]; then 
     gpio -g write $band_bit3 1;
+    let EXPPORTS=$EXPPORTS-8
   else
     gpio -g write $band_bit3 0;
+  fi
+
+  if [ "$EXPPORTS" -gt "3" ]; then 
+    gpio -g write $tverter_bit 1;
+    let EXPPORTS=$EXPPORTS-4
+  else
+    gpio -g write $tverter_bit 0;
+  fi
+
+  if [ "$EXPPORTS" -gt "1" ]; then 
+    gpio -g write $band_bit1 1;
+    let EXPPORTS=$EXPPORTS-2
+  else
+    gpio -g write $band_bit1 0;
+  fi
+
+  if [ "$EXPPORTS" -gt "0" ]; then 
+    gpio -g write $band_bit0 1;
+  else
+    gpio -g write $band_bit0 0;
   fi
 fi
 
@@ -231,7 +222,7 @@ esac
 
 MODE_OUTPUT=$(get_config_var modeoutput $PCONFIGFILE)
 if [ "$MODE_OUTPUT" = "DATVEXPRESS" ] ; then
-  echo "set port "$EXPPORTS >> /tmp/expctrl
+  echo "set port "$DEXPPORTS >> /tmp/expctrl
 fi
 
 ### End ###
