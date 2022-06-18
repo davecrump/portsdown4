@@ -1,6 +1,3 @@
-202205310
-Test User Buttons for Contest Roving Scripts
-
 202205250
 Correct DVB-S2 FEC Indication on Info Screen
 
