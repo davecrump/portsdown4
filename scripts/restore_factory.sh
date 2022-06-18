@@ -58,6 +58,10 @@ cp -f /home/pi/rpidatv/src/bandview/bandview_config.txt.factory /home/pi/rpidatv
 cp -f /home/pi/rpidatv/src/airspyview/airspyview_config.txt /home/pi/rpidatv/src/airspyview/airspyview_config.txt.bak
 cp -f /home/pi/rpidatv/src/airspyview/airspyview_config.txt.factory /home/pi/rpidatv/src/airspyview/airspyview_config.txt
 
+# rtlsdrview_config.txt
+cp -f /home/pi/rpidatv/src/rtlsdrview/rtlsdrview_config.txt /home/pi/rpidatv/src/rtlsdrview/rtlsdrview_config.txt.bak
+cp -f /home/pi/rpidatv/src/rtlsdrview/rtlsdrview_config.txt.factory /home/pi/rpidatv/src/rtlsdrview/rtlsdrview_config.txt
+
 # nf_meter_config.txt
 cp -f /home/pi/rpidatv/src/nf_meter/nf_meter_config.txt /home/pi/rpidatv/src/nf_meter/nf_meter_config.txt.bak
 cp -f /home/pi/rpidatv/src/nf_meter/nf_meter_config.txt.factory /home/pi/rpidatv/src/nf_meter/nf_meter_config.txt

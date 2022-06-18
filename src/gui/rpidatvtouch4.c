@@ -61,6 +61,8 @@ Rewitten by Dave, G8GKQ
 #define PATH_LIME_CAL "/home/pi/rpidatv/scripts/limecalfreq.txt"
 #define PATH_C_NUMBERS "/home/pi/rpidatv/scripts/portsdown_C_codes.txt"
 #define PATH_BV_CONFIG "/home/pi/rpidatv/src/bandview/bandview_config.txt"
+#define PATH_AS_CONFIG "/home/pi/rpidatv/src/airspyview/airspyview_config.txt"
+#define PATH_RS_CONFIG "/home/pi/rpidatv/src/rtlsdrview/rtlsdrview_config.txt"
 #define PATH_TC_CONFIG "/home/pi/rpidatv/scripts/images/testcard_config.txt"
 
 #define PI 3.14159265358979323846
@@ -15270,6 +15272,9 @@ void RebootPluto(int context)
   char timetext[63];
   FinishedButton = 0;
 
+  // Create Wait Button thread
+  pthread_create (&thbutton, NULL, &WaitButtonStream, NULL);
+
   if (context == 0)  // Straight reboot
   {
     system("/home/pi/rpidatv/scripts/reboot_pluto.sh");
@@ -15277,7 +15282,14 @@ void RebootPluto(int context)
     while(test == 1)
     {
       snprintf(timetext, 62, "Timeout in %d seconds", 24 - count);
-      MsgBox4("Pluto Rebooting", "Wait for reconnection", " ", timetext);
+      MsgBox4("Pluto Rebooting", "Wait for reconnection", "(touch to cancel)", timetext);
+      if (FinishedButton == 1)
+      {
+        MsgBox4("Pluto check cancelled","", " ", "Pluto may not have rebooted");
+        usleep(2000000);
+        pthread_join(thbutton, NULL);
+        return;
+      }
       usleep(1000000);
       test = CheckPlutoIPConnect();
       count = count + 1;
@@ -15301,6 +15313,13 @@ void RebootPluto(int context)
     {
       snprintf(timetext, 62, "Timeout in %d seconds", 24 - count);
       MsgBox4("Pluto Rebooting", "Langstone will be selected", "once Pluto has rebooted", timetext);
+      if (FinishedButton == 1)
+      {
+        MsgBox4("Pluto check cancelled","", " ", "Pluto may not have rebooted");
+        usleep(2000000);
+        pthread_join(thbutton, NULL);
+        return;
+      }
       usleep(1000000);
       test = CheckPlutoIPConnect();
       count = count + 1;
@@ -15320,7 +15339,14 @@ void RebootPluto(int context)
     {
       snprintf(timetext, 62, "Timeout in %d seconds", 24 - count);
       MsgBox4("Pluto may be rebooting", "Portsdown will start once Pluto has rebooted", 
-              " ", timetext);
+              "(touch to cancel)", timetext);
+      if (FinishedButton == 1)
+      {
+        MsgBox4("Pluto check cancelled","", " ", "Pluto may not have rebooted");
+        usleep(2000000);
+        pthread_join(thbutton, NULL);
+        return;
+      }
       usleep(1000000);
       test = CheckPlutoIPConnect();
       count = count + 1;
@@ -16644,7 +16670,7 @@ void waituntil(int w,int h)
           DisplayLogo();
           cleanexit(130);
           break;
-        case 17:                              //  Band Viewer.  Check for Airspy first, them LimeSDR
+        case 17:                              //  Band Viewer.  Check for Airspy first, them LimeSDR then RTL-SDR
           if (CheckAirspyConnect() == 0)
           {
             DisplayLogo();
@@ -16659,8 +16685,16 @@ void waituntil(int w,int h)
             }
             else
             {
-              MsgBox("No LimeSDR or Airspy Connected");
-              wait_touch();
+              if(CheckRTL() == 0)
+              {
+                DisplayLogo();
+                cleanexit(141);
+              }
+              else
+              {
+                MsgBox("No LimeSDR, Airspy or RTL-SDR Connected");
+                wait_touch();
+              }
             }
           }
           UpdateWindow();
@@ -17245,6 +17279,19 @@ void waituntil(int w,int h)
           DisplayLogo();
           cleanexit(139);
           break;
+        case 6:                                                 // RTL-SDR BandViewer
+          if(CheckRTL() == 0)
+          {
+            DisplayLogo();
+            cleanexit(141);
+          }
+          else
+          {
+            MsgBox("No RTL-SDR Connected");
+            wait_touch();
+          }
+          UpdateWindow();
+          break;
         case 10:                                                 // Signal Generator
           DisplayLogo();
           cleanexit(130);
@@ -17264,8 +17311,16 @@ void waituntil(int w,int h)
             }
             else
             {
-              MsgBox("No LimeSDR or Airspy Connected");
-              wait_touch();
+              if(CheckRTL() == 0)
+              {
+                DisplayLogo();
+                cleanexit(141);
+              }
+              else
+              {
+                MsgBox("No LimeSDR, Airspy or RTL-SDR Connected");
+                wait_touch();
+              }
             }
           }
           UpdateWindow();
@@ -17337,17 +17392,37 @@ void waituntil(int w,int h)
           }
           else                                           // Terrestrial, so set band viewer freq and exit to bandviewer
           {
-            if((CheckLimeMiniConnect() == 0) || (CheckLimeUSBConnect() == 0))
+            if (CheckAirspyConnect() == 0)
             {
               snprintf(ValueToSave, 63, "%d", LMRXfreq[0]); //  
               SetConfigParam(PATH_BV_CONFIG, "centrefreq", ValueToSave);
               DisplayLogo();
-              cleanexit(136);
+              cleanexit(140);
             }
             else
-            {
-              MsgBox("No LimeSDR Connected");
-              wait_touch();
+            { 
+              if((CheckLimeMiniConnect() == 0) || (CheckLimeUSBConnect() == 0))
+              {
+                snprintf(ValueToSave, 63, "%d", LMRXfreq[0]); //  
+                SetConfigParam(PATH_AS_CONFIG, "centrefreq", ValueToSave);
+                DisplayLogo();
+                cleanexit(136);
+              }
+              else
+              {
+                if(CheckRTL() == 0)
+                {
+                snprintf(ValueToSave, 63, "%d", LMRXfreq[0]); //  
+                SetConfigParam(PATH_RS_CONFIG, "centrefreq", ValueToSave);
+                  DisplayLogo();
+                  cleanexit(141);
+                }
+                else
+                {
+                  MsgBox("No LimeSDR, Airspy or RTL-SDR Connected");
+                  wait_touch();
+                }
+              }
             }
           }
           UpdateWindow();
@@ -20837,6 +20912,9 @@ void Define_Menu7()
 
   button = CreateButton(7, 5);
   AddButtonStatus(button, "Frequency^Sweeper", &Blue);
+
+  button = CreateButton(7, 6);
+  AddButtonStatus(button, "RTL-SDR^BandViewer", &Blue);
 
   // 3rd line up Menu 7:
 
