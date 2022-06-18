@@ -2390,7 +2390,7 @@ void *WaitButtonEvent(void * arg)
           UpdateWindow();           // Draw the buttons
           freeze = false;           // Restart the scan
           break;
-        case 3:                                            // Restart airspyView
+        case 3:                                            // Restart rtlsdrView
           freeze = true;
           usleep(100000);
           setBackColour(0, 0, 0);
@@ -3126,7 +3126,7 @@ void Define_Menu4()                                         // System Menu
   AddButtonStatus(button, " ", &Green);
 
   button = CreateButton(4, 3);
-  AddButtonStatus(button, "Re-start^AirSpyView", &Blue);
+  AddButtonStatus(button, "Re-start^AirspyView", &Blue);
   AddButtonStatus(button, " ", &Green);
 
   button = CreateButton(4, 4);

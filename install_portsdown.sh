@@ -421,6 +421,15 @@ make
 cp airspyview ../../bin/
 cd /home/pi
 
+# Compile RTL-SDR Band Viewer
+echo
+echo "----------------------------------------"
+echo "----- Compiling RTL-SDR Band Viewer -----"
+echo "----------------------------------------"
+cd /home/pi/rpidatv/src/rtlsdrview
+make
+cp rtlsdrview ../../bin/
+cd /home/pi
 
 # Compile Power Meter
 echo

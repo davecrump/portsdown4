@@ -39,6 +39,7 @@ src/power_meter/power_meter
 src/sweeper/sweeper
 src/streamrx/streamrx
 src/airspyview/airspyview
+src/rtlsdrview/rtlsdrview
 scripts/configs/Langstone.conf
 bin/adf4351
 bin/avc2ts
@@ -60,4 +61,5 @@ bin/plutotx
 bin/power_meter
 bin/sweeper
 bin/airspyview
+bin/rtlsdrview
 
