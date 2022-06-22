@@ -1,0 +1,11 @@
+title=Portsdown RTL-SDR Band Viewer
+centrefreq=437000
+span=2000
+limegain=60
+pfreq1=146500
+pfreq2=437000
+pfreq3=745000
+pfreq4=1255000
+pfreq5=1296000
+enr=15.00
+

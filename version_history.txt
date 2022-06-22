@@ -1,3 +1,11 @@
+202206220
+Roll back and hold VLC to version 3.0.12
+Undo cancel of Pluto reboot wait (needs improvement before release)
+
+202206180
+Dev RTL-SDR Viewer
+Enable cancel of Pluto reboot wait
+
 202205250
 Correct DVB-S2 FEC Indication on Info Screen
 
