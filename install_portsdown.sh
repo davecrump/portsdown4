@@ -74,7 +74,42 @@ sudo apt-get -y install sshpass  # 201905090 For Jetson Nano
 sudo apt-get -y install libbsd-dev # 201910100 for raspi2raspi
 sudo apt-get -y install libasound2-dev sox # 201910230 for LongMynd tone and avc2ts audio
 sudo apt-get -y install libavcodec-dev libavformat-dev libswscale-dev libavdevice-dev # Required for ffmpegsrc.cpp
-sudo apt-get -y install mplayer vlc # 202004300 Used for video monitor and LongMynd (not libpng12-dev)
+sudo apt-get -y install mplayer # 202004300 Used for video monitor and LongMynd (not libpng12-dev)
+
+# Install old (mmal-enabled) version of VLC and its dependencies (202206220)
+sudo apt-get --allow-downgrades -y install vlc=3.0.12-0+deb10u1+rpt3 \
+libvlc-bin=3.0.12-0+deb10u1+rpt3 \
+libvlc5=3.0.12-0+deb10u1+rpt3 \
+libvlccore9=3.0.12-0+deb10u1+rpt3 \
+vlc-bin=3.0.12-0+deb10u1+rpt3 \
+vlc-data=3.0.12-0+deb10u1+rpt3 \
+vlc-plugin-base=3.0.12-0+deb10u1+rpt3 \
+vlc-plugin-qt=3.0.12-0+deb10u1+rpt3 \
+vlc-plugin-video-output=3.0.12-0+deb10u1+rpt3 \
+vlc-l10n=3.0.12-0+deb10u1+rpt3 \
+vlc-plugin-notify=3.0.12-0+deb10u1+rpt3 \
+vlc-plugin-samba=3.0.12-0+deb10u1+rpt3 \
+vlc-plugin-skins2=3.0.12-0+deb10u1+rpt3 \
+vlc-plugin-video-splitter=3.0.12-0+deb10u1+rpt3 \
+vlc-plugin-visualization=3.0.12-0+deb10u1+rpt3
+
+# Mark those packages so that they are not upgraded (202206220)
+sudo apt-mark hold vlc
+sudo apt-mark hold libvlc-bin
+sudo apt-mark hold libvlc5
+sudo apt-mark hold libvlccore9
+sudo apt-mark hold vlc-bin
+sudo apt-mark hold vlc-data
+sudo apt-mark hold vlc-plugin-base
+sudo apt-mark hold vlc-plugin-qt
+sudo apt-mark hold vlc-plugin-video-output
+sudo apt-mark hold vlc-l10n
+sudo apt-mark hold vlc-plugin-notify
+sudo apt-mark hold vlc-plugin-samba
+sudo apt-mark hold vlc-plugin-skins2
+sudo apt-mark hold vlc-plugin-video-splitter
+sudo apt-mark hold vlc-plugin-visualization
+
 sudo apt-get -y install autoconf libtool # for fdk aac
 
 sudo apt-get -y install libxml2 libxml2-dev bison flex libcdk5-dev                   # for libiio

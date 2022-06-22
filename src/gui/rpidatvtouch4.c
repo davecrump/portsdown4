@@ -15272,9 +15272,6 @@ void RebootPluto(int context)
   char timetext[63];
   FinishedButton = 0;
 
-  // Create Wait Button thread
-  pthread_create (&thbutton, NULL, &WaitButtonStream, NULL);
-
   if (context == 0)  // Straight reboot
   {
     system("/home/pi/rpidatv/scripts/reboot_pluto.sh");
@@ -15282,14 +15279,7 @@ void RebootPluto(int context)
     while(test == 1)
     {
       snprintf(timetext, 62, "Timeout in %d seconds", 24 - count);
-      MsgBox4("Pluto Rebooting", "Wait for reconnection", "(touch to cancel)", timetext);
-      if (FinishedButton == 1)
-      {
-        MsgBox4("Pluto check cancelled","", " ", "Pluto may not have rebooted");
-        usleep(2000000);
-        pthread_join(thbutton, NULL);
-        return;
-      }
+      MsgBox4("Pluto Rebooting", "Wait for reconnection", " ", timetext);
       usleep(1000000);
       test = CheckPlutoIPConnect();
       count = count + 1;
@@ -15313,13 +15303,6 @@ void RebootPluto(int context)
     {
       snprintf(timetext, 62, "Timeout in %d seconds", 24 - count);
       MsgBox4("Pluto Rebooting", "Langstone will be selected", "once Pluto has rebooted", timetext);
-      if (FinishedButton == 1)
-      {
-        MsgBox4("Pluto check cancelled","", " ", "Pluto may not have rebooted");
-        usleep(2000000);
-        pthread_join(thbutton, NULL);
-        return;
-      }
       usleep(1000000);
       test = CheckPlutoIPConnect();
       count = count + 1;
@@ -15339,14 +15322,7 @@ void RebootPluto(int context)
     {
       snprintf(timetext, 62, "Timeout in %d seconds", 24 - count);
       MsgBox4("Pluto may be rebooting", "Portsdown will start once Pluto has rebooted", 
-              "(touch to cancel)", timetext);
-      if (FinishedButton == 1)
-      {
-        MsgBox4("Pluto check cancelled","", " ", "Pluto may not have rebooted");
-        usleep(2000000);
-        pthread_join(thbutton, NULL);
-        return;
-      }
+              " ", timetext);
       usleep(1000000);
       test = CheckPlutoIPConnect();
       count = count + 1;
@@ -15359,6 +15335,7 @@ void RebootPluto(int context)
     }
   }
 }
+
 
 void CheckPlutoFirmware()
 {
