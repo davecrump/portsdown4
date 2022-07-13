@@ -1,3 +1,6 @@
+202207130
+Unhold VLC and update to latest version which now works with Portsdown
+
 202206220
 Roll back and hold VLC to version 3.0.12
 Undo cancel of Pluto reboot wait (needs improvement before release)
