@@ -17,19 +17,15 @@
 #include <ctype.h>
 #include <stdbool.h>
 #include <fftw3.h>
-#include <libusb.h>
+#include <rtl-sdr.h>
+#include "/usr/include/libusb-1.0/libusb.h"
 
+#include "rtlsdrfft.h"
 #include "screen.h"
 #include "font/font.h"
 #include "touch.h"
 #include "graphics.h"
 #include "timing.h"
-
-#include "rtlsdrfft.h"
-#include "libairspy/libairspy/src/airspy.h"
-#include "/usr/include/libusb-1.0/libusb.h"
-
-#include <rtl-sdr.h>
 
 pthread_t thbutton;
 
@@ -81,7 +77,7 @@ char KeyboardReturn[64];
 bool NewFreq = false;
 bool NewGain = false;
 bool NewSpan = false;
-bool NewCal  = false;
+//bool NewCal  = false;
 int gain;
 
 int scaledX, scaledY;
@@ -97,11 +93,8 @@ bool frozen = false;
 bool prepnewscanwidth = false;
 bool readyfornewscanwidth = false;
 
-
-
 bool activescan = false;
 bool PeakPlot = false;
-//int y[501];               // Actual displayed values on the chart
 bool PortsdownExitRequested = false;
 
 int scaledadresult[501];  // Sensed AD Result
@@ -126,8 +119,6 @@ int pfreq2 = 437000;
 int pfreq3 = 748000;
 int pfreq4 = 1255000;
 int pfreq5 = 2409000;
-
-float MAIN_SPECTRUM_TIME_SMOOTH;
 
 int markerx = 250;
 int markery = 15;
@@ -165,8 +156,8 @@ int xscaleden = 20;       // Denominator for X scaling fraction
 
 void GetConfigParam(char *, char *, char *);
 void SetConfigParam(char *, char *, char *);
+int CheckRTL();
 void ReadSavedParams();
-void MsgBox4(char *, char *, char *, char *);
 void do_snapcheck();
 int openTouchScreen(int);
 void Keyboard(char *, char *, int);
@@ -212,9 +203,9 @@ void RedrawDisplay();
 static bool app_exit = false;
 
 double frequency_actual_rx = 437000000;
-uint32_t CentreFreq;                   // Used for Airspy
+uint32_t CentreFreq;                   // 
 double bandwidth = 1e7;
-uint32_t SpanWidth;                    // Used for airspy
+uint32_t SpanWidth;                    // 
 
 extern uint16_t y3[1250];
 extern int force_exit;
@@ -225,7 +216,7 @@ extern pthread_mutex_t histogram;
 
 static pthread_t screen_thread_obj;
 
-static pthread_t airspy_fft_thread_obj;
+static pthread_t rtlsdr_fft_thread_obj;
 
 ///////////////////////////////////////////// SCREEN AND TOUCH UTILITIES ////////////////////////
 
@@ -325,6 +316,47 @@ void SetConfigParam(char *PathConfigFile, char *Param, char *Value)
     fclose(fw);
   }
 }
+
+
+/***************************************************************************//**
+ * @brief Checks for the presence of an RTL-SDR
+ *        
+ * @param None
+ *
+ * @return 0 if present, 1 if not present
+*******************************************************************************/
+
+int CheckRTL()
+{
+  char RTLStatus[255];
+  FILE *fp;
+  int rtlstat = 1;
+
+  /* Open the command for reading. */
+  fp = popen("/home/pi/rpidatv/scripts/check_rtl.sh", "r");
+  if (fp == NULL)
+  {
+    printf("Failed to run command\n" );
+    exit(1);
+  }
+
+  // Read the output a line at a time - output it
+  while (fgets(RTLStatus, sizeof(RTLStatus)-1, fp) != NULL)
+  {
+    if (RTLStatus[0] == '0')
+    {
+      printf("RTL Detected\n" );
+      rtlstat = 0;
+    }
+    else
+    {
+      printf("No RTL Detected\n" );
+    }
+  }
+  pclose(fp);
+  return(rtlstat);
+}
+
 
 void ReadSavedParams()
 {
@@ -453,24 +485,6 @@ int IsImageToBeChanged(int x,int y)
   {
     return 0;
   }
-}
-
-void MsgBox4(char *message1, char *message2, char *message3, char *message4)
-{
-  // Display a 4-line message
-  setForeColour(255, 255, 255);    // White text
-  setBackColour(0, 0, 0);          // on Black
-  const font_t *font_ptr = &font_dejavu_sans_32;
-  int txtht =  font_ptr->ascent;
-  int linepitch = (14 * txtht) / 10;
-
-  clearScreen();
-  TextMid2(wscreen / 2, hscreen - (linepitch * 2), message1, font_ptr);
-  TextMid2(wscreen / 2, hscreen - 2 * (linepitch * 2), message2, font_ptr);
-  TextMid2(wscreen / 2, hscreen - 3 * (linepitch * 2), message3, font_ptr);
-  TextMid2(wscreen / 2, hscreen - 4 * (linepitch * 2), message4, font_ptr);
-
-  // printf("MsgBox4 called\n");
 }
 
 
@@ -1398,7 +1412,7 @@ void wait_touch()
   printf("wait_touch called\n");
 
   // Check if screen touched, if not, wait 0.1s and check again
-  while(getTouchSample(&rawX, &rawY, &rawPressure)==0)
+  while(getTouchSample(&rawX, &rawY, &rawPressure) == 0)
   {
     usleep(100000);
   }
@@ -1860,15 +1874,6 @@ void CalcSpan()    // takes centre frequency and span and calulates startfreq an
   CentreFreq = (uint32_t)frequency_actual_rx;
   bandwidth = (float)(span * 1000);
 
-  // Calculate Airspy sample rate based on desired display
-  //if (span > 2500)
-  //{
-  //  SpanWidth = 10000000;
-  //}
-  //else
-  //{
-  //  SpanWidth = 2500000;
-  //}
   SpanWidth = 2048000;
 
   // Calculate fft size
@@ -1884,44 +1889,12 @@ void CalcSpan()    // takes centre frequency and span and calulates startfreq an
       fft_time_smooth = 0.96;
     break;
     case 2000:                                            // 2 MHz
-      fft_time_smooth = 0.98;
+      fft_time_smooth = 0.97;
     break;
   }
 
-  // set a sensible time constant for the fft display
-  if (bandwidth >= 2048000)
-  {
-    MAIN_SPECTRUM_TIME_SMOOTH =  0.98;
-  }
-  else
-  {
-    MAIN_SPECTRUM_TIME_SMOOTH =  0.90;
-  }
-
   // Set levelling time for NF Measurement
-  switch (span)
-  {
-    //case 512:                                            // 500 kHz use 30
-    //  ScansforLevel = 30;
-    //  break;
-    //case 1024:                                            // 1 MHz use 20
-    //  ScansforLevel = 20;
-    //  break;
-    //case 2048:                                            // 2 MHz use 10
-    //  ScansforLevel = 10;
-    //  break;
-    case 2500:                                            // 2.5 MHz use 5
-      ScansforLevel = 5;
-      break;
-    case 10000:                                            // 10 MHz use 3
-      ScansforLevel = 3;
-      break;
-    //case 20480:                                            // 20 MHz use 3
-    //  ScansforLevel = 3;
-    //  break;
-    default:
-      ScansforLevel = 10;
-  }
+  ScansforLevel = 10;
 }
 
 void ChangeLabel(int button)
@@ -2407,9 +2380,6 @@ void *WaitButtonEvent(void * arg)
         case 5:                                            // Shutdown
           system("sudo shutdown now");
           break;
-        //case 6:                                            // ReCal Lime
-        //  NewCal = true;
-        //  break;
         case 7:                                            // Return to Main Menu
           printf("Main Menu 1 Requested\n");
           CurrentMenu=1;
@@ -4310,6 +4280,12 @@ int main(void)
     sigaction(i, &sa, NULL);
   }
 
+  // Check an RTL-SDR is connected
+  if (CheckRTL() != 0)
+  {
+    exit(1);
+  }
+
   // Check for presence of touchscreen
   for(NoDeviceEvent = 0; NoDeviceEvent < 7; NoDeviceEvent++)
   {
@@ -4386,13 +4362,13 @@ int main(void)
     initScreen();
   }
 
-  /* AirSpy FFT Thread */
-  if(pthread_create(&airspy_fft_thread_obj, NULL, airspy_fft_thread, &app_exit))
+  // RTLSDR FFT Thread */
+  if(pthread_create(&rtlsdr_fft_thread_obj, NULL, rtlsdr_fft_thread, &app_exit))
   {
-      fprintf(stderr, "Error creating %s pthread\n", "AIRSPY_FFT");
+      fprintf(stderr, "Error creating %s pthread\n", "RTLSDR_FFT");
       return 1;
   }
-  pthread_setname_np(airspy_fft_thread_obj, "AIRSPY_FFT");
+  pthread_setname_np(rtlsdr_fft_thread_obj, "RTLSDR_FFT");
 
   if (wfall == true)
   {
@@ -4544,8 +4520,8 @@ int main(void)
     }
   }
 
-  printf("Waiting for AIRSPY FFT Thread to exit..\n");
-  pthread_join(airspy_fft_thread_obj, NULL);
+  printf("Waiting for RTLSDR FFT Thread to exit..\n");
+  pthread_join(rtlsdr_fft_thread_obj, NULL);
   printf("Waiting for Screen Thread to exit..\n");
   pthread_join(screen_thread_obj, NULL);
   printf("All threads caught, exiting..\n");

@@ -22410,8 +22410,8 @@ void Define_Menu15()
   AddButtonStatus(button, "Check Pluto^AD9364", &Blue);
 
   button = CreateButton(15, 4);
-  AddButtonStatus(button, "Cancel", &DBlue);
-  AddButtonStatus(button, "Cancel", &LBlue);
+  AddButtonStatus(button, "Exit", &DBlue);
+  AddButtonStatus(button, "Exit", &LBlue);
 
  // Second Row, Menu 15
 
