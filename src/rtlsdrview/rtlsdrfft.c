@@ -17,7 +17,7 @@
 #include <fftw3.h>
 #include <stdbool.h>
 
-#include "libairspy/libairspy/src/airspy.h"
+//#include "libairspy/libairspy/src/airspy.h"
 #include "timing.h"
 
 #include <rtl-sdr.h>
@@ -39,21 +39,13 @@ extern float fft_time_smooth;
 extern int span;      
 
 int fft_offset;
-  int nearest_gain_value;
-
+int nearest_gain_value;
 
 uint16_t y3[1250];               // Histogram values in range 0 - 399
 
 int force_exit = 0;
 
 pthread_t fftThread;
-
-
-/** AirSpy Vars **/
-struct airspy_device* device = NULL;
-
-/* Sample type -> 32bit Complex Float */
-enum airspy_sample_type sample_type_val = AIRSPY_SAMPLE_FLOAT32_IQ;
 
 /* Sample rate */
 uint32_t sample_rate_val;
@@ -72,10 +64,7 @@ uint32_t sensitivity_gain_val = 10; // MAX=21
 /* Frequency */
 uint32_t freq_hz = 437000000;
 
-
 double hanning_window_const[1250];
-
-int airspy_rx(airspy_transfer_t* transfer);
 
 #define FLOAT32_EL_SIZE_BYTE (4)
 fftw_complex* fft_in;
@@ -273,10 +262,6 @@ static bool read_rtlsdr()
         printf("WARNING: sync read failed.\n");
         error = true;
     }
-    //else
-    //{
-    //    printf("YES!: sync read OK.\n");
-    //}
 
     if ((uint32_t) n_read < buff_len)
     {
@@ -287,47 +272,6 @@ static bool read_rtlsdr()
 
     return error;
 }
-
-
-
-/* transfer->sample_count is normally 65536 */
-#define	AIRSPY_BUFFER_COPY_SIZE	65536
-
-typedef struct {
-	uint32_t index;
-	uint32_t size;
-	char data[AIRSPY_BUFFER_COPY_SIZE * FLOAT32_EL_SIZE_BYTE];
-	pthread_mutex_t mutex;
-	pthread_cond_t 	signal;
-} rf_buffer_t;
-
-rf_buffer_t rf_buffer = {
-	.index = 0,
-	.size = 0,
-	.mutex = PTHREAD_MUTEX_INITIALIZER,
-	.signal = PTHREAD_COND_INITIALIZER,
-	.data = { 0 }
-};
-
-/* Airspy RX Callback, this is called by a new thread within libairspy */
-int airspy_rx(airspy_transfer_t* transfer)
-{    
-    if(transfer->samples != NULL && transfer->sample_count >= AIRSPY_BUFFER_COPY_SIZE)
-    {
-        pthread_mutex_lock(&rf_buffer.mutex);
-        rf_buffer.index = 0;
-        memcpy(
-            rf_buffer.data,
-            transfer->samples,
-            (AIRSPY_BUFFER_COPY_SIZE * FLOAT32_EL_SIZE_BYTE)
-        );
-        rf_buffer.size = AIRSPY_BUFFER_COPY_SIZE / (fft_size * 2);
-        pthread_cond_signal(&rf_buffer.signal);
-        pthread_mutex_unlock(&rf_buffer.mutex);
-    }
-	return 0;
-}
-
 
 
 void perform_fft()
@@ -346,8 +290,6 @@ void perform_fft()
     fft_in[i][0] = lut[buffer[2 * i]] * hanning_window_const[i];
     fft_in[i][1] = lut[buffer[2 * i + 1]] * hanning_window_const[i];
   }
-
-  rf_buffer.index++;
 
   // Run FFT
   fftw_execute(fft_plan);
@@ -446,7 +388,7 @@ void fft_to_buffer()
 }
 
 // Main thread
-void *airspy_fft_thread(void *arg)
+void *rtlsdr_fft_thread(void *arg)
 {
   bool *exit_requested = (bool *)arg;
   int i;

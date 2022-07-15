@@ -21075,7 +21075,7 @@ void Start_Highlights_Menu8()
   if (strcmp(LMRXmode, "terr") == 0)
   {
     indexoffset = 10;
-    if((CheckLimeMiniConnect() == 0) || (CheckLimeUSBConnect() == 0))
+    if((CheckLimeMiniConnect() == 0) || (CheckLimeUSBConnect() == 0) || (CheckAirspyConnect() == 0) || (CheckRTL() == 0))
     {
       SetButtonStatus(ButtonNumber(CurrentMenu, 4), 2);
     }
@@ -22410,8 +22410,8 @@ void Define_Menu15()
   AddButtonStatus(button, "Check Pluto^AD9364", &Blue);
 
   button = CreateButton(15, 4);
-  AddButtonStatus(button, "Cancel", &DBlue);
-  AddButtonStatus(button, "Cancel", &LBlue);
+  AddButtonStatus(button, "Exit", &DBlue);
+  AddButtonStatus(button, "Exit", &LBlue);
 
  // Second Row, Menu 15
 
