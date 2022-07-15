@@ -20,7 +20,7 @@
 #define __RTLSDRFFT_H__
 
 
-void *airspy_fft_thread(void *arg);
+void *rtlsdr_fft_thread(void *arg);
 
 
 #endif /* __RTLSDRFFT_H__ */
