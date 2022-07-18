@@ -416,6 +416,7 @@ void GetSerNo(char SerNo[256]);
 int CalcTSBitrate();
 void GetDevices(char DeviceName1[256], char DeviceName2[256]);
 void GetUSBVidDev(char VidDevName[256]);
+int CheckCamLink4K();
 int DetectLogitechWebcam();
 int CheckC920();
 int CheckC920Type();
@@ -3022,6 +3023,46 @@ void GetUSBVidDev(char VidDevName[256])
   /* close */
   pclose(fp);
 }
+
+
+/***************************************************************************//**
+ * @brief Detects if an Elgato CamLink 4K HDMI Dongle is currently connected
+ *
+ * @param nil
+ *
+ * @return 1 if connected, 0 if not connected
+*******************************************************************************/
+
+int CheckCamLink4K()
+{
+  FILE *fp;
+  char response_line[255];
+
+  // Read the CamLink address if it is present
+
+  fp = popen("v4l2-ctl --list-devices 2> /dev/null | sed -n '/Cam Link 4K/,/dev/p' | grep 'dev' | tr -d '\t'", "r");
+  if (fp == NULL)
+  {
+    printf("Failed to run command\n" );
+    exit(1);
+  }
+
+  // Response is /dev/videox if present, null if not
+  // So, if there is a response, return 1.
+
+  /* Read the output a line at a time - output it. */
+  while (fgets(response_line, 250, fp) != NULL)
+  {
+    if (strlen(response_line) > 1)
+    {
+      pclose(fp);
+      return 1;
+    }
+  }
+  pclose(fp);
+  return 0;
+}
+
 
 /***************************************************************************//**
  * @brief Detects if a Logitech C 910, C525 C310 or C270 webcam was connected since last restart
@@ -6489,6 +6530,11 @@ void ApplyTXConfig()
   {
     strcpy(ModeInput, "CARRIER");
   }
+  else if (((strcmp(CurrentModeOP, "LIMEMINI") == 0) || (strcmp(CurrentModeOP, "LIMEUSB") == 0)) && (strcmp(CurrentSource, "HDMI") == 0))
+  {
+    // Don't correct Elgato HDMI Capture for Lime
+    return;
+  }
   else if ((strcmp(CurrentModeOP, "JLIME") == 0) || (strcmp(CurrentModeOP, "JEXPRESS") == 0))
   {
     if (strcmp(CurrentSource, "HDMI") == 0)
@@ -7931,6 +7977,11 @@ void GreyOut45()
         }
       }
     }
+    // Highlight HDMI if Lime connected and Elgato Available
+    if (((strcmp(CurrentModeOP, "LIMEMINI") == 0) || (strcmp(CurrentModeOP, "LIMEUSB") == 0)) && (CheckCamLink4K() == 1))
+    {
+      SetButtonStatus(ButtonNumber(CurrentMenu, 3), 0); // HDMI
+    }
   }
 }
 
@@ -8115,6 +8166,12 @@ void SelectSource(int NoButton)  // Video Source
   }
   strcpy(CurrentSource, TabSource[NoButton - 5]);
   printf("Current Source before ApplyTXConfig in SelectSource is %s\n",  CurrentSource);
+
+  // Bodge for HDMI input from Elgato
+  if (NoButton == 13)  // HDMI Selected
+  {
+    SetConfigParam(PATH_PCONFIG, "modeinput", "HDMI");
+  } 
   ApplyTXConfig();
   printf("Current Source afer ApplyTXConfig in SelectSource is %s\n",  CurrentSource);
 }
