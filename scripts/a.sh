@@ -200,7 +200,13 @@ esac
 ########### Redirect old BATC Streamer mode to Streamer mode ###############
 
 if [ "$MODE_OUTPUT" == "BATC" ]; then
-    MODE_OUTPUT="STREAMER"
+  MODE_OUTPUT="STREAMER"
+fi
+
+########### Set Webcam Mode for HDMI in from Elgato #################
+
+if [ "$MODE_INPUT" == "HDMI" ] && [ "$CamLink4KPresent" == "1" ]; then
+  MODE_INPUT="WEBCAMH264"
 fi
 
 ########### Set 480p Output Format if compatible and required ###############
@@ -214,7 +220,7 @@ if [ "$MODE_INPUT" == "CAMMPEG-2" ] || [ "$MODE_INPUT" == "ANALOGMPEG-2" ]; then
   fi
 fi
 
-######################### Calculate the output frequncy in Hz ###############
+######################### Calculate the output frequency in Hz ###############
 
 # Round down to 1 kHz resolution.  Answer is always integer numeric
 
@@ -1163,6 +1169,34 @@ fi
             VIDEO_WIDTH=640
             VIDEO_HEIGHT=480
             VIDEO_FPS=25
+          fi
+        else
+          v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=352,height=288,pixelformat=0 --set-parm=15
+          VIDEO_WIDTH=352
+          VIDEO_HEIGHT=288
+          VIDEO_FPS=15
+        fi
+      fi
+
+      if [ "$WEBCAM_TYPE" == "CamLink4K" ]; then
+        AUDIO_SAMPLE=48000
+        AUDIO_CHANNELS=2
+        if [ "$BITRATE_VIDEO" -gt 190000 ]; then  # 333KS FEC 1/2 or better
+          if [ "$FORMAT" == "1080p" ]; then
+            v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=1920,height=1080,pixelformat=0 --set-parm=29.97
+            VIDEO_WIDTH=1920
+            VIDEO_HEIGHT=1080
+            VIDEO_FPS=29.97
+          elif [ "$FORMAT" == "720p" ]; then
+            v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=1280,height=720,pixelformat=0 --set-parm=29.97
+            VIDEO_WIDTH=1280
+            VIDEO_HEIGHT=720
+            VIDEO_FPS=29.97
+          else
+            v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=800,height=448,pixelformat=0 --set-parm=29.97
+            VIDEO_WIDTH=800
+            VIDEO_HEIGHT=448
+            VIDEO_FPS=29.97
           fi
         else
           v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=352,height=288,pixelformat=0 --set-parm=15

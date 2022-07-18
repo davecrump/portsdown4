@@ -114,6 +114,22 @@ detect_audio()
         | head -c 6 | tail -c 1)"
     fi
 
+    CamLink4KPresent=0
+    # Check for the presence of an Elgato CamLink4K with stereo audio
+    arecord -l | grep -E -q \
+      "C4K"
+    if [ $? == 0 ]; then   ## Present
+      CamLink4KPresent=1
+      # Look for the video dongle, select the line and take
+      # the 6th character.  Max card number = 8 !!
+      WCAM="$(arecord -l | grep -E \
+        "C4K" \
+        | head -c 6 | tail -c 1)"
+      WC_AUDIO_CHANNELS=2
+      WC_AUDIO_SAMPLE=48000
+      WC_VIDEO_FPS=29.97
+    fi
+ 
     C920Present=0
     # Check for the presence of a C920 Webcam with stereo audio
     arecord -l | grep -E -q \
@@ -228,13 +244,14 @@ detect_audio()
     printf "MIC = $MIC\n"
     printf "USBTV = $USBTV\n"
     printf "WCAM = $WCAM\n"
+    printf "AUDIO_PREF = $PIC_INPUT\n"
 
     # At least one card detected, so sort out what card parameters are used
     case "$AUDIO_PREF" in
       auto)                                                 # Auto selected
         case "$PIC_INPUT" in
           "DIGITAL")                                        # Using Pi Cam video
-            if [ "$MIC" != "9" ]; then                      # Mic available
+            if [ "$MIC" != "9" ] && [ "$CamLink4KPresent" != "1" ]; then                      # Mic available
               AUDIO_CARD=1                                  # so use mic audio
               AUDIO_CARD_NUMBER=$MIC
               AUDIO_CHANNELS=1
@@ -242,6 +259,11 @@ detect_audio()
             elif [ "$USBTV" != "9" ] && [ "$MIC" == "9" ]; then # Mic not available, but EasyCap is
               AUDIO_CARD=1                                  # so use EasyCap audio
               AUDIO_CARD_NUMBER=$USBTV
+              AUDIO_CHANNELS=2
+              AUDIO_SAMPLE=48000
+            elif [ "$CamLink4KPresent" == "1" ]; then
+              AUDIO_CARD=1                                  # so use CamLink Audio
+              AUDIO_CARD_NUMBER=$WCAM
               AUDIO_CHANNELS=2
               AUDIO_SAMPLE=48000
             else                                            # Neither available
@@ -399,6 +421,14 @@ detect_video()
       sed -n '/EagleEye/,/dev/p' | grep 'dev' | tr -d '\t')"
   fi
 
+  if [ "${#VID_WEBCAM}" -lt "10" ]; then # $VID_WEBCAM currently empty
+
+    # List the video devices, select the 2 lines for a CamL Link 4K device, then
+    # select the line with the device details and delete the leading tab
+    VID_WEBCAM="$(v4l2-ctl --list-devices 2> /dev/null | \
+      sed -n '/Cam Link 4K/,/dev/p' | grep 'dev' | tr -d '\t')"
+  fi
+
   printf "The first Webcam device string is $VID_WEBCAM\n"
 
   # List the video devices, select the 2 lines for any usb device, then
@@ -546,11 +576,19 @@ detect_video()
   fi
 
   if [ "$WEBCAM_TYPE" == "None" ]; then
+    lsusb | grep -q "0fd9:0066"
+    if [ $? == 0 ]; then
+      WEBCAM_TYPE="CamLink4K"
+    fi
+  fi
+
+  if [ "$WEBCAM_TYPE" == "None" ]; then
     lsusb | grep -q "Webcam"
     if [ $? == 0 ]; then
       WEBCAM_TYPE="Webcam"
     fi
   fi
+
 
   if [ "$WEBCAM_TYPE" == "None" ]; then
     printf "No Webcam identified\n"
