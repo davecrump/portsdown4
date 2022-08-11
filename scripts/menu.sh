@@ -463,6 +463,7 @@ do_input_setup_wide()
   Radio9=OFF
   Radio10=OFF
   Radio11=OFF
+  Radio12=OFF
 
   case "$MODE_INPUT" in
   CAM16MPEG-2)
@@ -495,13 +496,16 @@ do_input_setup_wide()
   C920FHDH264)
     Radio10=ON
   ;;
-  *)
+  HDMI)
     Radio11=ON
+  ;;
+  *)
+    Radio12=ON
   ;;
   esac
 
   chinput=$(whiptail --title "$StrInputSetupTitle" --radiolist \
-    "$StrInputSetupDescription" 20 78 11 \
+    "$StrInputSetupDescription" 20 78 12 \
     "CAM16MPEG-2" "MPEG-2 1024x576 16:9 Pi Cam with Audio" $Radio1 \
     "CAMHDMPEG-2" "MPEG-2 1280x720 HD Pi Cam with Audio" $Radio2 \
     "ANALOG16MPEG-2" "MPEG-2 1024x576 16:9 Comp Vid with Audio" $Radio3 \
@@ -512,7 +516,8 @@ do_input_setup_wide()
     "C920H264" "H264 640x480 with Audio from C920 Webcam" $Radio8 \
     "C920HDH264" "H264 1024x720 with Audio from C920 Webcam" $Radio9 \
     "C920FHDH264" "H264 1920x1080 with Audio from C920 Webcam" $Radio10 \
-    "OTHER" "Non-Widescreen Mode" $Radio11 \
+    "HDMI" "H264 HDMI from Elgato CamLink 4K" $Radio11 \
+    "OTHER" "Non-Widescreen Mode" $Radio12 \
   3>&2 2>&1 1>&3)
 
   if [ $? -eq 0 ]; then
@@ -554,6 +559,9 @@ do_input_setup_wide()
       if [ $? -eq 0 ]; then
          set_config_var analogcamname "$newcamname" $PCONFIGFILE
       fi
+    ;;
+    HDMI)
+      do_output_format
     ;;
     esac
     if [ "$chinput" != "OTHER" ]; then
@@ -1170,8 +1178,6 @@ do_output_standard()
 
 do_output_format()
 {
-#################################################################{"4:3", "16:9", "720p", "1080p"};
-##########GetConfigParam(PATH_PCONFIG,"format", CurrentFormat)
   FORMAT=$(get_config_var format $PCONFIGFILE)
   Radio1=OFF
   Radio2=OFF
@@ -1201,7 +1207,7 @@ do_output_format()
     "4:3" "Aspect ratio 4:3" $Radio1 \
     "16:9" "Aspect Ratio 16:9" $Radio2 \
     "720p" "720p Definition" $Radio3 \
-    "11080p" "1080p Definition" $Radio4 \
+    "1080p" "1080p Definition" $Radio4 \
     3>&2 2>&1 1>&3)
 
   if [ $? -eq 0 ]; then                     ## If the selection has changed

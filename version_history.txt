@@ -1,3 +1,6 @@
+202207190
+Initial support for Elgato CamLink4K HDMI dongle with LimeSDR
+
 202207150
 Release RTL-SDR BandViewer
 
