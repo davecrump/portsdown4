@@ -356,7 +356,6 @@ int *web_y_ptr;                // pointer
 int web_x;                     // click x 0 - 799 from left
 int web_y;                     // click y 0 - 480 from top
 bool webclicklistenerrunning = false; // Used to only start thread if required
-
 char WebClickForAction[7] = "no";  // no/yes
 
 // Threads for Touchscreen monitoring
@@ -15326,20 +15325,43 @@ void RebootPluto(int context)
 {
   int test = 1;
   int count = 0;
+  int touchcheckcount = 0;
   char timetext[63];
   FinishedButton = 0;
 
   if (context == 0)  // Straight reboot
   {
     system("/home/pi/rpidatv/scripts/reboot_pluto.sh");
-
+    MsgBox4("Pluto Rebooting", "Wait for reconnection", "Touch to cancel wait", "Timeout in 24 seconds");
+    usleep(500000);  // Give time for selecting touch to clear
     while(test == 1)
     {
       snprintf(timetext, 62, "Timeout in %d seconds", 24 - count);
-      MsgBox4("Pluto Rebooting", "Wait for reconnection", " ", timetext);
-      usleep(1000000);
+      MsgBox4("Pluto Rebooting", "Wait for reconnection", "Touch to cancel wait", timetext);
       test = CheckPlutoIPConnect();
       count = count + 1;
+
+      // Now monitor screen and web for cancel touch
+      for (touchcheckcount = 0; touchcheckcount < 1000; touchcheckcount++)
+      {
+        if (TouchTrigger == 1)
+        {
+          TouchTrigger = 0;
+          test = 9;
+          break;
+        }
+        else if ((webcontrol == true) && (strcmp(WebClickForAction, "yes") == 0))
+        {
+          strcpy(WebClickForAction, "no");
+          test = 9;
+          break;
+        }
+        else
+        {
+          usleep(1000);
+        }
+      }
+
       if (count > 24)
       {
         MsgBox4("Failed to Reconnect","to Pluto", " ", "Touch Screen to Continue");
@@ -15347,8 +15369,16 @@ void RebootPluto(int context)
         return;
       }
     }
-    MsgBox4("Pluto Rebooted"," ", " ", "Touch Screen to Continue");
-    wait_touch();
+    if (test == 9)
+    {
+      MsgBox4("Pluto Reboot Monitoring Cancelled"," ", " ", " ");
+      usleep(1000000);
+    }
+    else
+    {
+      MsgBox4("Pluto Rebooted"," ", " ", "Touch Screen to Continue");
+      wait_touch();
+    }
     return;
   }
 
@@ -15375,20 +15405,49 @@ void RebootPluto(int context)
 
   if ((context == 2) && (CheckPlutoIPConnect() == 1))  // On start or entry from Langstone or SigGen with no Pluto
   {
+    MsgBox4("Pluto may be rebooting", "Portsdown will start once Pluto has rebooted", "Touch to cancel wait", "Timeout in 24 seconds");
+    usleep(500000);  // Give time for selecting touch to clear
+
     while(test == 1)
     {
       snprintf(timetext, 62, "Timeout in %d seconds", 24 - count);
       MsgBox4("Pluto may be rebooting", "Portsdown will start once Pluto has rebooted", 
-              " ", timetext);
-      usleep(1000000);
+              "Touch to cancel wait", timetext);
+      //usleep(1000000);
       test = CheckPlutoIPConnect();
       count = count + 1;
+
+      // Now monitor screen and web for cancel touch
+      for (touchcheckcount = 0; touchcheckcount < 1000; touchcheckcount++)
+      {
+        if (TouchTrigger == 1)
+        {
+          TouchTrigger = 0;
+          test = 9;
+          break;
+        }
+        else if ((webcontrol == true) && (strcmp(WebClickForAction, "yes") == 0))
+        {
+          strcpy(WebClickForAction, "no");
+          test = 9;
+          break;
+        }
+        else
+        {
+          usleep(1000);
+        }
+      }
       if (count > 24)
       {
         MsgBox4("Failed to reconnect to the Pluto", "You may need to recycle the power", " ", "Touch Screen to Continue");
         wait_touch();
         return;
       }
+    }
+    if (test == 9)
+    {
+      MsgBox4("Pluto Reboot Monitoring Cancelled"," ", " ", " ");
+      usleep(1000000);
     }
   }
 }
