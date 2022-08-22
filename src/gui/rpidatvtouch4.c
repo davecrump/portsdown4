@@ -7925,7 +7925,7 @@ void GreyOut42()
     SetButtonStatus(ButtonNumber(CurrentMenu, 10), 2); // Jetson
   }
   // Check Pluto
-  if (CheckPlutoIPConnect() == 1)   // Pluto not connected, so GreyOut
+  if ((CheckPlutoIPConnect() == 1) || (CheckPlutoUSBConnect() != 0))   // Pluto not connected, so GreyOut
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 14), 2); // Pluto
   }
