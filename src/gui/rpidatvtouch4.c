@@ -457,6 +457,7 @@ int CheckLimeMiniConnect();
 int CheckLimeUSBConnect();
 int CheckPlutoConnect();
 int CheckPlutoIPConnect();
+int CheckPlutoUSBConnect();
 int GetPlutoXO();
 int GetPlutoAD();
 int GetPlutoCPU();
@@ -4840,6 +4841,39 @@ int CheckPlutoIPConnect()
   {
     return 1;
   }
+}
+
+
+/***************************************************************************//**
+ * @brief Checks whether a Pluto is connected to USB
+ *
+ * @param 
+ *
+ * @return 0 if present, 1 if absent
+*******************************************************************************/
+
+int CheckPlutoUSBConnect()
+{
+  FILE *fp;
+  char response[255];
+  int responseint;
+
+  /* Open the command for reading. */
+  fp = popen("lsusb | grep -q '0456:b673' ; echo $?", "r");
+  if (fp == NULL) {
+    printf("Failed to run command\n" );
+    exit(1);
+  }
+
+  /* Read the output a line at a time - output it. */
+  while (fgets(response, 7, fp) != NULL)
+  {
+    responseint = atoi(response);
+  }
+
+  /* close */
+  pclose(fp);
+  return responseint;
 }
 
 
@@ -20411,17 +20445,68 @@ void Start_Highlights_Menu1()
   if (strcmp(CurrentModeOPtext, "BATC^Stream") == 0)
   {
     strcpy(Outputtext, "Output to^BATC");
+    AmendButtonStatus(17, 1, Outputtext, &Green);
   }
   else if (strcmp(CurrentModeOPtext, "Jetson^Lime") == 0)
   {
     strcpy(Outputtext, "Output to^Jtsn Lime");
+    AmendButtonStatus(17, 1, Outputtext, &Green);
+  }
+  else if ((strcmp(CurrentModeOPtext, "Lime Mini") == 0) || (strcmp(CurrentModeOPtext, "Lime DVB") == 0))
+  {
+    strcat(Outputtext, CurrentModeOPtext);
+    if ((CheckLimeMiniConnect() != 0) && (LimeNETMicroDet != 1))
+    {
+      AmendButtonStatus(17, 1, Outputtext, &Grey);
+    }
+    else
+    {
+      AmendButtonStatus(17, 1, Outputtext, &Green);
+    }
+  }
+  else if (strcmp(CurrentModeOPtext, "Lime USB") == 0)
+  {
+    strcpy(Outputtext, "Output to^Lime USB");
+    if (CheckLimeUSBConnect() != 0)
+    {
+      AmendButtonStatus(17, 1, Outputtext, &Grey);
+    }
+    else
+    {
+      AmendButtonStatus(17, 1, Outputtext, &Green);
+    }
+  }
+  else if (strcmp(CurrentModeOPtext, "Pluto") == 0)
+  {
+    strcpy(Outputtext, "Output to^Pluto");
+    if (CheckPlutoUSBConnect() != 0)
+    {
+      AmendButtonStatus(17, 1, Outputtext, &Grey);
+    }
+    else
+    {
+      AmendButtonStatus(17, 1, Outputtext, &Green);
+    }
+  }
+  else if (strcmp(CurrentModeOPtext, "Express") == 0)
+  {
+    strcpy(Outputtext, "Output to^Express");
+    if (CheckExpressConnect() != 0)
+    {
+      AmendButtonStatus(17, 1, Outputtext, &Grey);
+    }
+    else
+    {
+      AmendButtonStatus(17, 1, Outputtext, &Green);
+    }
   }
   else
   {
     strcat(Outputtext, CurrentModeOPtext);
+    AmendButtonStatus(17, 1, Outputtext, &Green);
   }
   AmendButtonStatus(17, 0, Outputtext, &Blue);
-  AmendButtonStatus(17, 1, Outputtext, &Green);
+
   AmendButtonStatus(17, 2, Outputtext, &Grey);
 
   // Video Format Button 18
