@@ -1,3 +1,6 @@
+202208220
+Grey-out Pluto/Lime/Express button on Menu 1 if not connected to USB
+
 202208120
 Add ability to cancel Pluto reboot wait
 Add web control of SigGen
