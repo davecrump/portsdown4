@@ -1,3 +1,16 @@
+202208290
+Add File chooser for TS Files
+
+202208240
+Add AD9850 DDS to SigGen output devices
+
+202208220
+Grey-out Pluto/Lime/Express button on Menu 1 if not connected to USB
+
+202208120
+Add ability to cancel Pluto reboot wait
+Add web control of SigGen
+
 202207190
 Initial support for Elgato CamLink4K HDMI dongle with LimeSDR
 

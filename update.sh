@@ -637,6 +637,15 @@ if ! grep -q slopoints /home/pi/rpidatv/src/siggen/siggencal.txt; then
   echo "adf4153lev2=0" >> /home/pi/rpidatv/src/siggen/siggencal.txt
 fi
 
+# Add ad9850 reference freq to siggenconfig.txt if not included (202208240)
+if ! grep -q ad9850ref /home/pi/rpidatv/src/siggen/siggenconfig.txt; then
+  # File needs updating
+  # Delete any blank lines first
+  sed -i -e '/^$/d' /home/pi/rpidatv/src/siggen/siggenconfig.txt
+  # Add the new entry and a new line 
+  echo "ad9850ref=120000000" >> /home/pi/rpidatv/src/siggen/siggenconfig.txt
+fi
+
 # Add LimeRFE controls to config file if not included  202107010
 if ! grep -q limerfeport= "$PATHSCRIPT"/portsdown_config.txt; then
   # File needs updating

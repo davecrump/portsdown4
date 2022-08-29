@@ -356,7 +356,6 @@ int *web_y_ptr;                // pointer
 int web_x;                     // click x 0 - 799 from left
 int web_y;                     // click y 0 - 480 from top
 bool webclicklistenerrunning = false; // Used to only start thread if required
-
 char WebClickForAction[7] = "no";  // no/yes
 
 // Threads for Touchscreen monitoring
@@ -458,6 +457,7 @@ int CheckLimeMiniConnect();
 int CheckLimeUSBConnect();
 int CheckPlutoConnect();
 int CheckPlutoIPConnect();
+int CheckPlutoUSBConnect();
 int GetPlutoXO();
 int GetPlutoAD();
 int GetPlutoCPU();
@@ -499,6 +499,8 @@ void UpdateWindow();
 void ApplyTXConfig();
 void EnforceValidTXMode();
 void EnforceValidFEC();
+int ListFilestoArray(char Path[255], int FirstFile, int LastFile, char FileArray[100][255], char FileTypeArray[101][2]);
+int SelectFileUsingList(char *InitialPath, char *InitialFile, char *SelectedPath, char *SelectedFile);
 int SelectFromList(int CurrentSelection, char ListEntry[100][63], int ListLength);
 int CheckWifiEnabled();
 int CheckWifiConnection(char Network_SSID[63]);
@@ -4845,6 +4847,39 @@ int CheckPlutoIPConnect()
 
 
 /***************************************************************************//**
+ * @brief Checks whether a Pluto is connected to USB
+ *
+ * @param 
+ *
+ * @return 0 if present, 1 if absent
+*******************************************************************************/
+
+int CheckPlutoUSBConnect()
+{
+  FILE *fp;
+  char response[255];
+  int responseint;
+
+  /* Open the command for reading. */
+  fp = popen("lsusb | grep -q '0456:b673' ; echo $?", "r");
+  if (fp == NULL) {
+    printf("Failed to run command\n" );
+    exit(1);
+  }
+
+  /* Read the output a line at a time - output it. */
+  while (fgets(response, 7, fp) != NULL)
+  {
+    responseint = atoi(response);
+  }
+
+  /* close */
+  pclose(fp);
+  return responseint;
+}
+
+
+/***************************************************************************//**
  * @brief Looks up the current xo_correction on the Pluto
  *
  * @param nil
@@ -7075,10 +7110,313 @@ void EnforceValidFEC()
 }
 
 
-int SelectFromList(int CurrentSelection, char ListEntry[100][63], int ListLength)
+/***************************************************************************//**
+ * @brief Lists (ls -l) files in a directory and puts up to 98 entries in an array
+ *
+ * @param Path is directory path.  Should start and finish with /
+ *        FirstFile is the alpabetical list position of the first file to be returned.  Starts with 1
+ *        Last File must be between Firstfile and FirstFile + 97
+ *        FileArray puts the results in [2] to [2 + 97]
+ *
+ * @return (int) total number of file entries in directory
+*******************************************************************************/
+
+int ListFilestoArray(char *Path, int FirstFile, int LastFile, char FileArray[101][255], char FileTypeArray[101][2]) 
+{
+  int i;
+  FILE *fp;
+  char response[300];
+  char lscommand[511];
+  int LineCount = 1;      // First line of ls response not used
+  int FileIndexCount = 2; // 0 is title, 1 is parent
+  int TypeLineCount = 0;  // Used for check of File Types
+
+  // Clear the FileArray
+  for (i = 0; i <= 100; i++)
+  {
+    strcpy(FileArray[i], "");
+    strcpy(FileTypeArray[i], "");
+  }
+
+  // Check that 98 or less files have been requested
+  if (LastFile >= FirstFile + 97)
+  {
+    LastFile = FirstFile + 97;
+  }
+
+  // Read the filenames in the directory
+  strcpy(lscommand, "ls -1 ");
+  strcat(lscommand, Path);
+
+
+  fp = popen(lscommand, "r");
+  if (fp == NULL)
+  {
+    printf("Failed to run command\n" );
+    exit(1);
+  }
+
+  // Read the output a line at a time - store it
+  while (fgets(response, 300, fp) != NULL)
+  {
+    response[strlen(response) - 1] = '\0';  // Strip trailing cr
+    //printf("Line %d %s\n", LineCount, response);
+    if ((LineCount >= FirstFile) && (LineCount <= LastFile))
+    {
+      strcpy(FileArray[FileIndexCount], response);
+      FileIndexCount++;
+    }
+    LineCount++;
+  }
+  pclose(fp);
+
+  // Read the filetypes in the directory
+  FileIndexCount = 2;
+  strcpy(lscommand, "ls -l ");
+  strcat(lscommand, Path);
+
+  fp = popen(lscommand, "r");
+  if (fp == NULL)
+  {
+    printf("Failed to run command\n" );
+    exit(1);
+  }
+
+  // Read the output a line at a time - store it
+  while (fgets(response, 300, fp) != NULL)
+  {
+    response[strlen(response) - 1] = '\0';  // Strip trailing cr
+    response[1] = '\0';                     //  Limit length to 1 character
+    //printf("Line %d file type %s\n", TypeLineCount, response);
+    if ((TypeLineCount >= FirstFile) && (TypeLineCount <= LastFile))
+    {
+      //printf("FileIndexCount = %d\n", FileIndexCount);
+      strcpy(FileTypeArray[FileIndexCount], response);
+      FileIndexCount++;
+    }
+    TypeLineCount++;
+  }
+  pclose(fp);
+
+  if (TypeLineCount != LineCount)
+  {
+    printf("FILE INDEXING ERROR\n");
+  }
+  return LineCount - 1;
+}
+
+
+/***************************************************************************//**
+ * @brief Displays a File Dialogue to allow file selection
+ *
+ * @param InitialPath is directory path.  Should start and finish with /
+ *        InitialFile is file to be highlighted on entry
+ *        SelectedPath is path selected
+ *        SelectedFile is file selected
+ *        All params should be declared [255] in calling function
+
+ * @return (int) 0 if no change, 1 if changed
+*******************************************************************************/
+
+int SelectFileUsingList(char *InitialPath, char *InitialFile, char *SelectedPath, char *SelectedFile)
+{
+  int NumberofFiles;
+  char DisplayFileList[101][63];
+  char FileArray[101][255];
+  char FileTypeArray[101][2];
+  char shortfilename[255];
+  int i;
+  bool choosing = true;
+  bool noMatch = true;
+  int ListingSection = 1;
+  int response = 0;
+  int MatchTries;
+  int InitialSelection = 0;
+  int ChooseListLength;
+  int ThisFileListLength;
+  bool deleting = true;
+
+  strcpy(SelectedFile, InitialFile);
+
+  // Check InitialPath exists.  If not, set path to /home/pi
+  DIR* dir = opendir(InitialPath);
+  if (dir)                               // directory exists
+  {
+    closedir(dir);
+    strcpy(SelectedPath, InitialPath);
+  }
+  else if (ENOENT == errno)              // directory does not exist
+  {
+    printf("Directory does not exist, setting to /home/pi\n");
+    strcpy(SelectedPath, "/home/pi/");
+  }
+  else                                   // Directory Check Error
+  {
+    printf("Directory Check Error\n");
+  }
+
+  // Read the file list to check for a match with the initial file
+  if (strlen(InitialFile) != 0)
+  {
+    while (noMatch)
+    {
+      NumberofFiles = ListFilestoArray(SelectedPath, ((ListingSection - 1) * 98) + 1, ListingSection * 98, FileArray, FileTypeArray);
+
+      // Calculate the number of lines to check for a match within this 98
+      if (NumberofFiles > (ListingSection * 98))  // Another section to check after this
+      {
+         MatchTries = 98;
+      }
+      else
+      {
+        MatchTries = NumberofFiles - ((ListingSection - 1) * 98);
+      }
+
+      // Check for a match on each line
+      for (i = 2; i <= (MatchTries + 1); i++)
+      {
+        if (FileTypeArray[i][0] == '-')    // Only check if a file not a directory
+        {
+          if (strcmp(InitialFile, FileArray[i]) == 0)
+          {
+            InitialSelection = i;
+            noMatch = false;
+          }
+        }
+      }
+
+      if ((noMatch) && (NumberofFiles > ListingSection * 98))  // End of this 98, but there are more
+      {
+        ListingSection++;
+      }
+      else                                                     // End of the list
+      {
+        if (noMatch)
+        {
+          noMatch = false;
+          InitialSelection = 0;
+          ListingSection = 1;
+        }
+      }
+    }
+  }
+  else
+  {
+    InitialSelection = 0;
+  }
+
+  // At this point ListingSection is valid and InitialSelection is set.
+
+  while (choosing)
+  {
+    NumberofFiles = ListFilestoArray(SelectedPath, ((ListingSection - 1) * 98) + 1, ListingSection * 98, FileArray, FileTypeArray);
+    deleting = true;
+
+    if (NumberofFiles > (ListingSection * 98))  // Another section to check after this
+    {
+      ChooseListLength = 100;
+      ThisFileListLength = 98;
+      strcpy(DisplayFileList[100], "More files...");
+    }
+    else
+    {
+      ChooseListLength = NumberofFiles - ((ListingSection - 1) * 98) + 1;
+      ThisFileListLength = NumberofFiles - ((ListingSection - 1) * 98);
+    }
+
+    if (ListingSection == 1)
+    {
+      strcpy(DisplayFileList[1], "Up to Parent Directory");
+    }
+    else
+    {
+      strcpy(DisplayFileList[1], "Back to Previous Files");
+    }
+
+    for (i = 2; i <= (ThisFileListLength + 1); i++)
+    {
+      strcpyn(shortfilename, FileArray[i], 55);
+
+      if (FileTypeArray[i][0] == 'd')                    // This is a directory
+      {
+        strcpy(DisplayFileList[i], "<DIR> ");
+        strcat(DisplayFileList[i], shortfilename);
+      }
+      else                                           // Normal File
+      {
+        strcpy(DisplayFileList[i], shortfilename);
+      }
+    }
+
+    snprintf(DisplayFileList[0], 63, "%s", SelectedPath);
+    response = SelectFromList(InitialSelection, DisplayFileList, ChooseListLength);
+
+    if ((NumberofFiles > 98) && (response == 100))  // next 98 files requested
+    {
+      ListingSection++;
+    }
+    else if ((response >= 2) && (response <= (ChooseListLength + 1)))  // valid choice
+    {
+      printf("Chosen File was %s\n", DisplayFileList[response]);
+      if (FileTypeArray[response][0] == 'd')                           // Directory selected
+      {
+        strcat(SelectedPath, FileArray[response]);
+        strcat(SelectedPath, "/");
+        ListingSection = 1;
+        printf("New selected path is %s\n", SelectedPath);
+      }
+      else
+      {
+        strcpy(SelectedFile, DisplayFileList[response]);
+        printf("Chosen File was copied as %s\n", DisplayFileList[response]);
+        choosing = false;
+      }
+    }
+    else if (response == 0)                                           // Cancel
+    {
+      strcpy(SelectedFile, InitialFile);
+      strcpy(SelectedPath, InitialPath);
+      choosing = false;
+    }
+
+    if((response == 1) && (ListingSection == 1))                // Go to parent folder
+    {
+      if (strlen(SelectedPath) > 1 )                            // Only change if path is not currently "/"
+      {
+        for (i = strlen(SelectedPath); i > 1; i = i - 1)        // From the right hand end of the path
+        {
+          if (deleting)                                         // if the slash has not been reached
+          {
+            SelectedPath[i - 1] = '\0';                         // delete the character
+          }
+          if (SelectedPath[i - 2] == '/')                       // Slash has been reached
+          {
+            deleting = false;                                   // So stop deleting
+          }
+        }
+      }
+    }
+  }
+  printf("Selected File = %s\n", SelectedFile);
+  printf("Selected Path = %s\n", SelectedPath);
+
+  if ((strcmp(SelectedFile, InitialFile) == 0) && (strcmp(SelectedPath, InitialPath) == 0))
+  {
+    // No change
+    return 0;
+  }
+  else
+  {
+    return 1;
+  }
+  return 0;
+}
+
+
+int SelectFromList(int CurrentSelection, char ListEntry[101][63], int ListLength)
 {
   // Entry with CurrentSelection = 0 means no current selection
-  // Entry with CurrentSelection = -1 means no selection.  Returns -1
+  // Entry with CurrentSelection = -1 means no selection possible.  Returns -1
 
   char TableNumberText[7];
 
@@ -7412,7 +7750,7 @@ int CheckWifiConnection(char Network_SSID[63])
 
 void WiFiConfig(int NoButton)
 {
-  char ListEntry[100][63];
+  char ListEntry[101][63];
   int CurrentSelection = 0;
   int ListLength = 0;
   FILE *fp;
@@ -7892,7 +8230,7 @@ void GreyOut42()
     SetButtonStatus(ButtonNumber(CurrentMenu, 10), 2); // Jetson
   }
   // Check Pluto
-  if (CheckPlutoIPConnect() == 1)   // Pluto not connected, so GreyOut
+  if ((CheckPlutoIPConnect() == 1) || (CheckPlutoUSBConnect() != 0))   // Pluto not connected, so GreyOut
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 14), 2); // Pluto
   }
@@ -13754,9 +14092,14 @@ void IPTSConfig(int NoButton)
 {
   char RequestText[64];
   char InitText[64];
-  char filename[63];
   bool IsValid = FALSE;
   char KRCopy[63];
+  char TSFile[255];
+  char TSPath[255];
+  char NewTSFile[255];
+  char NewTSPath[255];
+  bool deleting;
+  int i;
 
   switch (NoButton)
   {
@@ -13817,22 +14160,40 @@ void IPTSConfig(int NoButton)
     SetConfigParam(PATH_PCONFIG, "udpinport", KeyboardReturn);
     strcpy(UDPInPort, KeyboardReturn);
     break;
+
   case 3:                            // Edit TS Filename
-    strcpy(filename, TSVideoFile);
-    chopN(filename, 23);  // cut off /home/pi/rpidatv/video/
-    strcpy(RequestText, "Enter TS filename in rpidatv/video/ folder");
-    strcpyn(InitText, filename, 31);
-    Keyboard(RequestText, InitText, 31);
+    printf("stored TSVideoFile is %s\n", TSVideoFile);
 
-    if(strcmp(InitText, KeyboardReturn) != 0) // Filename has changed
+    // Separate out the Path
+    deleting = true;
+    strcpy(TSPath, TSVideoFile);
+    for (i = strlen(TSVideoFile); i > 1; i = i - 1)
     {
-      strcpy(KRCopy, "/home/pi/rpidatv/video/");
-      strcat(KRCopy, KeyboardReturn);
-      printf("New TS filename: %s\n", KRCopy);
+      if (deleting)                                   // if the slash has not been reached
+      {
+        TSPath[i - 1] = '\0';                         // delete the character
+      }
+      if (TSPath[i - 2] == '/')                       // If Next character is a slash 
+      {
+        deleting = false;                             // stop deleting
+      }
+    }
+    printf("TSPath is %s\n", TSPath);
 
-      // Save filename to config file
-      SetConfigParam(PATH_PCONFIG, "tsvideofile", KRCopy);
-      strcpy(TSVideoFile, KRCopy);
+    // Separate out the filename
+    strcpy(TSFile, TSVideoFile);
+    chopN(TSFile, strlen(TSPath));                   // Chop off the path characters from the full string
+    printf("TSFile is %s\n", TSFile);
+
+
+    // Choose the new file (or not)
+    if (SelectFileUsingList(TSPath, TSFile, NewTSPath, NewTSFile) == 1)  // file has changed
+    {
+      strcat(NewTSPath, NewTSFile);                                      // Combine path and filename
+      printf("New TS filename: %s\n", NewTSPath);
+
+      SetConfigParam(PATH_PCONFIG, "tsvideofile", NewTSPath);            // Save filename to config file   
+      strcpy(TSVideoFile, NewTSPath);
     }
   }
 }
@@ -15326,20 +15687,43 @@ void RebootPluto(int context)
 {
   int test = 1;
   int count = 0;
+  int touchcheckcount = 0;
   char timetext[63];
   FinishedButton = 0;
 
   if (context == 0)  // Straight reboot
   {
     system("/home/pi/rpidatv/scripts/reboot_pluto.sh");
-
+    MsgBox4("Pluto Rebooting", "Wait for reconnection", "Touch to cancel wait", "Timeout in 24 seconds");
+    usleep(500000);  // Give time for selecting touch to clear
     while(test == 1)
     {
       snprintf(timetext, 62, "Timeout in %d seconds", 24 - count);
-      MsgBox4("Pluto Rebooting", "Wait for reconnection", " ", timetext);
-      usleep(1000000);
+      MsgBox4("Pluto Rebooting", "Wait for reconnection", "Touch to cancel wait", timetext);
       test = CheckPlutoIPConnect();
       count = count + 1;
+
+      // Now monitor screen and web for cancel touch
+      for (touchcheckcount = 0; touchcheckcount < 1000; touchcheckcount++)
+      {
+        if (TouchTrigger == 1)
+        {
+          TouchTrigger = 0;
+          test = 9;
+          break;
+        }
+        else if ((webcontrol == true) && (strcmp(WebClickForAction, "yes") == 0))
+        {
+          strcpy(WebClickForAction, "no");
+          test = 9;
+          break;
+        }
+        else
+        {
+          usleep(1000);
+        }
+      }
+
       if (count > 24)
       {
         MsgBox4("Failed to Reconnect","to Pluto", " ", "Touch Screen to Continue");
@@ -15347,8 +15731,16 @@ void RebootPluto(int context)
         return;
       }
     }
-    MsgBox4("Pluto Rebooted"," ", " ", "Touch Screen to Continue");
-    wait_touch();
+    if (test == 9)
+    {
+      MsgBox4("Pluto Reboot Monitoring Cancelled"," ", " ", " ");
+      usleep(1000000);
+    }
+    else
+    {
+      MsgBox4("Pluto Rebooted"," ", " ", "Touch Screen to Continue");
+      wait_touch();
+    }
     return;
   }
 
@@ -15375,20 +15767,49 @@ void RebootPluto(int context)
 
   if ((context == 2) && (CheckPlutoIPConnect() == 1))  // On start or entry from Langstone or SigGen with no Pluto
   {
+    MsgBox4("Pluto may be rebooting", "Portsdown will start once Pluto has rebooted", "Touch to cancel wait", "Timeout in 24 seconds");
+    usleep(500000);  // Give time for selecting touch to clear
+
     while(test == 1)
     {
       snprintf(timetext, 62, "Timeout in %d seconds", 24 - count);
       MsgBox4("Pluto may be rebooting", "Portsdown will start once Pluto has rebooted", 
-              " ", timetext);
-      usleep(1000000);
+              "Touch to cancel wait", timetext);
+      //usleep(1000000);
       test = CheckPlutoIPConnect();
       count = count + 1;
+
+      // Now monitor screen and web for cancel touch
+      for (touchcheckcount = 0; touchcheckcount < 1000; touchcheckcount++)
+      {
+        if (TouchTrigger == 1)
+        {
+          TouchTrigger = 0;
+          test = 9;
+          break;
+        }
+        else if ((webcontrol == true) && (strcmp(WebClickForAction, "yes") == 0))
+        {
+          strcpy(WebClickForAction, "no");
+          test = 9;
+          break;
+        }
+        else
+        {
+          usleep(1000);
+        }
+      }
       if (count > 24)
       {
         MsgBox4("Failed to reconnect to the Pluto", "You may need to recycle the power", " ", "Touch Screen to Continue");
         wait_touch();
         return;
       }
+    }
+    if (test == 9)
+    {
+      MsgBox4("Pluto Reboot Monitoring Cancelled"," ", " ", " ");
+      usleep(1000000);
     }
   }
 }
@@ -20352,17 +20773,68 @@ void Start_Highlights_Menu1()
   if (strcmp(CurrentModeOPtext, "BATC^Stream") == 0)
   {
     strcpy(Outputtext, "Output to^BATC");
+    AmendButtonStatus(17, 1, Outputtext, &Green);
   }
   else if (strcmp(CurrentModeOPtext, "Jetson^Lime") == 0)
   {
     strcpy(Outputtext, "Output to^Jtsn Lime");
+    AmendButtonStatus(17, 1, Outputtext, &Green);
+  }
+  else if ((strcmp(CurrentModeOPtext, "Lime Mini") == 0) || (strcmp(CurrentModeOPtext, "Lime DVB") == 0))
+  {
+    strcat(Outputtext, CurrentModeOPtext);
+    if ((CheckLimeMiniConnect() != 0) && (LimeNETMicroDet != 1))
+    {
+      AmendButtonStatus(17, 1, Outputtext, &Grey);
+    }
+    else
+    {
+      AmendButtonStatus(17, 1, Outputtext, &Green);
+    }
+  }
+  else if (strcmp(CurrentModeOPtext, "Lime USB") == 0)
+  {
+    strcpy(Outputtext, "Output to^Lime USB");
+    if (CheckLimeUSBConnect() != 0)
+    {
+      AmendButtonStatus(17, 1, Outputtext, &Grey);
+    }
+    else
+    {
+      AmendButtonStatus(17, 1, Outputtext, &Green);
+    }
+  }
+  else if (strcmp(CurrentModeOPtext, "Pluto") == 0)
+  {
+    strcpy(Outputtext, "Output to^Pluto");
+    if (CheckPlutoUSBConnect() != 0)
+    {
+      AmendButtonStatus(17, 1, Outputtext, &Grey);
+    }
+    else
+    {
+      AmendButtonStatus(17, 1, Outputtext, &Green);
+    }
+  }
+  else if (strcmp(CurrentModeOPtext, "Express") == 0)
+  {
+    strcpy(Outputtext, "Output to^Express");
+    if (CheckExpressConnect() != 0)
+    {
+      AmendButtonStatus(17, 1, Outputtext, &Grey);
+    }
+    else
+    {
+      AmendButtonStatus(17, 1, Outputtext, &Green);
+    }
   }
   else
   {
     strcat(Outputtext, CurrentModeOPtext);
+    AmendButtonStatus(17, 1, Outputtext, &Green);
   }
   AmendButtonStatus(17, 0, Outputtext, &Blue);
-  AmendButtonStatus(17, 1, Outputtext, &Green);
+
   AmendButtonStatus(17, 2, Outputtext, &Grey);
 
   // Video Format Button 18

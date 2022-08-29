@@ -40,6 +40,7 @@ without them
 #include <time.h>
 #include <inttypes.h>
 #include <lime/LimeSuite.h>
+#include "ffunc.h"
 
 #include "font/font.h"
 #include "touch.h"
@@ -136,6 +137,8 @@ char ref_freq_5355[63] = "26000000";        // read on startup from siggenconfig
 int refin = 2600000;                        // adf5355 ref_freq/10
 char ref_freq_4153[63] = "20000000";        // read on startup from siggenconfig.txt
 int refin4153 = 20000000;                   // adf4153/SLO ref_freq
+char ref_freq_9850[63] = "64000000";        // read on startup from siggenconfig.txt
+int refin9850 = 64000000;                   // ad9850 DDS ref_freq
 
 uint64_t SourceUpperFreq = 13600000000;     // set every time an oscillator is selected
 uint64_t SourceLowerFreq = 54000000;        // set every time an oscillator is selected
@@ -156,7 +159,7 @@ int GPIO_SPI_CLK = 21;
 int GPIO_SPI_DATA = 22;
 int GPIO_4351_LE = 23;   // Changed for RPi 4
 int GPIO_Atten_LE = 16;
-int GPIO_5355_LE = 15;   // Also Elcom LE and Nort SLO LE
+int GPIO_5355_LE = 15;   // Also Elcom LE and Nort SLO and ad9850 LE
 int GPIO_Band_LSB = 26;  // Band D0, Changed for RPi 4
 int GPIO_Band_MSB = 24;  // Band D1
 int GPIO_Tverter = 7;    // Band D2
@@ -188,39 +191,25 @@ char PlutoIP[16];             // Pluto IP address
 int PresetStoreTrigger = 0;   //Set to 1 if awaiting preset being stored
 int FinishedButton = 0;       // Used to indicate screentouch during TX or RX
 int touch_response = 0;       // set to 1 on touch and used to reboot display if it locks up
+int TouchX;
+int TouchY;
+int TouchPressure;
+int TouchTrigger = 0;
+bool touchneedsinitialisation = true;
+char DisplayType[31];
 
-// Function Prototypes
+// Web Control globals
+bool webcontrol = false;           // Enables remote control of touchscreen functions
+char ProgramName[255];             // used to pass rpidatvgui char string to listener
+int *web_x_ptr;                // pointer
+int *web_y_ptr;                // pointer
+int web_x;                     // click x 0 - 799 from left
+int web_y;                     // click y 0 - 480 from top
+bool webclicklistenerrunning = false; // Used to only start thread if required
+char WebClickForAction[7] = "no";  // no/yes
+pthread_t thwebclick;     //  Listens for mouse clicks from web interface
+pthread_t thtouchscreen;  //  listens to the touchscreen   
 
-void Start_Highlights_Menu1();
-void Start_Highlights_Menu2();
-void Start_Highlights_Menu3();
-void Start_Highlights_Menu4();
-void Start_Highlights_Menu11();
-void Start_Highlights_Menu12();
-
-void MsgBox(char *);
-void MsgBox2(char *, char *);
-void MsgBox4(char *, char *, char *, char *);
-void wait_touch();
-void waituntil(int, int);
-void Keyboard(char *, char *, int);
-void DisplayLogo();
-int getTouchSample(int *, int *, int *);
-void TransformTouchMap(int, int);
-int ButtonNumber(int, int);
-int CheckLimeMiniConnect();
-int CheckLimeUSBConnect();
-static void cleanexit(int);
-int LimeGWRev();
-void ImposeBounds();
-void ShowTitle();
-void UpdateWindow();
-void adf4351On(int);
-void adf5355On(int);
-void adf4153On();
-void ElcomOn();
-void LimeOn();
-void LimeOff();
 
 // PLUTO Constants and declarations
 
@@ -237,6 +226,125 @@ struct iio_channel *tx_chain;
 struct iio_channel *tx_lo;
 bool PlutoCalValid = false;
 int plutotx(bool);
+
+// Function Prototypes
+
+void GetConfigParam(char *PathConfigFile, char *Param, char *Value);
+void SetConfigParam(char *PathConfigFile, char *Param, char *Value);
+void strcpyn(char *outstring, char *instring, int n);
+void DisplayHere(char *DisplayCaption);
+void GetIPAddr(char IPAddress[256]);
+void GetIPAddr2(char IPAddress[256]);
+int CheckGoogle();
+int valid_digit(char *ip_str);
+int is_valid_ip(char *ip_str);
+void LimeFWUpdate(int button);
+int file_exist (char *filename);
+void ReadSavedState();
+void SaveState();
+void ReadWebControl();
+void InitialiseGPIO();
+int CheckFTDI();
+int CheckExpressConnect();
+int CheckExpressRunning();
+int StartExpressServer();
+void CheckExpress();
+int CheckLimeMiniConnect();
+int CheckLimeUSBConnect();
+int CheckPlutoConnect();
+int CheckPlutoIPConnect();
+int PlutoConnectTest();
+int GetPlutoXO();
+int GetPlutoAD();
+void CheckLimeReady();
+void LimeInfo();
+int LimeGWRev();
+int LimeGWVer();
+int LimeFWVer();
+int LimeHWVer();
+void DisplayLogo();
+void TransformTouchMap(int x, int y);
+int IsMenuButtonPushed(int x, int y);
+int InitialiseButtons();
+int AddButton(int x, int y, int w, int h);
+int ButtonNumber(int MenuIndex, int Button);
+int CreateButton(int MenuIndex, int ButtonPosition);
+int AddButtonStatus(int ButtonIndex, char *Text, color_t *Color);
+void AmendButtonStatus(int ButtonIndex, int ButtonStatusIndex, char *Text, color_t *Color);
+void DrawButton(int ButtonIndex);
+void SetButtonStatus(int ButtonIndex, int Status);
+int GetButtonStatus(int ButtonIndex);
+int openTouchScreen(int NoDevice);
+int getTouchScreenDetails(int *screenXmin, int *screenXmax, int *screenYmin, int *screenYmax);
+int getTouchSampleThread(int *rawX, int *rawY, int *rawPressure);
+int getTouchSample(int *rawX, int *rawY, int *rawPressure);
+void *WaitTouchscreenEvent(void * arg);
+void *WebClickListener(void * arg);
+void parseClickQuerystring(char *query_string, int *x_ptr, int *y_ptr);
+FFUNC touchscreenClick(ffunc_session_t * session);
+void UpdateWeb();
+void ShowFreq(uint64_t DisplayFreq);
+void ShowLevel(int DisplayLevel);
+void AdjustFreq(int button);
+void SetAtten(float AttenValue);
+void AdjustLevel(int Button);
+void CalcOPLevel();
+void ShowAtten();
+void ShowOPFreq();
+void stderrandexit(const char *msg, int errcode, int line);
+void CWOnOff(int onoff);
+int plutotx(bool cal);
+int PlutoOff();
+void *LimeStream(void * arg);
+void LimeOn();
+void LimeOff();
+void ExpressOn();
+void ExpressOnWithMod();
+void adf4351On(int adflevel);
+void adf5355write(uint32_t dataword);
+void adf5355On(int adflevel);
+void adf5355off();
+void ad9850write(uint32_t dataword, uint32_t powerdown);
+void ad9850On();
+void ad9850off();
+void adf4153write(uint32_t dataword);
+void adf4153On();
+void ElcomOn();
+void InitOsc();
+void ShowTitle();
+void UpdateWindow();
+void SelectInGroupOnMenu(int Menu, int StartButton, int StopButton, int NumberButton, int Status);
+void SelectOsc(int NoButton);
+void ImposeBounds();
+void OscStart();
+void OscStop();
+void SelectAtten(int NoButton);
+void *WaitButtonEvent(void * arg);
+void wait_touch();
+void MsgBox(char *message);
+void MsgBox2(char *message1, char *message2);
+void MsgBox4(char *message1, char *message2, char *message3, char *message4);
+static void cleanexit(int exit_code);
+void Keyboard(char RequestText[64], char InitText[64], int MaxLength);
+void ChangePlutoIP();
+void ChangePlutoXO();
+void ChangePlutoAD();
+void RebootPluto();
+void ChangeADFRef(int NoButton);
+void waituntil(int w, int h);
+void Define_Menu1();
+void Start_Highlights_Menu1();
+void Define_Menu2();
+void Start_Highlights_Menu2();
+void Define_Menu3();
+void Start_Highlights_Menu3();
+void Define_Menu4();
+void Start_Highlights_Menu4();
+void Define_Menu11();
+void Start_Highlights_Menu11();
+void Define_Menu12();
+static void terminate(int dummy);
+
 
 /***************************************************************************//**
  * @brief Looks up the value of a Param in PathConfigFile and sets value
@@ -353,8 +461,6 @@ void SetConfigParam(char *PathConfigFile, char *Param, char *Value)
 *******************************************************************************/
 void strcpyn(char *outstring, char *instring, int n)
 {
-  //printf("\ninstring= -%s-, instring length = %d, desired length = %d\n", instring, strlen(instring), strnlen(instring, n));
-  
   n = strnlen(instring, n);
   int i;
   for (i = 0; i < n; i = i + 1)
@@ -363,17 +469,6 @@ void strcpyn(char *outstring, char *instring, int n)
     outstring[i] = instring[i];
   }
   outstring[n] = '\0'; // Terminate the outstring
-  //printf("i = %d input character = %c\n", n, instring[n]);
-  //printf("i = %d input character = %c\n\n", (n + 1), instring[n + 1]);
-
-  //for (i = 0; i < n; i = i + 1)
-  //{
-  //  printf("i = %d output character = %c\n", i, outstring[i]);
-  //}  
-  //printf("i = %d output character = %c\n", n, outstring[n]);
-  //printf("i = %d output character = %c\n", (n + 1), outstring[n + 1]);
-
-  //printf("outstring= -%s-, length = %d\n\n", outstring, strlen(outstring));
 }
 
 
@@ -465,7 +560,6 @@ void GetIPAddr2(char IPAddress[256])
  *
  * @return 0 if it pings OK, 1 if it doesn't
 *******************************************************************************/
-
 
 int CheckGoogle()
 {
@@ -701,8 +795,15 @@ void ReadSavedState()
   GetConfigParam(PATH_SGCONFIG,"adf4153ref", ref_freq_4153);
   refin4153 = atoi(ref_freq_4153);
 
+  // ref_freq_9850 is initialised to 120000000 and stays as a string
+  GetConfigParam(PATH_SGCONFIG,"ad9850ref", ref_freq_9850);
+  refin9850 = atoi(ref_freq_9850);
+
   // Read Pluto IP from Portsdown Config file
   GetConfigParam(PATH_PCONFIG,"plutoip", PlutoIP);
+
+  // Read current Display Type from Portsdown Config File
+  GetConfigParam(PATH_PCONFIG, "display", DisplayType);
 }
 
 /***************************************************************************//**
@@ -729,6 +830,34 @@ void SaveState()
   SetConfigParam(PATH_SGCONFIG,"attenlevel", value);
 
   SetConfigParam(PATH_SGCONFIG,"attenuator", AttenType);
+}
+
+
+/***************************************************************************//**
+ * @brief Reads webcontrol state from portsdown_config.txt
+ *        
+ * @param nil
+ *
+ * @return void
+*******************************************************************************/
+
+void ReadWebControl()
+{
+  char WebControlText[15];
+
+  GetConfigParam(PATH_PCONFIG, "webcontrol", WebControlText);
+
+  if (strcmp(WebControlText, "enabled") == 0)
+  {
+    webcontrol = true;
+    pthread_create (&thwebclick, NULL, &WebClickListener, NULL);
+    webclicklistenerrunning = true;
+  }
+  else
+  {
+    webcontrol = false;
+    system("cp /home/pi/rpidatv/scripts/images/web_not_enabled.png /home/pi/tmp/screen.png");
+  }
 }
 
 
@@ -1522,7 +1651,7 @@ int IsMenuButtonPushed(int x, int y)
     cmsize = ButtonNumber(CurrentMenu + 1, 0) - ButtonNumber(CurrentMenu, 0);
   }
 
-TransformTouchMap(x,y);       // Sorts out orientation and approx scaling of the touch map
+  TransformTouchMap(x,y);       // Sorts out orientation and approx scaling of the touch map
 
   //printf("x=%d y=%d scaledx %d scaledy %d sxv %f syv %f Button %d\n",x,y,scaledX,scaledY,scaleXvalue,scaleYvalue, NbButton);
 
@@ -1989,55 +2118,297 @@ int getTouchScreenDetails(int *screenXmin, int *screenXmax, int *screenYmin, int
   return IsAtouchDevice;
 }
 
-int getTouchSample(int *rawX, int *rawY, int *rawPressure)
+
+int getTouchSampleThread(int *rawX, int *rawY, int *rawPressure)
 {
-  int i;       // how many bytes were read
-  size_t rb;   // the events (up to 64 at once)
-  struct input_event ev[64];
-  //static int Last_event=0; //not used?
-  rb=read(fd,ev,sizeof(struct input_event)*64);
-  *rawX=-1;*rawY=-1;
-  int StartTouch=0;
+  int i;
+  static bool awaitingtouchstart;
+  static bool touchfinished;
 
-  for (i = 0;  i <  (rb / sizeof(struct input_event)); i++)
+  if (touchneedsinitialisation == true)
   {
-    if (ev[i].type ==  EV_SYN)
+    awaitingtouchstart = true;
+    touchfinished = true;
+    touchneedsinitialisation = false;
+  }
+
+  /* how many bytes were read */
+  size_t rb;
+
+  /* the events (up to 64 at once) */
+  struct input_event ev[64];
+
+  if (strcmp(DisplayType, "Element14_7") == 0)
+  {
+    // Program flow blocks here until there is a touch event
+    rb = read(fd, ev, sizeof(struct input_event) * 64);
+
+    *rawX = -1;
+    *rawY = -1;
+    int StartTouch = 0;
+
+    for (i = 0;  i <  (rb / sizeof(struct input_event)); i++)
     {
-      //printf("Event type is %s%s%s = Start of New Event\n",KYEL,events[ev[i].type],KWHT);
+      if (ev[i].type ==  EV_SYN)
+      {
+        //printf("Event type is %s%s%s = Start of New Event\n",
+        //        KYEL, events[ev[i].type], KWHT);
+      }
+
+      else if (ev[i].type == EV_KEY && ev[i].code == 330 && ev[i].value == 1)
+      {
+        StartTouch = 1;
+        //printf("Event type is %s%s%s & Event code is %sTOUCH(330)%s & Event value is %s1%s = Touch Starting\n",
+        //        KYEL,events[ev[i].type],KWHT,KYEL,KWHT,KYEL,KWHT);
+      }
+
+      else if (ev[i].type == EV_KEY && ev[i].code == 330 && ev[i].value == 0)
+      {
+        //StartTouch=0;
+        //printf("Event type is %s%s%s & Event code is %sTOUCH(330)%s & Event value is %s0%s = Touch Finished\n",
+        //        KYEL,events[ev[i].type],KWHT,KYEL,KWHT,KYEL,KWHT);
+      }
+
+      else if (ev[i].type == EV_ABS && ev[i].code == 0 && ev[i].value > 0)
+      {
+        //printf("Event type is %s%s%s & Event code is %sX(0)%s & Event value is %s%d%s\n",
+        //        KYEL, events[ev[i].type], KWHT, KYEL, KWHT, KYEL, ev[i].value, KWHT);
+	    *rawX = ev[i].value;
+      }
+
+      else if (ev[i].type == EV_ABS  && ev[i].code == 1 && ev[i].value > 0)
+      {
+        //printf("Event type is %s%s%s & Event code is %sY(1)%s & Event value is %s%d%s\n",
+        //        KYEL, events[ev[i].type], KWHT, KYEL, KWHT, KYEL, ev[i].value, KWHT);
+        *rawY = ev[i].value;
+      }
+
+      else if (ev[i].type == EV_ABS  && ev[i].code == 24 && ev[i].value > 0)
+      {
+        //printf("Event type is %s%s%s & Event code is %sPressure(24)%s & Event value is %s%d%s\n",
+        //        KYEL, events[ev[i].type], KWHT, KYEL, KWHT, KYEL, ev[i].value,KWHT);
+        *rawPressure = ev[i].value;
+      }
+
+      if((*rawX != -1) && (*rawY != -1) && (StartTouch == 1))  // 1a
+      {
+        printf("7 inch Touchscreen Touch Event: rawX = %d, rawY = %d, rawPressure = %d\n", 
+                *rawX, *rawY, *rawPressure);
+        return 1;
+      }
     }
-    else if (ev[i].type == EV_KEY && ev[i].code == 330 && ev[i].value == 1)
-    {
-      StartTouch=1;
-      //printf("Event type is %s%s%s & Event code is %sTOUCH(330)%s & Event value is %s1%s = Touch Starting\n", KYEL,events[ev[i].type],KWHT,KYEL,KWHT,KYEL,KWHT);
-    }
-    else if (ev[i].type == EV_KEY && ev[i].code == 330 && ev[i].value == 0)
-    {
-      //StartTouch=0;
-      //printf("Event type is %s%s%s & Event code is %sTOUCH(330)%s & Event value is %s0%s = Touch Finished\n", KYEL,events[ev[i].type],KWHT,KYEL,KWHT,KYEL,KWHT);
-    }
-    else if (ev[i].type == EV_ABS && ev[i].code == 0 && ev[i].value > 0)
-    {
-      //printf("Event type is %s%s%s & Event code is %sX(0)%s & Event value is %s%d%s\n", KYEL,events[ev[i].type],KWHT,KYEL,KWHT,KYEL,ev[i].value,KWHT);
-      *rawX = ev[i].value;
-    }
-    else if (ev[i].type == EV_ABS  && ev[i].code == 1 && ev[i].value > 0)
-    {
-      //printf("Event type is %s%s%s & Event code is %sY(1)%s & Event value is %s%d%s\n", KYEL,events[ev[i].type],KWHT,KYEL,KWHT,KYEL,ev[i].value,KWHT);
-      *rawY = ev[i].value;
-    }
-    else if (ev[i].type == EV_ABS  && ev[i].code == 24 && ev[i].value > 0)
-    {
-      //printf("Event type is %s%s%s & Event code is %sPressure(24)%s & Event value is %s%d%s\n", KYEL,events[ev[i].type],KWHT,KYEL,KWHT,KYEL,ev[i].value,KWHT);
-      *rawPressure = ev[i].value;
-    }
-    if((*rawX!=-1)&&(*rawY!=-1)&&(StartTouch==1))
-    {
-      return 1;
+  }
+
+  if (strcmp(DisplayType, "dfrobot5") == 0)
+  {
+    // Program flow blocks here until there is a touch event
+    rb = read(fd, ev, sizeof(struct input_event) * 64);
+
+    if (awaitingtouchstart == true)
+    {    
+      *rawX = -1;
+      *rawY = -1;
+      touchfinished = false;
     }
 
+    for (i = 0;  i <  (rb / sizeof(struct input_event)); i++)
+    {
+      //printf("rawX = %d, rawY = %d, rawPressure = %d, \n\n", *rawX, *rawY, *rawPressure);
+
+      if (ev[i].type ==  EV_SYN)
+      {
+        //printf("Event type is %s%s%s = Start of New Event\n",
+        //        KYEL, events[ev[i].type], KWHT);
+      }
+
+      else if (ev[i].type == EV_KEY && ev[i].code == 330 && ev[i].value == 1)
+      {
+        awaitingtouchstart = false;
+        touchfinished = false;
+
+        //printf("Event type is %s%s%s & Event code is %sTOUCH(330)%s & Event value is %s1%s = Touch Starting\n",
+        //        KYEL,events[ev[i].type],KWHT,KYEL,KWHT,KYEL,KWHT);
+      }
+
+      else if (ev[i].type == EV_KEY && ev[i].code == 330 && ev[i].value == 0)
+      {
+        awaitingtouchstart = false;
+        touchfinished = true;
+
+        //printf("Event type is %s%s%s & Event code is %sTOUCH(330)%s & Event value is %s0%s = Touch Finished\n",
+        //        KYEL,events[ev[i].type],KWHT,KYEL,KWHT,KYEL,KWHT);
+      }
+
+      else if (ev[i].type == EV_ABS && ev[i].code == 0 && ev[i].value > 0)
+      {
+        //printf("Event type is %s%s%s & Event code is %sX(0)%s & Event value is %s%d%s\n",
+        //        KYEL, events[ev[i].type], KWHT, KYEL, KWHT, KYEL, ev[i].value, KWHT);
+        *rawX = ev[i].value;
+      }
+
+      else if (ev[i].type == EV_ABS  && ev[i].code == 1 && ev[i].value > 0)
+      {
+        //printf("Event type is %s%s%s & Event code is %sY(1)%s & Event value is %s%d%s\n",
+        //        KYEL, events[ev[i].type], KWHT, KYEL, KWHT, KYEL, ev[i].value, KWHT);
+        *rawY = ev[i].value;
+      }
+
+      else if (ev[i].type == EV_ABS  && ev[i].code == 24 && ev[i].value > 0)
+      {
+        //printf("Event type is %s%s%s & Event code is %sPressure(24)%s & Event value is %s%d%s\n",
+        //        KYEL, events[ev[i].type], KWHT, KYEL, KWHT, KYEL, ev[i].value,KWHT);
+        *rawPressure = ev[i].value;
+      }
+
+      if((*rawX != -1) && (*rawY != -1) && (touchfinished == true))  // 1a
+      {
+        printf("DFRobot Touch Event: rawX = %d, rawY = %d, rawPressure = %d\n", 
+                *rawX, *rawY, *rawPressure);
+        awaitingtouchstart = true;
+        touchfinished = false;
+        return 1;
+      }
+    }
   }
   return 0;
 }
+
+
+int getTouchSample(int *rawX, int *rawY, int *rawPressure)
+{
+  while (true)
+  {
+    if (TouchTrigger == 1)
+    {
+      *rawX = TouchX;
+      *rawY = TouchY;
+      *rawPressure = TouchPressure;
+      TouchTrigger = 0;
+      return 1;
+    }
+    else if ((webcontrol == true) && (strcmp(WebClickForAction, "yes") == 0))
+    {
+      *rawX = web_x;
+      *rawY = web_y;
+      *rawPressure = 0;
+      strcpy(WebClickForAction, "no");
+      printf("Web rawX = %d, rawY = %d, rawPressure = %d\n", *rawX, *rawY, *rawPressure);
+      return 1;
+    }
+    else
+    {
+      usleep(1000);
+    }
+  }
+  return 0;
+}
+
+
+void *WaitTouchscreenEvent(void * arg)
+{
+  int TouchTriggerTemp;
+  int rawX;
+  int rawY;
+  int rawPressure;
+  while (true)
+  {
+    TouchTriggerTemp = getTouchSampleThread(&rawX, &rawY, &rawPressure);
+    TouchX = rawX;
+    TouchY = rawY;
+    TouchPressure = rawPressure;
+    TouchTrigger = TouchTriggerTemp;
+  }
+  return NULL;
+}
+
+
+void *WebClickListener(void * arg)
+{
+  while (webcontrol)
+  {
+    //(void)argc;
+	//return ffunc_run(ProgramName);
+	ffunc_run(ProgramName);
+  }
+  webclicklistenerrunning = false;
+  printf("Exiting WebClickListener\n");
+  return NULL;
+}
+
+
+void parseClickQuerystring(char *query_string, int *x_ptr, int *y_ptr)
+{
+  char *query_ptr = strdup(query_string),
+  *tokens = query_ptr,
+  *p = query_ptr;
+
+  while ((p = strsep (&tokens, "&\n")))
+  {
+    char *var = strtok (p, "="),
+         *val = NULL;
+    if (var && (val = strtok (NULL, "=")))
+    {
+      if(strcmp("x", var) == 0)
+      {
+        *x_ptr = atoi(val);
+      }
+      else if(strcmp("y", var) == 0)
+      {
+        *y_ptr = atoi(val);
+      }
+    }
+  }
+}
+
+
+FFUNC touchscreenClick(ffunc_session_t * session)
+{
+  ffunc_str_t payload;
+
+  if( (webcontrol == false) || ffunc_read_body(session, &payload) )
+  {
+    if( webcontrol == false)
+    {
+      return;
+    }
+
+    ffunc_write_out(session, "Status: 200 OK\r\n");
+    ffunc_write_out(session, "Content-Type: text/plain\r\n\r\n");
+    ffunc_write_out(session, "%s\n", "click received.");
+    fprintf(stderr, "Received click POST: %s (%d)\n", payload.data?payload.data:"", payload.len);
+
+    int x = -1;
+    int y = -1;
+    parseClickQuerystring(payload.data, &x, &y);
+    printf("After Parse: x: %d, y: %d\n", x, y);
+
+    if((x >= 0) && (y >= 0))
+    {
+      web_x = x;                 // web_x is a global int
+      web_y = y;                 // web_y is a global int
+      strcpy(WebClickForAction, "yes");
+      printf("Web Click Event x: %d, y: %d\n", web_x, web_y);
+    }
+  }
+  else
+  {
+    ffunc_write_out(session, "Status: 400 Bad Request\r\n");
+    ffunc_write_out(session, "Content-Type: text/plain\r\n\r\n");
+    ffunc_write_out(session, "%s\n", "payload not found.");
+  }
+}
+
+
+void UpdateWeb()
+{
+  // Called after any screen update to update the web page if required.
+
+  if(webcontrol == true)
+  {
+    system("/home/pi/rpidatv/scripts/single_screen_grab_for_web.sh &");
+  }
+}
+
 
 void ShowFreq(uint64_t DisplayFreq)
 {
@@ -2366,6 +2737,11 @@ void AdjustFreq(int button)
     if (strcmp(osc, "adf5355") == 0)
     {
       adf5355On(level); // change adf freq at set level
+    }
+
+    if (strcmp(osc, "ad9850") == 0)
+    {
+      ad9850On(); // change ad9850 freq
     }
 
     if (strcmp(osc, "elcom")==0)
@@ -2896,6 +3272,14 @@ void ShowOPFreq()
       strcat(OPFreqText, FreqString);
       Text2(hpos*wscreen, vpos*hscreen, OPFreqText, font_ptr);
   }
+
+  //if ((strcmp(osc, "ad9850") == 0) && (CurrentMenu == 11))
+  //{
+  //    strcpy(OPFreqText, "Output Freq = ");
+  //    snprintf(FreqString, 12, "%lld", OutputFreq);
+  //    strcat(OPFreqText, FreqString);
+  //    Text2(hpos*wscreen, vpos*hscreen, OPFreqText, font_ptr);
+  //}
 }
 
 
@@ -3818,11 +4202,156 @@ void adf5355On(int adflevel)
   //adf5355write(0x00201C60);
 }
 
+
 void adf5355off()
 {
   // Set the Power Down bit
   adf5355write(0x32008BC4);
 }
+
+
+void ad9850write(uint32_t dataword, uint32_t powerdown)
+{
+  // Nominate pins using WiringPi numbers
+
+  //uint8_t LE_5355_GPIO = 15;  // AD9850 LE pin 8 wPi 15
+  uint8_t CLK_GPIO     = 21;  // CLK  pin 29 wPi 21
+  uint8_t DATA_GPIO    = 22;  // Data pin 31 wPi 22
+  uint8_t FQ_UD_GPIO   = 15;  // AD9850 FQ_UD pin 8 wPi 15
+
+  // Set all nominated pins to outputs
+  pinMode(FQ_UD_GPIO, OUTPUT);
+  pinMode(CLK_GPIO, OUTPUT);
+  pinMode(DATA_GPIO, OUTPUT);
+
+  // Set idle conditions
+  digitalWrite(FQ_UD_GPIO, LOW);
+  digitalWrite(CLK_GPIO, LOW);
+  digitalWrite(DATA_GPIO, LOW);
+
+  //Allow to settle
+  usleep(100);  
+
+  // Enable Serial Mode Here
+  digitalWrite(CLK_GPIO, HIGH);
+  usleep(10);
+  digitalWrite(CLK_GPIO, LOW);
+  usleep(10);
+  digitalWrite(FQ_UD_GPIO, HIGH);
+  usleep(10);
+  digitalWrite(FQ_UD_GPIO, LOW);
+  usleep(10);
+
+  // Initialise loop
+
+  uint16_t i;
+
+  // Send the 32 freq bits LSB first
+  // clocked in on rising edge of CLK
+
+  for (i = 0; i <= 31; i++)
+  {
+    // Test right-most bit
+    if (dataword & 0x00000001)
+    {
+      digitalWrite(DATA_GPIO, HIGH);
+    }
+    else
+    {
+      digitalWrite(DATA_GPIO, LOW);
+    }
+
+    // Pulse clock
+    usleep(10);
+    digitalWrite(CLK_GPIO, HIGH);
+    usleep(20);
+    digitalWrite(CLK_GPIO, LOW);
+    usleep(10);
+
+    // shift data right so next bit will be rightmost
+    dataword >>= 1;
+  }
+
+  // Send remaining 8 bits
+
+  digitalWrite(DATA_GPIO, LOW); // W32 Control, must be zero
+
+  // Pulse clock
+  usleep(10);
+  digitalWrite(CLK_GPIO, HIGH);
+  usleep(20);
+  digitalWrite(CLK_GPIO, LOW);
+  usleep(10);
+
+  digitalWrite(DATA_GPIO, LOW); // W33 Control, must be zero
+
+  // Pulse clock
+  usleep(10);
+  digitalWrite(CLK_GPIO, HIGH);
+  usleep(20);
+  digitalWrite(CLK_GPIO, LOW);
+  usleep(10);
+
+  if (powerdown == 0)
+  {
+    digitalWrite(DATA_GPIO, LOW); // W34 Don't Power Down
+  }
+  else
+  {
+    digitalWrite(DATA_GPIO, HIGH); // W34 Power Down
+  }
+ 
+
+  // Pulse clock
+  usleep(10);
+  digitalWrite(CLK_GPIO, HIGH);
+  usleep(20);
+  digitalWrite(CLK_GPIO, LOW);
+  usleep(10);
+
+  // W35 - W39 are phase bits which are zero for sig gen
+  for (i = 35; i <= 39; i++)
+  {
+    digitalWrite(DATA_GPIO, LOW);
+
+    // Pulse clock
+    usleep(10);
+    digitalWrite(CLK_GPIO, HIGH);
+    usleep(20);
+    digitalWrite(CLK_GPIO, LOW);
+    if (i == 39)   // Last bit of serial word
+    {
+      digitalWrite(FQ_UD_GPIO, HIGH);  // So pulse FQ_UD to load the word
+      usleep(10);
+      digitalWrite(FQ_UD_GPIO, LOW);
+    }
+    usleep(10);
+  }
+}
+
+
+void ad9850On()
+{
+  uint32_t dataword;
+  // Calculate the settings here
+
+  dataword = (uint32_t)(((float)DisplayFreq/(float)refin9850) * 4294967296.0);
+
+  // printf("dataword = %d\n", dataword);
+
+  ad9850write(dataword, 0);
+
+  // Calculate the actual output freq
+
+  OutputFreq = ((uint64_t)dataword * (uint64_t)refin9850) / 4294967296;
+}
+
+
+void ad9850off()
+{
+  ad9850write(0, 1);
+}
+
 
 void adf4153write(uint32_t dataword)
 {
@@ -4208,7 +4737,7 @@ void ElcomOn()
   usleep(10000);
 }
 
-void InitOsc()   
+void InitOsc()
 // Check the freq is in bounds and start/stop DATV express if req
 // Read in amplitude Cal table and hide unused buttons
 // Call CalcOPLevel
@@ -4279,6 +4808,11 @@ void InitOsc()
     strcpy(osc_text, "ADF5355");
   }
 
+  if (strcmp(osc, "ad9850") == 0)
+  {
+    strcpy(osc_text, "AD9850");
+  }
+
   if (strcmp(osc, "elcom") == 0)
   {
     strcpy(osc_text, "Elcom");
@@ -4299,10 +4833,10 @@ void InitOsc()
   }
   
   // Turn off attenuator if not compatible with mode
-  if ((strcmp(osc, "pluto") == 0) || (strcmp(osc, "pluto5") == 0) 
-   || (strcmp(osc, "elcom") == 0) || (strcmp(osc, "express") == 0) 
-   || (strcmp(osc, "lime") == 0)  || (strcmp(osc, "slo") == 0)
-   || (strcmp(osc, "adf4153") == 0))
+  if ((strcmp(osc, "pluto") == 0)   || (strcmp(osc, "pluto5") == 0) 
+   || (strcmp(osc, "elcom") == 0)   || (strcmp(osc, "express") == 0) 
+   || (strcmp(osc, "lime") == 0)    || (strcmp(osc, "slo") == 0)
+   || (strcmp(osc, "adf4153") == 0) || (strcmp(osc, "ad9850") == 0))
   {
     AttenIn = 0;
     SetAtten(0);
@@ -4311,7 +4845,7 @@ void InitOsc()
   // Turn off modulation if not compatible with mode
   if ((strcmp(osc, "pluto") == 0)   || (strcmp(osc, "pluto5") == 0)  || (strcmp(osc, "elcom") == 0)
    || (strcmp(osc, "adf4351") == 0) || (strcmp(osc, "adf5355") == 0) || (strcmp(osc, "slo") == 0)
-   || (strcmp(osc, "adf4153") == 0) || (strcmp(osc, "lime") == 0))
+   || (strcmp(osc, "adf4153") == 0) || (strcmp(osc, "lime") == 0) || (strcmp(osc, "ad9850") == 0))
   {
     ModOn = 0;
   }
@@ -4390,6 +4924,17 @@ void InitOsc()
     }
   }
 
+  if (strcmp(osc, "ad9850") == 0)
+  {
+    // Hide unused frequency buttons
+    SetButtonStatus(ButtonNumber(11, 8), 1);         //hide frequency decrement above 9.99 GHz
+    SetButtonStatus(ButtonNumber(11, 9), 1);         //hide frequency decrement above 999 MHz
+    SetButtonStatus(ButtonNumber(11, 10), 1);        //hide frequency decrement above 99 MHz
+    SetButtonStatus(ButtonNumber(11, 19), 1);        //hide frequency increment above 9.99 GHz
+    SetButtonStatus(ButtonNumber(11, 20), 1);        //hide frequency increment above 999 MHz
+    SetButtonStatus(ButtonNumber(11, 21), 1);        //hide frequency increment above 99 MHz
+  }
+
   // Hide the unused level buttons
   if (AttenIn == 0)
   {
@@ -4400,7 +4945,8 @@ void InitOsc()
       SetButtonStatus(ButtonNumber(11, 5), 1);         // Hide increment 10s
       SetButtonStatus(ButtonNumber(11, 7), 1);         // Hide increment 10ths
     }
-    if ((strcmp(osc, "elcom") == 0) || (strcmp(osc, "slo") == 0) || (strcmp(osc, "adf4153") == 0))
+    if ((strcmp(osc, "elcom") == 0) || (strcmp(osc, "slo") == 0) 
+     || (strcmp(osc, "adf4153") == 0) || (strcmp(osc, "ad9850") == 0))
     {
       SetButtonStatus(ButtonNumber(11, 0), 1);         // Hide decrement 10s
       SetButtonStatus(ButtonNumber(11, 1), 1);         // Hide decrement 1s
@@ -4465,7 +5011,12 @@ void UpdateWindow()
     clearScreen();
   }
   // Draw the backgrounds for the smaller menus
-  if ((CurrentMenu >= 2) && (CurrentMenu <= 4))  // 10 button menus
+  if (CurrentMenu == 2)  // 15 button menu
+  {
+    rectangle(10, 12, wscreen - 18, hscreen /2 + 12, 127, 127, 127);
+  }
+
+  if ((CurrentMenu >= 3) && (CurrentMenu <= 4))  // 10 button menus
   {
     rectangle(10, 12, wscreen - 18, hscreen * 2 / 6 + 12, 127, 127, 127);
   }
@@ -4491,6 +5042,7 @@ void UpdateWindow()
 
   // Show the title and any required text
   ShowTitle();
+  UpdateWeb();
 }
 
 
@@ -4527,7 +5079,7 @@ void SelectOsc(int NoButton)      // Output Oscillator
     system("sudo rm /tmp/expctrl >/dev/null 2>/dev/null");
   }
 
-  SelectInGroupOnMenu(CurrentMenu, 5, 9, NoButton, 1);
+  SelectInGroupOnMenu(CurrentMenu, 5, 10, NoButton, 1);
   SelectInGroupOnMenu(CurrentMenu, 0, 3, NoButton, 1);
 
   switch(NoButton)
@@ -4588,6 +5140,10 @@ void SelectOsc(int NoButton)      // Output Oscillator
   case 9:
     strcpy(osc, "adf4153");
     strcpy(osc_text, "ADF4153");  
+    break;
+  case 10:
+    strcpy(osc, "ad9850");
+    strcpy(osc_text, "AD9850");  
     break;
   }
   SetConfigParam(PATH_SGCONFIG, "osc", osc);
@@ -4700,6 +5256,21 @@ void ImposeBounds()  // Constrain DisplayFreq and level to physical limits
     }
   }
 
+  if (strcmp(osc, "ad9850")==0)
+  {
+    SourceUpperFreq = refin9850 / 2;
+    SourceLowerFreq = 0;
+    strcpy(osc_text, "AD9850");
+    if (level > 3)
+    {
+      level = 3;
+    }
+    if (level < 0)
+    {
+      level = 0;
+    }
+  }
+
   if (DisplayFreq > SourceUpperFreq)
   {
     DisplayFreq = SourceUpperFreq;
@@ -4754,6 +5325,12 @@ void OscStart()
     adf4153On();
   }
 
+  if (strcmp(osc, "ad9850") == 0)
+  {
+    ad9850On();
+  }
+
+
   if (strcmp(osc, "express")==0)
   {
     if (ModOn == 0)  // Start Express without Mod
@@ -4802,6 +5379,11 @@ void OscStop()
   if (strcmp(osc, "adf5355") == 0)
   {
     adf5355off();
+  }
+
+  if (strcmp(osc, "ad9850") == 0)
+  {
+    ad9850off();
   }
 
   if ((strcmp(osc, "elcom") == 0) && (CurrentMenu == 11))
@@ -4937,7 +5519,7 @@ void MsgBox(char *message)
   clearScreen();
   TextMid2(wscreen / 2, hscreen /2, message, font_ptr);
   TextMid2(wscreen / 2, 20, "Touch Screen to Continue", font_ptr);
-
+  UpdateWeb();
   printf("MsgBox called and waiting for touch\n");
 }
 
@@ -4955,7 +5537,7 @@ void MsgBox2(char *message1, char *message2)
   TextMid2(wscreen / 2, hscreen / 2 + linepitch, message1, font_ptr);
   TextMid2(wscreen / 2, hscreen / 2 - linepitch, message2, font_ptr);
   TextMid2(wscreen / 2, 20, "Touch Screen to Continue", font_ptr);
-
+  UpdateWeb();
   printf("MsgBox2 called and waiting for touch\n");
 }
 
@@ -4974,7 +5556,7 @@ void MsgBox4(char *message1, char *message2, char *message3, char *message4)
   TextMid2(wscreen / 2, hscreen - 2 * (linepitch * 2), message2, font_ptr);
   TextMid2(wscreen / 2, hscreen - 3 * (linepitch * 2), message3, font_ptr);
   TextMid2(wscreen / 2, hscreen - 4 * (linepitch * 2), message4, font_ptr);
-
+  UpdateWeb();
   // printf("MsgBox4 called\n");
 }
 
@@ -5431,25 +6013,57 @@ void RebootPluto()
 {
   int test = 1;
   int count = 0;
+  int touchcheckcount = 0;
   char timetext[63];
 
   system("/home/pi/rpidatv/scripts/reboot_pluto.sh");
+  MsgBox4("Pluto Rebooting", "Wait for reconnection", "Touch to cancel wait", "Timeout in 24 seconds");
+  usleep(500000);  // Give time for selecting touch to clear
   while(test == 1)
   {
-    snprintf(timetext, 62, "Timeout in %d seconds", 29 - count);
-    MsgBox4("Pluto Rebooting", "Wait for reconnection", timetext, "(this is normal on exit from Sig Gen)");
-    usleep(1000000);
+    snprintf(timetext, 62, "Timeout in %d seconds", 24 - count);
+    MsgBox4("Pluto Rebooting", "Wait for reconnection", "Touch to cancel wait", timetext);
     test = CheckPlutoIPConnect();
     count = count + 1;
-    if (count > 29)
+
+    // Now monitor screen and web for cancel touch
+    for (touchcheckcount = 0; touchcheckcount < 1000; touchcheckcount++)
+    {
+      if (TouchTrigger == 1)
+      {
+        TouchTrigger = 0;
+        test = 9;
+        break;
+      }
+      else if ((webcontrol == true) && (strcmp(WebClickForAction, "yes") == 0))
+      {
+        strcpy(WebClickForAction, "no");
+        test = 9;
+        break;
+      }
+      else
+      {
+        usleep(1000);
+      }
+    }
+
+    if (count > 24)
     {
       MsgBox4("Failed to Reconnect","to Pluto", " ", "Touch Screen to Continue");
       wait_touch();
       return;
     }
   }
-  MsgBox4("Pluto Rebooted"," ", " ", "Touch Screen to Continue");
-  wait_touch();
+  if (test == 9)
+  {
+    MsgBox4("Pluto Reboot Monitoring Cancelled"," ", " ", " ");
+    usleep(1000000);
+  }
+  else
+  {
+    MsgBox4("Pluto Rebooted"," ", " ", "Touch Screen to Continue");
+    wait_touch();
+  }
 }
 
 
@@ -5503,7 +6117,7 @@ void ChangeADFRef(int NoButton)
     SetConfigParam(PATH_SGCONFIG, "adf5355ref", KeyboardReturn);
     refin = atoi(ref_freq_5355) / 10;
     break;
-  case 7:
+  case 2:
     snprintf(RequestText, 50, "Enter new ADF4153/SLO Reference Frequency in Hz");
     strcpyn(InitText, ref_freq_4153, 10);
     while (Spaces >= 1)
@@ -5524,12 +6138,35 @@ void ChangeADFRef(int NoButton)
     SetConfigParam(PATH_SGCONFIG, "adf4153ref", KeyboardReturn);
     refin4153 = atoi(ref_freq_4153);
     break;
+  case 3:
+    snprintf(RequestText, 50, "Enter new AD9850 Clock Frequency in Hz");
+    strcpyn(InitText, ref_freq_9850, 10);
+    while (Spaces >= 1)
+    {
+      Keyboard(RequestText, InitText, 9);
+  
+      // Check that there are no spaces or other characters
+      Spaces = 0;
+      for (j = 0; j < strlen(KeyboardReturn); j = j + 1)
+      {
+        if ( !(isdigit(KeyboardReturn[j])) )
+        {
+          Spaces = Spaces + 1;
+        }
+      }
+    }
+    strcpy(ref_freq_9850, KeyboardReturn);
+    SetConfigParam(PATH_SGCONFIG, "ad9850ref", KeyboardReturn);
+    refin9850 = atoi(ref_freq_9850);
+    ImposeBounds();  // recalculate frequency limits
+    break;
   default:
     break;
   }
   printf("ADF4351 Ref set to: %s\n", ref_freq_4351);
   printf("ADF5355 Ref set to: %s\n", ref_freq_5355);
   printf("ADF4153/SLO Ref set to: %s\n", ref_freq_4153);
+  printf("AD9850 Ref set to: %s\n", ref_freq_9850);
 }
 
 
@@ -5627,6 +6264,7 @@ void waituntil(int w, int h)
         case 7:   // LimeSDR Mini
         case 8:   // Nort SLO
         case 9:   // ADF4153
+        case 10:  // AD9850 DDS
           SelectOsc(i); 
           break;
         default:
@@ -5697,20 +6335,10 @@ void waituntil(int w, int h)
           break;
         case 0:                               // Set ADF4351 Ref
         case 1:                               // Set ADF5355 Ref
-        case 7:                               // Set ADF4153/SLO Ref
+        case 2:                               // Set ADF4153/SLO Ref
+        case 3:                               // Set AD9850 Osc
           printf("Changing ADFRef\n");
           ChangeADFRef(i);
-          Start_Highlights_Menu4();
-          UpdateWindow();
-          break;
-        case 2:                               // Set Pluto Ref
-          printf("Changing Pluto XO\n");
-          ChangePlutoXO();
-          Start_Highlights_Menu4();
-          UpdateWindow();
-          break;
-        case 3:                               // Check Pluto Expansion
-          ChangePlutoAD();
           Start_Highlights_Menu4();
           UpdateWindow();
           break;
@@ -5724,6 +6352,11 @@ void waituntil(int w, int h)
           Start_Highlights_Menu4();
           UpdateWindow();
           break;
+        case 7:                               // Check Pluto Expansion
+          ChangePlutoAD();
+          Start_Highlights_Menu4();
+          UpdateWindow();
+          break;
         case 8:                               // Perform Pluto Expansion
           if (GetButtonStatus(ButtonNumber(4, 8)) == 1)
           {
@@ -5732,6 +6365,12 @@ void waituntil(int w, int h)
             wait_touch();
             SetButtonStatus(ButtonNumber(4, 8), 0);
           }
+        case 9:                               // Set Pluto Ref
+          printf("Changing Pluto XO\n");
+          ChangePlutoXO();
+          Start_Highlights_Menu4();
+          UpdateWindow();
+          break;
           UpdateWindow();
           break;
         default:
@@ -5992,6 +6631,13 @@ void Define_Menu2()
   button = CreateButton(2, 9);                           // adf4153
   AddButtonStatus(button, "ADF4153", &Blue);
   AddButtonStatus(button, "ADF4153", &Green);
+
+  // 2nd Row, Menu 2
+
+  button = CreateButton(2, 10);                           // AD9850 DDS
+  AddButtonStatus(button, "AD9850^DDS", &Blue);
+  AddButtonStatus(button, "AD9850^DDS", &Green);
+
 }
 
 void Start_Highlights_Menu2()
@@ -6000,47 +6646,52 @@ void Start_Highlights_Menu2()
   if (strcmp(osc, "pluto") == 0)
   {
     SelectInGroupOnMenu(2, 0, 3, 0, 1);
-    SelectInGroupOnMenu(2, 5, 9, 0, 1);
+    SelectInGroupOnMenu(2, 5, 10, 0, 1);
   }
   if (strcmp(osc, "pluto5") == 0)
   {
     SelectInGroupOnMenu(2, 0, 3, 1, 1);
-    SelectInGroupOnMenu(2, 5, 9, 1, 1);
+    SelectInGroupOnMenu(2, 5, 10, 1, 1);
   }
   if (strcmp(osc, "express") == 0)
   {
     SelectInGroupOnMenu(2, 0, 3, 2, 1);
-    SelectInGroupOnMenu(2, 5, 9, 2, 1);
+    SelectInGroupOnMenu(2, 5, 10, 2, 1);
   }
   if (strcmp(osc, "elcom") == 0)
   {
     SelectInGroupOnMenu(2, 0, 3, 3, 1);
-    SelectInGroupOnMenu(2, 5, 9, 3, 1);
+    SelectInGroupOnMenu(2, 5, 10, 3, 1);
   }
   if (strcmp(osc, "adf4351") == 0)
   {
     SelectInGroupOnMenu(2, 0, 3, 5, 1);
-    SelectInGroupOnMenu(2, 5, 9, 5, 1);
+    SelectInGroupOnMenu(2, 5, 10, 5, 1);
   }
   if (strcmp(osc, "adf5355") == 0)
   {
     SelectInGroupOnMenu(2, 0, 3, 6, 1);
-    SelectInGroupOnMenu(2, 5, 9, 6, 1);
+    SelectInGroupOnMenu(2, 5, 10, 6, 1);
   }
   if (strcmp(osc, "lime") == 0)
   {
     SelectInGroupOnMenu(2, 0, 3, 7, 1);
-    SelectInGroupOnMenu(2, 5, 9, 7, 1);
+    SelectInGroupOnMenu(2, 5, 10, 7, 1);
   }
   if (strcmp(osc, "slo") == 0)
   {
     SelectInGroupOnMenu(2, 0, 3, 8, 1);
-    SelectInGroupOnMenu(2, 5, 9, 8, 1);
+    SelectInGroupOnMenu(2, 5, 10, 8, 1);
   }
   if (strcmp(osc, "adf4153") == 0)
   {
     SelectInGroupOnMenu(2, 0, 3, 9, 1);
-    SelectInGroupOnMenu(2, 5, 9, 9, 1);
+    SelectInGroupOnMenu(2, 5, 10, 9, 1);
+  }
+  if (strcmp(osc, "ad9850") == 0)
+  {
+    SelectInGroupOnMenu(2, 0, 3, 10, 1);
+    SelectInGroupOnMenu(2, 5, 10, 10, 1);
   }
 }
 
@@ -6111,8 +6762,8 @@ void Define_Menu4()
   // Bottom Row, Menu 4
 
   button = CreateButton(4, 4);
-  AddButtonStatus(button, "Cancel", &DBlue);
-  AddButtonStatus(button, "Cancel", &LBlue);
+  AddButtonStatus(button, "Exit", &DBlue);
+  AddButtonStatus(button, "Exit", &LBlue);
 
   button = CreateButton(4, 0);
   AddButtonStatus(button, "Set Ref^ADF4351", &Blue);
@@ -6121,10 +6772,10 @@ void Define_Menu4()
   AddButtonStatus(button, "Set Ref^ADF5355", &Blue);
 
   button = CreateButton(4, 2);
-  AddButtonStatus(button, "Set Ref^Pluto", &Blue);
+  AddButtonStatus(button, "Set Ref^ADF4153/SLO", &Blue);
 
   button = CreateButton(4, 3);
-  AddButtonStatus(button, "Check Pluto^AD9364", &Blue);
+  AddButtonStatus(button, "Set Clock^for AD9850", &Blue);
 
 
   // Second Row, Menu 4
@@ -6136,11 +6787,14 @@ void Define_Menu4()
   AddButtonStatus(button, "Reboot^Pluto", &Blue);
 
   button = CreateButton(4, 7);
-  AddButtonStatus(button, "Set Ref^ADF4153/SLO", &Blue);
+  AddButtonStatus(button, "Check Pluto^AD9364", &Blue);
 
-  button = CreateButton(4, 8);
+  button = CreateButton(4, 8);  // Hidden till called by button 7
   AddButtonStatus(button, " ", &Grey);
   AddButtonStatus(button, "Update Pluto^to AD9364", &Red);
+
+  button = CreateButton(4, 9);
+  AddButtonStatus(button, "Set Ref^Pluto", &Blue);
 }
 
 void Start_Highlights_Menu4()
@@ -6616,12 +7270,14 @@ int main(int argc, char **argv)
   Define_Menu11();
   Define_Menu12();
 
-printf("Menus defined\n");
-
   // Initialise direct access to the 7 inch screen
   initScreen();
 
+  // Create Touchscreen thread
+  pthread_create (&thtouchscreen, NULL, &WaitTouchscreenEvent, NULL);
+
   ReadSavedState();
+  ReadWebControl();
   InitOsc(); 
 
   // Check if DATV Express Server required and, if so, start it

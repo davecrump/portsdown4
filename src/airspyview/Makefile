@@ -14,8 +14,8 @@ endif
 COPT = -O3 -march=native -mtune=native
 # CFLAGS = -Wall -Wextra -Wpedantic -std=gnu11 -D_GNU_SOURCE -pthread 
 CFLAGS = -Wall -std=gnu11 -D_GNU_SOURCE -DNEON_OPTS 
-CFLAGS += -D BUILD_VERSION="\"$(shell git describe --dirty --always)\""	\
-		-D BUILD_DATE="\"$(shell date '+%Y-%m-%d_%H:%M:%S')\""
+#CFLAGS += -D BUILD_VERSION="\"$(shell git describe --dirty --always)\""	\
+#		-D BUILD_DATE="\"$(shell date '+%Y-%m-%d_%H:%M:%S')\""
 
 BIN = airspyview
 
