@@ -137,6 +137,8 @@ char ref_freq_5355[63] = "26000000";        // read on startup from siggenconfig
 int refin = 2600000;                        // adf5355 ref_freq/10
 char ref_freq_4153[63] = "20000000";        // read on startup from siggenconfig.txt
 int refin4153 = 20000000;                   // adf4153/SLO ref_freq
+char ref_freq_9850[63] = "64000000";        // read on startup from siggenconfig.txt
+int refin9850 = 64000000;                   // ad9850 DDS ref_freq
 
 uint64_t SourceUpperFreq = 13600000000;     // set every time an oscillator is selected
 uint64_t SourceLowerFreq = 54000000;        // set every time an oscillator is selected
@@ -157,7 +159,7 @@ int GPIO_SPI_CLK = 21;
 int GPIO_SPI_DATA = 22;
 int GPIO_4351_LE = 23;   // Changed for RPi 4
 int GPIO_Atten_LE = 16;
-int GPIO_5355_LE = 15;   // Also Elcom LE and Nort SLO LE
+int GPIO_5355_LE = 15;   // Also Elcom LE and Nort SLO and ad9850 LE
 int GPIO_Band_LSB = 26;  // Band D0, Changed for RPi 4
 int GPIO_Band_MSB = 24;  // Band D1
 int GPIO_Tverter = 7;    // Band D2
@@ -302,6 +304,9 @@ void adf4351On(int adflevel);
 void adf5355write(uint32_t dataword);
 void adf5355On(int adflevel);
 void adf5355off();
+void ad9850write(uint32_t dataword, uint32_t powerdown);
+void ad9850On();
+void ad9850off();
 void adf4153write(uint32_t dataword);
 void adf4153On();
 void ElcomOn();
@@ -789,6 +794,10 @@ void ReadSavedState()
   // ref_freq_4153 is initialised to 20000000 and stays as a string
   GetConfigParam(PATH_SGCONFIG,"adf4153ref", ref_freq_4153);
   refin4153 = atoi(ref_freq_4153);
+
+  // ref_freq_9850 is initialised to 120000000 and stays as a string
+  GetConfigParam(PATH_SGCONFIG,"ad9850ref", ref_freq_9850);
+  refin9850 = atoi(ref_freq_9850);
 
   // Read Pluto IP from Portsdown Config file
   GetConfigParam(PATH_PCONFIG,"plutoip", PlutoIP);
@@ -2265,9 +2274,6 @@ int getTouchSampleThread(int *rawX, int *rawY, int *rawPressure)
 }
 
 
-
-
-
 int getTouchSample(int *rawX, int *rawY, int *rawPressure)
 {
   while (true)
@@ -2297,6 +2303,7 @@ int getTouchSample(int *rawX, int *rawY, int *rawPressure)
   return 0;
 }
 
+
 void *WaitTouchscreenEvent(void * arg)
 {
   int TouchTriggerTemp;
@@ -2314,6 +2321,7 @@ void *WaitTouchscreenEvent(void * arg)
   return NULL;
 }
 
+
 void *WebClickListener(void * arg)
 {
   while (webcontrol)
@@ -2326,6 +2334,7 @@ void *WebClickListener(void * arg)
   printf("Exiting WebClickListener\n");
   return NULL;
 }
+
 
 void parseClickQuerystring(char *query_string, int *x_ptr, int *y_ptr)
 {
@@ -2350,6 +2359,7 @@ void parseClickQuerystring(char *query_string, int *x_ptr, int *y_ptr)
     }
   }
 }
+
 
 FFUNC touchscreenClick(ffunc_session_t * session)
 {
@@ -2399,58 +2409,6 @@ void UpdateWeb()
   }
 }
 
-
-
-
-//int getTouchSample(int *rawX, int *rawY, int *rawPressure)
-//{
-//  int i;       // how many bytes were read
-//  size_t rb;   // the events (up to 64 at once)
-//  struct input_event ev[64];
-//  //static int Last_event=0; //not used?
-//  rb=read(fd,ev,sizeof(struct input_event)*64);
-//  *rawX=-1;*rawY=-1;
-//  int StartTouch=0;
-
-//  for (i = 0;  i <  (rb / sizeof(struct input_event)); i++)
-//  {
-//    if (ev[i].type ==  EV_SYN)
-//    {
-      //printf("Event type is %s%s%s = Start of New Event\n",KYEL,events[ev[i].type],KWHT);
-//    }
-//    else if (ev[i].type == EV_KEY && ev[i].code == 330 && ev[i].value == 1)
-//    {
-//      StartTouch=1;
-      //printf("Event type is %s%s%s & Event code is %sTOUCH(330)%s & Event value is %s1%s = Touch Starting\n", KYEL,events[ev[i].type],KWHT,KYEL,KWHT,KYEL,KWHT);
-//    }
-//    else if (ev[i].type == EV_KEY && ev[i].code == 330 && ev[i].value == 0)
-//    {
-      //StartTouch=0;
-      //printf("Event type is %s%s%s & Event code is %sTOUCH(330)%s & Event value is %s0%s = Touch Finished\n", KYEL,events[ev[i].type],KWHT,KYEL,KWHT,KYEL,KWHT);
-//    }
-//    else if (ev[i].type == EV_ABS && ev[i].code == 0 && ev[i].value > 0)
-//    {
-      //printf("Event type is %s%s%s & Event code is %sX(0)%s & Event value is %s%d%s\n", KYEL,events[ev[i].type],KWHT,KYEL,KWHT,KYEL,ev[i].value,KWHT);
-//      *rawX = ev[i].value;
-//    }
-//    else if (ev[i].type == EV_ABS  && ev[i].code == 1 && ev[i].value > 0)
-//    {
-      //printf("Event type is %s%s%s & Event code is %sY(1)%s & Event value is %s%d%s\n", KYEL,events[ev[i].type],KWHT,KYEL,KWHT,KYEL,ev[i].value,KWHT);
-//      *rawY = ev[i].value;
-//    }
-//    else if (ev[i].type == EV_ABS  && ev[i].code == 24 && ev[i].value > 0)
-//    {
-//      //printf("Event type is %s%s%s & Event code is %sPressure(24)%s & Event value is %s%d%s\n", KYEL,events[ev[i].type],KWHT,KYEL,KWHT,KYEL,ev[i].value,KWHT);
-//      *rawPressure = ev[i].value;
-//    }
-//    if((*rawX!=-1)&&(*rawY!=-1)&&(StartTouch==1))
-//    {
-//      return 1;
-//    }
-
-//  }
-//  return 0;
-//}
 
 void ShowFreq(uint64_t DisplayFreq)
 {
@@ -2779,6 +2737,11 @@ void AdjustFreq(int button)
     if (strcmp(osc, "adf5355") == 0)
     {
       adf5355On(level); // change adf freq at set level
+    }
+
+    if (strcmp(osc, "ad9850") == 0)
+    {
+      ad9850On(); // change ad9850 freq
     }
 
     if (strcmp(osc, "elcom")==0)
@@ -3309,6 +3272,14 @@ void ShowOPFreq()
       strcat(OPFreqText, FreqString);
       Text2(hpos*wscreen, vpos*hscreen, OPFreqText, font_ptr);
   }
+
+  //if ((strcmp(osc, "ad9850") == 0) && (CurrentMenu == 11))
+  //{
+  //    strcpy(OPFreqText, "Output Freq = ");
+  //    snprintf(FreqString, 12, "%lld", OutputFreq);
+  //    strcat(OPFreqText, FreqString);
+  //    Text2(hpos*wscreen, vpos*hscreen, OPFreqText, font_ptr);
+  //}
 }
 
 
@@ -4231,11 +4202,156 @@ void adf5355On(int adflevel)
   //adf5355write(0x00201C60);
 }
 
+
 void adf5355off()
 {
   // Set the Power Down bit
   adf5355write(0x32008BC4);
 }
+
+
+void ad9850write(uint32_t dataword, uint32_t powerdown)
+{
+  // Nominate pins using WiringPi numbers
+
+  //uint8_t LE_5355_GPIO = 15;  // AD9850 LE pin 8 wPi 15
+  uint8_t CLK_GPIO     = 21;  // CLK  pin 29 wPi 21
+  uint8_t DATA_GPIO    = 22;  // Data pin 31 wPi 22
+  uint8_t FQ_UD_GPIO   = 15;  // AD9850 FQ_UD pin 8 wPi 15
+
+  // Set all nominated pins to outputs
+  pinMode(FQ_UD_GPIO, OUTPUT);
+  pinMode(CLK_GPIO, OUTPUT);
+  pinMode(DATA_GPIO, OUTPUT);
+
+  // Set idle conditions
+  digitalWrite(FQ_UD_GPIO, LOW);
+  digitalWrite(CLK_GPIO, LOW);
+  digitalWrite(DATA_GPIO, LOW);
+
+  //Allow to settle
+  usleep(100);  
+
+  // Enable Serial Mode Here
+  digitalWrite(CLK_GPIO, HIGH);
+  usleep(10);
+  digitalWrite(CLK_GPIO, LOW);
+  usleep(10);
+  digitalWrite(FQ_UD_GPIO, HIGH);
+  usleep(10);
+  digitalWrite(FQ_UD_GPIO, LOW);
+  usleep(10);
+
+  // Initialise loop
+
+  uint16_t i;
+
+  // Send the 32 freq bits LSB first
+  // clocked in on rising edge of CLK
+
+  for (i = 0; i <= 31; i++)
+  {
+    // Test right-most bit
+    if (dataword & 0x00000001)
+    {
+      digitalWrite(DATA_GPIO, HIGH);
+    }
+    else
+    {
+      digitalWrite(DATA_GPIO, LOW);
+    }
+
+    // Pulse clock
+    usleep(10);
+    digitalWrite(CLK_GPIO, HIGH);
+    usleep(20);
+    digitalWrite(CLK_GPIO, LOW);
+    usleep(10);
+
+    // shift data right so next bit will be rightmost
+    dataword >>= 1;
+  }
+
+  // Send remaining 8 bits
+
+  digitalWrite(DATA_GPIO, LOW); // W32 Control, must be zero
+
+  // Pulse clock
+  usleep(10);
+  digitalWrite(CLK_GPIO, HIGH);
+  usleep(20);
+  digitalWrite(CLK_GPIO, LOW);
+  usleep(10);
+
+  digitalWrite(DATA_GPIO, LOW); // W33 Control, must be zero
+
+  // Pulse clock
+  usleep(10);
+  digitalWrite(CLK_GPIO, HIGH);
+  usleep(20);
+  digitalWrite(CLK_GPIO, LOW);
+  usleep(10);
+
+  if (powerdown == 0)
+  {
+    digitalWrite(DATA_GPIO, LOW); // W34 Don't Power Down
+  }
+  else
+  {
+    digitalWrite(DATA_GPIO, HIGH); // W34 Power Down
+  }
+ 
+
+  // Pulse clock
+  usleep(10);
+  digitalWrite(CLK_GPIO, HIGH);
+  usleep(20);
+  digitalWrite(CLK_GPIO, LOW);
+  usleep(10);
+
+  // W35 - W39 are phase bits which are zero for sig gen
+  for (i = 35; i <= 39; i++)
+  {
+    digitalWrite(DATA_GPIO, LOW);
+
+    // Pulse clock
+    usleep(10);
+    digitalWrite(CLK_GPIO, HIGH);
+    usleep(20);
+    digitalWrite(CLK_GPIO, LOW);
+    if (i == 39)   // Last bit of serial word
+    {
+      digitalWrite(FQ_UD_GPIO, HIGH);  // So pulse FQ_UD to load the word
+      usleep(10);
+      digitalWrite(FQ_UD_GPIO, LOW);
+    }
+    usleep(10);
+  }
+}
+
+
+void ad9850On()
+{
+  uint32_t dataword;
+  // Calculate the settings here
+
+  dataword = (uint32_t)(((float)DisplayFreq/(float)refin9850) * 4294967296.0);
+
+  // printf("dataword = %d\n", dataword);
+
+  ad9850write(dataword, 0);
+
+  // Calculate the actual output freq
+
+  OutputFreq = ((uint64_t)dataword * (uint64_t)refin9850) / 4294967296;
+}
+
+
+void ad9850off()
+{
+  ad9850write(0, 1);
+}
+
 
 void adf4153write(uint32_t dataword)
 {
@@ -4692,6 +4808,11 @@ void InitOsc()
     strcpy(osc_text, "ADF5355");
   }
 
+  if (strcmp(osc, "ad9850") == 0)
+  {
+    strcpy(osc_text, "AD9850");
+  }
+
   if (strcmp(osc, "elcom") == 0)
   {
     strcpy(osc_text, "Elcom");
@@ -4712,10 +4833,10 @@ void InitOsc()
   }
   
   // Turn off attenuator if not compatible with mode
-  if ((strcmp(osc, "pluto") == 0) || (strcmp(osc, "pluto5") == 0) 
-   || (strcmp(osc, "elcom") == 0) || (strcmp(osc, "express") == 0) 
-   || (strcmp(osc, "lime") == 0)  || (strcmp(osc, "slo") == 0)
-   || (strcmp(osc, "adf4153") == 0))
+  if ((strcmp(osc, "pluto") == 0)   || (strcmp(osc, "pluto5") == 0) 
+   || (strcmp(osc, "elcom") == 0)   || (strcmp(osc, "express") == 0) 
+   || (strcmp(osc, "lime") == 0)    || (strcmp(osc, "slo") == 0)
+   || (strcmp(osc, "adf4153") == 0) || (strcmp(osc, "ad9850") == 0))
   {
     AttenIn = 0;
     SetAtten(0);
@@ -4724,7 +4845,7 @@ void InitOsc()
   // Turn off modulation if not compatible with mode
   if ((strcmp(osc, "pluto") == 0)   || (strcmp(osc, "pluto5") == 0)  || (strcmp(osc, "elcom") == 0)
    || (strcmp(osc, "adf4351") == 0) || (strcmp(osc, "adf5355") == 0) || (strcmp(osc, "slo") == 0)
-   || (strcmp(osc, "adf4153") == 0) || (strcmp(osc, "lime") == 0))
+   || (strcmp(osc, "adf4153") == 0) || (strcmp(osc, "lime") == 0) || (strcmp(osc, "ad9850") == 0))
   {
     ModOn = 0;
   }
@@ -4803,6 +4924,17 @@ void InitOsc()
     }
   }
 
+  if (strcmp(osc, "ad9850") == 0)
+  {
+    // Hide unused frequency buttons
+    SetButtonStatus(ButtonNumber(11, 8), 1);         //hide frequency decrement above 9.99 GHz
+    SetButtonStatus(ButtonNumber(11, 9), 1);         //hide frequency decrement above 999 MHz
+    SetButtonStatus(ButtonNumber(11, 10), 1);        //hide frequency decrement above 99 MHz
+    SetButtonStatus(ButtonNumber(11, 19), 1);        //hide frequency increment above 9.99 GHz
+    SetButtonStatus(ButtonNumber(11, 20), 1);        //hide frequency increment above 999 MHz
+    SetButtonStatus(ButtonNumber(11, 21), 1);        //hide frequency increment above 99 MHz
+  }
+
   // Hide the unused level buttons
   if (AttenIn == 0)
   {
@@ -4813,7 +4945,8 @@ void InitOsc()
       SetButtonStatus(ButtonNumber(11, 5), 1);         // Hide increment 10s
       SetButtonStatus(ButtonNumber(11, 7), 1);         // Hide increment 10ths
     }
-    if ((strcmp(osc, "elcom") == 0) || (strcmp(osc, "slo") == 0) || (strcmp(osc, "adf4153") == 0))
+    if ((strcmp(osc, "elcom") == 0) || (strcmp(osc, "slo") == 0) 
+     || (strcmp(osc, "adf4153") == 0) || (strcmp(osc, "ad9850") == 0))
     {
       SetButtonStatus(ButtonNumber(11, 0), 1);         // Hide decrement 10s
       SetButtonStatus(ButtonNumber(11, 1), 1);         // Hide decrement 1s
@@ -4878,7 +5011,12 @@ void UpdateWindow()
     clearScreen();
   }
   // Draw the backgrounds for the smaller menus
-  if ((CurrentMenu >= 2) && (CurrentMenu <= 4))  // 10 button menus
+  if (CurrentMenu == 2)  // 15 button menu
+  {
+    rectangle(10, 12, wscreen - 18, hscreen /2 + 12, 127, 127, 127);
+  }
+
+  if ((CurrentMenu >= 3) && (CurrentMenu <= 4))  // 10 button menus
   {
     rectangle(10, 12, wscreen - 18, hscreen * 2 / 6 + 12, 127, 127, 127);
   }
@@ -4941,7 +5079,7 @@ void SelectOsc(int NoButton)      // Output Oscillator
     system("sudo rm /tmp/expctrl >/dev/null 2>/dev/null");
   }
 
-  SelectInGroupOnMenu(CurrentMenu, 5, 9, NoButton, 1);
+  SelectInGroupOnMenu(CurrentMenu, 5, 10, NoButton, 1);
   SelectInGroupOnMenu(CurrentMenu, 0, 3, NoButton, 1);
 
   switch(NoButton)
@@ -5002,6 +5140,10 @@ void SelectOsc(int NoButton)      // Output Oscillator
   case 9:
     strcpy(osc, "adf4153");
     strcpy(osc_text, "ADF4153");  
+    break;
+  case 10:
+    strcpy(osc, "ad9850");
+    strcpy(osc_text, "AD9850");  
     break;
   }
   SetConfigParam(PATH_SGCONFIG, "osc", osc);
@@ -5114,6 +5256,21 @@ void ImposeBounds()  // Constrain DisplayFreq and level to physical limits
     }
   }
 
+  if (strcmp(osc, "ad9850")==0)
+  {
+    SourceUpperFreq = refin9850 / 2;
+    SourceLowerFreq = 0;
+    strcpy(osc_text, "AD9850");
+    if (level > 3)
+    {
+      level = 3;
+    }
+    if (level < 0)
+    {
+      level = 0;
+    }
+  }
+
   if (DisplayFreq > SourceUpperFreq)
   {
     DisplayFreq = SourceUpperFreq;
@@ -5168,6 +5325,12 @@ void OscStart()
     adf4153On();
   }
 
+  if (strcmp(osc, "ad9850") == 0)
+  {
+    ad9850On();
+  }
+
+
   if (strcmp(osc, "express")==0)
   {
     if (ModOn == 0)  // Start Express without Mod
@@ -5216,6 +5379,11 @@ void OscStop()
   if (strcmp(osc, "adf5355") == 0)
   {
     adf5355off();
+  }
+
+  if (strcmp(osc, "ad9850") == 0)
+  {
+    ad9850off();
   }
 
   if ((strcmp(osc, "elcom") == 0) && (CurrentMenu == 11))
@@ -5949,7 +6117,7 @@ void ChangeADFRef(int NoButton)
     SetConfigParam(PATH_SGCONFIG, "adf5355ref", KeyboardReturn);
     refin = atoi(ref_freq_5355) / 10;
     break;
-  case 7:
+  case 2:
     snprintf(RequestText, 50, "Enter new ADF4153/SLO Reference Frequency in Hz");
     strcpyn(InitText, ref_freq_4153, 10);
     while (Spaces >= 1)
@@ -5970,12 +6138,35 @@ void ChangeADFRef(int NoButton)
     SetConfigParam(PATH_SGCONFIG, "adf4153ref", KeyboardReturn);
     refin4153 = atoi(ref_freq_4153);
     break;
+  case 3:
+    snprintf(RequestText, 50, "Enter new AD9850 Clock Frequency in Hz");
+    strcpyn(InitText, ref_freq_9850, 10);
+    while (Spaces >= 1)
+    {
+      Keyboard(RequestText, InitText, 9);
+  
+      // Check that there are no spaces or other characters
+      Spaces = 0;
+      for (j = 0; j < strlen(KeyboardReturn); j = j + 1)
+      {
+        if ( !(isdigit(KeyboardReturn[j])) )
+        {
+          Spaces = Spaces + 1;
+        }
+      }
+    }
+    strcpy(ref_freq_9850, KeyboardReturn);
+    SetConfigParam(PATH_SGCONFIG, "ad9850ref", KeyboardReturn);
+    refin9850 = atoi(ref_freq_9850);
+    ImposeBounds();  // recalculate frequency limits
+    break;
   default:
     break;
   }
   printf("ADF4351 Ref set to: %s\n", ref_freq_4351);
   printf("ADF5355 Ref set to: %s\n", ref_freq_5355);
   printf("ADF4153/SLO Ref set to: %s\n", ref_freq_4153);
+  printf("AD9850 Ref set to: %s\n", ref_freq_9850);
 }
 
 
@@ -6073,6 +6264,7 @@ void waituntil(int w, int h)
         case 7:   // LimeSDR Mini
         case 8:   // Nort SLO
         case 9:   // ADF4153
+        case 10:  // AD9850 DDS
           SelectOsc(i); 
           break;
         default:
@@ -6143,20 +6335,10 @@ void waituntil(int w, int h)
           break;
         case 0:                               // Set ADF4351 Ref
         case 1:                               // Set ADF5355 Ref
-        case 7:                               // Set ADF4153/SLO Ref
+        case 2:                               // Set ADF4153/SLO Ref
+        case 3:                               // Set AD9850 Osc
           printf("Changing ADFRef\n");
           ChangeADFRef(i);
-          Start_Highlights_Menu4();
-          UpdateWindow();
-          break;
-        case 2:                               // Set Pluto Ref
-          printf("Changing Pluto XO\n");
-          ChangePlutoXO();
-          Start_Highlights_Menu4();
-          UpdateWindow();
-          break;
-        case 3:                               // Check Pluto Expansion
-          ChangePlutoAD();
           Start_Highlights_Menu4();
           UpdateWindow();
           break;
@@ -6170,6 +6352,11 @@ void waituntil(int w, int h)
           Start_Highlights_Menu4();
           UpdateWindow();
           break;
+        case 7:                               // Check Pluto Expansion
+          ChangePlutoAD();
+          Start_Highlights_Menu4();
+          UpdateWindow();
+          break;
         case 8:                               // Perform Pluto Expansion
           if (GetButtonStatus(ButtonNumber(4, 8)) == 1)
           {
@@ -6178,6 +6365,12 @@ void waituntil(int w, int h)
             wait_touch();
             SetButtonStatus(ButtonNumber(4, 8), 0);
           }
+        case 9:                               // Set Pluto Ref
+          printf("Changing Pluto XO\n");
+          ChangePlutoXO();
+          Start_Highlights_Menu4();
+          UpdateWindow();
+          break;
           UpdateWindow();
           break;
         default:
@@ -6438,6 +6631,13 @@ void Define_Menu2()
   button = CreateButton(2, 9);                           // adf4153
   AddButtonStatus(button, "ADF4153", &Blue);
   AddButtonStatus(button, "ADF4153", &Green);
+
+  // 2nd Row, Menu 2
+
+  button = CreateButton(2, 10);                           // AD9850 DDS
+  AddButtonStatus(button, "AD9850^DDS", &Blue);
+  AddButtonStatus(button, "AD9850^DDS", &Green);
+
 }
 
 void Start_Highlights_Menu2()
@@ -6446,47 +6646,52 @@ void Start_Highlights_Menu2()
   if (strcmp(osc, "pluto") == 0)
   {
     SelectInGroupOnMenu(2, 0, 3, 0, 1);
-    SelectInGroupOnMenu(2, 5, 9, 0, 1);
+    SelectInGroupOnMenu(2, 5, 10, 0, 1);
   }
   if (strcmp(osc, "pluto5") == 0)
   {
     SelectInGroupOnMenu(2, 0, 3, 1, 1);
-    SelectInGroupOnMenu(2, 5, 9, 1, 1);
+    SelectInGroupOnMenu(2, 5, 10, 1, 1);
   }
   if (strcmp(osc, "express") == 0)
   {
     SelectInGroupOnMenu(2, 0, 3, 2, 1);
-    SelectInGroupOnMenu(2, 5, 9, 2, 1);
+    SelectInGroupOnMenu(2, 5, 10, 2, 1);
   }
   if (strcmp(osc, "elcom") == 0)
   {
     SelectInGroupOnMenu(2, 0, 3, 3, 1);
-    SelectInGroupOnMenu(2, 5, 9, 3, 1);
+    SelectInGroupOnMenu(2, 5, 10, 3, 1);
   }
   if (strcmp(osc, "adf4351") == 0)
   {
     SelectInGroupOnMenu(2, 0, 3, 5, 1);
-    SelectInGroupOnMenu(2, 5, 9, 5, 1);
+    SelectInGroupOnMenu(2, 5, 10, 5, 1);
   }
   if (strcmp(osc, "adf5355") == 0)
   {
     SelectInGroupOnMenu(2, 0, 3, 6, 1);
-    SelectInGroupOnMenu(2, 5, 9, 6, 1);
+    SelectInGroupOnMenu(2, 5, 10, 6, 1);
   }
   if (strcmp(osc, "lime") == 0)
   {
     SelectInGroupOnMenu(2, 0, 3, 7, 1);
-    SelectInGroupOnMenu(2, 5, 9, 7, 1);
+    SelectInGroupOnMenu(2, 5, 10, 7, 1);
   }
   if (strcmp(osc, "slo") == 0)
   {
     SelectInGroupOnMenu(2, 0, 3, 8, 1);
-    SelectInGroupOnMenu(2, 5, 9, 8, 1);
+    SelectInGroupOnMenu(2, 5, 10, 8, 1);
   }
   if (strcmp(osc, "adf4153") == 0)
   {
     SelectInGroupOnMenu(2, 0, 3, 9, 1);
-    SelectInGroupOnMenu(2, 5, 9, 9, 1);
+    SelectInGroupOnMenu(2, 5, 10, 9, 1);
+  }
+  if (strcmp(osc, "ad9850") == 0)
+  {
+    SelectInGroupOnMenu(2, 0, 3, 10, 1);
+    SelectInGroupOnMenu(2, 5, 10, 10, 1);
   }
 }
 
@@ -6557,8 +6762,8 @@ void Define_Menu4()
   // Bottom Row, Menu 4
 
   button = CreateButton(4, 4);
-  AddButtonStatus(button, "Cancel", &DBlue);
-  AddButtonStatus(button, "Cancel", &LBlue);
+  AddButtonStatus(button, "Exit", &DBlue);
+  AddButtonStatus(button, "Exit", &LBlue);
 
   button = CreateButton(4, 0);
   AddButtonStatus(button, "Set Ref^ADF4351", &Blue);
@@ -6567,10 +6772,10 @@ void Define_Menu4()
   AddButtonStatus(button, "Set Ref^ADF5355", &Blue);
 
   button = CreateButton(4, 2);
-  AddButtonStatus(button, "Set Ref^Pluto", &Blue);
+  AddButtonStatus(button, "Set Ref^ADF4153/SLO", &Blue);
 
   button = CreateButton(4, 3);
-  AddButtonStatus(button, "Check Pluto^AD9364", &Blue);
+  AddButtonStatus(button, "Set Clock^for AD9850", &Blue);
 
 
   // Second Row, Menu 4
@@ -6582,11 +6787,14 @@ void Define_Menu4()
   AddButtonStatus(button, "Reboot^Pluto", &Blue);
 
   button = CreateButton(4, 7);
-  AddButtonStatus(button, "Set Ref^ADF4153/SLO", &Blue);
+  AddButtonStatus(button, "Check Pluto^AD9364", &Blue);
 
-  button = CreateButton(4, 8);
+  button = CreateButton(4, 8);  // Hidden till called by button 7
   AddButtonStatus(button, " ", &Grey);
   AddButtonStatus(button, "Update Pluto^to AD9364", &Red);
+
+  button = CreateButton(4, 9);
+  AddButtonStatus(button, "Set Ref^Pluto", &Blue);
 }
 
 void Start_Highlights_Menu4()

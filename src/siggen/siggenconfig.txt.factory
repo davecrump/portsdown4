@@ -6,4 +6,4 @@ attenuator=NONE
 adf4351ref=25000000
 adf5355ref=26000000
 adf4153ref=20000000
-
+ad9850ref=120000000
