@@ -256,7 +256,7 @@ detect_audio()
               AUDIO_CARD_NUMBER=$MIC
               AUDIO_CHANNELS=1
               AUDIO_SAMPLE=48000
-            elif [ "$USBTV" != "9" ] && [ "$MIC" == "9" ]; then # Mic not available, but EasyCap is
+            elif [ "$USBTV" != "9" ] && [ "$MIC" == "9" ] && [ "$CamLink4KPresent" != "1" ]; then # Mic not available, but EasyCap is
               AUDIO_CARD=1                                  # so use EasyCap audio
               AUDIO_CARD_NUMBER=$USBTV
               AUDIO_CHANNELS=2
