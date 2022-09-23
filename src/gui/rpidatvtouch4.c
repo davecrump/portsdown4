@@ -6565,7 +6565,8 @@ void ApplyTXConfig()
   {
     strcpy(ModeInput, "CARRIER");
   }
-  else if (((strcmp(CurrentModeOP, "LIMEMINI") == 0) || (strcmp(CurrentModeOP, "LIMEUSB") == 0)) && (strcmp(CurrentSource, "HDMI") == 0))
+  else if (((strcmp(CurrentModeOP, "LIMEMINI") == 0) || (strcmp(CurrentModeOP, "LIMEDVB") == 0)
+         || (strcmp(CurrentModeOP, "LIMEUSB") == 0)) && (strcmp(CurrentSource, "HDMI") == 0))
   {
     // Don't correct Elgato HDMI Capture for Lime
     return;
@@ -8276,7 +8277,7 @@ void GreyOut45()
   }
   else
   {
-    SetButtonStatus(ButtonNumber(CurrentMenu, 3), 2); // HDMI
+    SetButtonStatus(ButtonNumber(CurrentMenu, 3), 0); // HDMI
     SetButtonStatus(ButtonNumber(CurrentMenu, 0), 0); // Contest
     SetButtonStatus(ButtonNumber(CurrentMenu, 6), 0); // Comp Vid
     SetButtonStatus(ButtonNumber(CurrentMenu, 9), 0); // PiScreen

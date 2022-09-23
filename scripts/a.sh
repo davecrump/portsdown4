@@ -192,7 +192,7 @@ ANALOGCAMNAME=$VID_USB
 
 case "$MODE_INPUT" in
   "CAMH264" | "ANALOGCAM" | "WEBCAMH264" | "CARDH264" | "PATERNAUDIO" \
-    | "CONTEST" | "DESKTOP" )
+    | "CONTEST" | "DESKTOP" | "HDMI" )
     let PIDPMT=$PIDVIDEO-1
   ;;
 esac
@@ -201,12 +201,6 @@ esac
 
 if [ "$MODE_OUTPUT" == "BATC" ]; then
   MODE_OUTPUT="STREAMER"
-fi
-
-########### Set Webcam Mode for HDMI in from Elgato #################
-
-if [ "$MODE_INPUT" == "HDMI" ] && [ "$CamLink4KPresent" == "1" ]; then
-  MODE_INPUT="WEBCAMH264"
 fi
 
 ########### Set 480p Output Format if compatible and required ###############
@@ -1177,34 +1171,6 @@ fi
           VIDEO_FPS=15
         fi
       fi
-
-      if [ "$WEBCAM_TYPE" == "CamLink4K" ]; then
-        AUDIO_SAMPLE=48000
-        AUDIO_CHANNELS=2
-        if [ "$BITRATE_VIDEO" -gt 190000 ]; then  # 333KS FEC 1/2 or better
-          if [ "$FORMAT" == "1080p" ]; then
-            v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=1920,height=1080,pixelformat=0 --set-parm=29.97
-            VIDEO_WIDTH=1920
-            VIDEO_HEIGHT=1080
-            VIDEO_FPS=29.97
-          elif [ "$FORMAT" == "720p" ]; then
-            v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=1280,height=720,pixelformat=0 --set-parm=29.97
-            VIDEO_WIDTH=1280
-            VIDEO_HEIGHT=720
-            VIDEO_FPS=29.97
-          else
-            v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=800,height=448,pixelformat=0 --set-parm=29.97
-            VIDEO_WIDTH=800
-            VIDEO_HEIGHT=448
-            VIDEO_FPS=29.97
-          fi
-        else
-          v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=352,height=288,pixelformat=0 --set-parm=15
-          VIDEO_WIDTH=352
-          VIDEO_HEIGHT=288
-          VIDEO_FPS=15
-        fi
-      fi
       ANALOGCAMNAME=$VID_WEBCAM
     fi
 
@@ -1294,7 +1260,7 @@ fi
         sleep 2
         v4l2-ctl -d "$ANALOGCAMNAME" --set-ctrl "$ECCONTRAST" >/dev/null 2>/dev/null
       else
-        # Resample the audio (was 32k or 48k which overruns, so this is reduced to 46500)
+        # Resample the audio (was 32k or 48k which overruns, so this is reduced to 47500)
         arecord -f S16_LE -r $AUDIO_SAMPLE -c 2 -B $ARECORD_BUF -D plughw:$AUDIO_CARD_NUMBER,0 \
          | sox -c $AUDIO_CHANNELS --buffer 1024 -t wav - audioin.wav rate 47500 &  
 
@@ -2135,28 +2101,187 @@ exit
     esac
   ;;
 
-  #==================================== HDMI INPUT MODE FOR PLUTO OR STREAMING ==========================
+  #==================================== HDMI INPUT FROM LKV373A FOR PLUTO OR STREAMING ==========================
   "HDMI")
-    case "$MODE_OUTPUT" in
-      "STREAMER")
-        rpidatv/bin/ffmpeg -thread_queue_size 2048 -fifo_size 229376 \
-          -i udp://"$LKVUDP":"$LKVPORT" \
-          -c:v h264_omx -b:v 1024k \
-          -codec:a aac -b:a 128k \
-          -f flv $STREAM_URL/$STREAM_KEY &
-      ;;
 
-      "PLUTO")
-        rpidatv/bin/ffmpeg -thread_queue_size 2048 -fifo_size 229376 \
-          -i udp://"$LKVUDP":"$LKVPORT" \
-          -c:v h264_omx -b:v $BITRATE_VIDEO -g 25 \
-          -ar 22050 -ac 2 -ab 64k \
-          -f flv \
-          rtmp://$PLUTOIP:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,-$PLUTOPWR,nocalib,800,32,/$PLUTOCALL, &
-      ;;
-    esac
+    if [ "$WEBCAM_TYPE" != "CamLink4K" ]; then
+
+      case "$MODE_OUTPUT" in
+        "STREAMER")
+          rpidatv/bin/ffmpeg -thread_queue_size 2048 -fifo_size 229376 \
+            -i udp://"$LKVUDP":"$LKVPORT" \
+            -c:v h264_omx -b:v 1024k \
+            -codec:a aac -b:a 128k \
+            -f flv $STREAM_URL/$STREAM_KEY &
+        ;;
+
+        "PLUTO")
+          rpidatv/bin/ffmpeg -thread_queue_size 2048 -fifo_size 229376 \
+            -i udp://"$LKVUDP":"$LKVPORT" \
+            -c:v h264_omx -b:v $BITRATE_VIDEO -g 25 \
+            -ar 22050 -ac 2 -ab 64k \
+            -f flv \
+            rtmp://$PLUTOIP:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,-$PLUTOPWR,nocalib,800,32,/$PLUTOCALL, &
+        ;;
+      esac
+    fi
+
+  #==================================== HDMI INPUT FROM CAM LINK 4K.  OUTPUT TO LIME OR STREAMER ==========================
+
+    if [ "$WEBCAM_TYPE" == "CamLink4K" ]; then
+#echo
+#echo HDMI Parameters ==============
+#echo FORMAT $FORMAT
+#echo WEBCAM_TYPE $WEBCAM_TYPE                  # CamLink4K
+#echo VID_WEBCAM $VID_WEBCAM                    # /dev/video? for Camlink
+#echo ANALOGCAMNAME $ANALOGCAMNAME              # /dev/video? for EasyCap
+#echo VIDEO_FPS $VIDEO_FPS
+#echo AUDIO_PREF $AUDIO_PREF
+#echo AUDIO_CARD $AUDIO_CARD
+#echo AUDIO_CARD_NUMBER $AUDIO_CARD_NUMBER
+#echo ARECORD_BUF $ARECORD_BUF
+
+      # If PiCam is present unload driver   
+      vcgencmd get_camera | grep 'detected=1' >/dev/null 2>/dev/null
+      RESULT="$?"
+      if [ "$RESULT" -eq 0 ]; then
+        sudo modprobe -r bcm2835_v4l2
+      fi    
+
+      # Set Video parameters and control the Cam Link 4K
+      if [ "$BITRATE_VIDEO" -gt 190000 ]; then  # 333KS FEC 1/2 or better
+        if [ "$FORMAT" == "1080p" ]; then
+          v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=1920,height=1080,pixelformat=0,field=25
+            VIDEO_WIDTH=1920
+            VIDEO_HEIGHT=1080
+            VIDEO_FPS=25
+          elif [ "$FORMAT" == "720p" ]; then
+            v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=1280,height=720,pixelformat=0,field=25
+            VIDEO_WIDTH=1280
+            VIDEO_HEIGHT=720
+            VIDEO_FPS=25
+          else
+            v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=800,height=448,pixelformat=0,field=25
+            VIDEO_WIDTH=800
+            VIDEO_HEIGHT=448
+            VIDEO_FPS=25
+          fi
+        else
+          v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=352,height=288,pixelformat=0,field=25
+          VIDEO_WIDTH=352
+          VIDEO_HEIGHT=288
+          VIDEO_FPS=25
+        fi
+      fi
+
+      SCALE="$VIDEO_WIDTH":"$VIDEO_HEIGHT"
+
+  #==================================== HDMI INPUT FROM CAM LINK 4K.  OUTPUT TO STREAMER  ==========================
+
+
+      if [ "$MODE_OUTPUT" == "STREAMER" ]; then
+
+        CAPTION="drawtext=fontfile=/usr/share/fonts/truetype/ttf-dejavu/DejaVuSans.ttf: \
+          text=\'$CALL\': fontcolor=white: fontsize=36: box=1: boxcolor=black@0.5: \
+          boxborderw=5: x=w/20: y=(h/8-text_h)/2,"
+
+        # Audio does not yet work
+        $PATHRPI"/ffmpeg" -loglevel $MODE_DEBUG -thread_queue_size 2048 \
+          -f v4l2 \
+          -i $VID_WEBCAM \
+          -c:v h264_omx -b:v 1024k \
+          -vf "$CAPTION"scale="$SCALE",fps=30 -g 25 \
+          -f flv $STREAM_URL/$STREAM_KEY &
+
+        exit
+
+      fi
+
+  #==================================== HDMI INPUT FROM CAM LINK 4K.  OUTPUT TO LIME  ==========================
+
+      # Increase audio output bitrate for 1MS transmissions
+      if [ "$BITRATE_TS" -gt 1000000 ]; then
+        BITRATE_AUDIO=48000
+      fi
+
+      # Set up means to transport of stream out of unit
+      case "$MODE_OUTPUT" in
+        "IP")
+          OUTPUT_FILE=""
+        ;;
+        "DATVEXPRESS")
+          echo "set ptt tx" >> /tmp/expctrl
+          sudo nice -n -30 netcat -u -4 127.0.0.1 1314 < videots &
+        ;;
+        "LIMEMINI" | "LIMEUSB" | "LIMEDVB")
+          $PATHRPI"/limesdr_dvb" -i videots -s "$SYMBOLRATE_K"000 -f $FECNUM/$FECDEN -r $UPSAMPLE -m $MODTYPE -c $CONSTLN $PILOTS $FRAMES \
+            -t "$FREQ_OUTPUT"e6 -g $LIME_GAINF -q $CAL $CUSTOM_FPGA -D $DIGITAL_GAIN -e $BAND_GPIO $LIMETYPE &
+        ;;
+        *)
+          sudo $PATHRPI"/rpidatv" -i videots -s $SYMBOLRATE_K -c $FECNUM"/"$FECDEN -f $FREQUENCY_OUT -p $GAIN -m $MODE -x $PIN_I -y $PIN_Q &
+        ;;
+      esac
+
+    # Now generate the stream
+
+    if [ "$AUDIO_CARD" == 0 ]; then
+      # ******************************* H264 VIDEO, NO AUDIO ************************************
+
+      sudo $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -d 300 -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
+        -f $VIDEO_FPS -i $IDRPERIOD $OUTPUT_FILE -t 2 -e $VID_WEBCAM -p $PIDPMT -s $CALL $OUTPUT_IP \
+         > /dev/null &
+
+    else
+
+      # ******************************* H264 VIDEO WITH AUDIO ************************************
+
+      if [ "$AUDIO_PREF" == "video" ]; then              # EasyCap
+
+        #echo EASYCAP AUDIO ===================================
+
+        AUDIO_SAMPLE=48000
+        AUDIO_CHANNELS=2
+
+        #arecord -f S16_LE -r $AUDIO_SAMPLE -c 2 -B $ARECORD_BUF -D plughw:$AUDIO_CARD_NUMBER,0 > audioin.wav &
+
+        arecord -f S16_LE -r $AUDIO_SAMPLE -c 2 -B $ARECORD_BUF -D plughw:$AUDIO_CARD_NUMBER,0 \
+         | sox -c $AUDIO_CHANNELS --buffer 1024 -t wav - audioin.wav rate 48000 &  
+
+        sudo $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -d 300 -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
+          -f $VIDEO_FPS -i $IDRPERIOD $OUTPUT_FILE -t 2 -e $VID_WEBCAM -p $PIDPMT -s $CALL $OUTPUT_IP \
+          -a audioin.wav -z $BITRATE_AUDIO > /dev/null &
+
+      else                           # CamLink Audio
+
+        #echo CAM LINK HDMI AUDIO ===================================
+
+        AUDIO_SAMPLE=48000
+        AUDIO_CHANNELS=2
+
+        # Resample the audio (was 32k or 48k which overruns, so this is reduced to 46500)
+
+        arecord -f S16_LE -r $AUDIO_SAMPLE -c 2 -B $ARECORD_BUF -D plughw:$AUDIO_CARD_NUMBER,0 \
+         | sox -c $AUDIO_CHANNELS --buffer 1024 -t wav - audioin.wav rate 48000 &  
+
+        sudo $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -d 300 -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
+          -f $VIDEO_FPS -i $IDRPERIOD $OUTPUT_FILE -t 2 -e $VID_WEBCAM -p $PIDPMT -s $CALL $OUTPUT_IP \
+          -a audioin.wav -z $BITRATE_AUDIO > /dev/null &
+      fi
+
+      # Auto restart for arecord (which dies after about an hour)  in repeater TX modes
+      while [[ "$MODE_STARTUP" == "TX_boot" || "$MODE_STARTUP" == "Keyed_TX_boot" ]]
+      do
+        sleep 10
+        if ! pgrep -x "arecord" > /dev/null; then # arecord is not running, so restart it
+          arecord -f S16_LE -r $AUDIO_SAMPLE -c 2 -B $ARECORD_BUF -D plughw:$AUDIO_CARD_NUMBER,0 \
+           | sox -c $AUDIO_CHANNELS --buffer 1024 -t wav - audioin.wav rate 48000 &  
+        fi
+      done
+    fi
   ;;
 esac
+
+#=================================== JETSON CODE ==========================================================
 
 # None of these input modes were valid for the Jetson, so we can put the Jetson code here
 

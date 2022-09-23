@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Used to display the incoming video from an LKV373A
+# Used to display the incoming video from an LKV373A or Elgato CamLink 4K
 
 RCONFIGFILE="/home/pi/rpidatv/scripts/longmynd_config.txt"
 JCONFIGFILE="/home/pi/rpidatv/scripts/jetson_config.txt"
@@ -42,6 +42,31 @@ if [ "$AUDIO_OUT" == "rpi" ]; then
 else
   AUDIO_DEVICE="hw:CARD=Device,DEV=0"
 fi
+echo The audio output device string is $AUDIO_DEVICE
+
+############ CHECK FOR CAMLINK 4K DEVICE STRING ###################################
+
+# List the video devices, select the 2 lines for the Cam Link device, then
+# select the line with the device details and delete the leading tab
+
+VID_USB="$(v4l2-ctl --list-devices 2> /dev/null | \
+  sed -n '/Cam Link 4K/,/dev/p' | grep 'dev' | tr -d '\t')"
+
+############ IDENTIFY CAMLINK 4K AUDIO CARD NUMBER #############################
+
+# List the audio capture devices, select the line for the Cam Link 4K device:
+# card 2: C4K [Cam Link 4K], device 0: USB Audio [USB Audio]
+# then take the 6th character
+
+AUDIO_IN_CARD="$(arecord -l 2> /dev/null | grep 'Cam Link 4K' | cut -c6-6)"
+
+if [ "$AUDIO_IN_CARD" == '' ]; then
+  printf "EasyCap audio device was not found, setting to 1\n"
+  AUDIO_IN_CARD="1"
+fi
+echo "The Cam Link 4K Audio Card number is "$AUDIO_IN_CARD":0"
+
+#####################################################################
 
 sudo killall vlc >/dev/null 2>/dev/null
 
@@ -59,11 +84,32 @@ fi
 
 # Start VLC
 
-cvlc -I rc --rc-host 127.0.0.1:1111 --codec ffmpeg -f --video-title-timeout=100 \
-  --width 800 --height 480 \
-  --gain 3 --alsa-audio-device hw:CARD=Device,DEV=0 \
-  udp://@"$LKVUDP":"$LKVPORT" >/dev/null 2>/dev/null &
+if [ "$VID_USB" == '' ]; then
 
-exit
+  echo Showing LKV input
+
+  cvlc -I rc --rc-host 127.0.0.1:1111 --codec ffmpeg -f --video-title-timeout=100 \
+    --width 800 --height 480 \
+    --gain 3 --alsa-audio-device "$AUDIO_DEVICE" \
+    udp://@"$LKVUDP":"$LKVPORT" >/dev/null 2>/dev/null &
+
+  exit
+
+else
+
+  echo The Cam Link 4K Video Device string is $VID_USB
+
+  cvlc -I rc --rc-host 127.0.0.1:1111 --codec ffmpeg -f --video-title-timeout=100 \
+    --width 800 --height 480 \
+    --gain 3 --alsa-audio-device "$AUDIO_DEVICE" \
+    v4l2:///"$VID_USB" \
+    --input-slave alsa://plughw:"$AUDIO_IN_CARD",0 \
+    >/dev/null 2>/dev/null &
+
+  exit
+
+fi
+
+
 
 
