@@ -1270,7 +1270,7 @@ fi
       fi
 
       # Auto restart for arecord (which dies after about an hour)  in repeater TX modes
-      while [[ "$MODE_STARTUP" == "zTX_boot" || "$MODE_STARTUP" == "zKeyed_TX_boot" ]]
+      while [[ "$MODE_STARTUP" == "TX_boot" || "$MODE_STARTUP" == "Keyed_TX_boot" ]]
       do
         sleep 10
         if ! pgrep -x "arecord" > /dev/null; then # arecord is not running, so restart it
