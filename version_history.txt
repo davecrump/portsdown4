@@ -1,3 +1,9 @@
+202209280
+Add File Menu (access from Menu 2)
+Add File Explorer with viewers/players
+Add File copy/paste/rename function
+Add listing of connected USB devices
+
 202209070
 Add CamLink 4K HDMI Dongle H264 LimeSDR TX Capability
 
