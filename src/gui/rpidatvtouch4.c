@@ -295,6 +295,12 @@ char UDPOutPort[31];
 char UDPInPort[31];
 char TSVideoFile[63];
 
+// File menu parameters
+char CurrentPathSelection[255] = "/home/pi/";
+char CurrentFileSelection[255] = "";
+char YesButtonCaption[63] = "Yes";
+char NoButtonCaption[63] = "No";
+
 // Range and Bearing Calculator Parameters
 int GcBearing(const float, const float, const float, const float);
 float GcDistance(const float, const float, const float, const float, const char *);
@@ -360,12 +366,14 @@ char WebClickForAction[7] = "no";  // no/yes
 
 // Threads for Touchscreen monitoring
 
-pthread_t thbutton;       //
-pthread_t thview;         //
-pthread_t thwait3;        //  Used to count 3 seconds for WebCam reset after transmit
-pthread_t thwebclick;     //  Listens for mouse clicks from web interface
-pthread_t thtouchscreen;  //  listens to the touchscreen   
-pthread_t thrfe15;        //  Turns LimeRFE on after 15 seconds
+pthread_t thbutton;         //
+pthread_t thview;           //
+pthread_t thwait3;          //  Used to count 3 seconds for WebCam reset after transmit
+pthread_t thwebclick;       //  Listens for mouse clicks from web interface
+pthread_t thtouchscreen;    //  listens to the touchscreen   
+pthread_t thrfe15;          //  Turns LimeRFE on after 15 seconds
+pthread_t thbuttonFileVLC;  //  Handles touches during VLC play from file
+
 
 // ************** Function Prototypes **********************************//
 
@@ -470,6 +478,13 @@ int LimeFWVer();
 int LimeHWVer();
 void LimeMiniTest();
 void LimeUtilInfo();
+void ClearMenuMessage();
+void *WaitButtonFileVLC(void * arg);
+void ShowVideoFile(char *VideoPath, char *VideoFile);
+void ShowImageFile(char *ImagePath, char *ImageFile);
+void ListText(char *TextPath, char *TextFile);
+void FileOperation(int button);
+void ListUSBDevices();
 void DisplayLogo();
 void TransformTouchMap(int x, int y);
 int IsButtonPushed(int NbButton,int x,int y);
@@ -500,7 +515,7 @@ void ApplyTXConfig();
 void EnforceValidTXMode();
 void EnforceValidFEC();
 int ListFilestoArray(char Path[255], int FirstFile, int LastFile, char FileArray[100][255], char FileTypeArray[101][2]);
-int SelectFileUsingList(char *InitialPath, char *InitialFile, char *SelectedPath, char *SelectedFile);
+int SelectFileUsingList(char *InitialPath, char *InitialFile, char *SelectedPath, char *SelectedFile, int directory);
 int SelectFromList(int CurrentSelection, char ListEntry[100][63], int ListLength);
 int CheckWifiEnabled();
 int CheckWifiConnection(char Network_SSID[63]);
@@ -1446,13 +1461,15 @@ void PrepSWUpdate()
   // Fetch the current and latest versions and make sure we have 9 characters
   GetSWVers(CurrentVersion);
   strcpyn(CurrentVersion9, CurrentVersion, 9);
-  //snprintf(CurrentVersion9, 10, "%s", CurrentVersion);
   GetLatestVers(LatestVersion);
   strcpyn(LatestVersion9, LatestVersion, 9);
-  //snprintf(LatestVersion9, 10, "%s", LatestVersion);
   snprintf(MenuText[0], 40, "Current Software Version: %s", CurrentVersion9);
+
+  // Clear the message lines
   strcpy(MenuText[1], " ");
   strcpy(MenuText[2], " ");
+  strcpy(MenuText[3], " ");
+  strcpy(MenuText[4], " ");
 
   // Check latest version starts with 20*
   if ( !((LatestVersion9[0] == 50) && (LatestVersion9[1] == 48)) )
@@ -5605,6 +5622,508 @@ void LimeUtilInfo()
   UpdateWeb();
 }
 
+
+void ClearMenuMessage()
+{
+  MenuText[0][0] = '\0';
+  MenuText[1][0] = '\0';
+  MenuText[2][0] = '\0';
+  MenuText[3][0] = '\0';
+  MenuText[4][0] = '\0';
+}
+
+
+/***************************************************************************//**
+ * @brief Monitors touchscreen during VLC play.  Waits for touch
+ *        Controls volume, snap and sets FinishedButton = 0 at end  
+ *        
+ * @param nil
+ *
+ * @return void
+*******************************************************************************/
+
+void *WaitButtonFileVLC(void * arg)
+{
+  int rawX, rawY, rawPressure;
+  FinishedButton = 1; // Start with Parameters on
+
+  while (FinishedButton == 1)
+  {
+    while(getTouchSample(&rawX, &rawY, &rawPressure)==0);  // Wait here for touch
+
+    TransformTouchMap(rawX, rawY);  // Sorts out orientation and approx scaling of the touch map
+
+    if((scaledX <= 5 * wscreen / 40)  &&  (scaledY <= 2 * hscreen / 12)) // Bottom left
+    {
+      printf("In snap zone, so take snap.\n");
+      system("/home/pi/rpidatv/scripts/snap2.sh");
+    }
+    else if((scaledX >= 35 * wscreen / 40)  && (scaledY >= 6 * hscreen / 12))  // Top Right
+    {
+      printf("Volume Up.\n");
+      AdjustVLCVolume(51);
+    }
+    else if((scaledX >= 35 * wscreen / 40)  && (scaledY < 6 * hscreen / 12))  // Top Right
+    {
+      printf("Volume Down.\n");
+      AdjustVLCVolume(-51);
+    }
+    else
+    {
+      printf("Out of zone.  End VLC play requested.\n");
+      FinishedButton = 0;  // Not in the zone, so exit receive
+      system("/home/pi/rpidatv/scripts/lmvlcsd.sh &");
+      return NULL;
+    }
+  }
+  return NULL;
+}
+
+
+/***************************************************************************//**
+ * @brief Plays a video for file explorer until screen is touched
+ *        while FinishedButton == 1  
+ *        
+ * @param char *VideoPath, char *VideoFile - file path and name
+ *
+ * @return void
+*******************************************************************************/
+
+void ShowVideoFile(char *VideoPath, char *VideoFile)
+{
+  char PlayCommand[1023];
+  char LinuxCommand[511];
+
+  // Show the touchmap
+  strcpy(LinuxCommand, "sudo fbi -T 1 -noverbose -a /home/pi/rpidatv/scripts/images/VLC_overlay.png ");
+  strcat(LinuxCommand, ">/dev/null 2>/dev/null");
+  system(LinuxCommand);
+  strcpy(LinuxCommand, "(sleep 1; sudo killall -9 fbi >/dev/null 2>/dev/null) &");
+  system(LinuxCommand);
+
+  // Create thread to monitor touchscreen
+  pthread_create (&thbuttonFileVLC, NULL, &WaitButtonFileVLC, NULL);
+
+  FinishedButton = 1;
+  snprintf(PlayCommand, 1023, "/home/pi/rpidatv/scripts/play_video_file.sh \"%s%s\" &", VideoPath, VideoFile);
+  system(PlayCommand);
+
+  while (FinishedButton == 1)
+  {
+    usleep(1000);
+  }
+
+  system("sudo killall vlc >/dev/null 2>/dev/null");
+  pthread_join(thbuttonFileVLC, NULL);
+}
+
+
+/***************************************************************************//**
+ * @brief Displays an image for file explorer until screen is touched
+ *        
+ * @param char *TextPath, char *TextFile - file path and name
+ *
+ * @return void
+*******************************************************************************/
+
+void ShowImageFile(char *ImagePath, char *ImageFile)
+{
+  int rawX, rawY, rawPressure;
+  char fbicmd[1023];
+  bool NotWaitingforTouchYet = true;
+
+  snprintf(fbicmd, 1023, "sudo fbi -T 1 -noverbose -a \"%s%s\" >/dev/null 2>/dev/null", ImagePath, ImageFile);
+
+  system(fbicmd);
+
+  usleep(100000);  // Delay to allow fbi to finish
+
+  UpdateWeb();
+
+  while(NotWaitingforTouchYet)
+  {
+    NotWaitingforTouchYet = false;
+    if (getTouchSample(&rawX, &rawY, &rawPressure) == 0) continue;
+  }
+  system("sudo killall fbi >/dev/null 2>/dev/null");  // kill instance of fbi
+}
+
+
+/***************************************************************************//**
+ * @brief Displays up to 100 lines of text using the SelectFormList function
+ *        
+ * @param char *TextPath, char *TextFile - file path and name
+ *
+ * @return void
+*******************************************************************************/
+
+void ListText(char *TextPath, char *TextFile)
+{
+  int i;
+  FILE *fp;
+  char ListCommand[1023];
+  char response[255];
+  char TextArray[101][63];
+  int LineCount = 1;           // Start at 1, as 0 is the title
+
+  // Clear the TextArray
+  for (i = 0; i <= 100; i++)
+  {
+    strcpy(TextArray[i], "");
+  }
+
+  snprintf(ListCommand, 1023, "head -n 100 \"%s%s\"", TextPath, TextFile);
+  fp = popen(ListCommand, "r");
+  if (fp == NULL)
+  {
+    printf("Failed to run command\n" );
+    exit(1);
+  }
+
+  // Read the output a line at a time - store it
+  while ((fgets(response, 255, fp) != NULL) && (LineCount < 101))
+  {
+    //response[strlen(response) - 1] = '\0';  // Don't Strip trailing cr
+    // printf("Line %d %s\n", LineCount, response);
+    strcpyn(TextArray[LineCount], response, 63);  // Read response and limit to 63 characters
+    LineCount++;
+  }
+  pclose(fp);
+
+  strcpy(TextArray[0], "Text file listing:");   // Title
+  SelectFromList(-1, TextArray, LineCount - 1);    // Display in list
+}
+
+
+/***************************************************************************//**
+ * @brief Handles button presses from the file menu 
+ *        and acts on buttons 0 (copy), 1 (paste) and 5 (Explorer)
+ * @param int NoButton
+ *
+ * @return void
+*******************************************************************************/
+
+void FileOperation(int NoButton)
+{
+  int response = 0;
+  char NewPathSelection[255] = "/home/pi/";
+  char NewFileSelection[255] = "";
+  char FileCommand[1279];
+  char MangleText[1023];
+  char DummyFileSelection[255] = "";
+  char FilePathShort[255];
+  char FileExtension[15];
+  char RequestText[64];
+  char InitText[64];
+  bool IsValid = false;
+
+  switch (NoButton)
+  {
+    case 0:                                                    // Copy file for paste
+
+      // Clear the message lines
+      ClearMenuMessage();
+
+      response = SelectFileUsingList(CurrentPathSelection, CurrentFileSelection, NewPathSelection, NewFileSelection, 0);
+      if (response == 1)    // File has been changed
+      {
+        strcpy(CurrentPathSelection, NewPathSelection);
+        strcpy(CurrentFileSelection, NewFileSelection);
+      }
+
+      if (strlen(NewFileSelection) > 0)                // filename has been selected
+      {
+        strcpy(MenuText[0], "Selected File:");
+      }
+      else                                             // Only directory selected
+      {
+        strcpy(MenuText[0], "Current Directory:");
+      }
+
+      if (strlen(CurrentPathSelection) + strlen(CurrentFileSelection) < 63)  // all on one line
+      {
+        strcpy(MenuText[1], CurrentPathSelection);
+        strcat(MenuText[1], CurrentFileSelection);
+      }
+      else if (strlen(CurrentPathSelection) < 63 )                           // path on one line
+      {
+        strcpy(MenuText[1], CurrentPathSelection);
+        strcpy(MenuText[2], CurrentFileSelection);
+      }
+      else if ((strlen(CurrentPathSelection) >= 63 ) && (strlen(CurrentPathSelection) < 127 ))  // path on 2 lines                                                              
+      {
+        strcpyn(MenuText[1], CurrentPathSelection, 63);
+        strcpy(MenuText[2], CurrentPathSelection + 63);
+        strcpy(MenuText[3], CurrentFileSelection);
+      }
+      else                                                                                // Use all available space for path
+      {
+        strcpyn(MenuText[1], CurrentPathSelection, strlen(CurrentPathSelection) - 126);
+        strcpyn(MenuText[2], CurrentPathSelection + strlen(CurrentPathSelection) - 126, 63);
+        strcpyn(MenuText[3], CurrentPathSelection + strlen(CurrentPathSelection) - 63, 63);
+        strcpy(MenuText[4], CurrentFileSelection);
+      }
+      break;
+
+    case 1:                                                                               // Paste file to Directory
+
+      if (strcmp(MenuText[0], "Selected File:") == 0)                                     // Only action if a file is selected
+      {
+        SelectFileUsingList(CurrentPathSelection, DummyFileSelection, NewPathSelection, NewFileSelection, 1);
+        if (strcmp(CurrentPathSelection, NewPathSelection) != 0)  // New path
+        {
+          printf("Old Path %s\nNew Path %s\n", CurrentPathSelection, NewPathSelection);
+          strcpyn(FilePathShort, NewPathSelection, 7);
+
+          if (strcmp(FilePathShort, "/media/") == 0)
+          {
+            snprintf(FileCommand, 1028,"sudo cp %s%s %s%s &", CurrentPathSelection, CurrentFileSelection, NewPathSelection, CurrentFileSelection);
+          }
+          else
+          {
+            snprintf(FileCommand, 1025, "cp %s%s %s%s &", CurrentPathSelection, CurrentFileSelection, NewPathSelection, CurrentFileSelection);
+          }
+
+          printf ("%s\n", FileCommand);
+          system(FileCommand);
+
+          snprintf(MangleText, 1023, "File %s copied to:", CurrentFileSelection);
+          strcpyn(MenuText[0], MangleText, 63);
+          strcpy(MenuText[2], "");
+          strcpy(MenuText[3], "");
+          strcpy(MenuText[4], "");
+
+          if (strlen(NewPathSelection) < 63 )                           // path on one line
+          {
+            strcpy(MenuText[1], NewPathSelection);
+          }
+          else if ((strlen(NewPathSelection) >= 63 ) && (strlen(NewPathSelection) < 127 ))  // path on 2 lines                                                              
+          {
+            strcpyn(MenuText[1], NewPathSelection, 63);
+            strcpy(MenuText[2], NewPathSelection + 63);
+          }
+          else                                                                                // Use all available space for path
+          {
+            strcpyn(MenuText[1], NewPathSelection, strlen(NewPathSelection) - 126);
+            strcpyn(MenuText[2], NewPathSelection + strlen(NewPathSelection) - 126, 63);
+            strcpyn(MenuText[3], NewPathSelection + strlen(NewPathSelection) - 63, 63);
+          }
+
+          // Deselect the file, but stay in the folder
+          strcpy(CurrentFileSelection, "");
+        }
+      }
+      break;
+
+    case 2:                                                                           // Rename
+
+      // Clear the message lines
+      ClearMenuMessage();
+
+      response = SelectFileUsingList(CurrentPathSelection, CurrentFileSelection, NewPathSelection, NewFileSelection, 0);
+      if (response == 1)    // File has been changed
+      {
+        strcpy(CurrentPathSelection, NewPathSelection);
+        strcpy(CurrentFileSelection, NewFileSelection);
+
+        while (IsValid == FALSE)
+        {
+          strcpy(RequestText, "Enter new filename");
+          strcpyn(InitText, CurrentFileSelection, 25);
+          Keyboard(RequestText, InitText, 25);
+
+          if (strlen(KeyboardReturn) >= 0)
+          {
+            IsValid = TRUE;
+          }
+        }
+
+        snprintf(FileCommand, 1025, "mv %s%s %s%s &", CurrentPathSelection, CurrentFileSelection, CurrentPathSelection, KeyboardReturn);
+        // printf("%s\n", FileCommand);
+        system(FileCommand);
+
+        strcpy(MenuText[0], "File renamed as:");
+
+        if (strlen(CurrentPathSelection) + strlen(KeyboardReturn) < 63)  // all on one line
+        {
+          strcpy(MenuText[1], CurrentPathSelection);
+          strcat(MenuText[1], KeyboardReturn);
+        }
+        else if (strlen(CurrentPathSelection) < 63 )                           // path on one line
+        {
+          strcpy(MenuText[1], CurrentPathSelection);
+          strcpy(MenuText[2], KeyboardReturn);
+        }
+        else if ((strlen(CurrentPathSelection) >= 63 ) && (strlen(CurrentPathSelection) < 127 ))  // path on 2 lines                                                              
+        {
+          strcpyn(MenuText[1], CurrentPathSelection, 63);
+          strcpy(MenuText[2], CurrentPathSelection + 63);
+          strcpy(MenuText[3], KeyboardReturn);
+        }
+        else                                                                                // Use all available space for path
+        {
+          strcpyn(MenuText[1], CurrentPathSelection, strlen(CurrentPathSelection) - 126);
+          strcpyn(MenuText[2], CurrentPathSelection + strlen(CurrentPathSelection) - 126, 63);
+          strcpyn(MenuText[3], CurrentPathSelection + strlen(CurrentPathSelection) - 63, 63);
+          strcpy(MenuText[4], KeyboardReturn);
+        }
+      }
+      else
+      {
+        ClearMenuMessage();
+        strcpy(MenuText[0], "Filename not changed");
+      }
+      break;
+
+    case 3:
+      break;
+
+    case 5:                                                                                // File Explorer
+      
+      ClearMenuMessage();
+
+      response = SelectFileUsingList(CurrentPathSelection, CurrentFileSelection, NewPathSelection, NewFileSelection, 0);
+      printf("File explorer to display %s%s\n", NewPathSelection, NewFileSelection);
+
+      // Copy new selection back so that it is ready if reselected
+      strcpy(CurrentPathSelection, NewPathSelection);
+      strcpy(CurrentFileSelection, NewFileSelection);
+
+      strcpy(FileExtension, "");  // will include . like .txt up to 7 chars (.factory)
+
+      // Ascertain file type by file extension
+
+      if ((NewFileSelection[strlen(NewFileSelection) - 1] == '.') && (strlen(FileExtension) == 0))
+      {
+        strcpy(FileExtension, NewFileSelection + strlen(NewFileSelection) - 1);
+      }
+      if ((NewFileSelection[strlen(NewFileSelection) - 2] == '.') && (strlen(FileExtension) == 0))
+      {
+        strcpy(FileExtension, NewFileSelection + strlen(NewFileSelection) - 2);
+      }
+      if ((NewFileSelection[strlen(NewFileSelection) - 3] == '.') && (strlen(FileExtension) == 0))
+      {
+        strcpy(FileExtension, NewFileSelection + strlen(NewFileSelection) - 3);
+      }
+      if ((NewFileSelection[strlen(NewFileSelection) - 4] == '.') && (strlen(FileExtension) == 0))
+      {
+        strcpy(FileExtension, NewFileSelection + strlen(NewFileSelection) - 4);
+      }
+      if ((NewFileSelection[strlen(NewFileSelection) - 5] == '.') && (strlen(FileExtension) == 0))
+      {
+        strcpy(FileExtension, NewFileSelection + strlen(NewFileSelection) - 5);
+      }
+      if ((NewFileSelection[strlen(NewFileSelection) - 6] == '.') && (strlen(FileExtension) == 0))
+      {
+        strcpy(FileExtension, NewFileSelection + strlen(NewFileSelection) - 6);
+      }
+      if ((NewFileSelection[strlen(NewFileSelection) - 7] == '.') && (strlen(FileExtension) == 0))
+      {
+        strcpy(FileExtension, NewFileSelection + strlen(NewFileSelection) - 7);
+      }
+      if ((NewFileSelection[strlen(NewFileSelection) - 8] == '.') && (strlen(FileExtension) == 0))
+      {
+        strcpy(FileExtension, NewFileSelection + strlen(NewFileSelection) - 8);
+      }
+
+      printf("Extension: -%s-\n", FileExtension);
+
+      if ((strcmp(FileExtension, ".txt"    ) == 0)
+       || (strcmp(FileExtension, ".bak"    ) == 0)
+       || (strcmp(FileExtension, ".factory") == 0)
+       || (strcmp(FileExtension, ".sh"     ) == 0)
+       || (strcmp(FileExtension, ".c"      ) == 0)
+       || (strcmp(FileExtension, ".h"      ) == 0)
+       || (strcmp(FileExtension, ".md"     ) == 0)
+       || (strcmp(FileExtension, ".config" ) == 0)
+       || (strcmp(FileExtension, ".cpp"    ) == 0)
+       || (strcmp(FileExtension, ".yaml"   ) == 0)
+       || (strcmp(FileExtension, ".yml"    ) == 0))
+      {
+        // Call Text reader
+        ListText(NewPathSelection, NewFileSelection);
+      }
+
+      if ((strcmp(FileExtension, ".PhotoCD") == 0)
+       || (strcmp(FileExtension, ".jpg"    ) == 0)
+       || (strcmp(FileExtension, ".JPG"    ) == 0)
+       || (strcmp(FileExtension, ".jpeg"   ) == 0)
+       || (strcmp(FileExtension, ".ppm"    ) == 0)
+       || (strcmp(FileExtension, ".gif"    ) == 0)
+       || (strcmp(FileExtension, ".tiff"   ) == 0)
+       || (strcmp(FileExtension, ".xpm"    ) == 0)
+       || (strcmp(FileExtension, ".xwd"    ) == 0)
+       || (strcmp(FileExtension, ".bmp"    ) == 0)
+       || (strcmp(FileExtension, ".webp"   ) == 0)
+       || (strcmp(FileExtension, ".png"    ) == 0))
+      {
+        // Call Image Viewer
+        ShowImageFile(NewPathSelection, NewFileSelection);
+      }
+
+      if ((strcmp(FileExtension, ".ts"     ) == 0)
+       || (strcmp(FileExtension, ".avi"    ) == 0)
+       || (strcmp(FileExtension, ".mp3"    ) == 0)
+       || (strcmp(FileExtension, ".mp4"    ) == 0)
+       || (strcmp(FileExtension, ".mkv"    ) == 0)
+       || (strcmp(FileExtension, ".mov"    ) == 0)
+       || (strcmp(FileExtension, ".ogg"    ) == 0)
+       || (strcmp(FileExtension, ".MTS"    ) == 0))
+      {
+        // Call VLC
+        ShowVideoFile(NewPathSelection, NewFileSelection);
+      }
+
+      break;
+  }
+}
+
+
+/***************************************************************************//**
+ * @brief Uses the "SelectFromList" dialogue to display a list of 
+ * connected USB devices as shown by lsusb.  Truncates names to 63 chars.
+ *        
+ * @param nil
+ *
+ * @return void
+*******************************************************************************/
+
+void ListUSBDevices()
+{
+  int i;
+  FILE *fp;
+  char response[255];
+  char DeviceArray[101][63];
+  int LineCount = 1;           // Start at 1, as 0 is the title
+
+  // Clear the DeviceArray
+  for (i = 0; i <= 100; i++)
+  {
+    strcpy(DeviceArray[i], "");
+  }
+
+  fp = popen("lsusb", "r");
+  if (fp == NULL)
+  {
+    printf("Failed to run command\n" );
+    exit(1);
+  }
+
+  // Read the output a line at a time - store it
+  while ((fgets(response, 255, fp) != NULL) && (LineCount < 99))
+  {
+    response[strlen(response) - 1] = '\0';  // Strip trailing cr
+    //printf("Line %d %s\n", LineCount, response);
+    strcpyn(DeviceArray[LineCount], response + 22, 63);  // Read response from 22nd character and limit to 63
+    LineCount++;
+  }
+  pclose(fp);
+
+  strcpy(DeviceArray[0], "USB Devices Detected:");   // Title
+  SelectFromList(-1, DeviceArray, LineCount - 1);    // Display in list
+}
+
+
 /***************************************************************************//**
  * @brief Stops the graphics system and displays the Portdown Logo
  *        
@@ -6002,8 +6521,8 @@ void DrawButton(int ButtonIndex)
     TextMid2(Button->x+Button->w/2, Button->y+Button->h*11/16, line1, &font_dejavu_sans_20);	
     TextMid2(Button->x+Button->w/2, Button->y+Button->h*3/16, line2, &font_dejavu_sans_20);	
   
-    // Draw green overlay half-button.  Menus 1 or 4, 2 lines and Button status = 0 only
-    if (((CurrentMenu == 1) || (CurrentMenu == 4)) && (Button->NoStatus == 0))
+    // Draw green overlay half-button.  Menu 1, 2 lines and Button status = 0 only
+    if ((CurrentMenu == 1) && (Button->NoStatus == 0))
     {
       // Draw the green box
       rectangle(Button->x, Button->y + 1, Button->w, Button->h/2,
@@ -6466,6 +6985,7 @@ void ShowMenuText()
   // Display Text
   for (line = 0; line < 5; line = line + 1)
   {
+    // printf("%s-%d\n", MenuText[line], strlen(MenuText[line]));
     Text2(wscreen / 12, hscreen - (3 + line) * linepitch, MenuText[line], font_ptr);
   }
   UpdateWeb();
@@ -6478,11 +6998,6 @@ void ShowTitle()
   {
     setForeColour(0, 0, 0);          // Black text
     setBackColour(255, 255, 255);    // on White
-  }
-  else if (CurrentMenu == 4)         // Comp Vid Menu
-  {
-    setForeColour(255, 255, 255);    // White text
-    setBackColour(127, 127, 127);    // on grey
   }
   else                               // All others
   {
@@ -6510,10 +7025,6 @@ void UpdateWindow()
   if (CurrentMenu == 1)           // Main Menu White
   {
     setBackColour(255, 255, 255);
-  }
-  else if (CurrentMenu == 4)      // Comp Vid Menu Grey
-  {
-    setBackColour(127, 127, 127);
   }
   else                            // All others Black
   {
@@ -6550,7 +7061,7 @@ void UpdateWindow()
 
   // Show the title and any required text
   ShowTitle();
-  if (CurrentMenu == 33)
+  if ((CurrentMenu == 4) || (CurrentMenu == 33))  // File or update menus
   {
     ShowMenuText();
   }
@@ -7146,7 +7657,7 @@ int ListFilestoArray(char *Path, int FirstFile, int LastFile, char FileArray[101
   }
 
   // Read the filenames in the directory
-  strcpy(lscommand, "ls -1 ");
+  strcpy(lscommand, "ls -1 ");   // filenames only
   strcat(lscommand, Path);
 
 
@@ -7173,7 +7684,7 @@ int ListFilestoArray(char *Path, int FirstFile, int LastFile, char FileArray[101
 
   // Read the filetypes in the directory
   FileIndexCount = 2;
-  strcpy(lscommand, "ls -l ");
+  strcpy(lscommand, "ls -l -L ");  // Long listing and dereference symbolic links
   strcat(lscommand, Path);
 
   fp = popen(lscommand, "r");
@@ -7214,12 +7725,13 @@ int ListFilestoArray(char *Path, int FirstFile, int LastFile, char FileArray[101
  *        InitialFile is file to be highlighted on entry
  *        SelectedPath is path selected
  *        SelectedFile is file selected
+ *        if directory == 1, then output is a directory
  *        All params should be declared [255] in calling function
 
  * @return (int) 0 if no change, 1 if changed
 *******************************************************************************/
 
-int SelectFileUsingList(char *InitialPath, char *InitialFile, char *SelectedPath, char *SelectedFile)
+int SelectFileUsingList(char *InitialPath, char *InitialFile, char *SelectedPath, char *SelectedFile, int directory)
 {
   int NumberofFiles;
   char DisplayFileList[101][63];
@@ -7358,12 +7870,15 @@ int SelectFileUsingList(char *InitialPath, char *InitialFile, char *SelectedPath
     }
     else if ((response >= 2) && (response <= (ChooseListLength + 1)))  // valid choice
     {
+        printf("Response for analysis is -%s-\n", FileArray[response]);
+
       printf("Chosen File was %s\n", DisplayFileList[response]);
       if (FileTypeArray[response][0] == 'd')                           // Directory selected
       {
         strcat(SelectedPath, FileArray[response]);
         strcat(SelectedPath, "/");
         ListingSection = 1;
+        InitialSelection = 0;
         printf("New selected path is %s\n", SelectedPath);
       }
       else
@@ -7373,10 +7888,18 @@ int SelectFileUsingList(char *InitialPath, char *InitialFile, char *SelectedPath
         choosing = false;
       }
     }
-    else if (response == 0)                                           // Cancel
+    else if (response == 0)                                      // Cancel or Select with no highlight
     {
-      strcpy(SelectedFile, InitialFile);
-      strcpy(SelectedPath, InitialPath);
+      if ((strcmp(SelectedPath, InitialPath) != 0) && (directory == 1))     // Path has changed
+      {                                                                    // and we are accepting directory answers
+        // Selected path will be correct
+        strcpy(SelectedFile, "");
+      }
+      else
+      {
+        strcpy(SelectedFile, InitialFile);
+        strcpy(SelectedPath, InitialPath);
+      }
       choosing = false;
     }
 
@@ -7384,6 +7907,8 @@ int SelectFileUsingList(char *InitialPath, char *InitialFile, char *SelectedPath
     {
       if (strlen(SelectedPath) > 1 )                            // Only change if path is not currently "/"
       {
+        InitialSelection = 0;                                   // Clear any selection
+
         for (i = strlen(SelectedPath); i > 1; i = i - 1)        // From the right hand end of the path
         {
           if (deleting)                                         // if the slash has not been reached
@@ -7414,13 +7939,24 @@ int SelectFileUsingList(char *InitialPath, char *InitialFile, char *SelectedPath
 }
 
 
+/***************************************************************************//**
+ * @brief Displays a Dialogue to allow selection from an array
+ *
+ * @param (int) CurrentSelection:  -1 list only, selection not possible
+ *                                 0  No current selection, returns 0
+ *                                 1 - 100 initial selection for highlighting
+ *        char ListEntry[101][63]: [0] is title 
+ *                                 [1] - [100] are list entries
+ *        int ListLength:          Number of entries to display
+ *
+ * @return (int) Cancel returns "Current Selection" (1 - 100) or 0 if none
+ *               Select returns new selection (1 - 100)
+ *               Select with no highlighted selection returns 0
+*******************************************************************************/
+
 int SelectFromList(int CurrentSelection, char ListEntry[101][63], int ListLength)
 {
-  // Entry with CurrentSelection = 0 means no current selection
-  // Entry with CurrentSelection = -1 means no selection possible.  Returns -1
-
   char TableNumberText[7];
-
   int ButtonWidth = 160;
   int ButtonHeight = 65;
   char Button1Caption[15] = "Previous Page";
@@ -7515,6 +8051,7 @@ int SelectFromList(int CurrentSelection, char ListEntry[101][63], int ListLength
       snprintf(TableNumberText, 4, "%d", i);
       if (SelectedEntry != i)
       {
+        // printf("%s %s\n", TableNumberText, ListEntry[i]);
         Text2(wscreen / 40, hscreen - (j + 2) * linepitch, TableNumberText, font_ptr);
         Text2((wscreen * 5) / 40, hscreen - (j + 2) * linepitch, ListEntry[i], font_ptr);
       }
@@ -7630,14 +8167,14 @@ int SelectFromList(int CurrentSelection, char ListEntry[101][63], int ListLength
     // Check if a line has been highlighted
     for (j = 1; j <= 10; j++)
     {
-      if ((scaledY <= (418 - 32 * j) + 16)  && (scaledY > (418 - 32 * j) - 16) && (CurrentSelection != -1))
+      if ((scaledY <= (418 - 32 * j) + 16)  && (scaledY > (418 - 32 * j) - 16) && (CurrentSelection != -1))  // Line selection
       {
         SelectedEntry = TopEntry + j - 1;
       }
     }
 
     if ((scaledX <= (Button1X + ButtonWidth - margin)) && (scaledX >= Button1X + margin) &&
-        (scaledY <= (ButtonY + ButtonHeight - margin)) && (scaledY >= ButtonY + margin))
+        (scaledY <= (ButtonY + ButtonHeight - margin)) && (scaledY >= ButtonY + margin))     // Previous Page
     {
       if (CurrentPage > 1)
       {
@@ -7646,7 +8183,7 @@ int SelectFromList(int CurrentSelection, char ListEntry[101][63], int ListLength
     }
 
     if ((scaledX <= (Button4X + ButtonWidth - margin)) && (scaledX >= Button4X + margin) &&
-        (scaledY <= (ButtonY + ButtonHeight - margin)) && (scaledY >= ButtonY + margin))
+        (scaledY <= (ButtonY + ButtonHeight - margin)) && (scaledY >= ButtonY + margin))    // Next page
     {
       if (CurrentPage < PageCount)
       {
@@ -7656,14 +8193,14 @@ int SelectFromList(int CurrentSelection, char ListEntry[101][63], int ListLength
     if (CurrentSelection != -1)  // Display list and select value
     {
       if ((scaledX <= (Button2X + ButtonWidth - margin)) && (scaledX >= Button2X + margin) &&
-          (scaledY <= (ButtonY + ButtonHeight - margin)) && (scaledY >= ButtonY + margin))
+          (scaledY <= (ButtonY + ButtonHeight - margin)) && (scaledY >= ButtonY + margin))    // Cancel
       {
         ReturnValue = CurrentSelection;
         NotExit = false;
       }
 
       if ((scaledX <= (Button3X + ButtonWidth - margin)) && (scaledX >= Button3X + margin) &&
-          (scaledY <= (ButtonY + ButtonHeight - margin)) && (scaledY >= ButtonY + margin))
+          (scaledY <= (ButtonY + ButtonHeight - margin)) && (scaledY >= ButtonY + margin))    // Select
       {
         ReturnValue = SelectedEntry;
         NotExit = false;
@@ -12968,6 +13505,7 @@ void MsgBox4(char *message1, char *message2, char *message3, char *message4)
   // printf("MsgBox4 called\n");
 }
 
+
 void YesNo(int i)  // i == 6 Yes, i == 8 No
 {
   // First switch on what was calling the Yes/No question
@@ -14188,7 +14726,7 @@ void IPTSConfig(int NoButton)
 
 
     // Choose the new file (or not)
-    if (SelectFileUsingList(TSPath, TSFile, NewTSPath, NewTSFile) == 1)  // file has changed
+    if (SelectFileUsingList(TSPath, TSFile, NewTSPath, NewTSFile, 0) == 1)  // file has changed
     {
       strcat(NewTSPath, NewTSFile);                                      // Combine path and filename
       printf("New TS filename: %s\n", NewTSPath);
@@ -17026,7 +17564,12 @@ void waituntil(int w,int h)
           clearScreen();
           UpdateWindow();
           break;
-        case 3:                               // Not used
+        case 3:                               // File Menu
+          printf("MENU 4 \n");
+          CurrentMenu=4;
+          setBackColour(0, 0, 0);
+          clearScreen();
+          Start_Highlights_Menu4();
           UpdateWindow();
           break;
         case 4:                              // VLC Stream Viewer
@@ -17409,51 +17952,21 @@ void waituntil(int w,int h)
         continue;   // Completed Menu 3 action, go and wait for touch
       }
 
-      if (CurrentMenu == 4)  // Menu 4 Composite Video Output
+      if (CurrentMenu == 4)  // Menu 4 File Menu
       {
         printf("Button Event %d, Entering Menu 4 Case Statement\n",i);
         switch (i)
         {
-        case 5:                               // PiCam
-        case 6:                               // CompVid
-        case 7:                               // TCAnim
-        case 8:                               // TestCard
-        case 9:                               // Snap
-        case 0:                               // Contest
-        case 1:                               // Webcam
-        case 2:                               // Movie
-          // temporary code to put buttons in a line:
-          if (i == 6)
-          {
-            i = 0;
-          }
-          SelectVidSource(i);
-          printf("%s\n", CurrentVidSource);
-          break;
-        case 13:                             // Select Vid Band
-          printf("MENU 30 \n");
-          CurrentMenu=30;
-          setBackColour(0, 0, 0);
-          clearScreen();
-          Start_Highlights_Menu30();
+        case 0:                               // Copy file
+        case 1:                               // Paste file
+        case 2:                               // Rename File
+        case 3:                               // Delete file or directory
+          FileOperation(i);
+          Start_Highlights_Menu4();           // Refresh button labels
           UpdateWindow();
           break;
-        case 20:                       // PTT ON/OFF
-          if (VidPTT == 1)
-          {
-            VidPTT = 0;
-            digitalWrite(GPIO_PTT, LOW);
-          }
-          else
-          {
-            VidPTT = 1;
-            digitalWrite(GPIO_PTT, HIGH);
-          }
-          Start_Highlights_Menu4();
-          UpdateWindow();
-          break;
-        case 22:                       // Exit
-          CompVidStop();
+        case 4:
+          ClearMenuMessage(); 
           printf("MENU 1 \n");
           CurrentMenu=1;
           setBackColour(255, 255, 255);
@@ -17461,6 +17974,27 @@ void waituntil(int w,int h)
           setBackColour(0, 0, 0);
           Start_Highlights_Menu1();
           UpdateWindow();
+          break;
+        case 5:                               // Explorer
+        case 6:                               // New Directory
+        case 7:                               //
+          FileOperation(i);
+          Start_Highlights_Menu4();           // Refresh button labels
+          UpdateWindow();
+          break;
+        case 8:                               // 
+          break;
+        case 9:                               //
+          ClearMenuMessage(); 
+          ListUSBDevices();
+          Start_Highlights_Menu4();           // Refresh button labels
+          UpdateWindow();
+          break;
+        case 13:                             // 
+          break;
+        case 20:                             // 
+          break;
+        case 22:                             // 
           break;
         default:
           printf("Menu 4 Error\n");
@@ -20888,9 +21422,9 @@ void Define_Menu2()
   AddButtonStatus(button, "Info^ ", &Blue);
   AddButtonStatus(button, " ", &Green);
 
-  //button = CreateButton(2, 3);
-  //AddButtonStatus(button, " ", &Blue);
-  //AddButtonStatus(button, " ", &Green);
+  button = CreateButton(2, 3);
+  AddButtonStatus(button, "File^Menu", &Blue);
+  AddButtonStatus(button, "File^Menu", &Green);
 
   button = CreateButton(2, 4);
   AddButtonStatus(button, "Stream^Viewer VLC", &Blue);
@@ -21080,30 +21614,40 @@ void Define_Menu4()
 {
   int button;
 
-  strcpy(MenuTitle[4], "Composite Video Output Menu (4)"); 
+  strcpy(MenuTitle[4], "File Menu (4)"); 
 
   // Bottom Row, Menu 4
-  //button = CreateButton(4, 0);
-  //AddButtonStatus(button, TabVidSource[5], &Blue);
-  //AddButtonStatus(button, TabVidSource[5], &Green);
-  //AddButtonStatus(button, TabVidSource[5], &Grey);
+  button = CreateButton(4, 0);
+  AddButtonStatus(button, "Copy File^for Paste", &Blue);
+  AddButtonStatus(button, "Copy File^for Paste", &Green);
+  AddButtonStatus(button, "Copy File^for Paste", &Grey);
 
-  //button = CreateButton(4, 1);
-  //AddButtonStatus(button, TabVidSource[6], &Blue);
-  //AddButtonStatus(button, TabVidSource[6], &Green);
-  //AddButtonStatus(button, TabVidSource[6], &Grey);
+  button = CreateButton(4, 1);
+  AddButtonStatus(button, "Paste File^to Directory", &Blue);
+  AddButtonStatus(button, "Paste File^to Directory", &Green);
+  AddButtonStatus(button, "Paste File^to Directory", &Grey);
 
-  //button = CreateButton(4, 2);
-  //AddButtonStatus(button, TabVidSource[7], &Blue);
-  //AddButtonStatus(button, TabVidSource[7], &Green);
-  //AddButtonStatus(button, TabVidSource[7], &Grey);
+  button = CreateButton(4, 2);
+  AddButtonStatus(button, "Rename File", &Blue);
+  AddButtonStatus(button, "Rename File", &Green);
+  AddButtonStatus(button, "Rename File", &Grey);
+
+  button = CreateButton(4, 3);
+  //AddButtonStatus(button, "Delete File^or Directory", &Blue);
+  //AddButtonStatus(button, "Delete File^or Directory", &Green);
+  //AddButtonStatus(button, "Delete File^or Directory", &Grey);
+
+  button = CreateButton(4, 4);
+  AddButtonStatus(button, "Exit", &DBlue);
+  AddButtonStatus(button, "Exit", &LBlue);
+
 
   // 2nd Row, Menu 4
 
   button = CreateButton(4, 5);
-  AddButtonStatus(button, TabVidSource[0], &Blue);
-  AddButtonStatus(button, TabVidSource[0], &Green);
-  AddButtonStatus(button, TabVidSource[0], &Grey);
+  AddButtonStatus(button, "File^Explorer", &Blue);
+  AddButtonStatus(button, "File^Explorer", &Green);
+  AddButtonStatus(button, "File^Explorer", &Grey);
 
   //button = CreateButton(4, 6);
   //AddButtonStatus(button, TabVidSource[1], &Blue);
@@ -21111,54 +21655,53 @@ void Define_Menu4()
   //AddButtonStatus(button, TabVidSource[1], &Grey);
 
   // Temporary entry to put buttons in a line
-  button = CreateButton(4, 6);
-  AddButtonStatus(button, TabVidSource[5], &Blue);
-  AddButtonStatus(button, TabVidSource[5], &Green);
-  AddButtonStatus(button, TabVidSource[5], &Grey);
+  //button = CreateButton(4, 6);
+  //AddButtonStatus(button, TabVidSource[5], &Blue);
+  //AddButtonStatus(button, TabVidSource[5], &Green);
+  //AddButtonStatus(button, TabVidSource[5], &Grey);
 
-  button = CreateButton(4, 7);
-  AddButtonStatus(button, TabVidSource[2], &Blue);
-  AddButtonStatus(button, TabVidSource[2], &Green);
-  AddButtonStatus(button, TabVidSource[2], &Grey);
+  //button = CreateButton(4, 7);
+  //AddButtonStatus(button, TabVidSource[2], &Blue);
+  //AddButtonStatus(button, TabVidSource[2], &Green);
+  //AddButtonStatus(button, TabVidSource[2], &Grey);
 
-  button = CreateButton(4, 8);
-  AddButtonStatus(button, TabVidSource[3], &Blue);
-  AddButtonStatus(button, TabVidSource[3], &Green);
-  AddButtonStatus(button, TabVidSource[3], &Grey);
+  //button = CreateButton(4, 8);
+  //AddButtonStatus(button, TabVidSource[3], &Blue);
+  //AddButtonStatus(button, TabVidSource[3], &Green);
+  //AddButtonStatus(button, TabVidSource[3], &Grey);
 
   button = CreateButton(4, 9);
-  AddButtonStatus(button, TabVidSource[4], &Blue);
-  AddButtonStatus(button, TabVidSource[4], &Green);
-  AddButtonStatus(button, TabVidSource[4], &Grey);
+  AddButtonStatus(button, "List USB^Devices", &Blue);
+  AddButtonStatus(button, "List USB^Devices", &Green);
+
 
   // 3rd Row, Menu 4
 
-  button = CreateButton(4, 13);
-  AddButtonStatus(button, "Band^", &Blue);
-  AddButtonStatus(button, "Band^", &Green);
+  //button = CreateButton(4, 13);
+  //AddButtonStatus(button, "Band^", &Blue);
+  //AddButtonStatus(button, "Band^", &Green);
 
   // Top of Menu 4
 
-  button = CreateButton(4, 20);
-  AddButtonStatus(button,"PTT", &Blue);
-  AddButtonStatus(button,"PTT ON", &Red);
+  //button = CreateButton(4, 20);
+  //AddButtonStatus(button,"PTT", &Blue);
+  //AddButtonStatus(button,"PTT ON", &Red);
 
-  button = CreateButton(4, 22);
-  AddButtonStatus(button," Exit ", &DBlue);
-  AddButtonStatus(button," Exit ", &LBlue);
+  //button = CreateButton(4, 22);
+  //AddButtonStatus(button," Exit ", &DBlue);
+  //AddButtonStatus(button," Exit ", &LBlue);
 }
 
 void Start_Highlights_Menu4()
 {
-  char CompVidBandText[256];
-
-  // Display the Comp Vid Band
-  strcpy(CompVidBandText, "Band^");
-  strcat(CompVidBandText, TabBandLabel[CompVidBand]);
-  AmendButtonStatus(ButtonNumber(4, 13), 0, CompVidBandText, &Blue);
-  AmendButtonStatus(ButtonNumber(4, 13), 1, CompVidBandText, &Green);
-
-  SelectInGroupOnMenu(4, 20, 20, 20, VidPTT);
+  if (strcmp(MenuText[0], "Selected File:") == 0)       // Grey out if no file is selected
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 1), 0);
+  }
+  else
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 1), 2);
+  }
 }
 
 void Define_Menu5()
@@ -24691,7 +25234,10 @@ void Define_Menu38()
 
 void Start_Highlights_Menu38()
 {
-  // Nothing here yet
+  AmendButtonStatus(ButtonNumber(38, 6), 0, YesButtonCaption, &Blue);
+  AmendButtonStatus(ButtonNumber(38, 6), 1, YesButtonCaption, &Green);
+  AmendButtonStatus(ButtonNumber(38, 8), 0, NoButtonCaption, &Blue);
+  AmendButtonStatus(ButtonNumber(38, 8), 1, NoButtonCaption, &Green);
 }
 
 void Define_Menu39()
