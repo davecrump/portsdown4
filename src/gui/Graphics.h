@@ -90,10 +90,10 @@ void displayChar2(const font_t *font_ptr, char c)
       {
          setPixel(currentX + col, currentY + row - y_offset, thisPixelR, thisPixelG, thisPixelB);
       }
-      else
-      {
-        printf("Error: Trying to write pixel outside screen bounds.\n");
-      }
+      //else
+      //{
+      //  printf("Error: Trying to write pixel outside screen bounds.\n");
+      //}
     }
   }
   // Move position on by the character width
@@ -183,7 +183,7 @@ void TextMid2 (int xpos, int ypos, char*s, const font_t *font_ptr)
 void Text2 (int xpos, int ypos, char*s, const font_t *font_ptr)
 {
   int p;    // Character Counter
-  p=0;
+  char c;
 
   // Position string write position start
 
@@ -192,13 +192,13 @@ void Text2 (int xpos, int ypos, char*s, const font_t *font_ptr)
   //printf("TextMid x %d, y %d, %s\n", xpos, ypos, s);
 
   // Display each character
-  do
+  for (p = 0; p < strlen(s); p++)
   {
-    char c=s[p++];
+    c = s[p];
     displayChar2(font_ptr, c);
   }
-  while(s[p] != 0);  // While not end of string
 }
+
 
 void LargeText2 (int xpos, int ypos, int sizeFactor, char*s, const font_t *font_ptr)
 {
@@ -220,7 +220,6 @@ void LargeText2 (int xpos, int ypos, int sizeFactor, char*s, const font_t *font_
   }
   while(s[p] != 0);  // While not end of string
 }
-
 
 
 void rectangle(int xpos, int ypos, int xsize, int ysize, int r, int g, int b)
