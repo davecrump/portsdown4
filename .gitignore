@@ -62,4 +62,6 @@ bin/power_meter
 bin/sweeper
 bin/airspyview
 bin/rtlsdrview
+bin/dmm
+
 

@@ -11,6 +11,8 @@ airspyview is compiled
 
 CombiTunerExpress is downloaded
 
+dmm is compiled
+
 dvb_t_stack is compiled
 
 dvb2iq is compiled
