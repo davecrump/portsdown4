@@ -483,6 +483,16 @@ make
 cp sweeper ../../bin/
 cd /home/pi
 
+# Compile DMM Display
+echo
+echo "---------------------------------------"
+echo "-------- Compiling DMM Display --------"
+echo "---------------------------------------"
+cd /home/pi/rpidatv/src/dmm
+make
+cp dmm ../../bin/
+cd /home/pi
+
 # Compile and install the executable for GPIO-switched transmission (201710080)
 echo "Installing keyedtx"
 cd /home/pi/rpidatv/src/keyedtx

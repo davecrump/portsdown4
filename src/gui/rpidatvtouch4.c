@@ -18282,6 +18282,10 @@ void waituntil(int w,int h)
           }
           UpdateWindow();
           break;
+        case 7:                                                 // DMM Display
+          DisplayLogo();
+          cleanexit(142);
+          break;
         case 10:                                                 // Signal Generator
           DisplayLogo();
           cleanexit(130);
@@ -21965,6 +21969,9 @@ void Define_Menu7()
 
   button = CreateButton(7, 6);
   AddButtonStatus(button, "RTL-SDR^BandViewer", &Blue);
+
+  button = CreateButton(7, 7);
+  AddButtonStatus(button, "DMM^Display", &Blue);
 
   // 3rd line up Menu 7:
 

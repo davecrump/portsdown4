@@ -463,6 +463,16 @@ make
 cp sweeper ../../bin/
 cd /home/pi
 
+# Compile DMM Display
+echo
+echo "---------------------------------------"
+echo "-------- Compiling DMM Display --------"
+echo "---------------------------------------"
+cd /home/pi/rpidatv/src/dmm
+make
+cp dmm ../../bin/
+cd /home/pi
+
 #echo
 #echo "-----------------------------------------"
 #echo "----- Compiling Ancilliary programs -----"

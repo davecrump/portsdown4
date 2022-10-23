@@ -1,3 +1,6 @@
+202210230
+Add Proof of Concept DMM Display/Logger
+
 202209280
 Add File Menu (access from Menu 2)
 Add File Explorer with viewers/players
