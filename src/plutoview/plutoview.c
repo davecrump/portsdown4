@@ -17,17 +17,17 @@
 #include <ctype.h>
 #include <stdbool.h>
 #include <fftw3.h>
-#include <libusb.h>
 
 #include "screen.h"
 #include "font/font.h"
 #include "touch.h"
 #include "graphics.h"
+#include "/home/pi/libiio/iio.h"  // for Pluto
 #include "timing.h"
+#include "pluto.h"
+#include "fft.h"
+#include "buffer/buffer_circular.h"
 
-#include "airspyfft.h"
-#include "libairspy/libairspy/src/airspy.h"
-#include "/usr/include/libusb-1.0/libusb.h"
 pthread_t thbutton;
 
 int fd = 0;
@@ -66,7 +66,7 @@ color_t Red   = {.r = 255, .g = 0  , .b = 0  };
 color_t Black = {.r = 0  , .g = 0  , .b = 0  };
 
 #define PATH_PCONFIG "/home/pi/rpidatv/scripts/portsdown_config.txt"
-#define PATH_CONFIG "/home/pi/rpidatv/src/airspyview/airspyview_config.txt"
+#define PATH_CONFIG "/home/pi/rpidatv/src/plutoview/plutoview_config.txt"
 
 #define MAX_BUTTON 675
 int IndexButtonInArray=0;
@@ -91,15 +91,8 @@ int FinishedButton = 0;
 int i;
 bool freeze = false;
 bool frozen = false;
-
-bool prepnewscanwidth = false;
-bool readyfornewscanwidth = false;
-
-
-
 bool activescan = false;
 bool PeakPlot = false;
-//int y[501];               // Actual displayed values on the chart
 bool PortsdownExitRequested = false;
 
 int scaledadresult[501];  // Sensed AD Result
@@ -113,12 +106,9 @@ int reflevel = 99;
 char PlotTitle[63] = "-";
 bool ContScan = false;
 
-int fft_size = 500;                  // Variable based on scan width
-float fft_time_smooth = 0.999;       // Set for scan width
-
 int centrefreq = 437000;
-int span = 10000;
-int limegain = 15;
+int span = 5120;
+int plutogain = 80;
 int pfreq1 = 146500;
 int pfreq2 = 437000;
 int pfreq3 = 748000;
@@ -160,12 +150,18 @@ int yshift    = 5;        // Vertical shift (pixels) for Y
 int xscalenum = 25;       // Numerator for X scaling fraction
 int xscaleden = 20;       // Denominator for X scaling fraction
 
+char PlutoIP[16];         // Pluto IP address
+
+
 ///////////////////////////////////////////// FUNCTION PROTOTYPES ///////////////////////////////
 
 void GetConfigParam(char *, char *, char *);
 void SetConfigParam(char *, char *, char *);
 int CheckWebCtlExists();
 void ReadSavedParams();
+int CheckPlutoConnect();
+int CheckPlutoIPConnect();
+int PlutoConnectTest();
 void MsgBox4(char *, char *, char *, char *);
 void do_snapcheck();
 int openTouchScreen(int);
@@ -175,6 +171,7 @@ int getTouchScreenDetails(int*, int* ,int* ,int*);
 int ButtonNumber(int, int);
 void SetButtonStatus(int ,int);
 void UpdateWindow();
+void wait_touch();
 int getTouchSample(int*, int*, int*);
 int IsMenuButtonPushed(int, int);
 void DrawButton(int);
@@ -212,21 +209,14 @@ void RedrawDisplay();
 
 static bool app_exit = false;
 
-double frequency_actual_rx = 437000000;
-uint32_t CentreFreq;                   // Used for Airspy
-double bandwidth = 1e7;
-uint32_t SpanWidth;                    // Used for airspy
-
-extern uint16_t y3[1250];
-extern int force_exit;
+extern double frequency_actual_rx;
+extern double bandwidth;
+extern int y[515];
 bool wfall;
 
-extern pthread_mutex_t histogram;
-
-
 static pthread_t screen_thread_obj;
-
-static pthread_t airspy_fft_thread_obj;
+static pthread_t sdr_thread_obj;
+static pthread_t fft_thread_obj;
 
 ///////////////////////////////////////////// SCREEN AND TOUCH UTILITIES ////////////////////////
 
@@ -327,7 +317,6 @@ void SetConfigParam(char *PathConfigFile, char *Param, char *Value)
   }
 }
 
-
 /***************************************************************************//**
  * @brief Checks to see if webcontrol exists in Portsdown Config file
  *
@@ -372,10 +361,8 @@ void ReadSavedParams()
 
   CalcSpan();
 
-  GetConfigParam(PATH_CONFIG, "limegain", response);
-  limegain = atoi(response);
-  //gain = ((float)limegain) / 100.0;
-  gain = (float)limegain;
+  GetConfigParam(PATH_CONFIG, "plutogain", response);
+  plutogain = atoi(response);
 
   strcpy(response, "146500");
   GetConfigParam(PATH_CONFIG, "pfreq1", response);
@@ -407,7 +394,133 @@ void ReadSavedParams()
       webcontrol = true;
     } 
   }
+
+  // Read Pluto IP from Portsdown Config file
+  GetConfigParam(PATH_PCONFIG,"plutoip", PlutoIP);
 }
+
+
+/***************************************************************************//**
+ * @brief Checks whether a Pluto responds to ping on pluto.local
+ *
+ * @param 
+ *
+ * @return 0 if present, 1 if absent
+*******************************************************************************/
+
+int CheckPlutoConnect()
+{
+  FILE *fp;
+  char response[127];
+
+  /* Open the command for reading. */
+  fp = popen("timeout 0.2 ping pluto.local -c1 | head -n 5 | tail -n 1 | grep -o \"1 received,\" | head -c 11", "r");
+  if (fp == NULL) {
+    printf("Failed to run command\n" );
+    exit(1);
+  }
+
+  /* Read the output a line at a time - output it. */
+  while (fgets(response, 12, fp) != NULL)
+  {
+    printf("%s", response);
+  }
+  /* close */
+  pclose(fp);
+  if (strcmp (response, "1 received,") == 0)
+  {
+    return 0;
+  }
+  else
+  {
+    return 1;
+  }
+}
+
+
+/***************************************************************************//**
+ * @brief Checks whether a Pluto is connected on the IP address in the Config File
+ *
+ * @param 
+ *
+ * @return 0 if present, 1 if absent
+*******************************************************************************/
+
+int CheckPlutoIPConnect()
+{
+  FILE *fp;
+  char response[127];
+  char plutoping[127];
+
+  strcpy(plutoping, "timeout 0.2 ping ");
+  strcat(plutoping, PlutoIP);
+  strcat(plutoping, " -c1 | head -n 5 | tail -n 1 | grep -o \"1 received,\" | head -c 11");
+
+  /* Open the command for reading. */
+  // fp = popen("timeout 0.2 ping pluto.local -c1 | head -n 5 | tail -n 1 | grep -o \"1 received,\" | head -c 11", "r");
+
+  fp = popen(plutoping, "r");
+  if (fp == NULL) {
+    printf("Failed to run command\n" );
+    exit(1);
+  }
+
+  /* Read the output a line at a time - output it. */
+  while (fgets(response, 12, fp) != NULL)
+  {
+    //printf("%s", response);
+  }
+
+  /* close */
+  pclose(fp);
+  if (strcmp (response, "1 received,") == 0)
+  {
+    return 0;
+  }
+  else
+  {
+    return 1;
+  }
+}
+
+
+/***************************************************************************//**
+ * @brief Checks and reports on Pluto Connection
+ *
+ * @param 
+ *
+ * @return 0 if OK, 1 if there is a problem
+*******************************************************************************/
+
+int PlutoConnectTest()
+{
+
+  // Check whether Pluto is connected on stored IP address
+  if (CheckPlutoIPConnect() == 0)
+  {
+    return 0;  // Connected!
+  }
+  else
+  {
+    // Check whether Pluto is connected on pluto.local
+    if (CheckPlutoConnect() == 0)
+    {
+      MsgBox4("Pluto Connected, but", "IP Address stored does not match",
+              "Please use Settings menu to enter IP Address", "Touch Screen to Continue");
+      wait_touch();
+      return 1;
+    }
+    else
+    {
+      MsgBox4("No Pluto Connected", "Please check connections",
+              " ", "Touch Screen to Continue");
+      wait_touch();
+      return 1;
+    }
+  }
+}
+
+
 
 void do_snapcheck()
 {
@@ -530,7 +643,8 @@ void UpdateWeb()
 
 void Keyboard(char RequestText[64], char InitText[64], int MaxLength)
 {
-  char EditText[65];
+  char EditText[64];
+  strcpy (EditText, InitText);
   int token;
   int PreviousMenu;
   int i;
@@ -542,17 +656,14 @@ void Keyboard(char RequestText[64], char InitText[64], int MaxLength)
   char PreCuttext[63];
   char PostCuttext[63];
   bool refreshed;
-
-  printf("Entered keyboard\n");
   
   // Store away currentMenu
   PreviousMenu = CurrentMenu;
 
-  strcpy (EditText, InitText);
   // Trim EditText to MaxLength
   if (strlen(EditText) > MaxLength)
   {
-    //strncpy(EditText, &EditText[0], MaxLength);
+    strncpy(EditText, &EditText[0], MaxLength);
     EditText[MaxLength] = '\0';
   }
 
@@ -1006,7 +1117,7 @@ int InitialiseButtons()
   // Writes 0 to IndexStatus of each button to signify that it should not
   // be displayed.  As soon as a status (text and color) is added, IndexStatus > 0
   int i;
-  for (i = 0; i < MAX_BUTTON; i = i + 1)
+  for (i = 0; i <= MAX_BUTTON; i = i + 1)
   {
     ButtonArray[i].IndexStatus = 0;
   }
@@ -1462,7 +1573,7 @@ void wait_touch()
 
 void CalculateMarkers()
 {
-  int maxy = 0;
+  int maxy;
   int xformaxy = 0;
   int xsum = 0;
   int ysum = 0;
@@ -1478,9 +1589,9 @@ void CalculateMarkers()
       maxy = 0;
       for (i = 50; i < 450; i++)
       {
-         if((y3[i + 6] + 1) > maxy)
+         if((y[i + 6] + 1) > maxy)
          {
-           maxy = y3[i + 6] + 1;
+           maxy = y[i + 6] + 1;
            xformaxy = i;
          }
       }
@@ -1490,9 +1601,9 @@ void CalculateMarkers()
       maxy = 400;
       for (i = 50; i < 450; i++)
       {
-         if((y3[i + 6] + 1) < maxy)
+         if((y[i + 6] + 1) < maxy)
          {
-           maxy = y3[i + 6] + 1;
+           maxy = y[i + 6] + 1;
            xformaxy = i;
          }
       }
@@ -1500,14 +1611,14 @@ void CalculateMarkers()
 
     case 4:  // manual
       maxy = 0;
-      //maxy = y3[manualmarkerx + 6] + 1;
+      //maxy = y[manualmarkerx + 6] + 1;
 
 
       for (i = (manualmarkerx - 5); i < (manualmarkerx + 6); i++)
       {
-         if((y3[i + 6] + 1) > maxy)
+         if((y[i + 6] + 1) > maxy)
          {
-           maxy = y3[i + 6] + 1;
+           maxy = y[i + 6] + 1;
            //xformaxy = i;
          }
       }
@@ -1573,32 +1684,29 @@ void SetSpanWidth(int button)
     usleep(10);                                   // wait till the end of the scan
   }
 
-  prepnewscanwidth = true;
-  while(readyfornewscanwidth == false)
-  {
-    usleep(10);                                   // wait till fft has stopped
-  }
-
   switch (button)
   {
-    case 2:
-      span = 1000;
-    break;
     case 3:
-      span = 2000;
+      span = 2084;  // Note: Pluto min SR without decimation
     break;
     case 4:
-      span = 5000;
+      span = 5120;
     break;
     case 5:
-      span = 10000;
+      span = 10240;
+    break;
+    case 6:
+      span = 20480;
+    break;
+    case 7:
+      span = 51200;
     break;
   }
 
   // Store the new span
   snprintf(ValueToSave, 63, "%d", span);
   SetConfigParam(PATH_CONFIG, "span", ValueToSave);
-  printf("Span set to %d kHz\n", span);
+  printf("span set to %d \n", span);
 
   // Trigger the span change
   CalcSpan();
@@ -1609,7 +1717,7 @@ void SetSpanWidth(int button)
 }
 
 
-void SetLimeGain(int button)
+void SetPlutoGain(int button)
 {  
   char ValueToSave[63];
 
@@ -1623,33 +1731,30 @@ void SetLimeGain(int button)
   switch (button)
   {
     case 2:
-      limegain = 21;
-    break;
+      plutogain = 100;
+      break;
     case 3:
-      limegain = 15;
-    break;
+      plutogain = 80;
+      break;
     case 4:
-      limegain = 10;
-    break;
+      plutogain = 60;
+      break;
     case 5:
-      limegain = 5;
-    break;
+      plutogain = 40;
+      break;
     case 6:
-      limegain = 0;
-    break;
+      plutogain = 20;
+      break;
   }
 
   // Store the new gain
-  snprintf(ValueToSave, 63, "%d", limegain);
-  SetConfigParam(PATH_CONFIG, "limegain", ValueToSave);
-  printf("limegain set to %d \n", limegain);
+  snprintf(ValueToSave, 63, "%d", plutogain);
+  SetConfigParam(PATH_CONFIG, "plutogain", ValueToSave);
+  printf("pluto gain set to %d \n", plutogain);
 
   // Trigger the gain change
-  gain = ((float)limegain) / 100.0;
-  gain = (float)limegain;
   NewGain = true;
 
-  //DrawSettings();       // New labels
   freeze = false;
 }
 
@@ -1707,7 +1812,7 @@ void SetFreqPreset(int button)
   div_t div_10;
   div_t div_100;
   div_t div_1000;
-  int amendfreq = 0;
+  int amendfreq;
 
   if (CallingMenu == 7)
   {
@@ -1753,6 +1858,7 @@ void SetFreqPreset(int button)
   }
   else if (CallingMenu == 10)  // Amend the preset frequency
   {
+
     // Stop the scan at the end of the current one and wait for it to stop
     freeze = true;
     while(! frozen)
@@ -1788,24 +1894,24 @@ void SetFreqPreset(int button)
 
     if(div_10.rem != 0)  // last character not zero, so make answer of form xxx.xxx
     {
-      snprintf(InitText, 25, "%d.%03d", div_1000.quot, div_1000.rem);
+      snprintf(InitText, 10, "%d.%03d", div_1000.quot, div_1000.rem);
     }
     else
     {
       div_100 = div(amendfreq, 100);
       if(div_100.rem != 0)  // last but one character not zero, so make answer of form xxx.xx
       {
-        snprintf(InitText, 25, "%d.%02d", div_1000.quot, div_1000.rem / 10);
+        snprintf(InitText, 10, "%d.%02d", div_1000.quot, div_1000.rem / 10);
       }
       else
       {
         if(div_1000.rem != 0)  // last but two character not zero, so make answer of form xxx.x
         {
-          snprintf(InitText, 25, "%d.%d", div_1000.quot, div_1000.rem / 100);
+          snprintf(InitText, 10, "%d.%d", div_1000.quot, div_1000.rem / 100);
         }
         else  // integer MHz, so just xxx (no dp)
         {
-          snprintf(InitText, 25, "%d", div_1000.quot);
+          snprintf(InitText, 10, "%d", div_1000.quot);
         }
       }
     }
@@ -1883,12 +1989,10 @@ void ShiftFrequency(int button)
   switch (button)
   {
     case 5:                                                       // Left 1/10 span
-      //centrefreq = centrefreq - (span * 125) / 1280;
-      centrefreq = centrefreq - (span / 10);
+      centrefreq = centrefreq - (span * 125) / 1280;
     break;
     case 6:                                                       // Left 1/10 span
-      //centrefreq = centrefreq + (span * 125) / 1280;
-      centrefreq = centrefreq + (span / 10);
+      centrefreq = centrefreq + (span * 125) / 1280;
     break;
   }
 
@@ -1909,97 +2013,56 @@ void ShiftFrequency(int button)
 
 void CalcSpan()    // takes centre frequency and span and calulates startfreq and stopfreq
 {
-  startfreq = centrefreq - (span / 2);
-  stopfreq =  centrefreq + (span / 2);
+  startfreq = centrefreq - (span * 125) / 256;
+  stopfreq =  centrefreq + (span * 125) / 256;
   frequency_actual_rx = 1000.0 * (float)(centrefreq);
-  CentreFreq = (uint32_t)frequency_actual_rx;
   bandwidth = (float)(span * 1000);
 
-  // Calculate Airspy sample rate based on desired display
-  if (span > 2500)
-  {
-    SpanWidth = 10000000;
-  }
-  else
-  {
-    SpanWidth = 2500000;
-  }
-
-  // Calculate fft size
-  fft_size = SpanWidth / (span * 2);
-
-  printf("fft size calculated as %d\n", fft_size);
-
-
-  // Set fft smoothing time
+  // set a sensible time constant for the fft display
   if (Range20dB == false)
   {
-    switch (span)
+    if (bandwidth >= 2048000)
     {
-      case 1000:                                            // 1 MHz
-        fft_time_smooth = 0.996;
-      break;
-      case 2000:                                            // 2 MHz
-        fft_time_smooth = 0.998;
-      break;
-      case 5000:                                            // 5 MHz
-        fft_time_smooth = 0.9985;
-      break;
-      case 10000:                                           // 10 MHz
-        fft_time_smooth = 0.999;
-      break;
+      MAIN_SPECTRUM_TIME_SMOOTH =  0.98;
+    }
+    else
+    {
+      MAIN_SPECTRUM_TIME_SMOOTH =  0.92;
     }
   }
   else
   {
-    switch (span)
+    if (bandwidth >= 2048000)
     {
-      case 1000:                                            // 1 MHz
-        fft_time_smooth = 0.998;
-      break;
-      case 2000:                                            // 2 MHz
-        fft_time_smooth = 0.999;
-      break;
-      case 5000:                                            // 5 MHz
-        fft_time_smooth = 0.9993;
-      break;
-      case 10000:                                           // 10 MHz
-        fft_time_smooth = 0.9995;
-      break;
+      MAIN_SPECTRUM_TIME_SMOOTH =  0.9991;
     }
-  }
-
-  // set a sensible time constant for the fft display
-  if (bandwidth >= 2048000)
-  {
-    MAIN_SPECTRUM_TIME_SMOOTH =  0.98;
-  }
-  else
-  {
-    MAIN_SPECTRUM_TIME_SMOOTH =  0.90;
+    else
+    {
+      MAIN_SPECTRUM_TIME_SMOOTH =  0.995;
+    }
   }
 
   // Set levelling time for NF Measurement
   switch (span)
   {
-    //case 512:                                            // 500 kHz use 30
-    //  ScansforLevel = 30;
-    //  break;
-    //case 1024:                                            // 1 MHz use 20
-    //  ScansforLevel = 20;
-    //  break;
-    //case 2048:                                            // 2 MHz use 10
-    //  ScansforLevel = 10;
-    //  break;
-    case 2500:                                            // 2.5 MHz use 5
+    case 512:                                            // 500 kHz use 30
+      ScansforLevel = 30;
+      break;
+    case 1024:                                            // 1 MHz use 20
+      ScansforLevel = 20;
+      break;
+    case 2048:                                            // 2 MHz use 10
+      ScansforLevel = 10;
+      break;
+    case 5120:                                            // 5 MHz use 5
       ScansforLevel = 5;
       break;
-    case 10000:                                            // 10 MHz use 3
+    case 10240:                                            // 10 MHz use 3
       ScansforLevel = 3;
       break;
-    //case 20480:                                            // 20 MHz use 3
-    //  ScansforLevel = 3;
-    //  break;
+    case 20480:                                            // 20 MHz use 3
+      ScansforLevel = 3;
+      break;
     default:
       ScansforLevel = 10;
   }
@@ -2008,12 +2071,14 @@ void CalcSpan()    // takes centre frequency and span and calulates startfreq an
 void ChangeLabel(int button)
 {
   char RequestText[64];
-  char InitText[64];
+  char InitText[63];
   div_t div_10;
   div_t div_100;
   div_t div_1000;
   char ValueToSave[63];
-
+  bool freq_valid;
+  float returned_freq;
+  
   // Stop the scan at the end of the current one and wait for it to stop
   freeze = true;
   while(! frozen)
@@ -2033,24 +2098,24 @@ void ChangeLabel(int button)
 
       if(div_10.rem != 0)  // last character not zero, so make answer of form xxx.xxx
       {
-        snprintf(InitText, 25, "%d.%03d", div_1000.quot, div_1000.rem);
+        snprintf(InitText, 10, "%d.%03d", div_1000.quot, div_1000.rem);
       }
       else
       {
         div_100 = div(centrefreq, 100);
         if(div_100.rem != 0)  // last but one character not zero, so make answer of form xxx.xx
         {
-          snprintf(InitText, 25, "%d.%02d", div_1000.quot, div_1000.rem / 10);
+          snprintf(InitText, 10, "%d.%02d", div_1000.quot, div_1000.rem / 10);
         }
         else
         {
           if(div_1000.rem != 0)  // last but two character not zero, so make answer of form xxx.x
           {
-            snprintf(InitText, 25, "%d.%d", div_1000.quot, div_1000.rem / 100);
+            snprintf(InitText, 10, "%d.%d", div_1000.quot, div_1000.rem / 100);
           }
           else  // integer MHz, so just xxx (no dp)
           {
-            snprintf(InitText, 25, "%d", div_1000.quot);
+            snprintf(InitText, 10, "%d", div_1000.quot);
           }
         }
       }
@@ -2059,8 +2124,17 @@ void ChangeLabel(int button)
       do
       {
         Keyboard(RequestText, InitText, 10);
+        returned_freq = (int)((1000 * atof(KeyboardReturn)) + 0.1);
+        if ((returned_freq < 70000) || (returned_freq > 6000000))
+        {
+          freq_valid = false;
+        }
+        else
+        {
+          freq_valid = true;
+        }       
       }
-      while ((strlen(KeyboardReturn) == 0) || (atof(KeyboardReturn) < 24.0) || (atof(KeyboardReturn) > 1750.0));
+      while ((strlen(KeyboardReturn) == 0) || (freq_valid == false));
 
       centrefreq = (int)((1000 * atof(KeyboardReturn)) + 0.1);
 
@@ -2400,7 +2474,7 @@ void *WaitButtonEvent(void * arg)
           UpdateWindow();
           RequestPeakValueZero = true;
           break;
-        case 5:                                            // Lime Gain
+        case 5:                                            // Pluto Gain
           printf("Lime Gain Menu 8 Requested\n");
           CurrentMenu = 8;
           Start_Highlights_Menu8();
@@ -2467,14 +2541,14 @@ void *WaitButtonEvent(void * arg)
           UpdateWindow();           // Draw the buttons
           freeze = false;           // Restart the scan
           break;
-        case 3:                                            // Restart rtlsdrView
+        case 3:                                            // Restart BandView
           freeze = true;
           usleep(100000);
           setBackColour(0, 0, 0);
           clearScreen();
           usleep(1000000);
           closeScreen();
-          cleanexit(140);
+          cleanexit(143);
           break;
         case 4:                                            // Exit to Portsdown
           freeze = true;
@@ -2549,22 +2623,24 @@ void *WaitButtonEvent(void * arg)
           break;
         case 4:                                            // 
           break;
-        //case 5:                                            // NF Meter
-        //  Range20dB = false;
-        //  RedrawDisplay();
-        //  NFMeter = true;
-        //  if (NFCalibrated == false)
-        //  {
-        //    CurrentMenu=12;
-        //    //Start_Highlights_Menu12();
-        //  }
-        //  else
-        //  {
-        //    CurrentMenu=13;
-        //    //Start_Highlights_Menu13();
-        //  }
-        //  UpdateWindow();
-        //  break;
+        case 5:                                            // NF Meter
+          //Range20dB = false;
+          //CalcSpan();
+          //RedrawDisplay();
+          //NFMeter = true;
+          //if (NFCalibrated == false)
+          //{
+          //  CurrentMenu=12;
+            //Start_Highlights_Menu12();
+          //}
+          //else
+          //{
+          //  CurrentMenu=13;
+            //Start_Highlights_Menu13();
+          //}
+ 
+          //UpdateWindow();
+          break;
         case 6:                                            // 
           printf("Config Menu 9 Requested\n");
           CurrentMenu = 9;
@@ -2612,12 +2688,12 @@ void *WaitButtonEvent(void * arg)
           UpdateWindow();
           freeze = false;
           break;
-        case 2:                                            // 1
+        //case 2:                                            // Not used yet
         case 3:                                            // 2
         case 4:                                            // 5
         case 5:                                            // 10
-        //case 6:                                            // 10
-        //case 7:                                            // 20
+        case 6:                                            // 20
+        case 7:                                            // 50
           SetSpanWidth(i);
           CurrentMenu = 6;
           Start_Highlights_Menu6();
@@ -2696,7 +2772,7 @@ void *WaitButtonEvent(void * arg)
       continue;  // Completed Menu 5 action, go and wait for touch
     }
 
-    if (CurrentMenu == 8)  // LimeGain Menu
+    if (CurrentMenu == 8)  // Pluto Gain Menu
     {
       printf("Button Event %d, Entering Menu 8 Case Statement\n",i);
       CallingMenu = 8;
@@ -2713,12 +2789,12 @@ void *WaitButtonEvent(void * arg)
           UpdateWindow();
           freeze = false;
           break;
-        case 2:                                            // 21
-        case 3:                                            // 15
-        case 4:                                            // 10
-        case 5:                                            // 5
-        case 6:                                            // 0
-          SetLimeGain(i);
+        case 2:                                            // Auto
+        case 3:                                            // Max
+        case 4:                                            // -20dB
+        case 5:                                            // -40dB
+        case 6:                                            // -60dB
+          SetPlutoGain(i);
           Start_Highlights_Menu8();
           CurrentMenu = 8;
           UpdateWindow();
@@ -3174,7 +3250,7 @@ void Define_Menu3()                                           // Settings Menu
   AddButtonStatus(button, " ", &Green);
 
   button = CreateButton(3, 5);
-  AddButtonStatus(button, "Airspy^Gain", &Blue);
+  AddButtonStatus(button, "Pluto^Gain", &Blue);
   AddButtonStatus(button, " ", &Green);
 
   button = CreateButton(3, 6);
@@ -3206,7 +3282,7 @@ void Define_Menu4()                                         // System Menu
   AddButtonStatus(button, " ", &Green);
 
   button = CreateButton(4, 3);
-  AddButtonStatus(button, "Re-start^AirspyView", &Blue);
+  AddButtonStatus(button, "Re-start^BandView", &Blue);
   AddButtonStatus(button, " ", &Green);
 
   button = CreateButton(4, 4);
@@ -3280,9 +3356,9 @@ void Define_Menu6()                                           // Span Menu
   AddButtonStatus(button, "Span^Menu", &Black);
   AddButtonStatus(button, " ", &Green);
 
-  button = CreateButton(6, 2);
-  AddButtonStatus(button, "1 MHz", &Blue);
-  AddButtonStatus(button, "1 MHz", &Green);
+  //button = CreateButton(6, 2);
+  //AddButtonStatus(button, "500 kHz", &Blue);
+  //AddButtonStatus(button, "500 kHz", &Green);
 
   button = CreateButton(6, 3);
   AddButtonStatus(button, "2 MHz", &Blue);
@@ -3296,13 +3372,13 @@ void Define_Menu6()                                           // Span Menu
   AddButtonStatus(button, "10 MHz", &Blue);
   AddButtonStatus(button, "10 MHz", &Green);
 
-  //button = CreateButton(6, 6);
-  //AddButtonStatus(button, "10", &Blue);
-  //AddButtonStatus(button, "10", &Green);
+  button = CreateButton(6, 6);
+  AddButtonStatus(button, "20", &Blue);
+  AddButtonStatus(button, "20", &Green);
 
-  //button = CreateButton(6, 7);
-  //AddButtonStatus(button, "20", &Blue);
-  //AddButtonStatus(button, "20", &Green);
+  button = CreateButton(6, 7);
+  AddButtonStatus(button, "50", &Blue);
+  AddButtonStatus(button, "50", &Green);
 
   button = CreateButton(6, 8);
   AddButtonStatus(button, "Back to^Settings", &DBlue);
@@ -3314,15 +3390,7 @@ void Define_Menu6()                                           // Span Menu
 
 void Start_Highlights_Menu6()
 {
-  if (span == 1000)
-  {
-    SetButtonStatus(ButtonNumber(CurrentMenu, 2), 1);
-  }
-  else
-  {
-    SetButtonStatus(ButtonNumber(CurrentMenu, 2), 0);
-  }
-  if (span == 2000)
+  if (span == 2084)
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 3), 1);
   }
@@ -3330,7 +3398,7 @@ void Start_Highlights_Menu6()
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 3), 0);
   }
-  if (span == 5000)
+  if (span == 5120)
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 4), 1);
   }
@@ -3338,7 +3406,7 @@ void Start_Highlights_Menu6()
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 4), 0);
   }
-  if (span == 10000)
+  if (span == 10240)
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 5), 1);
   }
@@ -3346,22 +3414,22 @@ void Start_Highlights_Menu6()
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 5), 0);
   }
-  //if (span == 10240)
-  //{
-  //  SetButtonStatus(ButtonNumber(CurrentMenu, 6), 1);
-  //}
-  //else
-  //{
-  //  SetButtonStatus(ButtonNumber(CurrentMenu, 6), 0);
-  //}
-  //if (span == 20480)
-  //{
-  //  SetButtonStatus(ButtonNumber(CurrentMenu, 7), 1);
-  //}
-  //else
-  //{
-  //  SetButtonStatus(ButtonNumber(CurrentMenu, 7), 0);
-  //}
+  if (span == 20480)
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 6), 1);
+  }
+  else
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 6), 0);
+  }
+  if (span == 51200)
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 7), 1);
+  }
+  else
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 7), 0);
+  }
 }
 
 void Define_Menu7()                                            //Presets Menu
@@ -3484,24 +3552,24 @@ void Define_Menu8()                                    // Lime Gain Menu
   AddButtonStatus(button, " ", &Green);
 
   button = CreateButton(8, 2);
-  AddButtonStatus(button, "21", &Blue);
-  AddButtonStatus(button, "21", &Green);
+  AddButtonStatus(button, "Auto", &Blue);
+  AddButtonStatus(button, "Auto", &Green);
 
   button = CreateButton(8, 3);
-  AddButtonStatus(button, "15", &Blue);
-  AddButtonStatus(button, "15", &Green);
+  AddButtonStatus(button, "Max", &Blue);
+  AddButtonStatus(button, "Max", &Green);
 
   button = CreateButton(8, 4);
-  AddButtonStatus(button, "10", &Blue);
-  AddButtonStatus(button, "10", &Green);
+  AddButtonStatus(button, "-20dB", &Blue);
+  AddButtonStatus(button, "-20dB", &Green);
 
   button = CreateButton(8, 5);
-  AddButtonStatus(button, "5", &Blue);
-  AddButtonStatus(button, "5", &Green);
+  AddButtonStatus(button, "-40dB", &Blue);
+  AddButtonStatus(button, "-40dB", &Green);
 
   button = CreateButton(8, 6);
-  AddButtonStatus(button, "0", &Blue);
-  AddButtonStatus(button, "0", &Green);
+  AddButtonStatus(button, "-60dB", &Blue);
+  AddButtonStatus(button, "-60dB", &Green);
 
   button = CreateButton(8, 7);
   AddButtonStatus(button, "Back to^Settings", &DBlue);
@@ -3513,7 +3581,7 @@ void Define_Menu8()                                    // Lime Gain Menu
 
 void Start_Highlights_Menu8()
 {
-  if (limegain == 21)
+  if (plutogain == 100)
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 2), 1);
   }
@@ -3521,7 +3589,7 @@ void Start_Highlights_Menu8()
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 2), 0);
   }
-  if (limegain == 15)
+  if (plutogain == 80)
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 3), 1);
   }
@@ -3529,7 +3597,7 @@ void Start_Highlights_Menu8()
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 3), 0);
   }
-  if (limegain == 10)
+  if (plutogain == 60)
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 4), 1);
   }
@@ -3537,7 +3605,7 @@ void Start_Highlights_Menu8()
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 4), 0);
   }
-  if (limegain == 5)
+  if (plutogain == 40)
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 5), 1);
   }
@@ -3545,7 +3613,7 @@ void Start_Highlights_Menu8()
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 5), 0);
   }
-  if (limegain == 0)
+  if (plutogain == 20)
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 6), 1);
   }
@@ -4077,15 +4145,15 @@ void DrawYaxisLabels()
   }
   else
   {
-    snprintf(caption, 15, "%d dB", BaseLine20dB + 20);
+    snprintf(caption, 14, "%d dB", BaseLine20dB + 20);
     Text2(30, 463, caption, font_ptr);
-    snprintf(caption, 15, "%d dB", BaseLine20dB + 15);
+    snprintf(caption, 14, "%d dB", BaseLine20dB + 15);
     Text2(30, 366, caption, font_ptr);
-    snprintf(caption, 15, "%d dB", BaseLine20dB + 10);
+    snprintf(caption, 14, "%d dB", BaseLine20dB + 10);
     Text2(30, 266, caption, font_ptr);
-    snprintf(caption, 15, "%d dB", BaseLine20dB + 5);
+    snprintf(caption, 14, "%d dB", BaseLine20dB + 5);
     Text2(30, 166, caption, font_ptr);
-    snprintf(caption, 15, "%d dB", BaseLine20dB);
+    snprintf(caption, 14, "%d dB", BaseLine20dB);
     Text2(30,  66, caption, font_ptr);
   }
 }
@@ -4359,7 +4427,7 @@ static void cleanexit(int calling_exit_code)
 static void terminate(int sig)
 {
   app_exit = true;
-  printf("Terminating in main\n");
+  printf("Terminating\n");
   usleep(1000000);
   char Commnd[255];
   sprintf(Commnd,"stty echo");
@@ -4432,7 +4500,6 @@ int main(void)
   Define_Menu13();
   Define_Menu41();
 
-
   // Set up wiringPi module
   if (wiringPiSetup() < 0)
   {
@@ -4448,6 +4515,8 @@ int main(void)
   digitalWrite(NoiseSourceGPIO, LOW);
 
   ReadSavedParams();
+
+  PlutoConnectTest();
 
   // Create Wait Button thread
   pthread_create (&thbutton, NULL, &WaitButtonEvent, NULL);
@@ -4469,13 +4538,35 @@ int main(void)
     initScreen();
   }
 
-  /* AirSpy FFT Thread */
-  if(pthread_create(&airspy_fft_thread_obj, NULL, airspy_fft_thread, &app_exit))
+  MsgBox4("Starting the Band Viewer", "Profiling FFTs on first use", "Please wait 80 seconds", "No delay next time");
+
+  printf("Profiling FFTs..\n");
+  fftwf_import_wisdom_from_filename("/home/pi/.fftwf_wisdom");
+  printf(" - Main Band FFT\n");
+  main_fft_init();
+  fftwf_export_wisdom_to_filename("/home/pi/.fftwf_wisdom");
+  printf("FFTs Done.\n");
+
+  /* Setting up buffers */
+  buffer_circular_init(&buffer_circular_iq_main, sizeof(buffer_iqsample_t), 4096*1024);
+
+  /* SDR Thread */
+  if(pthread_create(&sdr_thread_obj, NULL, sdr_thread, &app_exit))
   {
-      fprintf(stderr, "Error creating %s pthread\n", "AIRSPY_FFT");
+      fprintf(stderr, "Error creating %s pthread\n", "sdr");
       return 1;
   }
-  pthread_setname_np(airspy_fft_thread_obj, "AIRSPY_FFT");
+  pthread_setname_np(sdr_thread_obj, "sdr");
+
+  printf("Starting FFT Thread\n");
+
+  /* Band FFT Thread */
+  if(pthread_create(&fft_thread_obj, NULL, fft_thread, &app_exit))
+  {
+      fprintf(stderr, "Error creating %s pthread\n", "FFT");
+      return 1;
+  }
+  pthread_setname_np(fft_thread_obj, "FFT");
 
   if (wfall == true)
   {
@@ -4491,7 +4582,7 @@ int main(void)
   {
     for(i = 1; i < 511; i++)
     {
-      y3[i] = 1;
+      y[i] = 1;
     }
 
     DrawEmptyScreen();  // Required to set A value, which is not set in DrawTrace
@@ -4518,6 +4609,12 @@ int main(void)
 
     while(true)
     {
+      //do  // Wait here for refresh?
+      //{
+      //  usleep(1);
+      //}
+      //while (ContScan == false);
+
       activescan = true;
 
       NFTotalHot2 = 0;
@@ -4562,20 +4659,17 @@ int main(void)
           SampleCount = 0;
         }
       }
-      for (pixel = 8; pixel <= 506; pixel++)
+      for (pixel = 8; pixel < 507; pixel++)
       {
-        //pthread_mutex_lock(&histogram);
-        DrawTrace((pixel - 6), y3[pixel - 2], y3[pixel - 1], y3[pixel]);
-        //pthread_mutex_unlock(&histogram);
-
-	    //printf("pixel=%d, prev2=%d, prev1=%d, current=%d\n", pixel, y3[pixel - 2], y3[pixel - 1], y3[pixel]);
+        DrawTrace((pixel - 6), y[pixel - 2], y[pixel - 1], y[pixel]);
+	    //printf("pixel=%d, prev2=%d, prev1=%d, current=%d\n", pixel, y[pixel - 2], y[pixel - 1], y[pixel]);
 
         if (PeakPlot == true)
         {
           // draw [pixel - 1] here based on PeakValue[pixel -1]
-          if (y3[pixel - 1] > PeakValue[pixel -1])
+          if (y[pixel - 1] > PeakValue[pixel -1])
           {
-            PeakValue[pixel - 1] = y3[pixel - 1];
+            PeakValue[pixel - 1] = y[pixel - 1];
           }
           setPixelNoA(pixel + 93, 409 - PeakValue[pixel - 1], 255, 0, 63);
         }
@@ -4584,14 +4678,14 @@ int main(void)
         {
           if (((pixel > 7) && (pixel < 248)) || ((pixel > 268) && (pixel < 507)))
           {
-            NFTotalHot2 = NFTotalHot2 + y3[pixel - 1];
+            NFTotalHot2 = NFTotalHot2 + y[pixel - 1];
             if ((NFScans >= ScansforLevel) && (NFScans <= (2 * ScansforLevel)))
             {
-              NFTotalHot = NFTotalHot + y3[pixel - 1];
+              NFTotalHot = NFTotalHot + y[pixel - 1];
               SampleCount++;            }
             if (((NFScans >= (3 * ScansforLevel)) && (NFScans <= (4 * ScansforLevel - 1))) || (NFScans == 0))
             {
-              NFTotalCold = NFTotalCold + y3[pixel - 1];
+              NFTotalCold = NFTotalCold + y[pixel - 1];
               SampleCount++;
             }
           }
@@ -4600,10 +4694,14 @@ int main(void)
         while (freeze)
         {
           frozen = true;
-          usleep(1000); // Pause to let things happen if CPU is busy
         }
         frozen = false;
       }
+
+      //if (NFMeter)
+      //{
+      //  printf("%d ", NFTotalHot2);
+      //}
 
       activescan = false;
 
@@ -4629,15 +4727,16 @@ int main(void)
         // printf("tracecount = %d, Time ms = %llu \n", tracecount, monotonic_ms());
         UpdateWeb();
         usleep(10000);
-        nextwebupdate = tracecount + 220;  // About 780 ms between updates
+        nextwebupdate = tracecount + 90;  // About 820 ms between updates
       }
 
-      //printf("Tracecount = %d\n", tracecount);
     }
   }
 
-  printf("Waiting for AIRSPY FFT Thread to exit..\n");
-  pthread_join(airspy_fft_thread_obj, NULL);
+  printf("Waiting for sdr Thread to exit..\n");
+  pthread_join(sdr_thread_obj, NULL);
+  printf("Waiting for FFT Thread to exit..\n");
+  pthread_join(fft_thread_obj, NULL);
   printf("Waiting for Screen Thread to exit..\n");
   pthread_join(screen_thread_obj, NULL);
   printf("All threads caught, exiting..\n");

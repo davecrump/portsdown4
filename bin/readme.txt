@@ -1,5 +1,3 @@
-Updated 28 January 2021 DGC
-
 During install or update, some binaries are downloaded from github, and some
 are compiled from source.  Details:
 
@@ -29,6 +27,8 @@ keyedtxtouch is compiled
 limesdr_dump, limesdr_forward, limesdr_send and limesdr_stopchannel are compiled
 
 plutotx is compiled
+
+plutoview is compiled
 
 rpidatvgui is compiled from rpidatvtouch4.c
 

@@ -55,6 +55,7 @@ EOF
 # 140  Exit from rpidatvgui requesting start of Airspy BandViewer
 # 141  Exit from rpidatvgui requesting start of RTL-SDR BandViewer
 # 142  Exit from rpidatvgui requesting start of DMM Display
+# 143  Exit from rpidatvgui requesting start of Pluto BandViewer
 # 145  Run the Langstone TRX V2 Lime
 # 146  Run the Langstone TRX V2 Pluto
 # 160  Shutdown from GUI
@@ -179,6 +180,11 @@ while [ "$GUI_RETURN_CODE" -gt 127 ] || [ "$GUI_RETURN_CODE" -eq 0 ];  do
     142)
       sleep 1
       /home/pi/rpidatv/bin/dmm
+      GUI_RETURN_CODE="$?"
+    ;;
+    143)
+      sleep 1
+      /home/pi/rpidatv/bin/plutoview
       GUI_RETURN_CODE="$?"
     ;;
     145)                              # Langstone V2 Lime

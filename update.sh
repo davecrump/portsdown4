@@ -145,6 +145,9 @@ cp -f -r /home/pi/rpidatv/src/airspyview/airspyview_config.txt "$PATHUBACKUP"/ai
 # Make a safe copy of the RTL-SDR Band Viewer config
 cp -f -r /home/pi/rpidatv/src/rtlsdrview/rtlsdrview_config.txt "$PATHUBACKUP"/rtlsdrview_config.txt
 
+# Make a safe copy of the Pluto Band Viewer config
+cp -f -r /home/pi/rpidatv/src/plutoview/plutoview_config.txt "$PATHUBACKUP"/plutoview_config.txt
+
 # Make a safe copy of the Contest Codes
 cp -f -r "$PATHSCRIPT"/portsdown_C_codes.txt "$PATHUBACKUP"/portsdown_C_codes.txt
 
@@ -453,6 +456,16 @@ make
 cp rtlsdrview ../../bin/
 cd /home/pi
 
+# Compile Pluto Band Viewer
+echo
+echo "---------------------------------------"
+echo "----- Compiling Pluto Band Viewer -----"
+echo "---------------------------------------"
+cd /home/pi/rpidatv/src/plutoview
+make
+cp plutoview ../../bin/
+cd /home/pi
+
 # Compile Power Meter
 echo
 echo "---------------------------------"
@@ -555,6 +568,9 @@ cp -f -r "$PATHUBACKUP"/airspyview_config.txt /home/pi/rpidatv/src/airspyview/ai
 
 # Restore the user's original RTL-SDR Band Viewer config
 cp -f -r "$PATHUBACKUP"/rtlsdrview_config.txt /home/pi/rpidatv/src/rtlsdrview/rtlsdrview_config.txt
+
+# Restore the user's original Pluto Band Viewer config
+cp -f -r "$PATHUBACKUP"/plutoview_config.txt /home/pi/rpidatv/src/plutoview/plutoview_config.txt
 
 # Restore the user's original Contest Codes
 cp -f -r "$PATHUBACKUP"/portsdown_C_codes.txt "$PATHSCRIPT"/portsdown_C_codes.txt 

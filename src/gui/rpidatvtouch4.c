@@ -17683,16 +17683,24 @@ void waituntil(int w,int h)
               cleanexit(136);
             }
             else
-            {
-              if(CheckRTL() == 0)
+            { 
+              if(CheckPlutoIPConnect() == 0)
               {
                 DisplayLogo();
-                cleanexit(141);
+                cleanexit(143);
               }
               else
               {
-                MsgBox("No LimeSDR, Airspy or RTL-SDR Connected");
-                wait_touch();
+                if(CheckRTL() == 0)
+                {
+                  DisplayLogo();
+                  cleanexit(141);
+                }
+                else
+                {
+                  MsgBox("No LimeSDR, Airspy, Pluto or RTL-SDR Connected");
+                  wait_touch();
+                }
               }
             }
           }
@@ -18282,7 +18290,20 @@ void waituntil(int w,int h)
           }
           UpdateWindow();
           break;
-        case 7:                                                 // DMM Display
+        case 8:                                                 // Pluto BandViewer
+          if(CheckPlutoIPConnect() == 0)
+          {
+            DisplayLogo();
+            cleanexit(141);
+          }
+          else
+          {
+            MsgBox("No Pluto detected");
+            wait_touch();
+          }
+          UpdateWindow();
+          break;
+        case 9:                                                 // DMM Display
           DisplayLogo();
           cleanexit(142);
           break;
@@ -18304,16 +18325,24 @@ void waituntil(int w,int h)
               cleanexit(136);
             }
             else
-            {
-              if(CheckRTL() == 0)
+            { 
+              if(CheckPlutoIPConnect() == 0)
               {
                 DisplayLogo();
-                cleanexit(141);
+                cleanexit(143);
               }
               else
               {
-                MsgBox("No LimeSDR, Airspy or RTL-SDR Connected");
-                wait_touch();
+                if(CheckRTL() == 0)
+                {
+                  DisplayLogo();
+                  cleanexit(141);
+                }
+                else
+                {
+                  MsgBox("No LimeSDR, Airspy, Pluto or RTL-SDR Connected");
+                  wait_touch();
+                }
               }
             }
           }
@@ -21970,7 +21999,10 @@ void Define_Menu7()
   button = CreateButton(7, 6);
   AddButtonStatus(button, "RTL-SDR^BandViewer", &Blue);
 
-  button = CreateButton(7, 7);
+  button = CreateButton(7, 8);
+  AddButtonStatus(button, "Pluto^BandViewer", &Blue);
+
+  button = CreateButton(7, 9);
   AddButtonStatus(button, "DMM^Display", &Blue);
 
   // 3rd line up Menu 7:
