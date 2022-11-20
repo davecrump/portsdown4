@@ -433,6 +433,16 @@ make
 cp rtlsdrview ../../bin/
 cd /home/pi
 
+# Compile Pluto Band Viewer
+echo
+echo "---------------------------------------"
+echo "----- Compiling Pluto Band Viewer -----"
+echo "---------------------------------------"
+cd /home/pi/rpidatv/src/plutoview
+make
+cp plutoview ../../bin/
+cd /home/pi
+
 # Compile Power Meter
 echo
 echo "---------------------------------"
