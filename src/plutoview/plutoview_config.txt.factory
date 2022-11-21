@@ -1,7 +1,7 @@
 title=Portsdown Pluto Band Viewer
 centrefreq=437000
-span=2048
-plutogain=80
+span=2084
+plutogain=100
 pfreq1=146500
 pfreq2=437000
 pfreq3=748000

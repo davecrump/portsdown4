@@ -1,3 +1,6 @@
+202211201
+Minor corrections to Pluto BandViewer
+
 202211200
 Add Pluto BandViewer
 Web view (not control) of BandViewer

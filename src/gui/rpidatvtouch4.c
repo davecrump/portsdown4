@@ -63,6 +63,7 @@ Rewitten by Dave, G8GKQ
 #define PATH_BV_CONFIG "/home/pi/rpidatv/src/bandview/bandview_config.txt"
 #define PATH_AS_CONFIG "/home/pi/rpidatv/src/airspyview/airspyview_config.txt"
 #define PATH_RS_CONFIG "/home/pi/rpidatv/src/rtlsdrview/rtlsdrview_config.txt"
+#define PATH_PB_CONFIG "/home/pi/rpidatv/src/plutoview/plutoview_config.txt"
 #define PATH_TC_CONFIG "/home/pi/rpidatv/scripts/images/testcard_config.txt"
 
 #define PI 3.14159265358979323846
@@ -18418,7 +18419,7 @@ void waituntil(int w,int h)
             if (CheckAirspyConnect() == 0)
             {
               snprintf(ValueToSave, 63, "%d", LMRXfreq[0]); //  
-              SetConfigParam(PATH_BV_CONFIG, "centrefreq", ValueToSave);
+              SetConfigParam(PATH_AS_CONFIG, "centrefreq", ValueToSave);
               DisplayLogo();
               cleanexit(140);
             }
@@ -18427,23 +18428,33 @@ void waituntil(int w,int h)
               if((CheckLimeMiniConnect() == 0) || (CheckLimeUSBConnect() == 0))
               {
                 snprintf(ValueToSave, 63, "%d", LMRXfreq[0]); //  
-                SetConfigParam(PATH_AS_CONFIG, "centrefreq", ValueToSave);
+                SetConfigParam(PATH_BV_CONFIG, "centrefreq", ValueToSave);
                 DisplayLogo();
                 cleanexit(136);
               }
               else
-              {
-                if(CheckRTL() == 0)
+              { 
+                if(CheckPlutoIPConnect() == 0)
                 {
-                snprintf(ValueToSave, 63, "%d", LMRXfreq[0]); //  
-                SetConfigParam(PATH_RS_CONFIG, "centrefreq", ValueToSave);
+                  snprintf(ValueToSave, 63, "%d", LMRXfreq[0]); //  
+                  SetConfigParam(PATH_PB_CONFIG, "centrefreq", ValueToSave);
                   DisplayLogo();
-                  cleanexit(141);
+                  cleanexit(143);
                 }
                 else
                 {
-                  MsgBox("No LimeSDR, Airspy or RTL-SDR Connected");
-                  wait_touch();
+                  if(CheckRTL() == 0)
+                  {
+                    snprintf(ValueToSave, 63, "%d", LMRXfreq[0]); //  
+                    SetConfigParam(PATH_RS_CONFIG, "centrefreq", ValueToSave);
+                    DisplayLogo();
+                    cleanexit(141);
+                  }
+                  else
+                  {
+                    MsgBox("No LimeSDR, Pluto, Airspy or RTL-SDR Connected");
+                    wait_touch();
+                  }
                 }
               }
             }
