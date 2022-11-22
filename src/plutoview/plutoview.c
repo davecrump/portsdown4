@@ -129,6 +129,7 @@ bool MarkerRefresh = false;
 
 bool Range20dB = false;
 int BaseLine20dB = -80;
+bool FifthHarmonic = false;
 
 bool NFMeter = false;
 bool NFCalibrated = false; // false measures system, true measures DUT
@@ -2016,6 +2017,15 @@ void CalcSpan()    // takes centre frequency and span and calulates startfreq an
   startfreq = centrefreq - (span * 125) / 256;
   stopfreq =  centrefreq + (span * 125) / 256;
   frequency_actual_rx = 1000.0 * (float)(centrefreq);
+  if (frequency_actual_rx > 6000000000)
+  {
+    FifthHarmonic = true;
+  }
+  else
+  {
+    FifthHarmonic = false;
+  }
+
   bandwidth = (float)(span * 1000);
 
   // set a sensible time constant for the fft display
@@ -2125,7 +2135,7 @@ void ChangeLabel(int button)
       {
         Keyboard(RequestText, InitText, 10);
         returned_freq = (int)((1000 * atof(KeyboardReturn)) + 0.1);
-        if ((returned_freq < 70000) || (returned_freq > 6000000))
+        if ((returned_freq < 70000) || (returned_freq > 30000000))
         {
           freq_valid = false;
         }
