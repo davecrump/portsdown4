@@ -23,6 +23,7 @@ extern bool NewSpan;
 extern bool NewCal;
 extern int plutogain;
 extern char PlutoIP[16];
+extern bool FifthHarmonic;
 
 // Display Defaults:
 double bandwidth = 512e3; // 512ks
@@ -34,17 +35,17 @@ double CalFreq;
 struct iio_context *ctx;                // Pluto Context structure
 
 struct iio_device *phy;                 // Pluto physical transceiver device       "ad9361-phy"
+
 struct iio_channel *rx_lo;              // Pluto RX LO frequency
 struct iio_channel *rx_ctl;             // Pluto RX control
-struct iio_channel *rx_gain;            // Pluto RX gain control
 struct iio_channel *tx_lo;              // Pluto TX local oscillator
+struct iio_channel *tx_ctl;             // Pluto TX control
 
 struct iio_device *dds_core_lpc;        // Pluto DAC/TX output driver device       "cf-ad9361-dds-core-lpc"
 struct iio_device *dev;                 // Pluto RX fpga driver device             "cf-ad9361-lpc"
 
 struct iio_channel *tx0_i, *tx0_q, *tx1_i, *tx1_q, *rx0_i, *rx0_q, *rx1_i, *rx1_q;
 
-struct iio_channel *tx_chain;
 struct iio_buffer *rxbuf;
 
 
@@ -86,10 +87,28 @@ void *sdr_thread(void *arg)
     printf("Failed to find cf-ad9361-dds-core-lpc device\n");
   }
 
-  // Set up the channels
-  rx_lo = iio_device_find_channel(phy, "altvoltage0", true);      // RX local oscillator
+  // Set up the channels  More info using "iio_info"
+  rx_lo = iio_device_find_channel(phy, "altvoltage0", true);      // RX local oscillator (output)
+    // attr  0: external value: 0
+    // attr  1: fastlock_load value: 0
+    // attr  2: fastlock_recall ERROR: Invalid argument (-22)
+    // attr  3: fastlock_save value: 0 166,166,166,166,166,166,166,166,166,166,166,166,166,166,166,166
+    // attr  4: fastlock_store value: 0
+    // attr  5: frequency value: 144999998
+    // attr  6: frequency_available value: [70000000 1 6000000000]
+    // attr  7: powerdown value: 0
 
-  rx_ctl = iio_device_find_channel(phy, "voltage0", false);        // RX Control
+  tx_lo = iio_device_find_channel(phy, "altvoltage1", true);      // TX local oscillator (output (true))
+    // attr  0: external value: 0
+    // attr  1: fastlock_load value: 0
+    // attr  2: fastlock_recall ERROR: Invalid argument (-22)
+    // attr  3: fastlock_save value: 0 166,166,166,166,166,166,166,166,166,166,166,166,166,166,166,166
+    // attr  4: fastlock_store value: 0
+    // attr  5: frequency value: 144999998
+    // attr  6: frequency_available value: [70000000 1 6000000000]
+    // attr  7: powerdown value: 0
+
+  rx_ctl = iio_device_find_channel(phy, "voltage0", false);        // RX Control (input)
     // attr 0: bb_dc_offset_tracking_en value: 1
     // attr 1: filter_fir_en value: 1
     // attr 2: gain_control_mode value: manual
@@ -106,9 +125,18 @@ void *sdr_thread(void *arg)
     // attr 13: sampling_frequency value: 1199999
     // attr 14: sampling_frequency_available value: [1041666 1 61440000]
 
-
-  tx_lo = iio_device_find_channel(phy, "altvoltage1", true);      // TX local oscillator
-
+  tx_ctl = iio_device_find_channel(phy, "voltage0", true);        // TX Control (output)
+    // attr  0: filter_fir_en value: 1
+    // attr  1: hardwaregain value: -10.000000 dB
+    // attr  2: hardwaregain_available value: [-89.750000 0.250000 0.000000]
+    // attr  3: rf_bandwidth value: 18000000
+    // attr  4: rf_bandwidth_available value: [200000 1 40000000]
+    // attr  5: rf_port_select value: A
+    // attr  6: rf_port_select_available value: A B
+    // attr  7: rssi value: 0.00 dB
+    // attr  8: sampling_frequency value: 10240000
+    // attr  9: sampling_frequency_available value: [2083333 1 61440000]
+                        
   // Set up the streaming channels
   rx0_i = iio_device_find_channel(dev, "voltage0", 0);
   rx0_q = iio_device_find_channel(dev, "voltage1", 0);
@@ -117,11 +145,22 @@ void *sdr_thread(void *arg)
   iio_channel_attr_write_bool(tx_lo, "powerdown", true);
 
   // Set the frequency
-  iio_channel_attr_write_longlong(rx_lo, "frequency", frequency_actual_rx);
+  if (FifthHarmonic == false)
+  {
+    iio_channel_attr_write_longlong(rx_lo, "frequency", frequency_actual_rx);
+  }
+  else
+  {
+    iio_channel_attr_write_longlong(rx_lo, "frequency", frequency_actual_rx / 5);
+  }
 
   // Set the sampling rate
   iio_channel_attr_write_longlong(rx_ctl, "sampling_frequency", bandwidth);
   iio_channel_attr_write_longlong(rx_ctl, "rf_bandwidth", bandwidth * 1.2);
+
+  // Ensure that base band and RF offset tracking is on
+  iio_channel_attr_write_bool(rx_ctl, "bb_dc_offset_tracking_en", true);
+  iio_channel_attr_write_bool(rx_ctl, "rf_dc_offset_tracking_en", true);
 
   // Turn any FIR filters off
   iio_channel_attr_write_bool(rx_ctl, "filter_fir_en", false);
@@ -134,17 +173,35 @@ void *sdr_thread(void *arg)
   else
   {
     // Calculate max manual gain             (varies with frequency)
-    if (frequency_actual_rx <= 1300000000)
+    if (FifthHarmonic == false)
     {
-      max_gain = 73;
-    }
-    else if ((frequency_actual_rx > 1300000000) && (frequency_actual_rx <= 4000000000))
-    {
-      max_gain = 71;
+      if (frequency_actual_rx <= 1300000000)
+      {
+        max_gain = 73;
+      }
+      else if ((frequency_actual_rx > 1300000000) && (frequency_actual_rx <= 4000000000))
+      {
+        max_gain = 71;
+      }
+      else
+      {
+        max_gain = 62;
+      }
     }
     else
     {
-      max_gain = 62;
+      if (frequency_actual_rx / 5 <= 1300000000)
+      {
+        max_gain = 73;
+      }
+      else if ((frequency_actual_rx / 5 > 1300000000) && (frequency_actual_rx / 5 <= 4000000000))
+      {
+        max_gain = 71;
+      }
+      else
+      {
+        max_gain = 62;
+      }
     }
 
     // now set manual gain
@@ -204,14 +261,22 @@ void *sdr_thread(void *arg)
     // Handle change of frequency
     if (NewFreq == true)
     {
-      iio_channel_attr_write_longlong(iio_device_find_channel(phy, "altvoltage0", true), "frequency", frequency_actual_rx);
+      if (FifthHarmonic == false)
+      {
+        iio_channel_attr_write_longlong(rx_lo, "frequency", frequency_actual_rx);
+      }
+      else
+      {
+        iio_channel_attr_write_longlong(rx_lo, "frequency", frequency_actual_rx / 5);
+      }
       NewFreq = false;
+      NewGain = true;  // Recalculate gain for new frequency
     }
 
     if (NewCal == true)
     {
-      //LMS_Calibrate(device, LMS_CH_RX, 0, bandwidth, 0);
-      //CalFreq = frequency_actual_rx;
+      // Need to find out how to Cal Pluto RX
+      // and do it here
       //NewCal = false;
     }
 
@@ -224,24 +289,41 @@ void *sdr_thread(void *arg)
       else
       {
         // Calculate max manual gain
-        if (frequency_actual_rx <= 1300000000)
+        if (FifthHarmonic == false)
         {
-          max_gain = 73;
-        }
-        else if ((frequency_actual_rx > 1300000000) && (frequency_actual_rx <= 4000000000))
-        {
-          max_gain = 71;
+          if (frequency_actual_rx <= 1300000000)
+          {
+            max_gain = 73;
+          }
+          else if ((frequency_actual_rx > 1300000000) && (frequency_actual_rx <= 4000000000))
+          {
+            max_gain = 71;
+          }
+          else
+          {
+            max_gain = 62;
+          }
         }
         else
         {
-          max_gain = 62;
+          if (frequency_actual_rx / 5 <= 1300000000)
+          {
+            max_gain = 73;
+          }
+          else if ((frequency_actual_rx / 5 > 1300000000) && (frequency_actual_rx / 5 <= 4000000000))
+          {
+            max_gain = 71;
+          }
+          else
+          {
+            max_gain = 62;
+          }
         }
-
         // now set manual gain
         iio_channel_attr_write(rx_ctl, "gain_control_mode", "manual");
         iio_channel_attr_write_double(rx_ctl, "hardwaregain", (double)(max_gain - 80 + plutogain));
 
-        printf("Attempted to set gain to %f\n", (double)(max_gain - 80 + plutogain));
+        //printf("Attempted to set gain to %f\n", (double)(max_gain - 80 + plutogain));
       }
       NewGain = false;
     }
