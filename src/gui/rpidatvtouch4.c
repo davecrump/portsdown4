@@ -18295,7 +18295,7 @@ void waituntil(int w,int h)
           if(CheckPlutoIPConnect() == 0)
           {
             DisplayLogo();
-            cleanexit(141);
+            cleanexit(143);
           }
           else
           {
