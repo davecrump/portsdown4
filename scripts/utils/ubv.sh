@@ -1,6 +1,6 @@
 #! /bin/bash
 
-# Compile bandview and copy to rpidatv/bin
+# Compile LimeSDR bandview and copy to rpidatv/bin
 
 # set -x
 

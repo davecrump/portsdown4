@@ -1,3 +1,21 @@
+202211202
+Add Pluto BandViewer 5th Harmonic mode (30 GHz)
+
+202211201
+Minor corrections to Pluto BandViewer
+
+202211200
+Add Pluto BandViewer
+Web view (not control) of BandViewer
+
+202211160
+Upgrade basic OS for new builds
+Minor RTL-SDR BandViewer Improvements
+Adjust smoothing for Bandviewer 20dB ranges
+
+202210230
+Add Proof of Concept DMM Display/Logger
+
 202209280
 Add File Menu (access from Menu 2)
 Add File Explorer with viewers/players

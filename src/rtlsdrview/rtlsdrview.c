@@ -64,6 +64,7 @@ color_t DGrey = {.r = 32 , .g = 32 , .b = 32 };
 color_t Red   = {.r = 255, .g = 0  , .b = 0  };
 color_t Black = {.r = 0  , .g = 0  , .b = 0  };
 
+#define PATH_PCONFIG "/home/pi/rpidatv/scripts/portsdown_config.txt"
 #define PATH_CONFIG "/home/pi/rpidatv/src/rtlsdrview/rtlsdrview_config.txt"
 
 #define MAX_BUTTON 675
@@ -141,6 +142,8 @@ float ENR = 15.0;
 float Tsoff = 290.0;
 float Tson;
 
+bool webcontrol = false;   // Enables webcontrol on a Portsdown 4
+
 
 int tracecount = 0;  // Used for speed testing
 int exit_code;
@@ -160,6 +163,7 @@ int CheckRTL();
 void ReadSavedParams();
 void do_snapcheck();
 int openTouchScreen(int);
+void UpdateWeb();
 void Keyboard(char *, char *, int);
 int getTouchScreenDetails(int*, int* ,int* ,int*);
 int ButtonNumber(int, int);
@@ -358,6 +362,38 @@ int CheckRTL()
 }
 
 
+/***************************************************************************//**
+ * @brief Checks to see if webcontrol exists in Portsdown Config file
+ *
+ * @param None
+ *
+ * @return 0 = Exists, so Portsdown 4
+ *         1 = Not
+*******************************************************************************/
+ 
+int CheckWebCtlExists()
+{
+  char shell_command[255];
+  FILE *fp;
+  int r;
+
+  sprintf(shell_command, "grep -q 'webcontrol' %s", PATH_PCONFIG);
+  fp = popen(shell_command, "r");
+  r = pclose(fp);
+
+  if (WEXITSTATUS(r) == 0)
+  {
+    printf("webcontrol detected\n");
+    return 0;
+  }
+  else
+  {
+    printf("webcontrol not detected\n");
+    return 1;
+  } 
+}
+
+
 void ReadSavedParams()
 {
   char response[63]="0";
@@ -395,6 +431,15 @@ void ReadSavedParams()
 
   strcpy(PlotTitle, "-");  // this is the "do not display" response
   GetConfigParam(PATH_CONFIG, "title", PlotTitle);
+
+  if (CheckWebCtlExists() == 0)  // Stops the GetConfig thowing an error on Portsdown 2020
+  {
+    GetConfigParam(PATH_PCONFIG, "webcontrol", response);
+    if (strcmp(response, "enabled") == 0)
+    {
+      webcontrol = true;
+    } 
+  }
 }
 
 
@@ -484,6 +529,17 @@ int IsImageToBeChanged(int x,int y)
   else
   {
     return 0;
+  }
+}
+
+
+void UpdateWeb()
+{
+  // Called after any screen update to update the web page if required.
+
+  if(webcontrol == true)
+  {
+    system("/home/pi/rpidatv/scripts/single_screen_grab_for_web.sh &");
   }
 }
 
@@ -1883,16 +1939,30 @@ void CalcSpan()    // takes centre frequency and span and calulates startfreq an
 
 
   // Set fft smoothing time
-  switch (span)
+  if (Range20dB == false)
   {
-    case 1000:                                            // 1 MHz
-      fft_time_smooth = 0.96;
-    break;
-    case 2000:                                            // 2 MHz
-      fft_time_smooth = 0.97;
-    break;
+    switch (span)
+    {
+      case 1000:                                            // 1 MHz
+        fft_time_smooth = 0.96;
+      break;
+      case 2000:                                            // 2 MHz
+        fft_time_smooth = 0.97;
+      break;
+    }
   }
-
+  else  // 20 dB range so increase smoothing
+  {
+    switch (span)
+    {
+      case 1000:                                            // 1 MHz
+        fft_time_smooth = 0.995;
+      break;
+      case 2000:                                            // 2 MHz
+        fft_time_smooth = 0.996;
+      break;
+    }
+  }
   // Set levelling time for NF Measurement
   ScansforLevel = 10;
 }
@@ -2424,11 +2494,13 @@ void *WaitButtonEvent(void * arg)
         case 2:                                            // Classic SA Mode
           NFMeter = false;
           Range20dB = false;
+          CalcSpan();
           RedrawDisplay();
           break;
         case 3:                                            // Show 20 dB range
           NFMeter = false;
           Range20dB = true;
+          CalcSpan();
           RedrawDisplay();
           printf("20dB Menu 11 Requested\n");
           CurrentMenu = 11;
@@ -2756,6 +2828,7 @@ void *WaitButtonEvent(void * arg)
           break;
         case 2:                                            // Back to Full Range
           Range20dB = false;
+          CalcSpan();
           RedrawDisplay();
           CurrentMenu=1;
           UpdateWindow();
@@ -4268,6 +4341,7 @@ int main(void)
   int i;
   int pixel;
   int PeakValueZeroCounter = 0;
+  int nextwebupdate = 10;
 
   wfall = false;
 
@@ -4516,6 +4590,13 @@ int main(void)
         }
       }
       tracecount++;
+      if (tracecount >= nextwebupdate)
+      {
+        // printf("tracecount = %d, Time ms = %llu \n", tracecount, monotonic_ms());
+        UpdateWeb();
+        usleep(10000);
+        nextwebupdate = tracecount + 90;  // About 820 ms between updates
+      }
       //printf("Tracecount = %d\n", tracecount);
     }
   }

@@ -433,6 +433,16 @@ make
 cp rtlsdrview ../../bin/
 cd /home/pi
 
+# Compile Pluto Band Viewer
+echo
+echo "---------------------------------------"
+echo "----- Compiling Pluto Band Viewer -----"
+echo "---------------------------------------"
+cd /home/pi/rpidatv/src/plutoview
+make
+cp plutoview ../../bin/
+cd /home/pi
+
 # Compile Power Meter
 echo
 echo "---------------------------------"
@@ -461,6 +471,16 @@ echo "---------------------------------------"
 cd /home/pi/rpidatv/src/sweeper
 make
 cp sweeper ../../bin/
+cd /home/pi
+
+# Compile DMM Display
+echo
+echo "---------------------------------------"
+echo "-------- Compiling DMM Display --------"
+echo "---------------------------------------"
+cd /home/pi/rpidatv/src/dmm
+make
+cp dmm ../../bin/
 cd /home/pi
 
 #echo
