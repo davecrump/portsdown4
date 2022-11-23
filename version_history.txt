@@ -1,3 +1,6 @@
+202211203
+Fix direct selection of Pluto BandViewer
+
 202211202
 Add Pluto BandViewer 5th Harmonic mode (30 GHz)
 
