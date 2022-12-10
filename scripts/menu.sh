@@ -1,6 +1,8 @@
 #!/bin/bash
 
-# Version 20200531
+# Version 202212070
+
+# set -x
 
 ############ Set Environment Variables ###############
 
@@ -1369,36 +1371,124 @@ do_check_FEC()
 
 do_transmit() 
 {
+  TX_OK=YES
+  AVC2TS_FAILED_ONCE=NO
+
+
   # Check the FEC is valid for DVB-S or DVB-S2
   do_check_FEC
 
-  # Call a.sh in an additional process to start the transmitter
-  $PATHSCRIPT"/a.sh" >/dev/null 2>/dev/null &
+  if [ "$MODE_STARTUP" == "TX_boot" ] && { [ "$MODE_INPUT" == "ANALOGCAM" ] || [ "$MODE_INPUT" == "HDMI" ]; }; then  
 
-  # Call TXstartextras.sh in an additional process
-  $PATHSCRIPT"/TXstartextras.sh" >/dev/null 2>/dev/null &
+                                                      # Super resilient script for repeater
 
-  # Start the Viewfinder display if user sets it on
-  if [ "$V_FINDER" == "on" ]; then
-    do_display_on
+    $PATHSCRIPT"/a.sh" >/dev/null 2>/dev/null &       # Call a.sh in an additional process to start the transmitter
+
+    if [ "$MODE_OUTPUT" == "LIMEMINI" ]; then         # Turn the PTT on after a delay for the Lime
+      /home/pi/rpidatv/scripts/lime_ptt.sh &
+    fi
+    if [ "$MODE_OUTPUT" == "LIMEDVB" ]; then
+      /home/pi/rpidatv/scripts/lime_ptt.sh &
+    fi
+    if [ "$MODE_OUTPUT" == "LIMEUSB" ]; then
+      /home/pi/rpidatv/scripts/lime_ptt.sh &
+    fi
+
+    sleep 20                                          # Wait for things to settle
+
+    while [ TRUE ]                                    # Monitor the transmit processes
+    do
+      v4l2-ctl --list-devices | grep -E -q "usbtv|Cam Link 4K" 
+ 
+                                                      # Check EasyCap or Cam Link HDMI
+      if [ $? == 1 ]; then                            # EasyCap has crashed, so
+        do_stop_transmit                              # Stop transmit.  Should have reboot but it doesn't work
+      fi
+
+      ps -el | grep -E -q "limesdr_dvb|limesdr_send"  # Check Lime process is running
+      if [ $? == 1 ]; then
+        TX_OK=NO                                      # Not running, so restart TX
+      fi
+
+      ps -el | grep -E -q "avc2ts"                    # Check encoding process is running
+      if [ $? == 1 ]; then                            # avc2ts not running, so restart TX
+        TX_OK=NO
+      else                                            # It is running, is it doing anything?
+        AVC2TS_LOAD=$(top -b -n 2 -d 0.2 -p $(pgrep -d',' avc2ts) | tail -1 | awk '{print $9}')
+        THRESHOLD=2.0
+        if (( $(echo "$AVC2TS_LOAD < $THRESHOLD" |bc -l) )); then
+          if [ "$AVC2TS_FAILED_ONCE" == "YES" ]; then # Needs to happen twice before restart
+            TX_OK=NO
+            AVC2TS_FAILED_ONCE=NO                     # Reset counter
+          else
+            AVC2TS_FAILED_ONCE=YES                    # For next time      
+          fi
+        else
+          AVC2TS_FAILED_ONCE=NO                       # Reset counter
+        fi
+      fi
+
+      if [ "$TX_OK" == "NO" ]; then                   # If not running, stop and restart TX
+        ps -el | grep -E -q "limesdr_stopcha"         # If limesdrstop channel is running
+        if [ $? == 0 ]; then
+          sleep 4
+          sudo killall -9 avc2ts
+          sudo killall -9 limesdr_stopchannel
+          do_stop_transmit
+          sleep 5
+          sudo shutdown -r now                        # only a reboot will sort it
+        fi
+
+        do_stop_transmit
+
+        # Call a.sh in an additional process to restart the transmitter
+        $PATHSCRIPT"/a.sh" >/dev/null 2>/dev/null &
+
+        # Turn the PTT on after a delay for the Lime
+        # rpidatv turns it on for other modes
+        if [ "$MODE_OUTPUT" == "LIMEMINI" ]; then
+          /home/pi/rpidatv/scripts/lime_ptt.sh &
+        fi
+        if [ "$MODE_OUTPUT" == "LIMEDVB" ]; then
+          /home/pi/rpidatv/scripts/lime_ptt.sh &
+        fi
+        if [ "$MODE_OUTPUT" == "LIMEUSB" ]; then
+          /home/pi/rpidatv/scripts/lime_ptt.sh &
+        fi
+        TX_OK=YES                                     # Assume that TX is OK until next check
+      fi
+      sleep 20
+    done
   else
-    do_display_off
-  fi
 
-  # Turn the PTT on after a delay for the Lime
-  # rpidatv turns it on for other modes
-  if [ "$MODE_OUTPUT" == "LIMEMINI" ]; then
-    /home/pi/rpidatv/scripts/lime_ptt.sh &
-  fi
-  if [ "$MODE_OUTPUT" == "LIMEDVB" ]; then
-    /home/pi/rpidatv/scripts/lime_ptt.sh &
-  fi
-  if [ "$MODE_OUTPUT" == "LIMEUSB" ]; then
-    /home/pi/rpidatv/scripts/lime_ptt.sh &
-  fi
+    # Call a.sh in an additional process to start the transmitter
+    $PATHSCRIPT"/a.sh" >/dev/null 2>/dev/null &
 
-  # Wait here transmitting until user presses a key
-  whiptail --title "$StrStatusTitle" --msgbox "$INFO" 8 78
+    # Call TXstartextras.sh in an additional process
+    $PATHSCRIPT"/TXstartextras.sh" >/dev/null 2>/dev/null &
+
+    # Start the Viewfinder display if user sets it on
+    if [ "$V_FINDER" == "on" ]; then
+      do_display_on
+    else
+      do_display_off
+    fi
+
+    # Turn the PTT on after a delay for the Lime
+    # rpidatv turns it on for other modes
+    if [ "$MODE_OUTPUT" == "LIMEMINI" ]; then
+      /home/pi/rpidatv/scripts/lime_ptt.sh &
+    fi
+    if [ "$MODE_OUTPUT" == "LIMEDVB" ]; then
+      /home/pi/rpidatv/scripts/lime_ptt.sh &
+    fi
+    if [ "$MODE_OUTPUT" == "LIMEUSB" ]; then
+      /home/pi/rpidatv/scripts/lime_ptt.sh &
+    fi
+
+    # Wait here transmitting until user presses a key
+    whiptail --title "$StrStatusTitle" --msgbox "$INFO" 8 78
+  fi
 
   # Stop the transmit processes and clean up
   do_stop_transmit
@@ -1407,6 +1497,10 @@ do_transmit()
 
 do_stop_transmit()
 {
+  # Make sure that the PTT is released (required for carrier, Lime and test modes)
+  gpio mode $GPIO_PTT out
+  gpio write $GPIO_PTT 0
+
   # Stop DATV Express transmitting if required
   if [ "$MODE_OUTPUT" == "DATVEXPRESS" ]; then
     echo "set car off" >> /tmp/expctrl
@@ -1447,15 +1541,11 @@ do_stop_transmit()
   sudo killall -9 limesdr_dvb >/dev/null 2>/dev/null
   sudo killall -9 sox >/dev/null 2>/dev/null
 
-  # Make sure that the PTT is released (required for carrier, Lime and test modes)
-  gpio mode $GPIO_PTT out
-  gpio write $GPIO_PTT 0
-
   # Set the SR Filter correctly, because it might have been set all high by Lime
   /home/pi/rpidatv/scripts/ctlSR.sh
 
   # Reset the LimeSDR
-  /home/pi/rpidatv/bin/limesdr_stopchannel >/dev/null 2>/dev/null
+  #/home/pi/rpidatv/bin/limesdr_stopchannel & # Fork as this sometimes hangs
 
   # Display the BATC Logo on the Touchscreen
   sudo fbi -T 1 -noverbose -a /home/pi/rpidatv/scripts/images/BATC_Black.png >/dev/null 2>/dev/null
@@ -1662,6 +1752,7 @@ do_autostart_setup()
 
   if [ $? -eq 0 ]; then
      set_config_var startup "$chstartup" $PCONFIGFILE
+     MODE_STARTUP=$chstartup
   fi
 
   # Allow user to set stream for display if required
@@ -3269,6 +3360,7 @@ OnStartup()
   GAIN_OUTPUT=$(get_config_var rfpower $PCONFIGFILE)
   do_fec_lookup
   V_FINDER=$(get_config_var vfinder $PCONFIGFILE)
+  MODE_STARTUP=$(get_config_var startup $PCONFIGFILE)
 
   INFO=$CALL":"$MODE_INPUT"-->"$MODE_OUTPUT" "$FREQ_OUTPUT" MHz "$SYMBOLRATEK" KS, "$MODULATION", FEC "$FECNUM"/"$FECDEN""
 
@@ -3333,8 +3425,8 @@ fi
 $PATHSCRIPT"/ctlfilter.sh"
 
 # Check whether to go straight to transmit or display the menu
-if [ "$1" != "menu" ]; then # if tx on boot
-  OnStartup               # go straight to transmit
+if [ "$1" != "menu" ]; then                                     # if tx on boot
+  OnStartup                                                     # go straight to transmit
 fi
 
 sleep 0.2
