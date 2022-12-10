@@ -1,0 +1,8 @@
+Package: vlc*
+Pin: origin archive.raspberrypi.org
+Pin-Priority: 600
+
+Package: libvlc*
+Pin: origin archive.raspberrypi.org
+Pin-Priority: 600
+

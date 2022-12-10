@@ -1,3 +1,8 @@
+202212100
+Pin VLC for archive version
+Add Repeater TX Watchdog Functions
+Improve Shutdown Script
+
 202211203
 Fix direct selection of Pluto BandViewer
 
