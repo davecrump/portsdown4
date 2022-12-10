@@ -1,4 +1,5 @@
 202212100
+Pin VLC for archive version
 Add Repeater TX Watchdog Functions
 Improve Shutdown Script
 

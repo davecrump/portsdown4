@@ -168,6 +168,16 @@ cp -f -r "$PATHSCRIPT"/images "$PATHUBACKUP"/images
 
 DisplayUpdateMsg "Step 4 of 10\nUpdating Software Package List\n\nXXXX------"
 
+# Download and install the VLC apt Preferences File 202212010
+cd /home/pi
+wget https://github.com/${GIT_SRC}/portsdown4/raw/master/scripts/configs/vlc
+sudo cp vlc /etc/apt/preferences.d/vlc
+
+sudo apt -y remove vlc*
+sudo apt -y remove libvlc*
+sudo apt -y remove vlc-data 
+
+
 sudo dpkg --configure -a                            # Make sure that all the packages are properly configured
 sudo apt-get clean                                  # Clean up the old archived packages
 sudo apt-get update --allow-releaseinfo-change      # Update the package list
@@ -199,6 +209,8 @@ DisplayUpdateMsg "Step 5 of 10\nUpdating Software Packages\n\nXXXX------"
 sudo apt-get -y dist-upgrade # Upgrade all the installed packages to their latest version
 
 # --------- Install new packages as Required ---------
+
+sudo apt-get -y install vlc                       # Removed earlier
 
 echo
 
