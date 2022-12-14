@@ -1,3 +1,7 @@
+202212140
+Allow Boot to BandViewer to find all supported SDRs
+Tidy Pilot selection (may still not work)
+
 202212100
 Pin VLC for archive version
 Add Repeater TX Watchdog Functions

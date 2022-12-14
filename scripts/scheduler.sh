@@ -33,7 +33,53 @@ end
 EOF
 }
 
-##############################################################
+############ Function to check which BandViewer to start ####################
+
+ChooseBandViewerSDR()
+{
+  # Set default start code to be Portsdown main menu
+  BANDVIEW_START_CODE=129
+
+  # Check for presence of Airspy   
+  lsusb | grep -q 'Airspy'
+  if [ $? == 0 ]; then   ## Present
+    BANDVIEW_START_CODE=140
+    return
+  fi
+
+  # Check for presence of Lime Mini
+  lsusb | grep -q '0403:601f'
+  if [ $? == 0 ]; then   ## Present
+    BANDVIEW_START_CODE=136
+    return
+  fi
+
+  # Check for presence of Lime USB
+  lsusb | grep -q '1d50:6108' # Lime USB
+  if [ $? == 0 ]; then   ## Present
+    BANDVIEW_START_CODE=136
+    return
+  fi
+
+  # Look up Pluto IP
+  PLUTOIP=$(get_config_var plutoip $PCONFIGFILE)
+
+  # Ping Pluto
+  timeout 0.2 ping "$PLUTOIP" -c1 | head -n 5 | tail -n 1 | grep -o "1 received,"
+  if [ $? == 0 ]; then   ## Present
+    BANDVIEW_START_CODE=143
+    return
+  fi
+
+  # Check for the presence of an RTL-SDR
+  lsusb | grep -E -q "RTL|DVB"
+  if [ $? == 0 ]; then   ## Present
+    BANDVIEW_START_CODE=141
+    return
+  fi 
+}
+
+##################################################################
 
 # set -x
 
@@ -93,7 +139,8 @@ case "$MODE_STARTUP" in
   ;;
   Bandview_boot)
     # Start the Band Viewer
-    GUI_RETURN_CODE=136
+    ChooseBandViewerSDR
+    GUI_RETURN_CODE=$BANDVIEW_START_CODE
   ;;
   *)
     # Default to Portsdown
