@@ -55,6 +55,9 @@ LOCATOR=$(get_config_var locator $PCONFIGFILE)
 FORMAT=$(get_config_var format $PCONFIGFILE)
 PICAM=$(get_config_var picam $PCONFIGFILE)
 
+PILOT=$(get_config_var pilots $PCONFIGFILE)
+FRAME=$(get_config_var frames $PCONFIGFILE)
+
 PIN_I=$(get_config_var gpio_i $PCONFIGFILE)
 PIN_Q=$(get_config_var gpio_q $PCONFIGFILE)
 
@@ -344,8 +347,19 @@ OUTPUT_QPSK="videots"
 
 # ************************ CALCULATE BITRATES AND IMAGE SIZES ******************
 
-# Maximum BITRATE:
-# let BITRATE_TS=SYMBOLRATE*BITSPERSYMBOL*188*FECNUM/204/FECDEN # Not used 
+# Select pilots on if required
+if [ "$PILOT" == "on" ]; then
+  PILOTS="-p"
+else
+  PILOTS=""
+fi
+
+# Select Short Frames if required
+if [ "$FRAME" == "short" ]; then
+  FRAMES="-v"
+else
+  FRAMES=""
+fi
 
 UPSAMPLE=1  # Set here to allow bitrate calculation
 let SYMBOLRATE_K=SYMBOLRATE/1000
@@ -482,22 +496,6 @@ case "$MODE_OUTPUT" in
       CUSTOM_FPGA="-F"
     else
       CUSTOM_FPGA=" "
-    fi
-
-    # Turn pilots on if required
-    PILOT=$(get_config_var pilots $PCONFIGFILE)
-    if [ "$PILOT" == "on" ]; then
-      PILOTS="-p"
-    else
-      PILOTS=""
-    fi
-
-    # Select Short Frames if required
-    FRAME=$(get_config_var frames $PCONFIGFILE)
-    if [ "$FRAME" == "short" ]; then
-      FRAMES="-v"
-    else
-      FRAMES=""
     fi
 
     # Determine if Lime needs to be calibrated
