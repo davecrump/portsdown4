@@ -1,3 +1,6 @@
+202212210
+Allow Web Control with no touchscreen fitted
+
 202212140
 Allow Boot to BandViewer to find all supported SDRs
 Tidy Pilot selection (may still not work)

@@ -1,3 +1,0 @@
-dtparam=spi=on
-dtoverlay=mz61581
-
