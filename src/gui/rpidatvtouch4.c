@@ -6150,31 +6150,39 @@ void TransformTouchMap(int x, int y)
   int shiftX, shiftY;
   double factorX, factorY;
 
-  // Adjust registration of touchscreen for Waveshare
-  shiftX=30; // move touch sensitive position left (-) or right (+).  Screen is 700 wide
-  shiftY=-5; // move touch sensitive positions up (-) or down (+).  Screen is 480 high
-
-  factorX=-0.4;  // expand (+) or contract (-) horizontal button space from RHS. Screen is 5.6875 wide
-  factorY=-0.3;  // expand or contract vertical button space.  Screen is 8.53125 high
-
-  // Switch axes for normal and waveshare displays
-  if(Inversed==0) // Tontec35 or Element14_7
+  if (strcmp(DisplayType, "Browser") != 0)      // Touchscreen
   {
-    scaledX = x/scaleXvalue;
-    scaledY = hscreen-y/scaleYvalue;
+    // Adjust registration of touchscreen for Waveshare
+    shiftX=30; // move touch sensitive position left (-) or right (+).  Screen is 700 wide
+    shiftY=-5; // move touch sensitive positions up (-) or down (+).  Screen is 480 high
+
+    factorX=-0.4;  // expand (+) or contract (-) horizontal button space from RHS. Screen is 5.6875 wide
+    factorY=-0.3;  // expand or contract vertical button space.  Screen is 8.53125 high
+
+    // Switch axes for normal and waveshare displays
+    if(Inversed==0) // Tontec35 or Element14_7
+    {
+      scaledX = x/scaleXvalue;
+      scaledY = hscreen-y/scaleYvalue;
+    }
+    else //Waveshare (inversed)
+    {
+      scaledX = shiftX+wscreen-y/(scaleXvalue+factorX);
+
+      if(strcmp(DisplayType, "Waveshare4") != 0) //Check for Waveshare 4 inch
+      {
+        scaledY = shiftY+hscreen-x/(scaleYvalue+factorY);
+      }
+      else  // Waveshare 4 inch display so flip vertical axis
+      {
+        scaledY = shiftY+x/(scaleYvalue+factorY); // Vertical flip for 4 inch screen
+      }
+    }
   }
-  else //Waveshare (inversed)
+  else                                         // Browser control without touchscreen
   {
-    scaledX = shiftX+wscreen-y/(scaleXvalue+factorX);
-
-    if(strcmp(DisplayType, "Waveshare4") != 0) //Check for Waveshare 4 inch
-    {
-      scaledY = shiftY+hscreen-x/(scaleYvalue+factorY);
-    }
-    else  // Waveshare 4 inch display so flip vertical axis
-    {
-      scaledY = shiftY+x/(scaleYvalue+factorY); // Vertical flip for 4 inch screen
-    }
+    scaledX = x;
+    scaledY = 480 - y;
   }
 }
 
@@ -17165,7 +17173,7 @@ void waituntil(int w,int h)
     }
 
     // Screen has been touched or returning from recieve
-    printf("Actioning Event in waituntil x=%d y=%d\n", rawX, rawY);
+    // printf("Actioning Event in waituntil x=%d y=%d\n", rawX, rawY);
 
     // React differently depending on context: char ScreenState[255]
 
@@ -17270,6 +17278,7 @@ void waituntil(int w,int h)
       // For Menu (normal), check which button has been pressed (Returns 0 - 23)
 
       i = IsMenuButtonPushed(rawX, rawY);
+
       if (i == -1)
       {
         continue;  //Pressed, but not on a button so wait for the next touch
@@ -20494,7 +20503,10 @@ void waituntil(int w,int h)
           UpdateWindow();
           break;
         case 12:                               // Screen 5 inch or 7 inch
-          togglescreentype();
+          if (strcmp(DisplayType, "Browser") != 0)
+          {
+            togglescreentype();
+          }
           Start_Highlights_Menu43();
           UpdateWindow();
           break;
@@ -20513,9 +20525,12 @@ void waituntil(int w,int h)
           UpdateWindow();
           break;
         case 14:                               // Invert 7 Inch
-          CallingMenu = 4314;
-          CurrentMenu = 38;
-          MsgBox4("System will reboot immediately", "and restart with inverted display", "Are you sure?", " ");
+          if (strcmp(DisplayType, "Browser") != 0)
+          {
+            CallingMenu = 4314;
+            CurrentMenu = 38;
+            MsgBox4("System will reboot immediately", "and restart with inverted display", "Are you sure?", " ");
+          }
           UpdateWindow();
           break;
         default:
@@ -25587,6 +25602,7 @@ void Define_Menu43()
   button = CreateButton(43, 12);
   AddButtonStatus(button, "Screen Type^7 inch", &Blue);
   AddButtonStatus(button, "Screen Type^5 inch", &Blue);
+  AddButtonStatus(button, "Screen Type^Browser", &Grey);
 
   button = CreateButton(43, 13);
   AddButtonStatus(button, "Invert^Pi Cam", &Blue);
@@ -25627,6 +25643,11 @@ void Start_Highlights_Menu43()
   if (strcmp(DisplayType, "dfrobot5") == 0)
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 12), 1);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 14), 2);
+  }
+  if (strcmp(DisplayType, "Browser") == 0)
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 12), 2);
     SetButtonStatus(ButtonNumber(CurrentMenu, 14), 2);
   }
 
@@ -26455,8 +26476,11 @@ int main(int argc, char *argv[])
   }
   if(NoDeviceEvent == 7) 
   {
-    perror("No Touchscreen found");
-    exit(1);
+    if(strcmp(DisplayType, "Browser") != 0)
+    {
+      perror("No Touchscreen found");
+      exit(1);
+    }
   }
 
   // Show Portsdown Logo

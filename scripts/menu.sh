@@ -1787,29 +1787,20 @@ do_display_setup()
   Radio7=OFF
   Radio8=OFF
   case "$MODE_DISPLAY" in
-  Tontec35)
+  HDMITouch)
     Radio1=ON
   ;;
-  HDMITouch)
+  Console)
     Radio2=ON
   ;;
-  Waveshare)
+  Element14_7)
     Radio3=ON
   ;;
-  WaveshareB)
+  dfrobot5)
     Radio4=ON
   ;;
-  Waveshare4)
+  Browser)
     Radio5=ON
-  ;;
-  Console)
-    Radio6=ON
-  ;;
-  Element14_7)
-    Radio7=ON
-  ;;
-  dfrobot5)
-    Radio8=ON
   ;;
   *)
     Radio1=ON
@@ -1818,14 +1809,11 @@ do_display_setup()
 
   chdisplay=$(whiptail --title "$StrDisplaySetupTitle" --radiolist \
     "$StrDisplaySetupContext" 20 78 10 \
-    "Tontec35" "$DisplaySetupTontec" $Radio1 \
-    "HDMITouch" "$DisplaySetupHDMI" $Radio2 \
-    "Waveshare" "$DisplaySetupRpiLCD" $Radio3 \
-    "WaveshareB" "$DisplaySetupRpiBLCD" $Radio4 \
-    "Waveshare4" "$DisplaySetupRpi4LCD" $Radio5 \
-    "Console" "$DisplaySetupConsole" $Radio6 \
-    "Element14_7" "Element 14 RPi 7 inch Display" $Radio7 \
-    "dfrobot5" "DF Robot DFR0550 5 inch Display" $Radio8 \
+    "HDMITouch" "$DisplaySetupHDMI" $Radio1 \
+    "Console" "$DisplaySetupConsole" $Radio2 \
+    "Element14_7" "Element 14 RPi 7 inch Display (Default)" $Radio3 \
+    "dfrobot5" "DF Robot DFR0550 5 inch Display" $Radio4 \
+    "Browser" "Web Browser Control.  NO Display" $Radio5 \
  	 3>&2 2>&1 1>&3)
 
   if [ $? -eq 0 ]; then                     ## If the selection has changed
@@ -1847,14 +1835,11 @@ do_display_setup()
     fi
 
     case "$chdisplay" in              ## Select the correct driver text
-      Tontec35)  INSERTFILE=$PATHCONFIGS"/tontec35.txt" ;;
       HDMITouch) INSERTFILE=$PATHCONFIGS"/hdmitouch.txt" ;;
-      Waveshare) INSERTFILE=$PATHCONFIGS"/waveshare.txt" ;;
-      WaveshareB) INSERTFILE=$PATHCONFIGS"/waveshareb.txt" ;;
-      Waveshare4) INSERTFILE=$PATHCONFIGS"/waveshare.txt" ;;
       Console)   INSERTFILE=$PATHCONFIGS"/console.txt" ;;
       Element14_7)  INSERTFILE=$PATHCONFIGS"/element14_7.txt" ;;
       dfrobot5)  INSERTFILE=$PATHCONFIGS"/dfrobot5.txt" ;;
+      Browser)  INSERTFILE=$PATHCONFIGS"/browser.txt" ;;
     esac
 
     ## Replace whatever is between the markers with the driver text
@@ -1864,20 +1849,11 @@ do_display_setup()
     sudo cp "$TRANSFILE" "$CHANGEFILE"          ## Copy from the transfer file
     rm $TRANSFILE                               ## Delete the transfer file
 
-    ## Set the correct touchscreen map for FreqShow
-    sudo rm /etc/pointercal                     ## Delete the old file
-    case "$chdisplay" in                        ## Insert the new file
-      Tontec35)  sudo cp /home/pi/rpidatv/scripts/configs/freqshow/waveshare_pointercal /etc/pointercal ;;
-      HDMITouch) sudo cp /home/pi/rpidatv/scripts/configs/freqshow/waveshare_pointercal /etc/pointercal ;;
-      Waveshare) sudo cp /home/pi/rpidatv/scripts/configs/freqshow/waveshare_pointercal /etc/pointercal ;;
-      WaveshareB) sudo cp /home/pi/rpidatv/scripts/configs/freqshow/waveshare_pointercal /etc/pointercal ;;
-      Waveshare4) sudo cp /home/pi/rpidatv/scripts/configs/freqshow/waveshare4_pointercal /etc/pointercal ;;
-      Console)   sudo cp /home/pi/rpidatv/scripts/configs/freqshow/waveshare_pointercal /etc/pointercal ;;
-      Element14_7)  sudo cp /home/pi/rpidatv/scripts/configs/freqshow/waveshare_pointercal /etc/pointercal ;;
-      dfrobot5)  sudo cp /home/pi/rpidatv/scripts/configs/freqshow/waveshare_pointercal /etc/pointercal ;;
-    esac
-
     set_config_var display "$chdisplay" $PCONFIGFILE
+
+    if [[ "$chdisplay" == "Browser" ]]; then
+      set_config_var webcontrol "enabled" $PCONFIGFILE
+    fi
   fi
 }
 
