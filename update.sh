@@ -170,8 +170,10 @@ DisplayUpdateMsg "Step 4 of 10\nUpdating Software Package List\n\nXXXX------"
 
 # Download and install the VLC apt Preferences File 202212010
 cd /home/pi
-wget https://github.com/${GIT_SRC}/portsdown4/raw/master/scripts/configs/vlc
-sudo cp vlc /etc/apt/preferences.d/vlc
+if [ ! -f  /etc/apt/preferences.d/vlc ]; then
+  wget https://github.com/${GIT_SRC}/portsdown4/raw/master/scripts/configs/vlc
+  sudo cp vlc /etc/apt/preferences.d/vlc
+fi
 
 sudo apt -y remove vlc*
 sudo apt -y remove libvlc*
