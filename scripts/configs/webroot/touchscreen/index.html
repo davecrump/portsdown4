@@ -93,6 +93,17 @@ const ImageLoad = function()
   {
     canvas_ctx.drawImage(canvas_image, 0, 0);
   };
+  canvas_image.onerror = function()
+  {
+    canvas_ctx.globalAlpha = 0.2;
+    canvas_ctx.fillStyle = "black";
+    canvas_ctx.fillRect(0,0,initial_canvasWidth,initial_canvasHeight);
+    canvas_ctx.fillStyle = "white";
+    canvas_ctx.font = "bold 42px Arial";
+    canvas_ctx.textAlign = "center";
+    canvas_ctx.fillText("Connection Lost", initial_canvasWidth/2, initial_canvasHeight/2);
+    canvas_ctx.globalAlpha = 1.0;
+  };
 }
 
 const ImageDownload = function()
