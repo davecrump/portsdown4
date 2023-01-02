@@ -1,3 +1,6 @@
+202301020
+Full release of DMM Display/Logger
+
 202212210
 Allow Web Control with no touchscreen fitted
 
