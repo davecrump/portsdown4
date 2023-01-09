@@ -1878,6 +1878,7 @@ do_WiFi_Off()
 do_Web_Control()
 {
   WEBCONTROL=$(get_config_var webcontrol $PCONFIGFILE)
+  MODE_DISPLAY=$(get_config_var display $PCONFIGFILE)
   Radio1=OFF
   Radio2=OFF
 
@@ -1893,12 +1894,75 @@ do_Web_Control()
     "Disabled" "Disable Web Control" $Radio2 \
  	 3>&2 2>&1 1>&3)
 
-  if [ $? -eq 0 ]; then                     ## If the selection has changed
-
-    if [[ "$ch_Web_Control" == "Enabled" ]]; then
+  if [ $? -eq 0 ]; then                                    ## If the selection has changed
+    if [[ "$ch_Web_Control" == "Enabled" ]]; then          ## Select web control.  Check display below
       set_config_var webcontrol "enabled" $PCONFIGFILE
-    else
+      WEBCONTROL="enabled"
+    else                                                   ## Not Web Control so check display
       set_config_var webcontrol "disabled" $PCONFIGFILE
+      WEBCONTROL="disabled"
+      if [[ "$MODE_DISPLAY" == "Browser" ]]; then          ## Correct the display mode as it is set to browser
+        do_display_setup
+      fi
+    fi
+  fi
+
+  # Make sure that the correct display option is selected if using Web Control
+  if [[ "$WEBCONTROL" == "enabled" ]]; then
+    Radio1=OFF
+    Radio2=OFF
+    if [[ "$MODE_DISPLAY" == "Browser" ]]; then
+      Radio2=ON
+    else
+      Radio1=ON
+    fi
+
+    TOUCHSCREEN=$(whiptail --title "Is Touchscreen Fitted?" --radiolist \
+    "Select Option with spacebar then press enter" 20 78 5 \
+    "Yes" "Touchscreen AND web control" $Radio1 \
+    "No" "No Touchscreen Fitted. Web control only" $Radio2 \
+ 	 3>&2 2>&1 1>&3)
+
+    chdisplay=$MODE_DISPLAY
+    if [[ "$TOUCHSCREEN" == "No" ]] && [[ "$MODE_DISPLAY" != "Browser" ]]; then  ## Change display to browser
+      chdisplay="Browser"
+    fi
+
+    if [[ "$TOUCHSCREEN" == "Yes" ]] && [[ "$MODE_DISPLAY" == "Browser" ]]; then  ## Change display to Element14
+      chdisplay="Element14_7"
+    fi
+
+    if [[ "$MODE_DISPLAY" != "$chdisplay" ]]; then   ## different, so execute the display change
+
+      ## This section modifies and replaces the end of /boot/config.txt
+      ## to allow (only) the correct LCD drivers to be loaded at next boot
+
+      ## Set constants for the amendment of /boot/config.txt
+      PATHCONFIGS="/home/pi/rpidatv/scripts/configs"  ## Path to config files
+      lead='^## Begin LCD Driver'               ## Marker for start of inserted text
+      tail='^## End LCD Driver'                 ## Marker for end of inserted text
+      CHANGEFILE="/boot/config.txt"             ## File requiring added text
+      APPENDFILE=$PATHCONFIGS"/lcd_markers.txt" ## File containing both markers
+      TRANSFILE=$PATHCONFIGS"/transfer.txt"     ## File used for transfer
+
+      grep -q "$lead" "$CHANGEFILE"     ## Is the first marker already present?
+      if [ $? -ne 0 ]; then
+        sudo bash -c 'cat '$APPENDFILE' >> '$CHANGEFILE' '  ## If not append the markers
+      fi
+
+      case "$chdisplay" in              ## Select the correct driver text
+        Element14_7)  INSERTFILE=$PATHCONFIGS"/element14_7.txt" ;;
+        Browser)  INSERTFILE=$PATHCONFIGS"/browser.txt" ;;
+      esac
+
+      ## Replace whatever is between the markers with the driver text
+      sed -e "/$lead/,/$tail/{ /$lead/{p; r $INSERTFILE
+	          }; /$tail/p; d }" $CHANGEFILE >> $TRANSFILE
+
+      sudo cp "$TRANSFILE" "$CHANGEFILE"          ## Copy from the transfer file
+      rm $TRANSFILE                               ## Delete the transfer file
+
+      set_config_var display "$chdisplay" $PCONFIGFILE
     fi
   fi
 }

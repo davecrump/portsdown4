@@ -41,8 +41,11 @@ src/streamrx/streamrx
 src/airspyview/airspyview
 src/rtlsdrview/rtlsdrview
 src/plutoview/plutoview
+src/nf_meter/nf_meter
 src/dmm/dmm
 scripts/configs/Langstone.conf
+scripts/configs/Langstone_Lime.conf
+scripts/configs/Langstone_Pluto.conf
 bin/adf4351
 bin/avc2ts
 bin/bandview
