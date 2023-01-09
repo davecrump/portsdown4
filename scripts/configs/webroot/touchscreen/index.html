@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <link rel="shortcut icon" href="/favicon_192x192.png" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>Portsdown 4 Screen</title>
+  <style>
+    #screen-canvas {
+      background-color: black;
+      cursor: pointer;
+    }
+  </style>
+  <script>
+let canvas_el;
+let canvas_ctx;
+let canvas_image;
+
+const initial_canvasWidth = 800;
+const initial_canvasHeight = 480;
+
+let click_scale = 1.0;
+let click_offset_x = 0;
+let click_offset_y = 0;
+
+window.addEventListener('load', function()
+{
+  canvas_el = document.getElementById('screen-canvas');
+  canvas_ctx = canvas_el.getContext('2d');
+
+  canvasInit();
+
+  ImageLoad();
+  setInterval(ImageLoad, 1000);
+
+  canvas_el.onclick = function(e)
+  {
+    const el_boundingRectangle = canvas_el.getBoundingClientRect();
+    let clicked_x = e.clientX - el_boundingRectangle.left;
+    let clicked_y = e.clientY - el_boundingRectangle.top;
+
+    console.log(`Canvas scale: ${click_scale}, offset_x: ${click_offset_x}, offset_y: ${click_offset_y}`);
+
+    clicked_x -= click_offset_x;
+    clicked_x /= click_scale;
+    clicked_y -= click_offset_y;
+    clicked_y /= click_scale;
+
+    clicked_x = Math.round(clicked_x);
+    clicked_y = Math.round(clicked_y);
+
+    console.log('Canvas Click: X:', clicked_x,' Y:', clicked_y); 
+
+    var request = new XMLHttpRequest();
+    request.open('POST', '/touchscreen/click', true);
+    request.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded; charset=UTF-8');
+    request.send("x="+clicked_x+"&y="+clicked_y);
+   
+  };
+});
+
+const canvasInit = function()
+{
+
+  let devicePixelRatio = window.devicePixelRatio || 1;
+  let backingStoreRatio = canvas_ctx.webkitBackingStorePixelRatio ||
+                      canvas_ctx.mozBackingStorePixelRatio ||
+                      canvas_ctx.msBackingStorePixelRatio ||
+                      canvas_ctx.oBackingStorePixelRatio ||
+                      canvas_ctx.backingStorePixelRatio || 1;
+  let ratio = devicePixelRatio / backingStoreRatio;
+
+  if (devicePixelRatio !== backingStoreRatio)
+  {
+    let oldWidth = canvas_el.width;
+    let oldHeight = canvas_el.height;
+
+    canvas_el.width = oldWidth * ratio;
+    canvas_el.height = oldHeight * ratio;
+
+    canvas_el.style.width = oldWidth + 'px';
+    canvas_el.style.height = oldHeight + 'px';
+
+    canvas_ctx.scale(ratio, ratio);
+  } 
+}
+
+const ImageLoad = function()
+{
+  canvas_image = new Image();
+  canvas_image.src = './screen.png?t='+(new Date().getTime());
+  canvas_image.onload = function()
+  {
+    canvas_ctx.drawImage(canvas_image, 0, 0);
+  };
+  canvas_image.onerror = function()
+  {
+    canvas_ctx.globalAlpha = 0.2;
+    canvas_ctx.fillStyle = "black";
+    canvas_ctx.fillRect(0,0,initial_canvasWidth,initial_canvasHeight);
+    canvas_ctx.fillStyle = "white";
+    canvas_ctx.font = "bold 42px Arial";
+    canvas_ctx.textAlign = "center";
+    canvas_ctx.fillText("Connection Lost", initial_canvasWidth/2, initial_canvasHeight/2);
+    canvas_ctx.globalAlpha = 1.0;
+  };
+}
+
+const ImageDownload = function()
+{
+  const a = document.createElement("a");
+  a.href = canvas_image.src;
+  a.download = "portsdown-screenshot_"+(new Date()).toISOString().replaceAll(':','꞉')+".png";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
+const fft_fullscreen = function()
+{
+  if(canvas_el.requestFullscreen)
+  {
+    canvas_el.requestFullscreen();
+  }
+  else if(canvas_el.webkitRequestFullScreen)
+  {
+    canvas_el.webkitRequestFullScreen();
+  }
+  else if(canvas_el.mozRequestFullScreen)
+  {
+    canvas_el.mozRequestFullScreen();
+  }  
+}
+
+const checkFullScreen = function()
+{
+  if(typeof document.fullScreen != "undefined")
+  {
+    return document.fullScreen;
+  }
+  else if(typeof document.webkitIsFullScreen != "undefined")
+  {
+    return document.webkitIsFullScreen;
+  }
+  else if(typeof document.mozFullScreen != "undefined")
+  {
+    return document.mozFullScreen;
+  }
+  else
+  {
+    return false;
+  }
+}
+
+let previousOrientation = window.orientation;
+const checkOrientation = function()
+{
+  if(checkFullScreen())
+  {
+    if(window.orientation !== previousOrientation)
+    {
+      if (0 != (previousOrientation + window.orientation) % 180)
+      {
+        canvasInit();
+
+        click_scale = 1.0;
+        click_offset_x = 0;
+        click_offset_y = 0;
+      }
+
+      previousOrientation = window.orientation;
+
+      previousHeight = window.innerHeight;
+      previousWidth = window.innerWidth;
+    }
+  }
+};
+
+let previousHeight = window.innerHeight;
+let previousWidth = window.innerWidth;
+const checkResize = function()
+{
+  if(!checkFullScreen()
+    && (previousHeight != window.innerHeight || previousWidth != window.innerWidth))
+  {
+    canvasInit();
+
+    previousHeight = window.innerHeight;
+    previousWidth = window.innerWidth;
+
+    click_scale = 1.0;
+    click_offset_x = 0;
+    click_offset_y = 0;
+  }
+  else
+  {
+    let clientMinRatio = Math.min(canvas_ctx.canvas.clientHeight / initial_canvasHeight, canvas_ctx.canvas.clientWidth / initial_canvasWidth);
+    let clientHeightRatio = canvas_ctx.canvas.clientHeight / initial_canvasHeight;
+    let clientWidthRatio = canvas_ctx.canvas.clientWidth / initial_canvasWidth;
+
+    if(clientHeightRatio >= clientWidthRatio)
+    {
+      click_scale = clientWidthRatio;
+      click_offset_x = 0;
+      click_offset_y = Math.round((canvas_ctx.canvas.clientHeight - (click_scale * initial_canvasHeight)) / 2.0);
+    }
+    else
+    {
+      click_scale = clientHeightRatio;
+      click_offset_x = Math.round((canvas_ctx.canvas.clientWidth - (click_scale * initial_canvasWidth)) / 2.0);
+      click_offset_y = 0;
+    }
+  }
+}
+
+window.addEventListener("fullscreenchange", function()
+{
+  if(checkFullScreen())
+  {
+    setTimeout(function() {
+      /* Set canvas to full document size */
+      canvasInit();
+    },10);
+  }
+  else
+  {
+    /* Reset canvas size */
+    canvasInit();
+  }
+});
+
+window.addEventListener("resize", checkResize, false);
+window.addEventListener("orientationchange", checkOrientation, false);
+// Android doesn't always fire orientationChange on 180 degree turns
+setInterval(checkOrientation, 2000);
+</script>
+</head>
+<body>
+  <canvas id="screen-canvas" width="800" height="480"></canvas>
+  <!-- <button id="fullscreen-link" onclick="fft_fullscreen();">Open fullscreen</button> -->
+  <button onclick="ImageDownload();">Download screenshot</button>
+</body>
+</html>
