@@ -1,3 +1,6 @@
+202301080
+Correct Span Width in RTL-SDR BandViewer
+
 202301020
 Full release of DMM Display/Logger
 

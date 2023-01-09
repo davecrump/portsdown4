@@ -81,8 +81,8 @@ fft_buffer_t fft_buffer = {
 	.mutex = PTHREAD_MUTEX_INITIALIZER,
 };
 
-//#define DEFAULT_SAMPLE_RATE 2048000
-#define DEFAULT_SAMPLE_RATE 1024000
+#define DEFAULT_SAMPLE_RATE 2048000
+//#define DEFAULT_SAMPLE_RATE 1024000
 static rtlsdr_dev_t *dev = NULL;
 
 static uint8_t *buffer;
