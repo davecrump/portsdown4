@@ -56,6 +56,7 @@ color_t DGrey = {.r = 32 , .g = 32 , .b = 32 };
 color_t Red   = {.r = 255, .g = 0  , .b = 0  };
 color_t Black = {.r = 0  , .g = 0  , .b = 0  };
 
+#define PATH_PCONFIG "/home/pi/rpidatv/scripts/portsdown_config.txt"
 #define PATH_XYCONFIG "/home/pi/rpidatv/src/power_meter/pm_config.txt"
 
 #define MAX_BUTTON 675
@@ -105,6 +106,8 @@ int markerxhistory[10];
 int markeryhistory[10];
 int manualmarkerx = 250;
 
+bool webcontrol = false;   // Enables webcontrol on a Portsdown 4
+
 int tracecount = 0;  // Used for speed testing
 int exit_code;
 
@@ -133,6 +136,71 @@ int Metercalfactor;
 char MeterUnits[63] = "dBm";
 float ActiveZero = -80.0;
 float ActiveFSD = 20.0;
+
+///////////////////////////////////////////// FUNCTION PROTOTYPES ///////////////////////////////
+
+void GetConfigParam(char *, char *, char *);
+void SetConfigParam(char *, char *, char *);
+int CheckWebCtlExists();
+void ReadSavedParams();
+void do_snapcheck();
+int IsImageToBeChanged(int x, int y);
+void UpdateWeb();
+void Keyboard(char RequestText[64], char InitText[64], int MaxLength);
+int openTouchScreen(int);
+int getTouchScreenDetails(int *screenXmin, int *screenXmax,int *screenYmin,int *screenYmax);
+void TransformTouchMap(int x, int y);
+int IsButtonPushed(int NbButton, int x, int y);
+int InitialiseButtons();
+int AddButton(int x, int y, int w, int h);
+int ButtonNumber(int MenuIndex, int Button);
+int CreateButton(int MenuIndex, int ButtonPosition);
+int AddButtonStatus(int ButtonIndex, char *Text, color_t *Color);
+void AmendButtonStatus(int ButtonIndex, int ButtonStatusIndex, char *Text, color_t *Color);
+void DrawButton(int ButtonIndex);
+void SetButtonStatus(int ButtonIndex, int Status);
+int GetButtonStatus(int ButtonIndex);
+int getTouchSample(int *rawX, int *rawY, int *rawPressure);
+void UpdateWindow();
+void wait_touch();
+void CalculateMarkers();
+void Normalise();
+void ChangeLabel(int button);
+void ChangeRange(int button);
+void ChangeSensor(int button);
+void *WaitButtonEvent(void * arg);
+void Define_Menu1();
+void Start_Highlights_Menu1();
+void Define_Menu2();
+void Define_Menu3();
+void Define_Menu4();
+void Start_Highlights_Menu4();
+void Define_Menu5();
+void Start_Highlights_Menu5();
+void Define_Menu6();
+void Start_Highlights_Menu6();
+void Define_Menu7();
+void Define_Menu8();
+void Start_Highlights_Menu8();
+void Define_Menu9();
+void Start_Highlights_Menu9();
+void Define_Menu41();
+void DrawEmptyScreen();
+void DrawYaxisLabels();
+void DrawSettings();
+void DrawTrace(int xoffset, int prev2, int prev1, int current);
+void DrawMeterBox();
+void DrawMeterTicks(int major_ticks, int minor_ticks);
+void DrawMeterSettings();
+void Draw5MeterLabels(float LH_Value, float RH_Value);
+void *MeterMovement(void * arg);
+void ShowdBm(float dBm);
+void ShowmW(float mW);
+void Showraw(int raw);
+void Showvolts(float raw);
+void CheckWithinRange(int advalue);
+static void cleanexit(int calling_exit_code);
+static void terminate(int dummy);
 
 
 ///////////////////////////////////////////// SCREEN AND TOUCH UTILITIES ////////////////////////
@@ -234,6 +302,39 @@ void SetConfigParam(char *PathConfigFile, char *Param, char *Value)
   }
 }
 
+
+/***************************************************************************//**
+ * @brief Checks to see if webcontrol exists in Portsdown Config file
+ *
+ * @param None
+ *
+ * @return 0 = Exists, so Portsdown 4
+ *         1 = Not
+*******************************************************************************/
+
+int CheckWebCtlExists()
+{
+  char shell_command[255];
+  FILE *fp;
+  int r;
+
+  sprintf(shell_command, "grep -q 'webcontrol' %s", PATH_PCONFIG);
+  fp = popen(shell_command, "r");
+  r = pclose(fp);
+
+  if (WEXITSTATUS(r) == 0)
+  {
+    printf("webcontrol detected\n");
+    return 0;
+  }
+  else
+  {
+    printf("webcontrol not detected\n");
+    return 1;
+  } 
+}
+
+
 void ReadSavedParams()
 {
   char response[63]="0";
@@ -288,6 +389,15 @@ void ReadSavedParams()
   strcpy(MeterCalFactor, "100");  // %
   GetConfigParam(PATH_XYCONFIG, "metercalfactor", MeterCalFactor);
   Metercalfactor = atoi(MeterCalFactor);
+
+  if (CheckWebCtlExists() == 0)  // Stops the GetConfig thowing an error on Portsdown 2020
+  {
+    GetConfigParam(PATH_PCONFIG, "webcontrol", response);
+    if (strcmp(response, "enabled") == 0)
+    {
+      webcontrol = true;
+    } 
+  }
 }
 
 
@@ -356,7 +466,7 @@ void do_snapcheck()
   system("sudo killall fbi >/dev/null 2>/dev/null");  // kill any instance of fbi
 }
 
-int IsImageToBeChanged(int x,int y)
+int IsImageToBeChanged(int x, int y)
 {
   // Returns -1 for LHS touch, 0 for centre and 1 for RHS
 
@@ -377,6 +487,17 @@ int IsImageToBeChanged(int x,int y)
   else
   {
     return 0;
+  }
+}
+
+
+void UpdateWeb()
+{
+  // Called after any screen update to update the web page if required.
+
+  if(webcontrol == true)
+  {
+    system("/home/pi/rpidatv/scripts/single_screen_grab_for_web.sh &");
   }
 }
 
@@ -4833,6 +4954,7 @@ int main(int argc, char **argv)
   int dispvalue;
   int rawvalue;  // 0 to 1023
   int previous_rawvalue = -1;  // 0 to 1023
+  int nextwebupdate = 10;
 
   float power_dBm;
   float power_mW;
@@ -4952,6 +5074,9 @@ int main(int argc, char **argv)
           fprintf(stderr, "Error creating %s pthread\n", "MeterMovement");
           return 1;
         }
+        UpdateWeb();
+        nextwebupdate = 10;
+        tracecount = 0;
         ModeChanged = false;
       }
 
@@ -5039,6 +5164,15 @@ int main(int argc, char **argv)
       }
       frozen = false;
 
+      tracecount++;
+      if (tracecount >= nextwebupdate)
+      {
+        //printf("tracecount = %d,  \n", tracecount);
+        UpdateWeb();
+        usleep(10000);
+        nextwebupdate = tracecount + 75;  // 
+      }
+
       usleep(10000);
     }
     else   // XY display
@@ -5054,6 +5188,9 @@ int main(int argc, char **argv)
         CurrentMenu = 1;
         Start_Highlights_Menu1();
         UpdateWindow();     // Draw the buttons
+        UpdateWeb();
+        tracecount = 0;
+        nextwebupdate = 10;
         ModeChanged = false;
       }
 
@@ -5210,6 +5347,14 @@ int main(int argc, char **argv)
         CalculateMarkers();
       }
       tracecount++;
+
+      if (tracecount >= nextwebupdate)
+      {
+        //printf("tracecount = %d,  \n", tracecount);
+        UpdateWeb();
+        usleep(10000);
+        nextwebupdate = tracecount + 20;  // 
+      }
     }
   }
   printf("Waiting for Meter Thread to exit..\n");

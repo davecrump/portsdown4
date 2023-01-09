@@ -1,3 +1,6 @@
+202301100
+Implement Web View for Power Meter and XY Display
+
 202301090
 Web Control Improvements from M0DNY
 
