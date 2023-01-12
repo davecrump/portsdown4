@@ -155,6 +155,8 @@ int yshift    = 5;        // Vertical shift (pixels) for Y
 int xscalenum = 25;       // Numerator for X scaling fraction
 int xscaleden = 20;       // Denominator for X scaling fraction
 
+char DisplayType[31];
+
 ///////////////////////////////////////////// FUNCTION PROTOTYPES ///////////////////////////////
 
 void GetConfigParam(char *, char *, char *);
@@ -431,6 +433,10 @@ void ReadSavedParams()
 
   strcpy(PlotTitle, "-");  // this is the "do not display" response
   GetConfigParam(PATH_CONFIG, "title", PlotTitle);
+
+  strcpy(response, "Element14_7");
+  GetConfigParam(PATH_PCONFIG, "display", response);
+  strcpy(DisplayType, response);
 
   if (CheckWebCtlExists() == 0)  // Stops the GetConfig thowing an error on Portsdown 2020
   {
@@ -1598,14 +1604,14 @@ void SetSpanWidth(int button)
   switch (button)
   {
     case 2:
-      span = 1000;
+      span = 500;
     break;
     case 3:
+      span = 1000;
+    break;
+    case 4:
       span = 2000;
     break;
-    //case 4:
-    //  span = 5000;
-    //break;
     //case 5:
     //  span = 10000;
     //break;
@@ -1932,6 +1938,11 @@ void CalcSpan()    // takes centre frequency and span and calulates startfreq an
 
   SpanWidth = 2048000;
 
+  if (span == 500)   // Sample rate is reduced to 1.024M
+  {
+    SpanWidth = 1024000;
+  }
+
   // Calculate fft size
   fft_size = SpanWidth / (span * 2);
 
@@ -1943,6 +1954,9 @@ void CalcSpan()    // takes centre frequency and span and calulates startfreq an
   {
     switch (span)
     {
+      case 500:                                             // 500 kHz
+        fft_time_smooth = 0.96;
+      break;
       case 1000:                                            // 1 MHz
         fft_time_smooth = 0.96;
       break;
@@ -1955,6 +1969,9 @@ void CalcSpan()    // takes centre frequency and span and calulates startfreq an
   {
     switch (span)
     {
+      case 500:                                             // 500 kHz
+        fft_time_smooth = 0.995;
+      break;
       case 1000:                                            // 1 MHz
         fft_time_smooth = 0.995;
       break;
@@ -2092,6 +2109,13 @@ void *WaitButtonEvent(void * arg)
     printf("x=%d y=%d\n", rawX, rawY);
     FinishedButton = 1;
     i = IsMenuButtonPushed(rawX, rawY);
+
+    // Deal with Waveshare which quits back to Portsdown when touched
+    if (strcmp(DisplayType, "Waveshare") == 0)
+    {
+      cleanexit(129);
+    }
+
     if (i == -1)
     {
       continue;  //Pressed, but not on a button so wait for the next touch
@@ -2571,9 +2595,9 @@ void *WaitButtonEvent(void * arg)
           UpdateWindow();
           freeze = false;
           break;
-        case 2:                                            // 1
-        case 3:                                            // 2
-        //case 4:                                            // 5
+        case 2:                                            // 500 kHz
+        case 3:                                            // 1 MHz
+        case 4:                                            // 2 MHz
         //case 5:                                            // 10
         //case 6:                                            // 10
         //case 7:                                            // 20
@@ -3240,16 +3264,16 @@ void Define_Menu6()                                           // Span Menu
   AddButtonStatus(button, " ", &Green);
 
   button = CreateButton(6, 2);
+  AddButtonStatus(button, "500 kHz", &Blue);
+  AddButtonStatus(button, "500 kHz", &Green);
+
+  button = CreateButton(6, 3);
   AddButtonStatus(button, "1 MHz", &Blue);
   AddButtonStatus(button, "1 MHz", &Green);
 
-  button = CreateButton(6, 3);
+  button = CreateButton(6, 4);
   AddButtonStatus(button, "2 MHz", &Blue);
   AddButtonStatus(button, "2 MHz", &Green);
-
-  //button = CreateButton(6, 4);
-  //AddButtonStatus(button, "5 MHz", &Blue);
-  //AddButtonStatus(button, "5 MHz", &Green);
 
   //button = CreateButton(6, 5);
   //AddButtonStatus(button, "10 MHz", &Blue);
@@ -3273,7 +3297,7 @@ void Define_Menu6()                                           // Span Menu
 
 void Start_Highlights_Menu6()
 {
-  if (span == 1000)
+  if (span == 500)
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 2), 1);
   }
@@ -3281,7 +3305,7 @@ void Start_Highlights_Menu6()
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 2), 0);
   }
-  if (span == 2000)
+  if (span == 1000)
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 3), 1);
   }
@@ -3289,14 +3313,14 @@ void Start_Highlights_Menu6()
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 3), 0);
   }
-  //if (span == 5000)
-  //{
-  //  SetButtonStatus(ButtonNumber(CurrentMenu, 4), 1);
-  //}
-  //else
-  //{
-  //  SetButtonStatus(ButtonNumber(CurrentMenu, 4), 0);
-  //}
+  if (span == 2000)
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 4), 1);
+  }
+  else
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 4), 0);
+  }
   //if (span == 10000)
   //{
   //  SetButtonStatus(ButtonNumber(CurrentMenu, 5), 1);
@@ -4467,7 +4491,12 @@ int main(void)
 
     DrawSettings();     // Start, Stop RBW, Ref level and Title
 
-    UpdateWindow();     // Draw the buttons
+
+    // Draw the buttons if not Waveshare display
+    if (strcmp(DisplayType, "Waveshare") != 0)
+    {
+      UpdateWindow();     // Draw the buttons
+    }
 
     int NFScans = 0;
     int NFTotalCold = 0;
