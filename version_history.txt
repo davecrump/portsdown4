@@ -1,3 +1,6 @@
+202301141
+Separate Jetson TX scripts from RPi TX Scripts
+
 202301140
 Add Command line .wav file replay on LimeSDR Mini
 
