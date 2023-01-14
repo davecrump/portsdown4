@@ -43,6 +43,7 @@ src/rtlsdrview/rtlsdrview
 src/plutoview/plutoview
 src/nf_meter/nf_meter
 src/dmm/dmm
+src/wav2lime/wav2lime
 scripts/configs/Langstone.conf
 scripts/configs/Langstone_Lime.conf
 scripts/configs/Langstone_Pluto.conf
@@ -69,5 +70,5 @@ bin/airspyview
 bin/rtlsdrview
 bin/plutoview
 bin/dmm
-
+bin/wav2lime
 

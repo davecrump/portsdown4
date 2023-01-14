@@ -540,6 +540,11 @@ make
 cp /home/pi/rpidatv/src/atten/set_attenuator /home/pi/rpidatv/bin/set_attenuator
 cd /home/pi
 
+# Compile the wav2lime utility (202301140)
+cd /home/pi/rpidatv/src/wav2lime
+gcc -o wav2lime wav2lime.c -lLimeSuite
+cp /home/pi/rpidatv/src/wav2lime/wav2lime /home/pi/rpidatv/bin/wav2lime
+cd /home/pi
 
 DisplayUpdateMsg "Step 8 of 10\nRestoring Config\n\nXXXXXXXX--"
 

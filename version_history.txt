@@ -1,3 +1,6 @@
+202301140
+Add Command line .wav file replay on LimeSDR Mini
+
 202301120
 Add 500 kHz Span Width to RTL-SDR BandViewer
 
