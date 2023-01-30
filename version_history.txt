@@ -1,3 +1,6 @@
+202301301
+Set Band Bit 7 high when Pluto BandViewer is in use
+
 202301300
 Add Jetson H265 encoding from Blackmagic ATEM Mini Pro USB
 Add Blackmagic ATEM Mini Pro USB viewing to Portsdown HDMI Viewer 
