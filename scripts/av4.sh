@@ -1,9 +1,15 @@
 #!/bin/bash
 
-# Used to display the incoming video from an LKV373A or Elgato CamLink 4K
+# Called by the ""HDMI Monitor" Button om Menu 2
+# Used to display the incoming video from an Elgato CamLink 4K, ATEM Mini or LKV373A
+# It checks for each in turn and uses the first that it finds
+# Audio is outputted on the selected audio device (Menu 3, Audio Out)
+
+# set -x
 
 RCONFIGFILE="/home/pi/rpidatv/scripts/longmynd_config.txt"
 JCONFIGFILE="/home/pi/rpidatv/scripts/jetson_config.txt"
+
 ############ FUNCTION TO READ CONFIG FILE #############################
 
 get_config_var() {
@@ -44,7 +50,7 @@ else
 fi
 echo The audio output device string is $AUDIO_DEVICE
 
-############ CHECK FOR CAMLINK 4K DEVICE STRING ###################################
+############ FIRST CHECK FOR CAMLINK 4K DEVICE STRING ############################
 
 # List the video devices, select the 2 lines for the Cam Link device, then
 # select the line with the device details and delete the leading tab
@@ -52,20 +58,51 @@ echo The audio output device string is $AUDIO_DEVICE
 VID_USB="$(v4l2-ctl --list-devices 2> /dev/null | \
   sed -n '/Cam Link 4K/,/dev/p' | grep 'dev' | tr -d '\t')"
 
-############ IDENTIFY CAMLINK 4K AUDIO CARD NUMBER #############################
+############ IF CAMLIMK, IDENTIFY CAMLINK 4K AUDIO CARD NUMBER ###################
 
-# List the audio capture devices, select the line for the Cam Link 4K device:
-# card 2: C4K [Cam Link 4K], device 0: USB Audio [USB Audio]
-# then take the 6th character
+if [ "$VID_USB" != '' ]; then
 
-AUDIO_IN_CARD="$(arecord -l 2> /dev/null | grep 'Cam Link 4K' | cut -c6-6)"
+  # List the audio capture devices, select the line for the Cam Link 4K device:
+  # card 2: C4K [Cam Link 4K], device 0: USB Audio [USB Audio]
+  # then take the 6th character
 
-if [ "$AUDIO_IN_CARD" == '' ]; then
-  printf "EasyCap audio device was not found, setting to 1\n"
-  AUDIO_IN_CARD="1"
+  AUDIO_IN_CARD="$(arecord -l 2> /dev/null | grep 'Cam Link 4K' | cut -c6-6)"
+
+  if [ "$AUDIO_IN_CARD" == '' ]; then
+    printf "Camlink audio device was not found, setting to 1\n"
+    AUDIO_IN_CARD="1"
+  fi
+  echo "The Cam Link 4K Audio Card number is "$AUDIO_IN_CARD":0"
 fi
-echo "The Cam Link 4K Audio Card number is "$AUDIO_IN_CARD":0"
 
+#####################################################################
+
+
+############ IF NO CAMLINK, CHECK FOR ATEM DEVICE STRING ###################################
+
+if [ "$VID_USB" == '' ]; then
+
+  # List the video devices, select the 2 lines for the ATEM device, then
+  # select the line with the device details and delete the leading tab
+
+  VID_USB="$(v4l2-ctl --list-devices 2> /dev/null | \
+    sed -n '/Blackmagic/,/dev/p' | grep 'dev' | tr -d '\t')"
+
+  ############ IDENTIFY ATEM AUDIO CARD NUMBER #############################
+
+  # List the audio capture devices, select the line for the Cam Link 4K device:
+  # card 2: Design [Blackmagic Design], device 0: USB Audio [USB Audio]
+  # then take the 6th character
+
+  AUDIO_IN_CARD="$(arecord -l 2> /dev/null | grep 'Blackmagic' | cut -c6-6)"
+
+  if [ "$AUDIO_IN_CARD" == '' ]; then
+    printf "ATEM audio device was not found, setting to 1\n"
+    AUDIO_IN_CARD="1"
+  fi
+  echo "The ATEM Audio Card number is "$AUDIO_IN_CARD":0"
+
+fi
 #####################################################################
 
 sudo killall vlc >/dev/null 2>/dev/null
@@ -76,7 +113,7 @@ if [[ ! -f /home/pi/tmp/vlcprimed ]]; then
   cvlc -I rc --rc-host 127.0.0.1:1111 -f --codec ffmpeg --video-title-timeout=100 \
     --width 800 --height 480 \
     --gain 3 --alsa-audio-device $AUDIO_DEVICE \
-    /home/pi/rpidatv/video/blank.ts vlc:quit >/dev/null 2>/dev/null &
+    /home/pi/rpidatv/video/tsfile.ts vlc:quit >/dev/null 2>/dev/null &
   sleep 1
   touch /home/pi/tmp/vlcprimed
   echo shutdown | nc 127.0.0.1 1111
@@ -97,7 +134,7 @@ if [ "$VID_USB" == '' ]; then
 
 else
 
-  echo The Cam Link 4K Video Device string is $VID_USB
+  echo The Cam Link 4K or ATEM Video Device string is $VID_USB
 
   cvlc -I rc --rc-host 127.0.0.1:1111 --codec ffmpeg -f --video-title-timeout=100 \
     --width 800 --height 480 \

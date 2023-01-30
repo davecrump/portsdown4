@@ -2287,6 +2287,11 @@ if [ "$MODE_OUTPUT" == "JLIME" ]; then
   source /home/pi/rpidatv/scripts/a_jetson.sh
 fi
 
+# Stream from HDMI on Jetson - not yet implemented
+#if [ "$MODE_OUTPUT" == "JSTREAM" ]; then
+#  source /home/pi/rpidatv/scripts/a_jstream.sh
+#fi
+
 # ============================================ END =============================================================
 
 # flow exits from a.sh leaving ffmpeg or avc2ts and rpidatv running
