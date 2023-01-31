@@ -1,11 +1,12 @@
-# This file is sourced from a.sh if JLIME is selected as the output device.
+# This file is sourced from a.sh if JSTREAM is selected as the output device.
+
+# But is not yet ready for release
 
 # First sort out the environment variables
 
   JETSONIP=$(get_config_var jetsonip $JCONFIGFILE)
   JETSONUSER=$(get_config_var jetsonuser $JCONFIGFILE)
   JETSONPW=$(get_config_var jetsonpw $JCONFIGFILE)
-JETSONROOTPW=$(get_config_var jetsonrootpw $JCONFIGFILE)
   LKVUDP=$(get_config_var lkvudp $JCONFIGFILE)
   LKVPORT=$(get_config_var lkvport $JCONFIGFILE)
   FORMAT=$(get_config_var format $PCONFIGFILE)
@@ -21,8 +22,8 @@ JETSONROOTPW=$(get_config_var jetsonrootpw $JCONFIGFILE)
     VIDEO_WIDTH=1280
     VIDEO_HEIGHT=720
   elif [ "$FORMAT" == "16:9" ]; then
-    VIDEO_WIDTH=1024
-    VIDEO_HEIGHT=576 #416 # was 405
+    VIDEO_WIDTH=720
+    VIDEO_HEIGHT=416 # was 405
   else  # SD
     if [ "$BITRATE_VIDEO" -lt 75000 ]; then
       VIDEO_WIDTH=160
@@ -148,48 +149,20 @@ EOM
           -c:a copy -f mpegts \
           -metadata service_provider="$CHANNEL" -metadata service_name="$CALL" \
           -mpegts_pmt_start_pid $PIDPMT -streamid 0:"$PIDVIDEO" -streamid 1:"$PIDAUDIO" \
-          -mpegts_service_type "0x1f" -mpegts_flags system_b - \
+          -mpegts_flags system_b - \
         | ../bin/limesdr_dvb -s "$SYMBOLRATE_K"000 -f $FECNUM/$FECDEN -r $UPSAMPLE -m $MODTYPE -c $CONSTLN $PILOTS $FRAMES \
           -t "$FREQ_OUTPUT"e6 -g $LIME_GAINF -q 1
       ;;
       ATEM)
         gst-launch-1.0 -vvv -e \
-          v4l2src device=\$VID_DEVICE io-mode=2 \
-          '!' image/jpeg \
-          '!' jpegparse '!' nvjpegdec '!' video/x-raw '!' nvvidconv \
-          '!' 'video/x-raw(memory:NVMM),width=(int)$VIDEO_WIDTH,height=(int)$VIDEO_HEIGHT,format=(string)I420' \
-          '!' omxh265enc control-rate=2 bitrate=$VIDEOBITRATE peak-bitrate=$VIDEOPEAKBITRATE preset-level=3 iframeinterval=25 \
-          '!' 'video/x-h265,width=(int)$VIDEO_WIDTH,height=(int)$VIDEO_HEIGHT,stream-format=(string)byte-stream' '!' queue \
-          '!' mux. alsasrc device=hw:\$AUDIO_CARD \
-          '!' audio/x-raw, format=S16LE, layout=interleaved, rate=48000, channels=\$AUDIO_CHAN '!' voaacenc bitrate=20000 \
-          '!' queue '!' mux. mpegtsmux alignment=7 name=mux '!' fdsink \
-        | ffmpeg -i - -ss 5 \
-          -c:v copy -max_delay 200000 -muxrate $BITRATE_TS \
-          -c:a copy -f mpegts \
-          -metadata service_provider="$CHANNEL" -metadata service_name="$CALL" \
-          -mpegts_pmt_start_pid $PIDPMT -streamid 0:"$PIDVIDEO" -streamid 1:"$PIDAUDIO" \
-          -mpegts_service_type "0x1f" -mpegts_flags system_b - \
-        | ../bin/limesdr_dvb -s "$SYMBOLRATE_K"000 -f $FECNUM/$FECDEN -r $UPSAMPLE -m $MODTYPE -c $CONSTLN $PILOTS $FRAMES \
-          -t "$FREQ_OUTPUT"e6 -g $LIME_GAINF -q 1
-      ;;
-      LKV)
-        gst-launch-1.0 udpsrc address=$LKVUDP port=$LKVPORT \
-          '!' video/mpegts '!' tsdemux name=dem dem. '!' queue '!' h264parse '!' omxh264dec \
-          '!' nvvidconv interpolation-method=2 \
-          '!' 'video/x-raw(memory:NVMM), width=(int)$VIDEO_WIDTH, height=(int)$VIDEO_HEIGHT, format=(string)I420' \
-          '!' omxh265enc control-rate=2 bitrate=$VIDEOBITRATE peak-bitrate=$VIDEOPEAKBITRATE preset-level=3 iframeinterval=100 \
-          '!' 'video/x-h265,stream-format=(string)byte-stream' '!' mux. dem. '!' queue \
-          '!' mpegaudioparse '!' avdec_mp2float '!' audioconvert '!' audioresample \
-          '!' 'audio/x-raw, format=S16LE, layout=interleaved, rate=48000, channels=1' '!' voaacenc bitrate=20000 \
-          '!' queue '!' mux. mpegtsmux alignment=7 name=mux '!' fdsink \
-        | ffmpeg -i - -ss 8 \
-          -c:v copy -max_delay 200000 -muxrate $BITRATE_TS \
-          -c:a copy -f mpegts \
-          -metadata service_provider="$CHANNEL" -metadata service_name="$CALL" \
-          -mpegts_pmt_start_pid $PIDPMT -streamid 0:"$PIDVIDEO" -streamid 1:"$PIDAUDIO" \
-          -mpegts_flags system_b - \
-        | ../bin/limesdr_dvb -s "$SYMBOLRATE_K"000 -f $FECNUM/$FECDEN -r $UPSAMPLE -m $MODTYPE -c $CONSTLN $PILOTS $FRAMES \
-          -t "$FREQ_OUTPUT"e6 -g $LIME_GAINF -q 1
+          v4l2src device=\$VID_DEVICE \
+          '!' jpegparse '!' jpegdec '!' video/x-raw '!' nvvidconv \
+          '!' "video/x-raw(memory:NVMM), width=(int)$VIDEO_WIDTH, height=(int)$VIDEO_HEIGHT, format=(string)NV12, framerate=(fraction)24/1" \
+          '!' omxh264enc control-rate=2 bitrate=1500000 '!' 'video/x-h264, stream-format=(string)byte-stream' \
+          '!' h264parse '!' queue '!' flvmux name=muxer alsasrc device=hw:\$AUDIO_CARD \
+          '!' audioresample ! "audio/x-raw,rate=48000" ! queue  \
+          '!' voaacenc bitrate=32000 ! aacparse ! queue ! muxer. muxer. \
+          '!' rtmpsink location="$STREAM_URL/$STREAM_KEY"
       ;;
       esac
 ENDSSH
@@ -203,16 +176,13 @@ EOM
       (sshpass -p $JETSONPW ssh -o StrictHostKeyChecking=no $JETSONUSER@$JETSONIP 'bash -s' <<'ENDSSH' 
       cd ~/dvbsdr/scripts
 
-      AUDIO_CARD="\$(arecord -l | grep -E "USB Audio Device|USB AUDIO|Head|Sound Device" \
-        | head -c 6 | tail -c 1)"
-
       gst-launch-1.0 -q nvarguscamerasrc \
-        '!' "video/x-raw(memory:NVMM),width=1920, height=1080, format=(string)NV12,framerate=(fraction)30/1" \
+        '!' "video/x-raw(memory:NVMM),width=$VIDEO_WIDTH, height=$VIDEO_HEIGHT, format=(string)NV12,framerate=(fraction)25/1" \
         '!' nvvidconv flip-method=2 '!' "video/x-raw(memory:NVMM), format=(string)I420" \
         '!' nvvidconv '!' 'video/x-raw(memory:NVMM), width=(int)$VIDEO_WIDTH, height=(int)$VIDEO_HEIGHT, format=(string)I420' \
         '!' omxh265enc control-rate=2 bitrate=$VIDEOBITRATE peak-bitrate=$VIDEOPEAKBITRATE preset-level=3 iframeinterval=100 \
         '!' 'video/x-h265,stream-format=(string)byte-stream' '!' queue \
-        '!' mux. alsasrc device=hw:\$AUDIO_CARD \
+        '!' mux. alsasrc device=hw:2 \
         '!' 'audio/x-raw, format=S16LE, layout=interleaved, rate=48000, channels=1' '!' voaacenc bitrate=20000 \
         '!' queue '!' mux. mpegtsmux alignment=7 name=mux '!' fdsink \
       | ffmpeg -i - -ss 8 \
@@ -220,7 +190,7 @@ EOM
         -c:a copy -f mpegts \
         -metadata service_provider="$CHANNEL" -metadata service_name="$CALL" \
         -mpegts_pmt_start_pid $PIDPMT -streamid 0:"$PIDVIDEO" -streamid 1:"$PIDAUDIO" \
-        -mpegts_service_type "0x1f" -mpegts_flags system_b - \
+        -mpegts_flags system_b- \
       | ../bin/limesdr_dvb -s "$SYMBOLRATE_K"000 -f $FECNUM/$FECDEN -r $UPSAMPLE -m $MODTYPE -c $CONSTLN $PILOTS $FRAMES \
         -t "$FREQ_OUTPUT"e6 -g $LIME_GAINF -q 1
 ENDSSH
@@ -244,27 +214,21 @@ EOM
 
       if [[ "\$USBCAM_TYPE" == "EagleEye" ]]; then
 
-        AUDIO_CARD="\$(arecord -l | grep -E "USB Audio Device|USB AUDIO|Head|Sound Device" \
-          | head -c 6 | tail -c 1)"
-        AUDIO_CHAN=1
-
       # PolyComm EagleEye Code.  Uses USB audio dongle
       gst-launch-1.0 -vvv -e \
-        v4l2src device=\$VID_DEVICE do-timestamp=true \
-        '!' 'image/jpeg,width=$VIDEO_WIDTH,height=$VIDEO_HEIGHT,framerate=25/1' \
-        '!' jpegparse '!' jpegdec '!' nvvidconv \
+        v4l2src device=\$VID_DEVICE do-timestamp=true '!' 'image/jpeg,width=1280,height=720,framerate=25/1' \
+        '!' jpegparse '!'jpegdec '!' nvvidconv \
         '!' "video/x-raw(memory:NVMM), width=(int)$VIDEO_WIDTH, height=(int)$VIDEO_HEIGHT, format=(string)I420" \
         '!' omxh265enc control-rate=2 bitrate=$VIDEOBITRATE peak-bitrate=$VIDEOPEAKBITRATE preset-level=3 iframeinterval=100 \
         '!' 'video/x-h265,width=(int)$VIDEO_WIDTH,height=(int)$VIDEO_HEIGHT,stream-format=(string)byte-stream' '!' queue \
-        '!' mux. alsasrc device=hw:\$AUDIO_CARD \
-        '!' audio/x-raw,format=S16LE,layout=interleaved,rate=48000,channels=\$AUDIO_CHAN '!' voaacenc bitrate=20000 \
+        '!' mux. alsasrc device=hw:2 \
+        '!' 'audio/x-raw, format=S16LE, layout=interleaved, rate=48000, channels=1' '!' voaacenc bitrate=20000 \
         '!' queue '!' mux. mpegtsmux alignment=7 name=mux '!' fdsink \
       | ffmpeg -i - -ss 8 \
         -c:v copy -max_delay 200000 -muxrate $BITRATE_TS \
         -c:a copy -f mpegts \
         -metadata service_provider="$CHANNEL" -metadata service_name="$CALL" \
-        -mpegts_pmt_start_pid $PIDPMT -streamid 0:"$PIDVIDEO" -streamid 1:"$PIDAUDIO" \
-        -mpegts_service_type "0x1f" -mpegts_flags system_b - \
+        -mpegts_pmt_start_pid $PIDPMT -streamid 0:"$PIDVIDEO" -streamid 1:"$PIDAUDIO" -mpegts_flags system_b - \
       | ../bin/limesdr_dvb -s "$SYMBOLRATE_K"000 -f $FECNUM/$FECDEN -r $UPSAMPLE -m $MODTYPE -c $CONSTLN $PILOTS $FRAMES \
         -t "$FREQ_OUTPUT"e6 -g $LIME_GAINF -q 1
 
