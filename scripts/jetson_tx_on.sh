@@ -49,7 +49,7 @@ rm $TXONCMDFILE
 
     echo "#! /bin/bash" >> tx_on.sh
     echo "cd /sys/class/gpio" >> tx_on.sh
-    echo "echo $GPIO > export" >> tx_on.sh
+    echo "echo $GPIO > export >/dev/null 2>/dev/null" >> tx_on.sh
     echo "cd /sys/class/gpio/gpio$GPIO" >> tx_on.sh
     echo "echo \"out\" > direction" >> tx_on.sh
     echo "echo 0 > value" >> tx_on.sh
