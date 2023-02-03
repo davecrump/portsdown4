@@ -33,7 +33,7 @@ MODE_OUTPUT=$(get_config_var modeoutput $PCONFIGFILE)
 # Stop Jetson transmitting if required
 
 case "$MODE_OUTPUT" in
-"JLIME" | "JEXPRESS")
+"JLIME" | "JSTREAM")
 
   # Stop the processes
 
