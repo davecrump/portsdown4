@@ -50,7 +50,7 @@ rm $TXOFFCMDFILE
     echo "/home/nano/dvbsdr/bin/limesdr_stopchannel" >> tx_off.sh
     echo "killall tx_on.sh >/dev/null 2>/dev/null" >> tx_off.sh
     echo "cd /sys/class/gpio " >> tx_off.sh
-    echo "echo $GPIO > export >/dev/null 2>/dev/null" >> tx_off.sh
+    echo "echo $GPIO > export" >> tx_off.sh
     echo "cd /sys/class/gpio/gpio$GPIO" >> tx_off.sh
     echo "echo \"out\" > direction" >> tx_off.sh
     echo "echo 0 > value" >> tx_off.sh
