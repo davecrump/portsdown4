@@ -479,6 +479,7 @@ int LimeFWVer();
 int LimeHWVer();
 void LimeMiniTest();
 void LimeUtilInfo();
+int CheckSDRPlay();
 void ClearMenuMessage();
 void *WaitButtonFileVLC(void * arg);
 void ShowVideoFile(char *VideoPath, char *VideoFile);
@@ -1107,7 +1108,7 @@ void GetIPAddr(char IPAddress[256])
   }
 
   /* Read the output a line at a time - output it. */
-  while (fgets(IPAddress, 16, fp) != NULL)
+  while (fgets(IPAddress, 17, fp) != NULL)
   {
     //printf("%s", IPAddress);
   }
@@ -1137,7 +1138,7 @@ void GetIPAddr2(char IPAddress[256])
   }
 
   /* Read the output a line at a time - output it. */
-  while (fgets(IPAddress, 16, fp) != NULL)
+  while (fgets(IPAddress, 17, fp) != NULL)
   {
     //printf("%s", IPAddress);
   }
@@ -5624,6 +5625,38 @@ void LimeUtilInfo()
 }
 
 
+/***************************************************************************//**
+ * @brief Checks whether an SDRPlay SDR is connected
+ *
+ * @param 
+ *
+ * @return 0 if present, 1 if absent
+*******************************************************************************/
+
+int CheckSDRPlay()
+{
+  FILE *fp;
+  char response[255];
+  int responseint;
+
+  // Open the command for reading
+  fp = popen("lsusb | grep -q '1df7:' ; echo $?", "r");
+  if (fp == NULL) {
+    printf("Failed to run command\n" );
+    exit(1);
+  }
+
+  // Read the output a line at a time - output it
+  while (fgets(response, 7, fp) != NULL)
+  {
+    responseint = atoi(response);
+  }
+
+  pclose(fp);
+  return responseint;
+}
+
+
 void ClearMenuMessage()
 {
   MenuText[0][0] = '\0';
@@ -8425,7 +8458,7 @@ void WiFiConfig(int NoButton)
       KeyboardReturn[0] = '\0';
       while (strlen(KeyboardReturn) < 1)
       {
-        Keyboard(Prompt, "", 15);
+        Keyboard(Prompt, "", 23);
       }
       strcpy(PassPhrase, KeyboardReturn);
 
@@ -16031,6 +16064,10 @@ void ChangeStartApp(int NoButton)
     SetConfigParam(PATH_PCONFIG, "startup", "Bandview_boot");
     strcpy(StartApp, "Bandview_boot");
     break;
+  case 8:
+    SetConfigParam(PATH_PCONFIG, "startup", "Meteorview_boot");
+    strcpy(StartApp, "Meteorview_boot");
+    break;
   default:
     break;
   }
@@ -17607,7 +17644,7 @@ void waituntil(int w,int h)
           do_snapcheck();
           UpdateWindow();
           break;
-        case 8:                               // More Functions Menu
+        case 8:                               // Test Equipment Menu
           printf("MENU 7 \n");
           CurrentMenu = 7;
           setBackColour(0, 0, 0);
@@ -18300,6 +18337,20 @@ void waituntil(int w,int h)
           }
           UpdateWindow();
           break;
+        case 7:                                                 // SDRPlay MeteorViewer
+          if ((CheckSDRPlay() == 0)  && (file_exist("/home/pi/rpidatv/bin/meteorview") == 0)) 
+
+          {
+            DisplayLogo();
+            cleanexit(150);
+          }
+          else
+          {
+            MsgBox("No SDRPlay SDR detected/installed");
+            wait_touch();
+          }
+          UpdateWindow();
+          break;
         case 8:                                                 // Pluto BandViewer
           if(CheckPlutoIPConnect() == 0)
           {
@@ -18390,6 +18441,7 @@ void waituntil(int w,int h)
           printf("Menu 7 Error\n");
         }
         SelectInGroupOnMenu(CurrentMenu, 0, 4, 21, 1);
+        Start_Highlights_Menu7();
         UpdateWindow();
         continue;   // Completed Menu 7 action, go and wait for touch
       }
@@ -19885,6 +19937,7 @@ void waituntil(int w,int h)
         case 5:                               // Boot to Portsdown
         case 6:                               // Boot to Langstone
         case 7:                               // Boot to Band Viewer
+        case 8:                               // Boot to Meteor Viewer
           ChangeStartApp(i);
           //wait_touch();
           setBackColour(0, 0, 0);
@@ -22025,6 +22078,10 @@ void Define_Menu7()
   button = CreateButton(7, 6);
   AddButtonStatus(button, "RTL-SDR^BandViewer", &Blue);
 
+  button = CreateButton(7, 7);
+  AddButtonStatus(button, "Meteor^Viewer", &Blue);
+  AddButtonStatus(button, "Meteor^Viewer", &Grey);
+
   button = CreateButton(7, 8);
   AddButtonStatus(button, "Pluto^BandViewer", &Blue);
 
@@ -22056,10 +22113,19 @@ void Define_Menu7()
   AddButtonStatus(button," M1  ",&Blue);
 }
 
+
 void Start_Highlights_Menu7()
 {
-  ;
+  if (file_exist("/home/pi/rpidatv/bin/meteorview") == 1) // Meteor receiver not installed, so grey-out
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 7), 1);
+  }
+  else                             // Installed, so Blue
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 7), 0);
+  }
 }
+
 
 void Define_Menu8()
 {
@@ -24997,34 +25063,48 @@ void Define_Menu34()
   AddButtonStatus(button, "Boot to^Band Viewer", &Blue);
   AddButtonStatus(button, "Boot to^Band Viewer", &Green);
 
+  button = CreateButton(34, 8);
+  AddButtonStatus(button, "Boot to^Meteor Viewer", &Blue);
+  AddButtonStatus(button, "Boot to^Meteor Viewer", &Green);
 }
 
 
-void Start_Highlights_Menu34()
+void Start_Highlights_Menu34()         // Start-up App
 {
   if (strcmp(StartApp, "Display_boot") == 0)
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 5), 1);
     SetButtonStatus(ButtonNumber(CurrentMenu, 6), 0);
     SetButtonStatus(ButtonNumber(CurrentMenu, 7), 0);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 8), 0);
   }
   else if (strcmp(StartApp, "Langstone_boot") == 0)
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 5), 0);
     SetButtonStatus(ButtonNumber(CurrentMenu, 6), 1);
     SetButtonStatus(ButtonNumber(CurrentMenu, 7), 0);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 8), 0);
   }
   else if (strcmp(StartApp, "Bandview_boot") == 0)
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 5), 0);
     SetButtonStatus(ButtonNumber(CurrentMenu, 6), 0);
     SetButtonStatus(ButtonNumber(CurrentMenu, 7), 1);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 8), 0);
+  }
+  else if (strcmp(StartApp, "Meteorview_boot") == 0)
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 5), 0);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 6), 0);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 7), 0);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 8), 1);
   }
   else
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 5), 0);
     SetButtonStatus(ButtonNumber(CurrentMenu, 6), 0);
     SetButtonStatus(ButtonNumber(CurrentMenu, 7), 0);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 8), 0);
   }
 
   // Over-ride if Langstone not installed (set to Grey)
@@ -25035,9 +25115,8 @@ void Start_Highlights_Menu34()
   }
 }
 
-// Menu 35 Stream output Selector
 
-void Define_Menu35()
+void Define_Menu35()    // Menu 35 Stream output Selector
 {
   int button;
   int n;
@@ -26505,9 +26584,6 @@ int main(int argc, char *argv[])
   // Initialise direct access to the 7 inch screen
   initScreen();
 
-  // Create Touchscreen thread
-  pthread_create (&thtouchscreen, NULL, &WaitTouchscreenEvent, NULL);
-
   // Read in the presets from the Config files
   ReadPresets();
   ReadModeInput(vcoding, vsource);
@@ -26531,6 +26607,12 @@ int main(int argc, char *argv[])
   ReadContestSites();
   ReadVLCVolume();
   ReadWebControl();
+
+  // Create Touchscreen thread if required
+  if (strcmp(DisplayType, "Browser") != 0)
+  {
+    pthread_create (&thtouchscreen, NULL, &WaitTouchscreenEvent, NULL);
+  }
 
   SetAudioLevels();
 

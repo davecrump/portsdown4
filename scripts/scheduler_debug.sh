@@ -104,6 +104,7 @@ ChooseBandViewerSDR()
 # 143  Exit from rpidatvgui requesting start of Pluto BandViewer
 # 145  Run the Langstone TRX V2 Lime
 # 146  Run the Langstone TRX V2 Pluto
+# 150  Run the Meteor Viewer
 # 160  Shutdown from GUI
 # 192  Reboot from GUI
 # 193  Rotate 7 inch and reboot
@@ -141,6 +142,10 @@ case "$MODE_STARTUP" in
     # Start the Band Viewer
     ChooseBandViewerSDR
     GUI_RETURN_CODE=$BANDVIEW_START_CODE
+  ;;
+  Meteorview_boot)
+    # Start the Meteor Viewer
+    GUI_RETURN_CODE=150
   ;;
   *)
     # Default to Portsdown
@@ -251,6 +256,11 @@ while [ "$GUI_RETURN_CODE" -gt 127 ] || [ "$GUI_RETURN_CODE" -eq 0 ];  do
       timeout 2 sshpass -p analog ssh -o StrictHostKeyChecking=no root@"$PLUTOIP" 'PATH=/bin:/sbin:/usr/bin:/usr/sbin;reboot'
       sleep 2
       GUI_RETURN_CODE="129"
+    ;;
+    150)                              # SDRPlay Meteor Viewer
+      sleep 1
+      /home/pi/rpidatv/bin/meteorview
+      GUI_RETURN_CODE="$?"
     ;;
     160)
       sleep 1
