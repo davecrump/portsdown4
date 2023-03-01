@@ -1,3 +1,8 @@
+202303010
+Update LimeSuite to 22.09
+Add support for LimeSDR Mini 2
+Remove non-functional Lime "do not calibrate" option
+
 202302260
 Minor bugfixes
 

@@ -4494,6 +4494,7 @@ int main(void)
       activescan = true;
 
       NFTotalHot2 = 0;
+      usleep(10);
 
       if (NFMeter)
       {

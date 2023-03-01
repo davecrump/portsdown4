@@ -151,7 +151,7 @@ void *lime_thread(void *arg)
     // LMS_SetAntenna(device, LMS_CH_RX, 0, 2); //LNA_L
     // LMS_SetAntenna(device, LMS_CH_RX, 0, 3); //LNA_W
 
-    if (strcmp(device_info->deviceName, "LimeSDR-USB") ==0)
+    if (strcmp(device_info->deviceName, "LimeSDR-USB") == 0)
     {
       if (frequency_actual_rx >= 2e9)
       {
@@ -166,12 +166,18 @@ void *lime_thread(void *arg)
     }
 
     // Set the Analog LPF bandwidth
-    LMS_SetLPFBW(device, LMS_CH_RX, 0, (bandwidth * 1.2));
+    if (LMS_SetLPFBW(device, LMS_CH_RX, 0, (bandwidth * 1.2)) != 0)
+    {
+        LMS_Close(device);
+        printf("Failed to set analog bandwidth\n");
+        return NULL;
+    }
 
     // Disable test signals generation in RX channel
     if (LMS_SetTestSignal(device, LMS_CH_RX, 0, LMS_TESTSIG_NONE, 0, 0) != 0)
     {
         LMS_Close(device);
+        printf("Failed to disable test signal\n");
         return NULL;
     }
 
@@ -187,6 +193,7 @@ void *lime_thread(void *arg)
     if (LMS_SetupStream(device, &rx_stream) != 0)
     {
         LMS_Close(device);
+        printf("Failed to set-up stream\n");
         return NULL;
     }
 
@@ -196,7 +203,12 @@ void *lime_thread(void *arg)
     buffer = malloc(buffersize * 2 * sizeof(float)); //buffer to hold complex values (2*samples))
 
     // Start streaming
-    LMS_StartStream(&rx_stream);
+    if (LMS_StartStream(&rx_stream) != 0)
+    {
+        LMS_Close(device);
+        printf("Failed to start streaming\n");
+        return NULL;
+    }
 
     // Streaming
     lms_stream_meta_t rx_metadata; //Use metadata for additional control over sample receive function behavior
@@ -215,6 +227,10 @@ void *lime_thread(void *arg)
 #endif
 
 //    uint32_t samples_rx_transferred = samplesRead / 2.0;
+
+    // Calibrate again now all settings settled
+    LMS_Calibrate(device, LMS_CH_RX, 0, bandwidth, 0);
+
     while(false == *exit_requested) 
     {
         // Receive samples
@@ -279,8 +295,8 @@ void *lime_thread(void *arg)
           LMS_SetSampleRate(device, bandwidth, 4);
           NewSpan = false;
           LMS_StartStream(&rx_stream);
+          LMS_Calibrate(device, LMS_CH_RX, 0, bandwidth, 0);
         }
-
 
 #if 0
         if(!monotonic_started)

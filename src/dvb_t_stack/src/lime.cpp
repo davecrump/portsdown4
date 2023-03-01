@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <cstring>
 #include "/usr/local/include/lime/LimeSuite.h"
 #include "dvb_t.h"
 #ifdef __USE_LIME__
@@ -6,6 +7,7 @@
 
 //Device structure, should be initialise to NULL
 lms_device_t* m_device = NULL;
+const lms_dev_info_t *device_info;
 lms_stream_t m_streamId; //stream structure
 lms_stream_meta_t m_metadata;
 
@@ -24,6 +26,8 @@ int lime_open(DVBTFormat *fmt){
     		printf("LMS_Open error\n");
     		return -1;
     	}
+
+        device_info = LMS_GetDeviceInfo(m_device);
 
     	//Initialise device with default configuration
     	//Do not use if you want to keep existing configuration
@@ -61,13 +65,22 @@ int lime_open(DVBTFormat *fmt){
     		printf("LMS_SetNormalisedGain error\n");
     		return -1;
     	}
-    	int port = 2;
-    	if(fmt->freq > 2e9) port = 1;
 
+        // Set the correct antenna port
+    	int port = 2;
+        if (strcmp(device_info->deviceName, "LimeSDR-USB") == 0)
+        {
+          if(fmt->freq < 2e9) port = 1;
+        }
+        else                    // Lime SDR Mini
+        {
+          if(fmt->freq > 2e9) port = 1;
+        }
     	if(LMS_SetAntenna(m_device,LMS_CH_TX,0,port)!= 0){
     		printf("LMS_SetAntenna error\n");
     		return -1;
     	}
+
     	// Set up the GPIO
     	uint8_t buffer;
 

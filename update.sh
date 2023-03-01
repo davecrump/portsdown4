@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Updated by davecrump 202107000 for Portsdown 4
+# Updated by davecrump 20230228 for Portsdown 4 and LimeSDR Mini V2
 
 DisplayUpdateMsg() {
   # Delete any old update message image
@@ -249,22 +249,21 @@ sudo apt-get -y install libairspy-dev                                   # For Ai
 
 # -----------Update LimeSuite if required -------------
 
-if ! grep -q be27699 /home/pi/LimeSuite/commit_tag.txt; then
+if ! grep -q 9c983d8 /home/pi/LimeSuite/commit_tag.txt; then
 
   # Remove old LimeSuite
   rm -rf /home/pi/LimeSuite/
 
-  # Install LimeSuite 20.10 as at 25 Jan 21
-  # Commit be276996ec3f23b2aadc10543add867d1a55afdd
+  # Install LimeSuite 22.09 as at 27 Feb 23
+  # Commit 9c983d872e75214403b7778122e68d920d583add
   echo
   echo "--------------------------------------"
-  echo "----- Installing LimeSuite 20.10 -----"
+  echo "----- Installing LimeSuite 22.09 -----"
   echo "--------------------------------------"
-  cd /home/pi
-  wget https://github.com/myriadrf/LimeSuite/archive/be276996ec3f23b2aadc10543add867d1a55afdd.zip -O master.zip
+  wget https://github.com/myriadrf/LimeSuite/archive/9c983d872e75214403b7778122e68d920d583add.zip -O master.zip
   unzip -o master.zip
-  cp -f -r LimeSuite-be276996ec3f23b2aadc10543add867d1a55afdd LimeSuite
-  rm -rf LimeSuite-be276996ec3f23b2aadc10543add867d1a55afdd
+  cp -f -r LimeSuite-9c983d872e75214403b7778122e68d920d583add LimeSuite
+  rm -rf LimeSuite-9c983d872e75214403b7778122e68d920d583add
   rm master.zip
 
   # Compile LimeSuite
@@ -284,18 +283,29 @@ if ! grep -q be27699 /home/pi/LimeSuite/commit_tag.txt; then
   cd /home/pi	
 
   # Record the LimeSuite Version	
-  echo "be27699" >/home/pi/LimeSuite/commit_tag.txt
+  echo "9c983d8" >/home/pi/LimeSuite/commit_tag.txt
 
-  # Download the 20.10LimeSDR Mini firmware/gateware version
+  # Download the LimeSDR Mini firmware/gateware versions
   echo
   echo "------------------------------------------------------"
   echo "----- Downloading LimeSDR Mini Firmware versions -----"
   echo "------------------------------------------------------"
 
-  # Current Version from LimeSuite 20.10 
-  mkdir -p /home/pi/.local/share/LimeSuite/images/20.10/
-  wget https://downloads.myriadrf.org/project/limesuite/20.10/LimeSDR-Mini_HW_1.2_r1.30.rpd -O \
-    /home/pi/.local/share/LimeSuite/images/20.10/LimeSDR-Mini_HW_1.2_r1.30.rpd
+  # Current LimeSDR Mini V1 Version from LimeSuite 22.09 
+  mkdir -p /home/pi/.local/share/LimeSuite/images/22.09/
+  wget https://downloads.myriadrf.org/project/limesuite/22.09/LimeSDR-Mini_HW_1.2_r1.30.rpd -O \
+               /home/pi/.local/share/LimeSuite/images/22.09/LimeSDR-Mini_HW_1.2_r1.30.rpd
+
+  # Current LimeSDR Mini V2 Version from LimeSuite 22.09 
+  wget https://downloads.myriadrf.org/project/limesuite/22.09/LimeSDR-Mini_HW_2.0_r2.2.bit -O \
+                 /home/pi/.local/share/LimeSuite/images/22.09/LimeSDR-Mini_HW_2.0_r2.2.bit
+
+  // Check that it was downloaded, if not, go to source and get it
+  if [[ "$?" != "0" ]]; then
+    rm /home/pi/.local/share/LimeSuite/images/22.09/LimeSDR-Mini_HW_2.0_r2.2.bit
+    wget https://github.com/myriadrf/LimeSDR-Mini-v2_GW/raw/main/LimeSDR-Mini_bitstreams/lms7_trx_impl1.bit -O \
+      /home/pi/.local/share/LimeSuite/images/22.09/LimeSDR-Mini_HW_2.0_r2.2.bit
+  fi
 fi
 
 
@@ -424,6 +434,7 @@ echo "------------------------------------------"
 echo "----- Compiling the Signal Generator -----"
 echo "------------------------------------------"
 cd /home/pi/rpidatv/src/siggen
+touch siggentouch4.c            // Force recompilation for LimeSuite update
 make
 sudo make install
 cd /home/pi
@@ -506,6 +517,7 @@ echo "---------------------------------------"
 echo "----- Compiling Frequency Sweeper -----"
 echo "---------------------------------------"
 cd /home/pi/rpidatv/src/sweeper
+touch sweeper.c                  // Force recompilation for LimeSuite update
 make
 cp sweeper ../../bin/
 cd /home/pi
@@ -542,6 +554,7 @@ cd /home/pi
 
 # Compile the wav2lime utility (202301140)
 cd /home/pi/rpidatv/src/wav2lime
+touch wav2lime.c
 gcc -o wav2lime wav2lime.c -lLimeSuite
 cp /home/pi/rpidatv/src/wav2lime/wav2lime /home/pi/rpidatv/bin/wav2lime
 cd /home/pi
