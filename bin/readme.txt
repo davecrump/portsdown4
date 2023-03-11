@@ -3,9 +3,11 @@ are compiled from source.  Details:
 
 adf4351 is compiled from adf4351.c
 
+airspyview is compiled
+
 avc2ts is compiled from /home/pi/avc2ts
 
-airspyview is compiled
+bandview is compiled
 
 CombiTunerExpress is downloaded
 
@@ -24,14 +26,28 @@ keyedtx is compiled
 
 keyedtxtouch is compiled
 
-limesdr_dump, limesdr_forward, limesdr_send and limesdr_stopchannel are compiled
+limesdr_dump, limesdr_dvb, limesdr_forward, limesdr_send and limesdr_stopchannel are compiled
+
+nfmeter is compiled
 
 plutotx is compiled
 
 plutoview is compiled
 
+power_meter is compiled
+
 rpidatvgui is compiled from rpidatvtouch4.c
+
+rtlsdrview is compiled
 
 set_attenuator is compiled
 
 siggen is compiled
+
+sweeper is compiled
+
+wav2line is compiled
+
+xy is compiled
+
+

@@ -637,7 +637,6 @@ void UpdateLangstone(int version_number);
 void InstallLangstone(int NoButton);
 void ChangeADFRef(int NoButton);
 void ChangePID(int NoButton);
-void ControlLimeCal();
 void ToggleLimeRFE();
 void SetLimeRFERXAtt();
 void LimeRFEInit();
@@ -1607,10 +1606,10 @@ void ExecuteUpdate(int NoButton)
 
 void LimeFWUpdate(int button)
 {
-  // Portsdown 4 and selectable FW.  1 = 1.30, 2 = Custom (0 was 1.29, but no more)
+  // Portsdown 4 and selectable FW.  1 = 1.30, 2 = Custom, 0 is basic update
   if (CheckLimeUSBConnect() == 0)
   {
-    MsgBox4("Upgrading Lime USB", "To latest standard", "Using LimeUtil 20.10", "Please Wait");
+    MsgBox4("Upgrading Lime USB", "To latest standard", "Using LimeUtil 22.09", "Please Wait");
     system("LimeUtil --update");
     usleep(250000);
     MsgBox4("Upgrade Complete", " ", "Touch Screen to Continue" ," ");
@@ -1619,9 +1618,15 @@ void LimeFWUpdate(int button)
   {
     switch (button)
     {
+    case 0:
+      MsgBox4("Upgrading Lime Mini", "To latest standard", "Using LimeUtil 22.09", "Please Wait");
+      system("LimeUtil --update");
+      usleep(250000);
+      MsgBox4("Upgrade Complete", " ", "Touch Screen to Continue" ," ");
+      break;
     case 1:
       MsgBox4("Upgrading Lime Firmware", "to 1.30", " ", " ");
-      system("sudo LimeUtil --fpga=/home/pi/.local/share/LimeSuite/images/20.10/LimeSDR-Mini_HW_1.2_r1.30.rpd");
+      system("sudo LimeUtil --fpga=/home/pi/.local/share/LimeSuite/images/22.09/LimeSDR-Mini_HW_1.2_r1.30.rpd");
       if (LimeGWRev() == 30)
       {
         MsgBox4("Firmware Upgrade Successful", "Now at Gateware 1.30", "Touch Screen to Continue" ," ");
@@ -2123,7 +2128,7 @@ void ReadModeInput(char coding[256], char vsource[256])
 void ReadModeOutput(char Moutput[256])
 {
   char ModeOutput[255];
-  char LimeCalFreqText[63];
+  // char LimeCalFreqText[63];
   char LimeRFEStateText[63];
 
   GetConfigParam(PATH_PCONFIG,"modeoutput", ModeOutput);
@@ -2189,8 +2194,9 @@ void ReadModeOutput(char Moutput[256])
   }
 
   // Read LimeCal freq
-  GetConfigParam(PATH_LIME_CAL, "limecalfreq", LimeCalFreqText);
-  LimeCalFreq = atof(LimeCalFreqText);
+  //GetConfigParam(PATH_LIME_CAL, "limecalfreq", LimeCalFreqText);
+  //LimeCalFreq = atof(LimeCalFreqText);
+  LimeCalFreq  = -1;  // Always Cal is the only option
 
   // And read LimeRFE state
   GetConfigParam(PATH_PCONFIG, "limerfe", LimeRFEStateText);
@@ -5449,7 +5455,14 @@ void LimeMiniTest()
     clearScreen();
     Text2(wscreen/12, hscreen - 1 * th, "Portsdown LimeSDR Mini Test Report", font_ptr);
 
-    snprintf(version_info, 50, "Hardware V1.%d, Firmware V%d, Gateware V%d.%d", LHWVer, LFWVer, LGWVer, LGWRev);
+    if (LHWVer <= 3)  // LimeSDR Mini V1.x
+    {
+      snprintf(version_info, 50, "Hardware V1.%d, Firmware V%d, Gateware V%d.%d", LHWVer, LFWVer, LGWVer, LGWRev);
+    }
+    else              // V2.x
+    {
+      snprintf(version_info, 50, "Hardware V2.%d, Firmware V%d, Gateware V%d.%d", LHWVer - 3, LFWVer, LGWVer, LGWRev);
+    }
     Text2(wscreen/48, hscreen - (2.5 * th), version_info, font_ptr);
 
     fp = popen("LimeQuickTest", "r");
@@ -16663,34 +16676,6 @@ void ChangePID(int NoButton)
   printf("PID set to: %s\n", KeyboardReturn);
 }
 
-void ControlLimeCal()
-{
-  char LimeCalFreqText[63];
-
-  // Check Current setting
-  
-  GetConfigParam(PATH_LIME_CAL, "limecalfreq", LimeCalFreqText);
-  LimeCalFreq = atof(LimeCalFreqText);
-
-  if (LimeCalFreq < -1.5)  // Currently at Never Calibrate, so put to Cal if needed
-  {
-    LimeCalFreq = 0;  // Cal if needed
-    SetConfigParam(PATH_LIME_CAL, "limecalfreq", "0.0");
-    MsgBox4("WARNING!", "Lime will calibrate on next TX selection", "but not after that, unless needed",
-      "Touch Screen to continue");
-    wait_touch();
-  }
-  else if (LimeCalFreq < -0.5) // Currently at Always calibrate so put to Never
-  {
-    LimeCalFreq = -2;  // Never Cal 
-    SetConfigParam(PATH_LIME_CAL, "limecalfreq", "-2.0");      
-  }
-  else  // Calibrate on freq change, so put to always
-  {
-    LimeCalFreq = -1;  // Always Cal
-    SetConfigParam(PATH_LIME_CAL, "limecalfreq", "-1.0");   
-  }
-}
 
 void ToggleLimeRFE()
 {
@@ -20064,11 +20049,7 @@ void waituntil(int w,int h)
         printf("Button Event %d, Entering Menu 37 Case Statement\n",i);
         switch (i)
         {
-        case 0:                               // Set LimeRFE RX Attenuator
-          SetLimeRFERXAtt();
-          Start_Highlights_Menu37();
-          UpdateWindow();
-          break;
+        case 0:                               // Default FW Update
         case 1:                               // Lime FW Update 1.30
         case 2:                               // Lime FW Update DVB
           printf("Lime Firmware Update %d\n", i);
@@ -20133,8 +20114,8 @@ void waituntil(int w,int h)
           Start_Highlights_Menu37();
           UpdateWindow();
           break;
-        case 9:                               // Cycle through Lime Cal options
-          ControlLimeCal();
+        case 9:                               // Set LimeRFE RX Attenuator
+          SetLimeRFERXAtt();
           Start_Highlights_Menu37();
           UpdateWindow();
           break;
@@ -25260,7 +25241,8 @@ void Define_Menu37()
   // Bottom Row, Menu 37
 
   button = CreateButton(37, 0);
-  AddButtonStatus(button, "LimeRFE RX^Atten", &Blue);
+  AddButtonStatus(button, "Update to^Latest FW", &Blue);
+  AddButtonStatus(button, "Update to^Latest FW", &Green);
 
   button = CreateButton(37, 1);
   AddButtonStatus(button, "Update to^FW 1.30", &Blue);
@@ -25297,24 +25279,12 @@ void Define_Menu37()
   AddButtonStatus(button, "LimeRFE^Mode TX", &Red);
 
   button = CreateButton(37, 9);
-  AddButtonStatus(button, "Calibrate^Every TX", &Blue);
+  AddButtonStatus(button, "LimeRFE RX^Atten", &Blue);
 }
 
-void Start_Highlights_Menu37()
+void Start_Highlights_Menu37()  //  Lime Config Menu
 {
   char caption[63];
-  // Lime Config Menu
-
-  // Button 0 LimeRFE RX Attenuator
-  if (LimeRFEState == 1)  // Enabled
-  {
-    snprintf(caption, 60, "LimeRFE RX^Atten = %ddB", 2 * LimeRFERXAtt);
-    AmendButtonStatus(ButtonNumber(37, 0), 0, caption, &Blue);
-  }
-  else
-  {
-    AmendButtonStatus(ButtonNumber(37, 0), 0, "LimeRFE RX^Atten", &Grey);
-  }
 
   // Button 3 LimeRFE Enable/Disable
   if (LimeRFEState == 1)  // Enabled
@@ -25343,19 +25313,15 @@ void Start_Highlights_Menu37()
     SetButtonStatus(ButtonNumber(37, 8), 0);
   }
 
-
-  // Button 9, Lime Calibration
-  if (LimeCalFreq < -1.5)  // Never Calibrate
+  // Button 9 LimeRFE RX Attenuator
+  if (LimeRFEState == 1)  // Enabled
   {
-    AmendButtonStatus(ButtonNumber(37, 9), 0, "Never^Calibrate", &Blue);
+    snprintf(caption, 60, "LimeRFE RX^Atten = %ddB", 2 * LimeRFERXAtt);
+    AmendButtonStatus(ButtonNumber(37, 9), 0, caption, &Blue);
   }
-  else if (LimeCalFreq < -0.5) // Always calibrate
+  else
   {
-    AmendButtonStatus(ButtonNumber(37, 9), 0, "Calibrate^Every TX", &Blue);
-  }
-  else  // Calibrate on freq change
-  {
-    AmendButtonStatus(ButtonNumber(37, 9), 0, "Calibrate^if needed", &Blue);
+    AmendButtonStatus(ButtonNumber(37, 9), 0, "LimeRFE RX^Atten", &Grey);
   }
 }
 

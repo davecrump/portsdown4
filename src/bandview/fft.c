@@ -177,7 +177,8 @@ void *fft_thread(void *arg)
             else   // Standard Spectrum plot
             {
               // Set the scaling and vertical offset
-              fft_scaled_data[i] = 5 * (fft_data_staging[i] + 88);
+              //fft_scaled_data[i] = 5 * (fft_data_staging[i] + 88);
+              fft_scaled_data[i] = 5 * (fft_data_staging[i] + 106);  
 
               // Apply some time smoothing if not NF Measuring
 

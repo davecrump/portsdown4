@@ -216,6 +216,10 @@ void *lime_thread(void *arg)
 #endif
 
 //    uint32_t samples_rx_transferred = samplesRead / 2.0;
+
+    // Calibrate again now all settings settled
+    LMS_Calibrate(device, LMS_CH_RX, 0, bandwidth, 0);
+
     while(false == *exit_requested) 
     {
         // Receive samples
@@ -278,6 +282,7 @@ void *lime_thread(void *arg)
           LMS_SetSampleRate(device, bandwidth, 4);
           NewSpan = false;
           LMS_StartStream(&rx_stream);
+          LMS_Calibrate(device, LMS_CH_RX, 0, bandwidth, 0);
         }
 
 

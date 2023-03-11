@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Portsdown 4 Install by davecrump on 20200726
+# Portsdown 4 Install by davecrump on 20230227
 
 # Check current user
 whoami | grep -q pi
@@ -8,8 +8,6 @@ if [ $? != 0 ]; then
   echo "Install must be performed as user pi"
   exit
 fi
-
-
 
 # Check which source needs to be loaded
 GIT_SRC="BritishAmateurTelevisionClub"
@@ -19,7 +17,7 @@ if [ "$1" == "-d" ]; then
   GIT_SRC="davecrump";
   echo
   echo "---------------------------------------------------------"
-  echo "----- Installing development version of Portsdown 4-----"
+  echo "----- Installing Development version of Portsdown 4-----"
   echo "---------------------------------------------------------"
 elif [ "$1" == "-u" -a ! -z "$2" ]; then
   GIT_SRC="$2"
@@ -162,16 +160,16 @@ rm master.zip
 cd /home/pi
 
 
-# Install LimeSuite 20.10 as at 25 Jan 21
-# Commit be276996ec3f23b2aadc10543add867d1a55afdd
+# Install LimeSuite 22.09 as at 27 Feb 23
+# Commit 9c983d872e75214403b7778122e68d920d583add
 echo
 echo "--------------------------------------"
-echo "----- Installing LimeSuite 20.10 -----"
+echo "----- Installing LimeSuite 22.09 -----"
 echo "--------------------------------------"
-wget https://github.com/myriadrf/LimeSuite/archive/be276996ec3f23b2aadc10543add867d1a55afdd.zip -O master.zip
+wget https://github.com/myriadrf/LimeSuite/archive/9c983d872e75214403b7778122e68d920d583add.zip -O master.zip
 unzip -o master.zip
-cp -f -r LimeSuite-be276996ec3f23b2aadc10543add867d1a55afdd LimeSuite
-rm -rf LimeSuite-be276996ec3f23b2aadc10543add867d1a55afdd
+cp -f -r LimeSuite-9c983d872e75214403b7778122e68d920d583add LimeSuite
+rm -rf LimeSuite-9c983d872e75214403b7778122e68d920d583add
 rm master.zip
 
 # Compile LimeSuite
@@ -191,7 +189,7 @@ sudo /home/pi/LimeSuite/udev-rules/install.sh
 cd /home/pi	
 
 # Record the LimeSuite Version	
-echo "be27699" >/home/pi/LimeSuite/commit_tag.txt
+echo "9c983d8" >/home/pi/LimeSuite/commit_tag.txt
 
 # Download the LimeSDR Mini firmware/gateware versions
 echo
@@ -199,15 +197,26 @@ echo "------------------------------------------------------"
 echo "----- Downloading LimeSDR Mini Firmware versions -----"
 echo "------------------------------------------------------"
 
-# Current Version from LimeSuite 20.10 
-mkdir -p /home/pi/.local/share/LimeSuite/images/20.10/
-wget https://downloads.myriadrf.org/project/limesuite/20.10/LimeSDR-Mini_HW_1.2_r1.30.rpd -O \
-               /home/pi/.local/share/LimeSuite/images/20.10/LimeSDR-Mini_HW_1.2_r1.30.rpd
+# Current LimeSDR Mini V1 Version from LimeSuite 22.09 
+mkdir -p /home/pi/.local/share/LimeSuite/images/22.09/
+wget https://downloads.myriadrf.org/project/limesuite/22.09/LimeSDR-Mini_HW_1.2_r1.30.rpd -O \
+               /home/pi/.local/share/LimeSuite/images/22.09/LimeSDR-Mini_HW_1.2_r1.30.rpd
 
 # DVB-S/S2 Version
 mkdir -p /home/pi/.local/share/LimeSuite/images/v0.3
 wget https://github.com/natsfr/LimeSDR_DVBSGateware/releases/download/v0.3/LimeSDR-Mini_lms7_trx_HW_1.2_auto.rpd -O \
  /home/pi/.local/share/LimeSuite/images/v0.3/LimeSDR-Mini_lms7_trx_HW_1.2_auto.rpd
+
+# Current LimeSDR Mini V2 Version from LimeSuite 22.09 
+wget https://downloads.myriadrf.org/project/limesuite/22.09/LimeSDR-Mini_HW_2.0_r2.2.bit -O \
+               /home/pi/.local/share/LimeSuite/images/22.09/LimeSDR-Mini_HW_2.0_r2.2.bit
+
+// Check that it was downloaded, if not, go to source and get it
+if [[ "$?" != "0" ]]; then
+  rm /home/pi/.local/share/LimeSuite/images/22.09/LimeSDR-Mini_HW_2.0_r2.2.bit
+  wget https://github.com/myriadrf/LimeSDR-Mini-v2_GW/raw/main/LimeSDR-Mini_bitstreams/lms7_trx_impl1.bit -O \
+    /home/pi/.local/share/LimeSuite/images/22.09/LimeSDR-Mini_HW_2.0_r2.2.bit
+fi
 
 echo
 echo "--------------------------------------------------------------"
