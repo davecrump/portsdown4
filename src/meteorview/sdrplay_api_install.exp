@@ -28,7 +28,7 @@ if {$force_conservative} {
 }
 
 set timeout -1
-spawn /home/pi/SDRplay_RSP_API-ARM-3.09.1.run
+spawn /home/pi/rpidatv/src/meteorview/SDRplay_RSP_API-ARM-3.09.1.run
 match_max 100000
 expect -exact "Verifying archive integrity... All good.\r
 Uncompressing SDRplay RSP API Install Package V3.09 (installer v1)\r
