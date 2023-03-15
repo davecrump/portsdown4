@@ -1287,7 +1287,7 @@ fi
         if [ "$CAPTIONON" == "on" ]; then
           rm /home/pi/tmp/caption.png >/dev/null 2>/dev/null
           rm /home/pi/tmp/tcfw162.jpg >/dev/null 2>/dev/null
-          convert -size 1024x80 xc:transparent -fill white -gravity Center -pointsize 50 -annotate 0 $CALL /home/pi/tmp/caption.png
+          convert -font "FreeSans" -size 1024x80 xc:transparent -fill white -gravity Center -pointsize 50 -annotate 0 $CALL /home/pi/tmp/caption.png
           convert /home/pi/rpidatv/scripts/images/tcfw16.jpg /home/pi/tmp/caption.png -geometry +0+478 -composite /home/pi/tmp/tcfw162.jpg
           IMAGEFILE="/home/pi/tmp/tcfw162.jpg"
           sudo fbi -T 1 -noverbose -a /home/pi/tmp/tcfw162.jpg >/dev/null 2>/dev/null
@@ -1301,7 +1301,7 @@ fi
         if [ "$CAPTIONON" == "on" ]; then
           rm /home/pi/tmp/caption.png >/dev/null 2>/dev/null
           rm /home/pi/tmp/tcf2.jpg >/dev/null 2>/dev/null
-          convert -size 720x80 xc:transparent -fill white -gravity Center -pointsize 40 -annotate 0 $CALL /home/pi/tmp/caption.png
+          convert -font "FreeSans" -size 720x80 xc:transparent -fill white -gravity Center -pointsize 40 -annotate 0 $CALL /home/pi/tmp/caption.png
           convert /home/pi/rpidatv/scripts/images/tcf.jpg /home/pi/tmp/caption.png -geometry +0+475 -composite /home/pi/tmp/tcf2.jpg
           IMAGEFILE="/home/pi/tmp/tcf2.jpg"
           sudo fbi -T 1 -noverbose -a /home/pi/tmp/tcf2.jpg >/dev/null 2>/dev/null
@@ -1336,7 +1336,7 @@ fi
       CNGEOMETRY="720x576"
 
       # Create the numbers image in the tempfs folder
-      convert -size "${CNGEOMETRY}" xc:white \
+      convert -font "FreeSans" -size "${CNGEOMETRY}" xc:white \
         -gravity North -pointsize 125 -annotate 0,0,0,20 "$CALL" \
         -gravity Center -pointsize 225 -annotate 0,0,0,20 "$NUMBERS" \
         -gravity South -pointsize 75 -annotate 0,0,0,20 "$LOCATOR   ""$BAND_LABEL" \
@@ -1406,7 +1406,7 @@ fi
       CNGEOMETRY="800x480"
 
       # Create the numbers image in the tempfs folder
-      convert -size "${CNGEOMETRY}" xc:white \
+      convert -font "FreeSans" -size "${CNGEOMETRY}" xc:white \
         -gravity North -pointsize 125 -annotate 0,0,0,20 "$CALL" \
         -gravity Center -pointsize 225 -annotate 0,0,0,20 "$NUMBERS" \
         -gravity South -pointsize 75 -annotate 0,0,0,20 "$LOCATOR   ""$BAND_LABEL" \
@@ -1423,7 +1423,7 @@ fi
         rm /home/pi/tmp/tcfw162.jpg >/dev/null 2>/dev/null
         if [ "$CAPTIONON" == "on" ]; then
           rm /home/pi/tmp/caption.png >/dev/null 2>/dev/null
-          convert -size 1024x80 xc:transparent -fill white -gravity Center -pointsize 50 -annotate 0 $CALL /home/pi/tmp/caption.png
+          convert -font "FreeSans" -size 1024x80 xc:transparent -fill white -gravity Center -pointsize 50 -annotate 0 $CALL /home/pi/tmp/caption.png
           convert /home/pi/rpidatv/scripts/images/tcfw16.jpg /home/pi/tmp/caption.png -geometry +0+478 -composite /home/pi/tmp/tcfw162.jpg
         else
           cp /home/pi/rpidatv/scripts/images/tcfw16.jpg /home/pi/tmp/tcfw162.jpg
@@ -1434,7 +1434,7 @@ fi
         rm /home/pi/tmp/tcf2.jpg >/dev/null 2>/dev/null
         if [ "$CAPTIONON" == "on" ]; then
           rm /home/pi/tmp/caption.png >/dev/null 2>/dev/null
-          convert -size 720x80 xc:transparent -fill white -gravity Center -pointsize 40 -annotate 0 $CALL /home/pi/tmp/caption.png
+          convert -font "FreeSans" -size 720x80 xc:transparent -fill white -gravity Center -pointsize 40 -annotate 0 $CALL /home/pi/tmp/caption.png
           convert /home/pi/rpidatv/scripts/images/tcf.jpg /home/pi/tmp/caption.png -geometry +0+475 -composite /home/pi/tmp/tcf2.jpg
         else
           cp /home/pi/rpidatv/scripts/images/tcf.jpg /home/pi/tmp/tcf2.jpg
@@ -1894,7 +1894,7 @@ exit
       fi
 
       # Create the numbers image in the tempfs folder
-      convert -size "${CNGEOMETRY}" xc:white \
+      convert -font "FreeSans" -size "${CNGEOMETRY}" xc:white \
         -gravity North -pointsize 125 -annotate 0,0,0,20 "$CALL" \
         -gravity Center -pointsize 225 -annotate 0,0,0,20 "$NUMBERS" \
         -gravity South -pointsize 75 -annotate 0,0,0,20 "$LOCATOR   ""$BAND_LABEL" \
@@ -1909,7 +1909,7 @@ exit
       if [ "$CAPTIONON" == "on" ]; then
         rm /home/pi/tmp/caption.png >/dev/null 2>/dev/null
         rm /home/pi/tmp/tcf2.jpg >/dev/null 2>/dev/null
-        convert -size 720x80 xc:transparent -fill white -gravity Center -pointsize 40 -annotate 0 $CALL /home/pi/tmp/caption.png
+        convert -font "FreeSans" -size 720x80 xc:transparent -fill white -gravity Center -pointsize 40 -annotate 0 $CALL /home/pi/tmp/caption.png
         convert /home/pi/rpidatv/scripts/images/tcf.jpg /home/pi/tmp/caption.png -geometry +0+475 -composite /home/pi/tmp/tcf2.jpg
         IMAGEFILE="/home/pi/tmp/tcf2.jpg"
         sudo fbi -T 1 -noverbose -a /home/pi/tmp/tcf2.jpg >/dev/null 2>/dev/null
@@ -1922,7 +1922,7 @@ exit
       if [ "$CAPTIONON" == "on" ]; then
         rm /home/pi/tmp/caption.png >/dev/null 2>/dev/null
         rm /home/pi/tmp/tcfw162.jpg >/dev/null 2>/dev/null
-        convert -size 1024x80 xc:transparent -fill white -gravity Center -pointsize 50 -annotate 0 $CALL /home/pi/tmp/caption.png
+        convert -font "FreeSans" -size 1024x80 xc:transparent -fill white -gravity Center -pointsize 50 -annotate 0 $CALL /home/pi/tmp/caption.png
         convert /home/pi/rpidatv/scripts/images/tcfw16.jpg /home/pi/tmp/caption.png -geometry +0+478 -composite /home/pi/tmp/tcfw162.jpg
         IMAGEFILE="/home/pi/tmp/tcfw162.jpg"
         sudo fbi -T 1 -noverbose -a /home/pi/tmp/tcfw162.jpg >/dev/null 2>/dev/null
@@ -1935,7 +1935,7 @@ exit
       if [ "$CAPTIONON" == "on" ]; then
         rm /home/pi/tmp/caption.png >/dev/null 2>/dev/null
         rm /home/pi/tmp/tcfw2.jpg >/dev/null 2>/dev/null
-        convert -size 1280x80 xc:transparent -fill white -gravity Center -pointsize 65 -annotate 0 $CALL /home/pi/tmp/caption.png
+        convert -font "FreeSans" -size 1280x80 xc:transparent -fill white -gravity Center -pointsize 65 -annotate 0 $CALL /home/pi/tmp/caption.png
         convert /home/pi/rpidatv/scripts/images/tcfw.jpg /home/pi/tmp/caption.png -geometry +0+608 -composite /home/pi/tmp/tcfw2.jpg
         IMAGEFILE="/home/pi/tmp/tcfw2.jpg"
         sudo fbi -T 1 -noverbose -a /home/pi/tmp/tcfw2.jpg >/dev/null 2>/dev/null
