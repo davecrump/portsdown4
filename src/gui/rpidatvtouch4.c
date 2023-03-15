@@ -932,7 +932,7 @@ void DisplayHere(char *DisplayCaption)
   system("rm /home/pi/tmp/captionlogo.png >/dev/null 2>/dev/null");
   system("rm /home/pi/tmp/streamcaption.png >/dev/null 2>/dev/null");
 
-  strcpy(ConvertCommand, "convert -size 720x80 xc:transparent -fill white -gravity Center -pointsize 40 -annotate 0 \"");
+  strcpy(ConvertCommand, "convert -font \"FreeSans\" -size 720x80 xc:transparent -fill white -gravity Center -pointsize 40 -annotate 0 \"");
   strcat(ConvertCommand, DisplayCaption);
   strcat(ConvertCommand, "\" /home/pi/tmp/captionlogo.png");
   system(ConvertCommand);
@@ -1405,7 +1405,7 @@ void DisplayUpdateMsg(char* Version, char* Step)
   system(LinuxCommand);
 
   // Build and run the convert command for the image
-  strcpy(LinuxCommand, "convert -size 720x576 xc:white ");
+  strcpy(LinuxCommand, "convert -font \"FreeSans\" -size 800x480 xc:white ");
 
   strcat(LinuxCommand, "-gravity North -pointsize 40 -annotate 0 ");
   strcat(LinuxCommand, "\"\\nUpdating Portsdown Software\\nTo ");
@@ -10639,7 +10639,7 @@ void CompVidStart()
     system("rm /home/pi/tmp/contest.jpg >/dev/null 2>/dev/null");
 
     // Create the new image
-    strcpy(fbicmd, "convert -size 720x576 xc:white ");
+    strcpy(fbicmd, "convert -font \"FreeSans\" -size 720x576 xc:white ");
     strcat(fbicmd, "-gravity North -pointsize 125 -annotate 0,0,0,20 ");
     strcat(fbicmd, CallSign); 
     strcat(fbicmd, " -gravity Center -pointsize 200 -annotate 0,0,0,20 ");
@@ -10672,7 +10672,7 @@ void CompVidStart()
     if (strcmp(CurrentCaptionState, "on") == 0)
     {
       // Compose the new card
-      strcpy(fbicmd, "convert -size 720x80 xc:transparent -fill white -gravity Center -pointsize 40 -annotate 0 ");
+      strcpy(fbicmd, "convert -font \"FreeSans\" -size 720x80 xc:transparent -fill white -gravity Center -pointsize 40 -annotate 0 ");
       strcat(fbicmd, CallSign); 
       strcat(fbicmd, " /home/pi/tmp/caption.png");
       system(fbicmd);
