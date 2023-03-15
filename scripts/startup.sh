@@ -203,6 +203,10 @@ case "$MODE_STARTUP" in
     source /home/pi/rpidatv/scripts/scheduler.sh
     #return
   ;;
+  Meteorview_boot)
+    # Start the Touchscreen Scheduler
+    source /home/pi/rpidatv/scripts/scheduler.sh
+  ;;
   Keyed_Stream_boot)
     # Start the Switched stream with the default GPIO Pins
     if [ "$SESSION_TYPE" == "boot" ]; then
