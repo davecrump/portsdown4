@@ -102,6 +102,7 @@ ChooseBandViewerSDR()
 # 141  Exit from rpidatvgui requesting start of RTL-SDR BandViewer
 # 142  Exit from rpidatvgui requesting start of DMM Display
 # 143  Exit from rpidatvgui requesting start of Pluto BandViewer
+# 144  Exit from rpidatvgui requesting start of SDRPlay BandViewer
 # 145  Run the Langstone TRX V2 Lime
 # 146  Run the Langstone TRX V2 Pluto
 # 150  Run the Meteor Viewer
@@ -238,6 +239,11 @@ while [ "$GUI_RETURN_CODE" -gt 127 ] || [ "$GUI_RETURN_CODE" -eq 0 ];  do
       /home/pi/rpidatv/bin/plutoview
       GUI_RETURN_CODE="$?"
     ;;
+    144)
+      sleep 1
+      /home/pi/rpidatv/bin/sdrplayview
+      GUI_RETURN_CODE="$?"
+    ;;
     145)                              # Langstone V2 Lime
       cd /home/pi
       /home/pi/Langstone/run_lime
@@ -257,6 +263,7 @@ while [ "$GUI_RETURN_CODE" -gt 127 ] || [ "$GUI_RETURN_CODE" -eq 0 ];  do
       GUI_RETURN_CODE="129"
     ;;
     150)                              # SDRPlay Meteor Viewer
+      sudo systemctl restart sdrplay
       sleep 1
       /home/pi/rpidatv/bin/meteorview
       GUI_RETURN_CODE="$?"
