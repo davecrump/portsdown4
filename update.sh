@@ -246,6 +246,7 @@ else
 fi
 
 sudo apt-get -y install libairspy-dev                                   # For Airspy Bandviewer
+sudo apt-get -y install expect                                          # For unattended installs
 
 # -----------Update LimeSuite if required -------------
 
@@ -501,7 +502,7 @@ cd /home/pi/rpidatv/src/meteorview
 # Install api and disable service
 wget https://www.sdrplay.com/software/SDRplay_RSP_API-ARM-3.09.1.run
 chmod +x SDRplay_RSP_API-ARM-3.09.1.run
-sdrplay_api_install.exp
+./sdrplay_api_install.exp
 sudo systemctl disable sdrplay  # service is started only when required
 
 # Compile meteorview
