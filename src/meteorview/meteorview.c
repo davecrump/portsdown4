@@ -159,7 +159,8 @@ int BaseLine20dB = -80;
 
 int WaterfallBase;
 int WaterfallRange;
-int WaterfallInterval;
+uint8_t wfalloverlap = 4;
+uint8_t wfallsamplefraction = 4;
 
 bool webcontrol = false;   // Enables webcontrol on a Portsdown 4
 
@@ -183,6 +184,7 @@ void MsgBox4(char *, char *, char *, char *);
 void do_snapcheck();
 int openTouchScreen(int);
 void UpdateWeb();
+int CheckSDRPlay();
 void Keyboard(char *, char *, int);
 int getTouchScreenDetails(int*, int* ,int* ,int*);
 int ButtonNumber(int, int);
@@ -426,9 +428,13 @@ void ReadSavedParams()
   GetConfigParam(PATH_CONFIG, "wfallrange", response);
   WaterfallRange = atoi(response);
 
-  strcpy(response, "50");
-  GetConfigParam(PATH_CONFIG, "wfallint", response);
-  WaterfallInterval = atoi(response);
+  strcpy(response, "4");
+  GetConfigParam(PATH_CONFIG, "wfalloverlap", response);
+  wfalloverlap = atoi(response);
+
+  strcpy(response, "4");
+  GetConfigParam(PATH_CONFIG, "wfallsamplefraction", response);
+  wfallsamplefraction = atoi(response);
 
   strcpy(response, "50000000");
   GetConfigParam(PATH_CONFIG, "pfreq1", response);
@@ -572,6 +578,38 @@ void UpdateWeb()
   {
     system("/home/pi/rpidatv/scripts/single_screen_grab_for_web.sh &");
   }
+}
+
+
+/***************************************************************************//**
+ * @brief Checks whether an SDRPlay SDR is connected
+ *
+ * @param 
+ *
+ * @return 0 if present, 1 if absent
+*******************************************************************************/
+
+int CheckSDRPlay()
+{
+  FILE *fp;
+  char response[255];
+  int responseint = 1;
+
+  // Open the command for reading
+  fp = popen("lsusb | grep -q '1df7:' ; echo $?", "r");
+  if (fp == NULL) {
+    printf("Failed to run command\n" );
+    exit(1);
+  }
+
+  // Read the output a line at a time - output it
+  while (fgets(response, 7, fp) != NULL)
+  {
+    responseint = atoi(response);
+  }
+
+  pclose(fp);
+  return responseint;
 }
 
 
@@ -1832,29 +1870,49 @@ void SetWfall(int button)
       SetConfigParam(PATH_CONFIG, "wfallrange", ValueToSave);
       printf("Waterfall Range set to %d dB\n", WaterfallRange);
     break;
-    case 4:                                            // Set Waterfall interval
+    case 4:                                            // Set Waterfall overlap
       // Define request string
-      strcpy(RequestText, "Enter new interval for waterfall in ms (10 to 1000)");
+      strcpy(RequestText, "Enter new overlap for waterfall (1, 2, 4, or 8)");
 
-      // Define initial value in mS
-      snprintf(InitText, 25, "%d", WaterfallInterval);
+      // Define initial value
+      snprintf(InitText, 25, "%d", wfalloverlap);
 
       // Ask for the new value
       do
       {
         Keyboard(RequestText, InitText, 10);
       }
-      while ((strlen(KeyboardReturn) == 0) || (atoi(KeyboardReturn) < 10) || (atoi(KeyboardReturn) > 1000));
+      while ((strlen(KeyboardReturn) == 0) || (atoi(KeyboardReturn) < 1) || (atoi(KeyboardReturn) > 256));
 
-      WaterfallInterval = atoi(KeyboardReturn);
-      snprintf(ValueToSave, 63, "%d", WaterfallInterval);
-      SetConfigParam(PATH_CONFIG, "wfallint", ValueToSave);
-      printf("Waterfall interval set to %d ms\n", WaterfallInterval);
+      wfalloverlap = atoi(KeyboardReturn);
+      snprintf(ValueToSave, 63, "%d", wfalloverlap);
+      SetConfigParam(PATH_CONFIG, "wfalloverlap", ValueToSave);
+      printf("Waterfall overlap set to %d\n", wfalloverlap);
+    break;
+    case 5:                                            // Set Waterfall sample fraction
+      // Define request string
+      strcpy(RequestText, "Enter new sample fraction for waterfall (1, 2, 4, or 8)");
+
+      // Define initial value
+      snprintf(InitText, 25, "%d", wfallsamplefraction);
+
+      // Ask for the new value
+      do
+      {
+        Keyboard(RequestText, InitText, 10);
+      }
+      while ((strlen(KeyboardReturn) == 0) || (atoi(KeyboardReturn) < 1) || (atoi(KeyboardReturn) > 256));
+
+      wfallsamplefraction = atoi(KeyboardReturn);
+      snprintf(ValueToSave, 63, "%d", wfallsamplefraction);
+      SetConfigParam(PATH_CONFIG, "wfallsamplefraction", ValueToSave);
+      printf("Waterfall sample fraction set to %d\n", wfallsamplefraction);
     break;
   }
   clearScreen();
   DrawEmptyScreen();  // Required to set A value, which is not set in DrawTrace
   DrawYaxisLabels();  // dB calibration on LHS
+  DrawTickMarks();    // tick marks on X axis
   DrawSettings();     // Start, Stop RBW, Ref level and Title
   freeze = false;
 }
@@ -2001,6 +2059,7 @@ void SetFreqPreset(int button)
     clearScreen();
     DrawEmptyScreen();  // Required to set A value, which is not set in DrawTrace
     DrawYaxisLabels();  // dB calibration on LHS
+    DrawTickMarks();    // tick marks on X axis
     DrawSettings();     // Start, Stop RBW, Ref level and Title
     freeze = false;
   }
@@ -2052,15 +2111,15 @@ void CalcSpan()    // takes centre frequency and span and calulates startfreq an
   switch (span)
   {
     case 2500:                                            // 2.5 kHz
-      decimation_factor = 16;
+      decimation_factor = 32;
       fft_size = 2000;
     break;
     case 5000:                                            // 5 kHz
-      decimation_factor = 16;
+      decimation_factor = 32;
       fft_size = 1000;
     break;
     case 10000:                                           // 10 kHz
-      decimation_factor = 16;
+      decimation_factor = 32;
       fft_size = 500;
     break;
   }
@@ -2175,6 +2234,7 @@ void ChangeLabel(int button)
   clearScreen();
   DrawEmptyScreen();  // Required to set A value, which is not set in DrawTrace
   DrawYaxisLabels();  // dB calibration on LHS
+  DrawTickMarks();    // tick marks on X axis
   DrawSettings();     // Start, Stop RBW, Ref level and Title
   freeze = false;
 }
@@ -2183,7 +2243,6 @@ void RedrawDisplay()
 {
   // Redraw the Y Axis
   DrawYaxisLabels();
-
 }
 
 
@@ -2550,6 +2609,7 @@ void *WaitButtonEvent(void * arg)
           initScreen();             // Start the screen again
           DrawEmptyScreen();        // Required to set A value, which is not set in DrawTrace
           DrawYaxisLabels();        // dB calibration on LHS
+          DrawTickMarks();          // tick marks on X axis
           DrawSettings();           // Start, Stop RBW, Ref level and Title
           UpdateWindow();           // Draw the buttons
           freeze = false;           // Restart the scan
@@ -2870,7 +2930,8 @@ void *WaitButtonEvent(void * arg)
           break;
         case 2:                                            // Set Waterfall Base
         case 3:                                            // Set waterfall range
-        case 4:                                            // Set Waterfall inteval
+        case 4:                                            // Set Waterfall overlap
+        case 5:                                            // Set Waterfall sample fraction
           SetWfall(i);
           UpdateWindow();
           break;
@@ -3615,10 +3676,10 @@ void Define_Menu9()                                          // Config Menu
   AddButtonStatus(button, "Set Wfall^Range", &Blue);
 
   button = CreateButton(9, 4);
-  AddButtonStatus(button, "Set Wfall^Interval", &Blue);
+  AddButtonStatus(button, "Set Wfall^Overlap", &Blue);
 
-  //button = CreateButton(9, 5);
-  //AddButtonStatus(button, " ", &Blue);
+  button = CreateButton(9, 5);
+  AddButtonStatus(button, "Set Wfall^Fraction", &Blue);
 
   button = CreateButton(9, 6);
   AddButtonStatus(button, "Set Freq^Presets", &Blue);
@@ -4212,9 +4273,14 @@ void DrawYaxisLabels()
   setBackColour(0, 0, 0);                          // on Black
   const font_t *font_ptr = &font_dejavu_sans_18;   // 18pt
   char caption[15];
+  int i;
+  int pixel_brightness;
 
   // Clear the previous scale first
   rectangle(25, 63, 65, 417, 0, 0, 0);
+
+  // Clear the previous waterfall calibration
+  rectangle(610, 63, 5, 417, 0, 0, 0);
 
   if ((Range20dB == false) && (waterfall == false))
   {
@@ -4227,6 +4293,29 @@ void DrawYaxisLabels()
     Text2(30, 166, "-60 dB", font_ptr);
     Text2(30, 116, "-70 dB", font_ptr);
     Text2(30,  66, "-80 dB", font_ptr);
+
+    // Draw the waterfall calibration chart
+    for (i = 1; i <= 399; i++)
+    {
+      pixel_brightness = i - (400 + (5 * WaterfallBase)); // this in range -400 to +400, but only 0 to 400 is valid
+      pixel_brightness = (255 * pixel_brightness) / (WaterfallRange * 5);  // scale to 0 - 255
+      //printf("i = %d, Pixel = %d\n", i, pixel_brightness);
+      if ((pixel_brightness < 0) || (pixel_brightness == 255) || (pixel_brightness == 256))
+      {
+        pixel_brightness = 0;
+      }
+      if (pixel_brightness > 256)
+      {
+        pixel_brightness = 255;
+      }
+      setPixelNoA(610, 410 - i, waterfall_map(pixel_brightness).Red, waterfall_map(pixel_brightness).Green, waterfall_map(pixel_brightness).Blue);
+      setPixelNoA(611, 410 - i, waterfall_map(pixel_brightness).Red, waterfall_map(pixel_brightness).Green, waterfall_map(pixel_brightness).Blue);
+      setPixelNoA(612, 410 - i, waterfall_map(pixel_brightness).Red, waterfall_map(pixel_brightness).Green, waterfall_map(pixel_brightness).Blue);
+      setPixelNoA(613, 410 - i, waterfall_map(pixel_brightness).Red, waterfall_map(pixel_brightness).Green, waterfall_map(pixel_brightness).Blue);
+      setPixelNoA(614, 410 - i, waterfall_map(pixel_brightness).Red, waterfall_map(pixel_brightness).Green, waterfall_map(pixel_brightness).Blue);
+      HorizLine(610, 470 + (5 * WaterfallBase), 5, 255, 255, 255);
+
+    }
   }
   else if ((Range20dB == true) && (waterfall == false))
   {
@@ -4525,7 +4614,7 @@ int main(void)
   screen_pixel_t wfparray[513][401];
   int wfall_offset = 0;
   int wfall_height;
-  int pixel_brightness;
+  int16_t pixel_brightness;
 
   // Catch sigaction and call terminate
   for (i = 0; i < 16; i++)
@@ -4575,7 +4664,6 @@ int main(void)
   Define_Menu13();
   Define_Menu41();
 
-
   // Set up wiringPi module
   if (wiringPiSetup() < 0)
   {
@@ -4592,6 +4680,15 @@ int main(void)
   screen_init();
 
   initScreen();
+
+  // Check that an SDRPlay is accessible
+  if (CheckSDRPlay() != 0)
+  {
+    MsgBox4("No SDRPlay detected", "Please ensure that it is", "plugged in to a USB2 socket", "Touch screen to return to Portsdown");
+    wait_touch();     // Wait here till screen is touched
+    MsgBox4(" ", " ", " ", " ");
+    cleanexit(129);   // Exit to portsdown 
+  }
 
   // SDR FFT Thread
   if(pthread_create(&sdrplay_fft_thread_obj, NULL, sdrplay_fft_thread, &app_exit))
@@ -4693,7 +4790,6 @@ int main(void)
           wfall_height = 399;
         }
 
-        //if(monotonic_ms() > (last_output + WaterfallInterval))
         if(true)
         {
           // Add the current line to the waterfall
@@ -4710,7 +4806,7 @@ int main(void)
             {
               pixel_brightness = 255;
             }
-            wfparray[j][w_index] = waterfall_map(pixel_brightness);
+            wfparray[j][w_index] = waterfall_map((uint8_t)pixel_brightness);
           }
 
           // Render the waterfall

@@ -33,6 +33,22 @@ end
 EOF
 }
 
+########### Function to display message ####################
+
+DisplayMsg() {
+  # Delete any old update message image
+  rm /home/pi/tmp/update.jpg >/dev/null 2>/dev/null
+
+  # Create the update image in the tempfs folder
+  convert -size 800x480 xc:black -font FreeSans -fill white \
+    -gravity Center -pointsize 30 -annotate 0 "$1" \
+    /home/pi/tmp/update.jpg
+
+  # Display the update message on the desktop
+  sudo fbi -T 1 -noverbose -a /home/pi/tmp/update.jpg >/dev/null 2>/dev/null
+  (sleep 1; sudo killall -9 fbi >/dev/null 2>/dev/null) &  ## kill fbi once it has done its work
+}
+
 ############ Function to check which BandViewer to start ####################
 
 ChooseBandViewerSDR()
@@ -264,10 +280,36 @@ while [ "$GUI_RETURN_CODE" -gt 127 ] || [ "$GUI_RETURN_CODE" -eq 0 ];  do
       GUI_RETURN_CODE="129"
     ;;
     150)                              # SDRPlay Meteor Viewer
+      DisplayMsg "Restarting SDRPlay Service\n\nThis may take up to 90 seconds"
       sudo systemctl restart sdrplay
-      sleep 1
-      /home/pi/rpidatv/bin/meteorview
-      GUI_RETURN_CODE="$?"
+      DisplayMsg " "                      # Display Blank screen
+
+      lsusb | grep -q '1df7:'             # check for SDRPlay
+      if [ $? != 0 ]; then                # Not detected
+        DisplayMsg "Unable to detect SDRPlay\n\nResetting the USB Bus"
+        sudo uhubctl -R -a 2              # So reset USB bus
+        sleep 1
+        lsusb | grep -q '1df7:'
+        if [ $? != 0 ]; then              # Check again
+          sudo uhubctl -R -a 2            # Try reset USB bus again
+          sleep 1
+          lsusb | grep -q '1df7:'         
+          if [ $? != 0 ]; then            # If still no joy
+            DisplayMsg "Still Unable to detect SDRPlay\n\n\nCheck connections"
+            sleep 2
+            DisplayMsg " "                # Display Blank screen
+            GUI_RETURN_CODE=129           # Return to Portsdown     
+          fi
+        fi
+      fi
+
+      if [ $GUI_RETURN_CODE == 150 ]; then          # MeteorView
+        /home/pi/rpidatv/bin/meteorview
+        GUI_RETURN_CODE="$?"
+      fi
+      if [ $GUI_RETURN_CODE != 129 ]; then          # Not Portsdown
+        GUI_RETURN_CODE=150                         # So restart meteorview        
+      fi
     ;;
     160)
       sleep 1

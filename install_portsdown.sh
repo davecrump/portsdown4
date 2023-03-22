@@ -90,6 +90,7 @@ sudo apt-get -y install libfcgi-dev                                     # For we
 
 sudo apt-get -y install libairspy-dev                                   # For Airspy Bandviewer
 sudo apt-get -y install expect                                          # For unattended installs
+sudo apt-get -y install uhubctl                                         # For SDRPlay USB resets
 
 # Install WiringPi
 cd /tmp
