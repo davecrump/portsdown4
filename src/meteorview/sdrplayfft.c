@@ -52,9 +52,13 @@ extern float fft_time_smooth;
 extern uint8_t decimation_factor;           // decimation applied by SDRPlay api
 extern int span; 
 
+extern uint8_t wfalloverlap;
+extern uint8_t wfallsamplefraction;
+
 //extern pthread_t sdrplay_fft_thread_obj;
 
-extern bool NewData;     
+extern bool NewData; 
+bool debug = false;    
 
 int fft_offset;
 
@@ -478,153 +482,124 @@ void *thread_fft(void *dummy)
   (void) dummy;
   int i;
   int offset;
+  uint8_t pass;
   fftw_complex pt;
   double pwr;
   double lpwr;
   double pwr_scale;
   float fft_circ[4096][2];
-  int circ_write_index = 1;
-  int circ_read_index = 0;
-  int steps = 4;                //
+  int circ_write_index = 0;
   int circ_read_pos = 0;
+  int window_open;
+  int window_close;
 
-  pwr_scale = 1.0 / ((float)fft_size * (float)fft_size);
+  pwr_scale = 1.0 / ((float)fft_size * (float)fft_size);       // App is restarted on change of fft size
 
-  while ((NewSpan == false) && (prepnewscanwidth == false))
+  while (true)
   {
-    // Lock input buffer
-    pthread_mutex_lock(&rf_buffer2.mutex);
-
-    // Wait for signalled input
-    pthread_cond_wait(&rf_buffer2.signal, &rf_buffer2.mutex);
-
-    if (circ_write_index == 0)
+    // Calculate the time definition window
+    window_open = fft_size / 2 - fft_size / (2 * wfallsamplefraction);
+    window_close = fft_size / 2 + fft_size / (2 * wfallsamplefraction);
+    if(debug)
     {
-      circ_write_index++;
-      circ_read_index = 0;  // to ensure synchronisation as write index is 1 (B)
-      //printf("Write B %lld\n", monotonic_ms());
-    }
-    else
-    {
-      circ_write_index = 0;
-      circ_read_index = steps;  // to ensure synchronisation as write index is 0 (B)
-      //printf("Write A %lld\n", monotonic_ms());
+      printf("Window open at %d, Window Close at %d\n", window_open, window_close);
     }
 
-    // offset = rf_buffer2.index * fft_size * 2;
-    offset = 0;
-
-    // Copy data out of rf buffer into fft_circ buffer in alternate stripes
-    for (i = 0; i < fft_size; i++)
+    for(pass = 0; pass < 2 * wfalloverlap; pass++)           // Go round this loop twice the overlap, once round the overlap for each input write
     {
-      fft_circ[i + circ_write_index * fft_size][0] = (float)(rf_buffer2.idata[offset+(2*i)]) * hanning_window_const[i];
-      fft_circ[i + circ_write_index * fft_size][1] = (float)(rf_buffer2.qdata[offset+(2*i)]) * hanning_window_const[i];
-    }
-
-	rf_buffer2.index++;
-
-	// Unlock input buffer
-    pthread_mutex_unlock(&rf_buffer2.mutex);
-
-    //printf("Start 1st Read (index  = %d)\n", circ_read_index);
-
-    // Now read it out of the buffer 
-    for (i = 0; i < fft_size; i++)
-    {
-      if (circ_read_index == 0)
+      if ((pass == 0) || (pass == wfalloverlap))          // So this pass needs an input write
       {
-        circ_read_pos = i;
-      }
-      if (circ_read_index == steps)
+        // Lock input buffer
+        pthread_mutex_lock(&rf_buffer2.mutex);
+
+        // Wait for signalled input
+        pthread_cond_wait(&rf_buffer2.signal, &rf_buffer2.mutex);
+
+        if (pass == 0)                            // First and odd numbered input writes
+        {
+          circ_write_index = 1;
+        }
+        else
+        {
+          circ_write_index = 0;
+        }
+          
+
+        // offset = rf_buffer2.index * fft_size * 2;
+        offset = 0;
+
+        // Copy data out of rf buffer into fft_circ buffer in alternate stripes
+        for (i = 0; i < fft_size; i++)
+        {
+          //fft_circ[i + circ_write_index * fft_size][0] = (float)(rf_buffer2.idata[offset+(i)]) * hanning_window_const[i];
+          //fft_circ[i + circ_write_index * fft_size][1] = (float)(rf_buffer2.qdata[offset+(i)]) * hanning_window_const[i];
+          fft_circ[i + circ_write_index * fft_size][0] = (float)(rf_buffer2.idata[offset+(i)]);
+          fft_circ[i + circ_write_index * fft_size][1] = (float)(rf_buffer2.qdata[offset+(i)]);
+        }
+
+        if (debug)
+        {
+          printf("Write stripe %d\n", circ_write_index);
+        }
+
+	    rf_buffer2.index++;
+
+	    // Unlock input buffer
+        pthread_mutex_unlock(&rf_buffer2.mutex);
+      }                                                       // End of input write
+
+      // Add delay between overlap passes
+      if ((pass != 0) && (pass != wfalloverlap))
       {
-        circ_read_pos = i + fft_size;
+        usleep((int)((80000 * fft_size) / (wfalloverlap * 1000)));  
       }
 
-      fft_in[i][0] = fft_circ[circ_read_pos][0];
-      fft_in[i][1] = fft_circ[circ_read_pos][1];
-        //if ((i == 0) || (i == fft_size / 2 -1 ) || (i == fft_size / 2))
-        //{
-        //  printf("%d - ", circ_read_pos);
-        //}
-        //if (i == fft_size - 1)
-        //{
-        //  printf("%d\n", circ_read_pos);
-        //}
-	}
+      //printf("delay = %d \n", (int)((80000 * fft_size) / (wfalloverlap * 1000)));
 
-    // Run FFT
-    fftw_execute(fft_plan);
-
-    // Lock output buffer
-    pthread_mutex_lock(&fft_buffer.mutex);
-
-    for (i = 0; i < fft_size; i++)
-	{
-	  // shift, normalize and convert to dBFS
-	  if (i < fft_size / 2)
-	  {
-	    pt[0] = fft_out[fft_size / 2 + i][0] / fft_size;
-	    pt[1] = fft_out[fft_size / 2 + i][1] / fft_size;
-	  }
-	  else
-	  {
-        pt[0] = fft_out[i - fft_size / 2][0] / fft_size;
-	    pt[1] = fft_out[i - fft_size / 2][1] / fft_size;
-	  }
-
-	  pwr = pwr_scale * (pt[0] * pt[0]) + (pt[1] * pt[1]);
-
-      lpwr = 10.f * log10(pwr + 1.0e-20);
-
-      //fft_time_smooth = 0.98;
-	        
-      fft_buffer.data[i] = (lpwr * (1.f - fft_time_smooth)) + (fft_buffer.data[i] * fft_time_smooth);
-    }
-    // Unlock output buffer
-    pthread_mutex_unlock(&fft_buffer.mutex);
-
-    fft_to_buffer();
-
-    // End of first read
-
-    if (steps == 2)  // Now do it again for intermediate steps if there are 2 steps
-    {
-      usleep(25000);  // sleep 25 ms to keep display moving
-
-      // Increment the read index
-      circ_read_index++;
-      printf("Start 2nd Read(index  = %d)\n", circ_read_index);
-
+      // Now read it out of the buffer 
       for (i = 0; i < fft_size; i++)
       {
-        // Calculate the read position
-        if (circ_read_index == 1)
+        circ_read_pos = i + fft_size * pass / wfalloverlap;
+        if (circ_read_pos > 2 * fft_size)
         {
-          circ_read_pos = i + fft_size / 2;
-        }
-        if (circ_read_index == 3)
-        {
-          if (i < fft_size / 2)
-          {
-            circ_read_pos = i + fft_size + fft_size / 2;
-          }
-          else
-          {
-            circ_read_pos = i - fft_size / 2;
-          }
+        circ_read_pos = circ_read_pos - 2 * fft_size;
         }
 
-        fft_in[i][0] = fft_circ[circ_read_pos][0];
-        fft_in[i][1] = fft_circ[circ_read_pos][1];
+        fft_in[i][0] = fft_circ[circ_read_pos][0] * hanning_window_const[i];
+        fft_in[i][1] = fft_circ[circ_read_pos][1] * hanning_window_const[i];
 
-        //if ((i == 0) || (i ==255) || (i == 256) || (i == 511))
-        //{
-        //  printf("%d\n", circ_read_pos);
-        //}
+        // debug printing block
+        if ((i == 0) && (debug))
+        {
+          printf("pass %d: ", pass);
+        }
+        if (((i == 0) || (i == fft_size / 4 - 1 ) || (i == fft_size / 4) || (i == fft_size / 2 - 1 )
+          || (i == fft_size / 2) || (i == fft_size * 3 / 4 - 1 ) || (i == fft_size * 3 / 4)) && (debug))
+        {
+          printf("%d - ", circ_read_pos);
+        }
+        if ((i == fft_size - 1) && (debug))
+        {
+          printf("%d\n", circ_read_pos);
+        }
+
+        // Apply input time window for increased time definition
+        if ((i < window_open) || (i > window_close))
+        {
+          fft_in[i][0] = 0;
+          fft_in[i][1] = 0;
+        }
 	  }
+
+      if(debug)
+      {
+        printf("Window open at %d, Window Close at %d\n", window_open, window_close);
+      }
 
       // Run FFT
       fftw_execute(fft_plan);
+
+      // Take the output of the fft, convert it to dB and smooth it.
 
       // Lock output buffer
       pthread_mutex_lock(&fft_buffer.mutex);
@@ -647,236 +622,15 @@ void *thread_fft(void *dummy)
 
         lpwr = 10.f * log10(pwr + 1.0e-20);
 
-        //fft_time_smooth = 0.98;
-	        
         fft_buffer.data[i] = (lpwr * (1.f - fft_time_smooth)) + (fft_buffer.data[i] * fft_time_smooth);
       }
-      // Unlock output buffer
-      pthread_mutex_unlock(&fft_buffer.mutex);
 
-      fft_to_buffer();
-    }
-
-    if (steps == 4)  // Now do it again for intermediate steps if there are 4 steps
-    {
-
-      // Step 1 and 5
-      usleep(13000);  // sleep 13 ms to keep display moving
-
-      // Increment read index to 1 or 5
-      circ_read_index++;
-      //printf("Start 2nd Read(index  = %d)\n", circ_read_index);
-
-      for (i = 0; i < fft_size; i++)
-      {
-        // Calculate the read position
-        if (circ_read_index == 1)
-        {
-          circ_read_pos = i + fft_size / 4;
-        }
-        if (circ_read_index == 5)
-        {
-          if (i < (fft_size * 3) / 4)
-          {
-            circ_read_pos = i + fft_size + fft_size / 4;
-          }
-          else
-          {
-            circ_read_pos = i - (fft_size * 3) / 4;
-          }
-        }
-
-        fft_in[i][0] = fft_circ[circ_read_pos][0];
-        fft_in[i][1] = fft_circ[circ_read_pos][1];
-
-        //if ((i == 0) || (i == fft_size / 2 -1 ) || (i == fft_size / 2))
-        //{
-        //  printf("%d - ", circ_read_pos);
-        //}
-        //if (i == fft_size - 1)
-        //{
-        //  printf("%d\n", circ_read_pos);
-        //}
-	  }
-
-      // Run FFT
-      fftw_execute(fft_plan);
-
-      // Lock output buffer
-      pthread_mutex_lock(&fft_buffer.mutex);
-
-      for (i = 0; i < fft_size; i++)
-	  {
-	    // shift, normalize and convert to dBFS
-	    if (i < fft_size / 2)
-	    {
-	      pt[0] = fft_out[fft_size / 2 + i][0] / fft_size;
-	      pt[1] = fft_out[fft_size / 2 + i][1] / fft_size;
-	    }
-	    else
-	    {
-          pt[0] = fft_out[i - fft_size / 2][0] / fft_size;
-	      pt[1] = fft_out[i - fft_size / 2][1] / fft_size;
-	    }
-
-	    pwr = pwr_scale * (pt[0] * pt[0]) + (pt[1] * pt[1]);
-
-        lpwr = 10.f * log10(pwr + 1.0e-20);
-
-        //fft_time_smooth = 0.98;
-	        
-        fft_buffer.data[i] = (lpwr * (1.f - fft_time_smooth)) + (fft_buffer.data[i] * fft_time_smooth);
-      }
       // Unlock output buffer
       pthread_mutex_unlock(&fft_buffer.mutex);
 
       fft_to_buffer();
 
-
-      // Steps 2 and 6
-      usleep(13000);  // sleep 13 ms to keep display moving
-
-      // Increment read index to 2 or 6
-      circ_read_index++;
-      //printf("Start 3rd Read(index  = %d)\n", circ_read_index);
-
-      for (i = 0; i < fft_size; i++)
-      {
-        // Calculate the read position
-        if (circ_read_index == 2)
-        {
-          circ_read_pos = i + fft_size / 2;
-        }
-        if (circ_read_index == 6)
-        {
-          if (i < fft_size / 2)
-          {
-            circ_read_pos = i + fft_size + fft_size / 2;
-          }
-          else
-          {
-            circ_read_pos = i - fft_size / 2;
-          }
-        }
-
-        fft_in[i][0] = fft_circ[circ_read_pos][0];
-        fft_in[i][1] = fft_circ[circ_read_pos][1];
-
-        //if ((i == 0) || (i == fft_size / 2 -1 ) || (i == fft_size / 2))
-        //{
-        //  printf("%d - ", circ_read_pos);
-        //}
-        //if (i == fft_size - 1)
-        //{
-        //  printf("%d\n", circ_read_pos);
-        //}
-	  }
-
-      // Run FFT
-      fftw_execute(fft_plan);
-
-      // Lock output buffer
-      pthread_mutex_lock(&fft_buffer.mutex);
-
-      for (i = 0; i < fft_size; i++)
-	  {
-	    // shift, normalize and convert to dBFS
-	    if (i < fft_size / 2)
-	    {
-	      pt[0] = fft_out[fft_size / 2 + i][0] / fft_size;
-	      pt[1] = fft_out[fft_size / 2 + i][1] / fft_size;
-	    }
-	    else
-	    {
-          pt[0] = fft_out[i - fft_size / 2][0] / fft_size;
-	      pt[1] = fft_out[i - fft_size / 2][1] / fft_size;
-	    }
-
-	    pwr = pwr_scale * (pt[0] * pt[0]) + (pt[1] * pt[1]);
-
-        lpwr = 10.f * log10(pwr + 1.0e-20);
-
-        //fft_time_smooth = 0.98;
-	        
-        fft_buffer.data[i] = (lpwr * (1.f - fft_time_smooth)) + (fft_buffer.data[i] * fft_time_smooth);
-      }
-      // Unlock output buffer
-      pthread_mutex_unlock(&fft_buffer.mutex);
-
-      fft_to_buffer();
-
-      // Step 3 and 7
-      usleep(13000);  // sleep 13 ms to keep display moving
-
-      // Increment read index to 3 or 7
-      circ_read_index++;
-      //printf("Start 4th Read(index  = %d)\n", circ_read_index);
-
-      for (i = 0; i < fft_size; i++)
-      {
-        // Calculate the read position
-        if (circ_read_index == 3)
-        {
-          circ_read_pos = i + (fft_size * 3) / 4;
-        }
-        if (circ_read_index == 7)
-        {
-          if (i < fft_size / 4)
-          {
-            circ_read_pos = i + (7 * fft_size) / 4;
-          }
-          else
-          {
-            circ_read_pos = i - fft_size / 4;
-          }
-        }
-
-        fft_in[i][0] = fft_circ[circ_read_pos][0];
-        fft_in[i][1] = fft_circ[circ_read_pos][1];
-
-        //if ((i == 0) || (i == fft_size / 2 -1 ) || (i == fft_size / 2))
-        //{
-        //  printf("%d - ", circ_read_pos);
-        //}
-        //if (i == fft_size - 1)
-        //{
-        //  printf("%d\n", circ_read_pos);
-        //}
-	  }
-
-      // Run FFT
-      fftw_execute(fft_plan);
-
-      // Lock output buffer
-      pthread_mutex_lock(&fft_buffer.mutex);
-
-      for (i = 0; i < fft_size; i++)
-	  {
-	    // shift, normalize and convert to dBFS
-	    if (i < fft_size / 2)
-	    {
-	      pt[0] = fft_out[fft_size / 2 + i][0] / fft_size;
-	      pt[1] = fft_out[fft_size / 2 + i][1] / fft_size;
-	    }
-	    else
-	    {
-          pt[0] = fft_out[i - fft_size / 2][0] / fft_size;
-	      pt[1] = fft_out[i - fft_size / 2][1] / fft_size;
-	    }
-
-	    pwr = pwr_scale * (pt[0] * pt[0]) + (pt[1] * pt[1]);
-
-        lpwr = 10.f * log10(pwr + 1.0e-20);
-
-        //fft_time_smooth = 0.98;
-	        
-        fft_buffer.data[i] = (lpwr * (1.f - fft_time_smooth)) + (fft_buffer.data[i] * fft_time_smooth);
-      }
-      // Unlock output buffer
-      pthread_mutex_unlock(&fft_buffer.mutex);
-
-      fft_to_buffer();
-    }
+    }    // End of the read cycle
   }
   return NULL;
 }
@@ -886,6 +640,7 @@ void *thread_fft(void *dummy)
 void fft_to_buffer()
 {
   int32_t j;
+  uint32_t average = 0;
 
   // Lock FFT output buffer for reading
   pthread_mutex_lock(&fft_buffer.mutex);
@@ -930,8 +685,7 @@ void fft_to_buffer()
   // Scale and limit the samples
   for(j = 0; j < fft_size; j++)
   {
-    // Add 110 to put the baseline at -110 dB
- //   fft_output_data[j] = fft_output_data[j] + 110.0;
+    // Add a constant to position the baseline
     fft_output_data[j] = fft_output_data[j] + 20.0;
 
     // Multiply by 5 (pixels per dB on display)
@@ -954,6 +708,11 @@ void fft_to_buffer()
       //printf("fft output = %f\n", fft_output_data[j] );
       fft_output_data[j] = 1;
     }
+    average = average + fft_output_data[j];
+  }
+  if(debug)
+  {
+    printf("Average = %d\n", average);
   }
 
   // y3 needs valid values from [6] to [506]
@@ -961,8 +720,6 @@ void fft_to_buffer()
   // [6] is lowest cal line
   // [256] is middle cal line
   // [506] is highest cal line
-
-
 
   // Lock the histogram buffer for writing
   pthread_mutex_lock(&histogram);
@@ -979,7 +736,14 @@ void fft_to_buffer()
 
   // Unlock the histogram buffer
   pthread_mutex_unlock(&histogram);
+
+  // Wait here until data has been read
   NewData = true;
+  while (NewData == true)
+  {
+    usleep(100);
+  }
+
 }
 
 // Main thread
