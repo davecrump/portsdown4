@@ -1584,7 +1584,7 @@ void ExecuteUpdate(int NoButton)
       system(LinuxCommand);
 
       strcpy(Step, "Step 2 of 10\\nLoading Update Script\\n\\nXX--------");
-      DisplayUpdateMsg("Latest Development Portsdown 4", Step);
+      DisplayUpdateMsg("Development", Step);
 
       strcpy(LinuxCommand, "chmod +x /home/pi/update.sh");   
       system(LinuxCommand);

@@ -1,5 +1,10 @@
+202303250
+Update RaspBIOS Version
+Bugfix MeteorViewer gain
+
 202303220
 Update MeteorViewer
+LimeSDR Mini V2 Improvements
 
 202303151
 Specify font in convert command
