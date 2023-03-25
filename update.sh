@@ -7,8 +7,8 @@ DisplayUpdateMsg() {
   rm /home/pi/tmp/update.jpg >/dev/null 2>/dev/null
 
   # Create the update image in the tempfs folder
-  convert -size 800x480 xc:white \
-    -gravity North -pointsize 40 -annotate 0 "\nUpdating Portsdown Software" \
+  convert -font "FreeSans" -size 800x480 xc:white \
+    -gravity North -pointsize 40 -annotate 0 "Updating Portsdown Software" \
     -gravity Center -pointsize 50 -annotate 0 "$1""\n\nPlease wait" \
     -gravity South -pointsize 50 -annotate 0 "DO NOT TURN POWER OFF" \
     /home/pi/tmp/update.jpg
@@ -19,12 +19,12 @@ DisplayUpdateMsg() {
 }
 
 DisplayRebootMsg() {
-  # Delete any old update message image  201802040
+  # Delete any old update message
   rm /home/pi/tmp/update.jpg >/dev/null 2>/dev/null
 
   # Create the update image in the tempfs folder
-  convert -size 800x480 xc:white \
-    -gravity North -pointsize 40 -annotate 0 "\nUpdating Portsdown Software" \
+  convert -font "FreeSans" -size 800x480 xc:white \
+    -gravity North -pointsize 40 -annotate 0 "Updating Portsdown Software" \
     -gravity Center -pointsize 50 -annotate 0 "$1""\n\nDone" \
     -gravity South -pointsize 50 -annotate 0 "SAFE TO POWER OFF" \
     /home/pi/tmp/update.jpg
@@ -246,6 +246,8 @@ else
 fi
 
 sudo apt-get -y install libairspy-dev                                   # For Airspy Bandviewer
+sudo apt-get -y install expect                                          # For unattended installs
+sudo apt-get -y install uhubctl                                         # For SDRPlay USB resets
 
 # -----------Update LimeSuite if required -------------
 
@@ -490,6 +492,25 @@ cd /home/pi/rpidatv/src/plutoview
 make
 cp plutoview ../../bin/
 cd /home/pi
+
+# Install SDRPlay API and compile MeteorViewer
+echo
+echo "----------------------------------"
+echo "----- Compiling MeteorViewer -----"
+echo "----------------------------------"
+cd /home/pi/rpidatv/src/meteorview
+
+# Install api and disable service
+wget https://www.sdrplay.com/software/SDRplay_RSP_API-ARM-3.09.1.run
+chmod +x SDRplay_RSP_API-ARM-3.09.1.run
+./sdrplay_api_install.exp
+sudo systemctl disable sdrplay  # service is started only when required
+
+# Compile meteorview
+make
+cp meteorview ../../bin/
+cd /home/pi
+
 
 # Compile Power Meter
 echo

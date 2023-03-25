@@ -89,6 +89,8 @@ sudo apt-get -y install nginx-light                                     # For we
 sudo apt-get -y install libfcgi-dev                                     # For web control
 
 sudo apt-get -y install libairspy-dev                                   # For Airspy Bandviewer
+sudo apt-get -y install expect                                          # For unattended installs
+sudo apt-get -y install uhubctl                                         # For SDRPlay USB resets
 
 # Install WiringPi
 cd /tmp
@@ -455,6 +457,24 @@ echo "---------------------------------------"
 cd /home/pi/rpidatv/src/plutoview
 make
 cp plutoview ../../bin/
+cd /home/pi
+
+# Install SDRPlay API and compile MeteorViewer
+echo
+echo "----------------------------------"
+echo "----- Compiling MeteorViewer -----"
+echo "----------------------------------"
+cd /home/pi/rpidatv/src/meteorview
+
+# Install api and disable service
+wget https://www.sdrplay.com/software/SDRplay_RSP_API-ARM-3.09.1.run
+chmod +x SDRplay_RSP_API-ARM-3.09.1.run
+./sdrplay_api_install.exp
+sudo systemctl disable sdrplay  # service is started only when required
+
+# Compile meteorview
+make
+cp meteorview ../../bin/
 cd /home/pi
 
 # Compile Power Meter

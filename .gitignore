@@ -71,4 +71,5 @@ bin/rtlsdrview
 bin/plutoview
 bin/dmm
 bin/wav2lime
+/bin/meteorview
 

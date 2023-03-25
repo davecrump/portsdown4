@@ -184,9 +184,9 @@ char TabModeAudio[6][15]={"auto", "mic", "video", "bleeps", "no_audio", "webcam"
 char TabModeSTD[2][7]={"6","0"};
 char TabModeVidIP[2][7]={"0","1"};
 char TabModeOP[14][31]={"IQ", "QPSKRF", "DATVEXPRESS", "LIMEUSB", "STREAMER", "COMPVID", \
-  "DTX1", "IP", "LIMEMINI", "JLIME", "JEXPRESS", "EXPRESS2", "LIMEDVB", "PLUTO"};
+  "DTX1", "IP", "LIMEMINI", "JLIME", "JSTREAM", "EXPRESS2", "LIMEDVB", "PLUTO"};
 char TabModeOPtext[14][31]={"Portsdown", " Ugly ", "Express", "Lime USB", "BATC^Stream", "Comp Vid", \
-  " DTX1 ", "IPTS out", "Lime Mini", "Jetson^Lime", "Jetson^Express", "Express S2", "Lime DVB", "Pluto"};
+  " DTX1 ", "IPTS out", "Lime Mini", "Jetson^Lime", "Jetson^Stream", "Express S2", "Lime DVB", "Pluto"};
 char TabAtten[4][15] = {"NONE", "PE4312", "PE43713", "HMC1119"};
 char CurrentModeOP[31] = "QPSKRF";
 char CurrentModeOPtext[31] = " UGLY ";
@@ -463,6 +463,7 @@ int DetectUSBAudio();
 void CheckExpress();
 int CheckAirspyConnect();
 int CheckLimeMiniConnect();
+int CheckLimeMiniV2Connect();
 int CheckLimeUSBConnect();
 int CheckPlutoConnect();
 int CheckPlutoIPConnect();
@@ -932,7 +933,7 @@ void DisplayHere(char *DisplayCaption)
   system("rm /home/pi/tmp/captionlogo.png >/dev/null 2>/dev/null");
   system("rm /home/pi/tmp/streamcaption.png >/dev/null 2>/dev/null");
 
-  strcpy(ConvertCommand, "convert -size 720x80 xc:transparent -fill white -gravity Center -pointsize 40 -annotate 0 \"");
+  strcpy(ConvertCommand, "convert -font \"FreeSans\" -size 720x80 xc:transparent -fill white -gravity Center -pointsize 40 -annotate 0 \"");
   strcat(ConvertCommand, DisplayCaption);
   strcat(ConvertCommand, "\" /home/pi/tmp/captionlogo.png");
   system(ConvertCommand);
@@ -1405,10 +1406,10 @@ void DisplayUpdateMsg(char* Version, char* Step)
   system(LinuxCommand);
 
   // Build and run the convert command for the image
-  strcpy(LinuxCommand, "convert -size 720x576 xc:white ");
+  strcpy(LinuxCommand, "convert -font \"FreeSans\" -size 800x480 xc:white ");
 
   strcat(LinuxCommand, "-gravity North -pointsize 40 -annotate 0 ");
-  strcat(LinuxCommand, "\"\\nUpdating Portsdown Software\\nTo ");
+  strcat(LinuxCommand, "\"Updating Portsdown Software\\nTo ");
   strcat(LinuxCommand, Version);
   strcat(LinuxCommand, " Version\" ");
  
@@ -1583,7 +1584,7 @@ void ExecuteUpdate(int NoButton)
       system(LinuxCommand);
 
       strcpy(Step, "Step 2 of 10\\nLoading Update Script\\n\\nXX--------");
-      DisplayUpdateMsg("Latest Development Portsdown 4", Step);
+      DisplayUpdateMsg("Development", Step);
 
       strcpy(LinuxCommand, "chmod +x /home/pi/update.sh");   
       system(LinuxCommand);
@@ -1625,22 +1626,28 @@ void LimeFWUpdate(int button)
       MsgBox4("Upgrade Complete", " ", "Touch Screen to Continue" ," ");
       break;
     case 1:
-      MsgBox4("Upgrading Lime Firmware", "to 1.30", " ", " ");
-      system("sudo LimeUtil --fpga=/home/pi/.local/share/LimeSuite/images/22.09/LimeSDR-Mini_HW_1.2_r1.30.rpd");
-      if (LimeGWRev() == 30)
+      if (CheckLimeMiniV2Connect() != 0)    // Don't do it if a LimeSDR V2
       {
-        MsgBox4("Firmware Upgrade Successful", "Now at Gateware 1.30", "Touch Screen to Continue" ," ");
-      }
-      else
-      {
-        MsgBox4("Firmware Upgrade Unsuccessful", "Further Investigation required", "Touch Screen to Continue" ," ");
+        MsgBox4("Upgrading Lime Firmware", "to 1.30", " ", " ");
+        system("sudo LimeUtil --fpga=/home/pi/.local/share/LimeSuite/images/22.09/LimeSDR-Mini_HW_1.2_r1.30.rpd");
+        if (LimeGWRev() == 30)
+        {
+          MsgBox4("Firmware Upgrade Successful", "Now at Gateware 1.30", "Touch Screen to Continue" ," ");
+        }
+        else
+        {
+          MsgBox4("Firmware Upgrade Unsuccessful", "Further Investigation required", "Touch Screen to Continue" ," ");
+        }
       }
       break;
     case 2:
-      MsgBox4("Upgrading Lime Firmware", "to Custom DVB", " ", " ");
-      system("sudo LimeUtil --force --fpga=/home/pi/.local/share/LimeSuite/images/v0.3/LimeSDR-Mini_lms7_trx_HW_1.2_auto.rpd");
+      if (CheckLimeMiniV2Connect() != 0)    // Don't do it if a LimeSDR V2
+      {
+        MsgBox4("Upgrading Lime Firmware", "to Custom DVB", " ", " ");
+        system("sudo LimeUtil --force --fpga=/home/pi/.local/share/LimeSuite/images/v0.3/LimeSDR-Mini_lms7_trx_HW_1.2_auto.rpd");
 
-      MsgBox4("Firmware Upgrade Complete", "DVB", "Touch Screen to Continue" ," ");
+        MsgBox4("Firmware Upgrade Complete", "DVB", "Touch Screen to Continue" ," ");
+      }
       break;
     default:
       printf("Lime Update button selection error\n");
@@ -4726,7 +4733,7 @@ int CheckAirspyConnect()
 
 
 /***************************************************************************//**
- * @brief Checks whether a Lime Mini is connected
+ * @brief Checks whether a Lime Mini (V1 or V2) is connected
  *
  * @param 
  *
@@ -4741,6 +4748,38 @@ int CheckLimeMiniConnect()
 
   /* Open the command for reading. */
   fp = popen("lsusb | grep -q '0403:601f' ; echo $?", "r");
+  if (fp == NULL) {
+    printf("Failed to run command\n" );
+    exit(1);
+  }
+
+  /* Read the output a line at a time - output it. */
+  while (fgets(response, 7, fp) != NULL)
+  {
+    responseint = atoi(response);
+  }
+
+  /* close */
+  pclose(fp);
+  return responseint;
+}
+
+/***************************************************************************//**
+ * @brief Checks whether a Lime Mini V2 is connected
+ *
+ * @param 
+ *
+ * @return 0 if present, 1 if absent (or V1)
+*******************************************************************************/
+
+int CheckLimeMiniV2Connect()
+{
+  FILE *fp;
+  char response[255];
+  int responseint = 1;
+
+  /* Open the command for reading. */
+  fp = popen("LimeUtil --make | grep -q 'LimeSDR-Mini_v2' ; echo $?", "r");
   if (fp == NULL) {
     printf("Failed to run command\n" );
     exit(1);
@@ -8820,7 +8859,8 @@ void GreyOut42()
   }
   if (CheckJetson() == 1)  // Jetson not connected so GreyOut
   {
-    SetButtonStatus(ButtonNumber(CurrentMenu, 10), 2); // Jetson
+    SetButtonStatus(ButtonNumber(CurrentMenu, 10), 2); // Jetson Lime
+    SetButtonStatus(ButtonNumber(CurrentMenu, 11), 2); // Jetson Stream
   }
   // Check Pluto
   if ((CheckPlutoIPConnect() == 1) || (CheckPlutoUSBConnect() != 0))   // Pluto not connected, so GreyOut
@@ -10639,7 +10679,7 @@ void CompVidStart()
     system("rm /home/pi/tmp/contest.jpg >/dev/null 2>/dev/null");
 
     // Create the new image
-    strcpy(fbicmd, "convert -size 720x576 xc:white ");
+    strcpy(fbicmd, "convert -font \"FreeSans\" -size 720x576 xc:white ");
     strcat(fbicmd, "-gravity North -pointsize 125 -annotate 0,0,0,20 ");
     strcat(fbicmd, CallSign); 
     strcat(fbicmd, " -gravity Center -pointsize 200 -annotate 0,0,0,20 ");
@@ -10672,7 +10712,7 @@ void CompVidStart()
     if (strcmp(CurrentCaptionState, "on") == 0)
     {
       // Compose the new card
-      strcpy(fbicmd, "convert -size 720x80 xc:transparent -fill white -gravity Center -pointsize 40 -annotate 0 ");
+      strcpy(fbicmd, "convert -font \"FreeSans\" -size 720x80 xc:transparent -fill white -gravity Center -pointsize 40 -annotate 0 ");
       strcat(fbicmd, CallSign); 
       strcat(fbicmd, " /home/pi/tmp/caption.png");
       system(fbicmd);
@@ -18323,18 +18363,8 @@ void waituntil(int w,int h)
           UpdateWindow();
           break;
         case 7:                                                 // SDRPlay MeteorViewer
-          if ((CheckSDRPlay() == 0)  && (file_exist("/home/pi/rpidatv/bin/meteorview") == 0)) 
-
-          {
-            DisplayLogo();
-            cleanexit(150);
-          }
-          else
-          {
-            MsgBox("No SDRPlay SDR detected/installed");
-            wait_touch();
-          }
-          UpdateWindow();
+          DisplayLogo();
+          cleanexit(150);
           break;
         case 8:                                                 // Pluto BandViewer
           if(CheckPlutoIPConnect() == 0)
@@ -22061,7 +22091,6 @@ void Define_Menu7()
 
   button = CreateButton(7, 7);
   AddButtonStatus(button, "Meteor^Viewer", &Blue);
-  AddButtonStatus(button, "Meteor^Viewer", &Grey);
 
   button = CreateButton(7, 8);
   AddButtonStatus(button, "Pluto^BandViewer", &Blue);
@@ -22097,14 +22126,6 @@ void Define_Menu7()
 
 void Start_Highlights_Menu7()
 {
-  if (file_exist("/home/pi/rpidatv/bin/meteorview") == 1) // Meteor receiver not installed, so grey-out
-  {
-    SetButtonStatus(ButtonNumber(CurrentMenu, 7), 1);
-  }
-  else                             // Installed, so Blue
-  {
-    SetButtonStatus(ButtonNumber(CurrentMenu, 7), 0);
-  }
 }
 
 
@@ -25246,11 +25267,11 @@ void Define_Menu37()
 
   button = CreateButton(37, 1);
   AddButtonStatus(button, "Update to^FW 1.30", &Blue);
-  AddButtonStatus(button, "Update to^FW 1.30", &Green);
+  AddButtonStatus(button, "Update to^FW 1.30", &Grey);
 
   button = CreateButton(37, 2);
   AddButtonStatus(button, "Update to^DVB FW", &Blue);
-  AddButtonStatus(button, "Update to^DVB FW", &Green);
+  AddButtonStatus(button, "Update to^DVB FW", &Grey);
 
   button = CreateButton(37, 3);
   AddButtonStatus(button, "LimeRFE^Disabled", &Blue);
@@ -25285,6 +25306,18 @@ void Define_Menu37()
 void Start_Highlights_Menu37()  //  Lime Config Menu
 {
   char caption[63];
+
+  // Buttons 1 & 2 LimeSDR V1 update
+  if (CheckLimeMiniV2Connect() == 0)    // Grey out for a LimeSDR V2
+  {
+    SetButtonStatus(ButtonNumber(37, 1), 1);
+    SetButtonStatus(ButtonNumber(37, 2), 1);
+  }
+  else
+  {
+    SetButtonStatus(ButtonNumber(37, 1), 0);
+    SetButtonStatus(ButtonNumber(37, 2), 0);
+  }
 
   // Button 3 LimeRFE Enable/Disable
   if (LimeRFEState == 1)  // Enabled
@@ -25526,6 +25559,11 @@ void Define_Menu42()
   AddButtonStatus(button, TabModeOPtext[9], &Green);
   AddButtonStatus(button, TabModeOPtext[9], &Grey);
 
+  button = CreateButton(42, 11);                          // Jetson Stream
+  AddButtonStatus(button, TabModeOPtext[10], &Blue);
+  AddButtonStatus(button, TabModeOPtext[10], &Green);
+  AddButtonStatus(button, TabModeOPtext[10], &Grey);
+
   button = CreateButton(42, 13);                          // Lime DVB
   AddButtonStatus(button, TabModeOPtext[12], &Blue);
   AddButtonStatus(button, TabModeOPtext[12], &Green);
@@ -25570,6 +25608,11 @@ void Start_Highlights_Menu42()
   {
     SelectInGroupOnMenu(42, 5, 14, 10, 1);
     SelectInGroupOnMenu(42, 0, 3, 10, 1);
+  }
+  if(strcmp(CurrentModeOP, TabModeOP[10]) == 0)  //JSTREAM
+  {
+    SelectInGroupOnMenu(42, 5, 14, 11, 1);
+    SelectInGroupOnMenu(42, 0, 3, 11, 1);
   }
   if(strcmp(CurrentModeOP, TabModeOP[12]) == 0)  //LIME DVB
   {
