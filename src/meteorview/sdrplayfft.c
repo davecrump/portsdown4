@@ -17,6 +17,7 @@
 #include <fftw3.h>
 #include <stdbool.h>
 
+#include "meteorview.h"
 #include "timing.h"
 #include "sdrplay_api.h"
 
@@ -118,6 +119,7 @@ int k = 0;
 int m = 0;
 
 void fft_to_buffer();
+int legal_gain(int demanded_Gain);
 
 void setup_fft(void)
 {
@@ -743,8 +745,69 @@ void fft_to_buffer()
   {
     usleep(100);
   }
-
 }
+
+// Takes demanded gain and returns a valid gain for the device
+int legal_gain(int demanded_Gain)
+{
+  if (chosenDevice->hwVer == SDRPLAY_RSP1_ID)
+  {
+    if (demanded_Gain > 3)
+    {
+      return 3;
+    }
+    else
+    {
+      return demanded_Gain;
+    }
+  }
+  if (chosenDevice->hwVer == SDRPLAY_RSP1A_ID)
+  {
+    if (demanded_Gain > 6)
+    {
+      return 6;
+    }
+    else
+    {
+      return demanded_Gain;
+    }
+  }
+  if (chosenDevice->hwVer == SDRPLAY_RSP2_ID)
+  {
+    if (demanded_Gain > 4)
+    {
+      return 4;
+    }
+    else
+    {
+      return demanded_Gain;
+    }
+  }
+  if (chosenDevice->hwVer == SDRPLAY_RSPduo_ID)
+  {
+    if (demanded_Gain > 4)
+    {
+      return 4;
+    }
+    else
+    {
+      return demanded_Gain;
+    }
+  }
+  if (chosenDevice->hwVer == SDRPLAY_RSPdx_ID)
+  {
+    if (demanded_Gain > 18)
+    {
+      return 18;
+    }
+    else
+    {
+      return demanded_Gain;
+    }
+  }
+  return 0;
+}
+
 
 // Main thread
 void *sdrplay_fft_thread(void *arg)
@@ -779,23 +842,22 @@ void *sdrplay_fft_thread(void *arg)
   if ((err = sdrplay_api_Open()) != sdrplay_api_Success)
   {
     printf("sdrplay_api_Open failed %s\n", sdrplay_api_GetErrorString(err));
+    cleanexit(129);
   }
   else
   {
-    printf("apiOpen Success\n");
-
     // Enable debug logging output
     //if ((err = sdrplay_api_DebugEnable(NULL, 1)) != sdrplay_api_Success)
     //{
     //  printf("sdrplay_api_DebugEnable failed %s\n", sdrplay_api_GetErrorString(err));
     //}
-    printf("post debug log\n");
+
     // Check API versions match
     if ((err = sdrplay_api_ApiVersion(&ver)) != sdrplay_api_Success)
     {
       printf("sdrplay_api_ApiVersion failed %s\n", sdrplay_api_GetErrorString(err));
+      cleanexit(129);
     }
-    printf("post api version check\n");
 
     if (ver != SDRPLAY_API_VERSION)
     {
@@ -804,16 +866,22 @@ void *sdrplay_fft_thread(void *arg)
     }
  
     // Lock API while device selection is performed
-    printf("pre Lockdevice\n");
     sdrplay_api_LockDeviceApi();
-    printf("past Lockdevice\n");
 
     // Fetch list of available devices
     if ((err = sdrplay_api_GetDevices(devs, &ndev, sizeof(devs) / sizeof(sdrplay_api_DeviceT))) != sdrplay_api_Success)
     {
       printf("sdrplay_api_GetDevices failed %s\n", sdrplay_api_GetErrorString(err));
-      // goto UnlockDeviceAndCloseApi;
+      cleanexit(129);
     }
+
+    // Exit if no devices found
+    if (ndev == 0)
+    {
+      printf("No devices found.  Exiting\n");
+      cleanexit(129);
+    }
+
     printf("MaxDevs=%d NumDevs=%d\n", sizeof(devs) / sizeof(sdrplay_api_DeviceT), ndev);
     if (ndev > 0)
     {
@@ -897,7 +965,7 @@ void *sdrplay_fft_thread(void *arg)
       if ((err = sdrplay_api_SelectDevice(chosenDevice)) != sdrplay_api_Success)
       {
         printf("sdrplay_api_SelectDevice failed %s\n", sdrplay_api_GetErrorString(err));
-        // goto UnlockDeviceAndCloseApi;
+        cleanexit(129);
       }
 		
       // Unlock API now that device is selected
@@ -907,14 +975,14 @@ void *sdrplay_fft_thread(void *arg)
       if ((err = sdrplay_api_GetDeviceParams(chosenDevice->dev, &deviceParams)) != sdrplay_api_Success)
       {
         printf("sdrplay_api_GetDeviceParams failed %s\n",sdrplay_api_GetErrorString(err));
-        // goto CloseApi;
+        cleanexit(129);
       }
 		
       // Check for NULL pointers before changing settings
       if (deviceParams == NULL)
       {
         printf("sdrplay_api_GetDeviceParams returned NULL deviceParams pointer\n");
-        // goto CloseApi;
+        cleanexit(129);
       }
 		
       // Configure dev parameters
@@ -924,13 +992,8 @@ void *sdrplay_fft_thread(void *arg)
         // Only need to update non-default settings
         if (master_slave == 0)
         {
-          // Change from default Fs to 8MHz
-          //deviceParams->devParams->fsFreq.fsHz = 8000000.0;
-          //deviceParams->devParams->fsFreq.fsHz = 2000000.0;
           // we choose to sample at 256 * 10 KSPS to make decimation to 10 KSPS easier
           deviceParams->devParams->fsFreq.fsHz =   2560000.0;
-          //deviceParams->devParams->fsFreq.fsHz = 2621440.0;  // 2.56 MS * 1.024
-          //deviceParams->devParams->fsFreq.fsHz = 2000000.0;
         }
         else
         {
@@ -951,11 +1014,10 @@ void *sdrplay_fft_thread(void *arg)
           chParams->tunerParams.ifType = sdrplay_api_IF_Zero;
         }
         chParams->tunerParams.gain.gRdB = IFgain;          // Set between 20 and 59.
-        chParams->tunerParams.gain.LNAstate = RFgain;
+        chParams->tunerParams.gain.LNAstate = legal_gain(RFgain);
 
         // --------------------------------  setup the Decimation to max ------------------------------
         chParams->ctrlParams.decimation.enable = 1;            // default 0 (off), 1=on
-        //chParams->ctrlParams.decimation.decimationFactor = 32; // default 1, max 32
         chParams->ctrlParams.decimation.decimationFactor = decimation_factor; // default 1, max 32
         // wideband = 1 uses better filters but less efficient on cpu useage
         chParams->ctrlParams.decimation.wideBandSignal = 1;    // default 0
@@ -1080,7 +1142,7 @@ void *sdrplay_fft_thread(void *arg)
         }
 
         // Set RF Gain
-        chParams->tunerParams.gain.LNAstate = RFgain;
+        chParams->tunerParams.gain.LNAstate = legal_gain(RFgain);
 
         // Set IF gain
         chParams->tunerParams.gain.gRdB = IFgain;          // Set between 20 (max gain) and 59 (least)

@@ -44,6 +44,7 @@ src/plutoview/plutoview
 src/nf_meter/nf_meter
 src/dmm/dmm
 src/wav2lime/wav2lime
+src/meteorview/meteorview
 scripts/configs/Langstone.conf
 scripts/configs/Langstone_Lime.conf
 scripts/configs/Langstone_Pluto.conf
