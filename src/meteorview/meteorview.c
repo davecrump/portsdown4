@@ -24,6 +24,7 @@
 #include "graphics.h"
 #include "timing.h"
 #include "sdrplayfft.h"
+#include "meteorview.h"
 
 pthread_t thbutton;
 
@@ -215,7 +216,7 @@ void Define_Menu10();
 void Define_Menu11();
 void Define_Menu12();
 void Define_Menu13();
-static void cleanexit(int);
+//static void cleanexit(int);
 void Start_Highlights_Menu1();
 void Start_Highlights_Menu2();
 void Start_Highlights_Menu5();
@@ -3729,19 +3730,19 @@ void Define_Menu10()                                          // Set Freq Preset
 void Start_Highlights_Menu10()
 {
   char ButtText[31];
-  snprintf(ButtText, 30, "Preset 1^%0.1f MHz", ((float)pfreq1) / 1000);
+  snprintf(ButtText, 30, "Preset 1^%0.1f kHz", ((float)pfreq1) / 1000);
   AmendButtonStatus(ButtonNumber(CurrentMenu, 2), 0, ButtText, &Blue);
 
-  snprintf(ButtText, 30, "Preset 2^%0.1f MHz", ((float)pfreq2) / 1000);
+  snprintf(ButtText, 30, "Preset 2^%0.1f kHz", ((float)pfreq2) / 1000);
   AmendButtonStatus(ButtonNumber(CurrentMenu, 3), 0, ButtText, &Blue);
 
-  snprintf(ButtText, 30, "Preset 3^%0.1f MHz", ((float)pfreq3) / 1000);
+  snprintf(ButtText, 30, "Preset 3^%0.1f kHz", ((float)pfreq3) / 1000);
   AmendButtonStatus(ButtonNumber(CurrentMenu, 4), 0, ButtText, &Blue);
 
-  snprintf(ButtText, 30, "Preset 4^%0.1f MHz", ((float)pfreq4) / 1000);
+  snprintf(ButtText, 30, "Preset 4^%0.1f kHz", ((float)pfreq4) / 1000);
   AmendButtonStatus(ButtonNumber(CurrentMenu, 5), 0, ButtText, &Blue);
 
-  snprintf(ButtText, 30, "Preset 5^%0.1f MHz", ((float)pfreq5) / 1000);
+  snprintf(ButtText, 30, "Preset 5^%0.1f kHz", ((float)pfreq5) / 1000);
   AmendButtonStatus(ButtonNumber(CurrentMenu, 6), 0, ButtText, &Blue);
 }
 
@@ -4568,7 +4569,7 @@ void DrawTrace(int xoffset, int prev2, int prev1, int current)
 }
 
 
-static void cleanexit(int calling_exit_code)
+void cleanexit(int calling_exit_code)
 {
   exit_code = calling_exit_code;
   app_exit = true;
