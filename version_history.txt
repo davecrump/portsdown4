@@ -1,3 +1,6 @@
+202303290
+Minor MeteorViewer fixes for other RSP models
+
 202303250
 Update RaspBIOS Version
 Bugfix MeteorViewer gain
