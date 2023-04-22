@@ -1,0 +1,18 @@
+title=Portsdown RF Noise Level Meter
+centrefreq=145000
+span=2048
+limegain=90
+pfreq1=146500
+pfreq2=437000
+pfreq3=748000
+pfreq4=1255000
+pfreq5=2395000
+mode=absolute
+smoothing=20
+baseline=-60.0
+historyspan=100
+refstart=5
+refend=45
+sigstart=55
+sigend=95
+
