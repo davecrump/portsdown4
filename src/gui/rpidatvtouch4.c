@@ -18315,41 +18315,46 @@ void waituntil(int w,int h)
         printf("Button Event %d, Entering Menu 7 Case Statement\n",i);
         switch (i)
         {
-        case 0:
-          SelectInGroupOnMenu(CurrentMenu, 0, 4, 0, 1);
-          system("/home/pi/rpidatv/scripts/user_button1.sh &");
+        case 0:                                                 // Airspy BandViewer
+          if (CheckAirspyConnect() == 0)
+          {
+            DisplayLogo();
+            cleanexit(140);
+          }
+          else 
+          {
+            MsgBox("No Airspy Connected");
+            wait_touch();
+          }
           UpdateWindow();
-          usleep(500000);
           break;
-        case 1:
-          SelectInGroupOnMenu(CurrentMenu, 0, 4, 1, 1);
-          system("/home/pi/rpidatv/scripts/user_button2.sh &");
+        case 1:                                                 // LimeSDR BandViewer
+          if((CheckLimeMiniConnect() == 0) || (CheckLimeUSBConnect() == 0))
+          {
+            DisplayLogo();
+            cleanexit(136);
+          }
+          else
+          {
+            MsgBox("No LimeSDR Connected");
+            wait_touch();
+          }
           UpdateWindow();
-          usleep(500000);
           break;
-        case 2:
-          SelectInGroupOnMenu(CurrentMenu, 0, 4, 2, 1);
-          system("/home/pi/rpidatv/scripts/user_button3.sh &");
+        case 2:                                                 // Pluto BandViewer
+          if(CheckPlutoIPConnect() == 0)
+          {
+            DisplayLogo();
+            cleanexit(143);
+          }
+          else
+          {
+            MsgBox("No Pluto Connected");
+            wait_touch();
+          }
           UpdateWindow();
-          usleep(500000);
           break;
-        case 3:
-          SelectInGroupOnMenu(CurrentMenu, 0, 4, 3, 1);
-          system("/home/pi/rpidatv/scripts/user_button4.sh &");
-          UpdateWindow();
-          usleep(500000);
-          break;
-        case 4:
-          SelectInGroupOnMenu(CurrentMenu, 0, 4, 4, 1);
-          system("/home/pi/rpidatv/scripts/user_button5.sh &");
-          UpdateWindow();
-          usleep(500000);
-          break;
-        case 5:                                                 // Sweeper
-          DisplayLogo();
-          cleanexit(139);
-          break;
-        case 6:                                                 // RTL-SDR BandViewer
+        case 3:                                                 // RTL-SDR BandViewer
           if(CheckRTL() == 0)
           {
             DisplayLogo();
@@ -18362,19 +18367,44 @@ void waituntil(int w,int h)
           }
           UpdateWindow();
           break;
+        case 4:                                                 // SDR Play BandViewer when written
+          //if(CheckSDRPlay() == 0)
+          //{
+          //  DisplayLogo();
+          //  cleanexit(144);
+          //}
+          //else
+          //{
+            //MsgBox("No SDR Play Connected");
+            //wait_touch();
+          //}
+          //UpdateWindow();
+          break;
+        case 5:                                                 // Button Script 1
+          SelectInGroupOnMenu(CurrentMenu, 5, 9, 5, 1);
+          system("/home/pi/rpidatv/scripts/user_button1.sh &");
+          UpdateWindow();
+          usleep(500000);
+          break;
+        case 6:                                                 // Button Script 2
+          SelectInGroupOnMenu(CurrentMenu, 5, 9, 6, 1);
+          system("/home/pi/rpidatv/scripts/user_button2.sh &");
+          UpdateWindow();
+          usleep(500000);
+          break;
         case 7:                                                 // SDRPlay MeteorViewer
           DisplayLogo();
           cleanexit(150);
           break;
-        case 8:                                                 // Pluto BandViewer
-          if(CheckPlutoIPConnect() == 0)
+        case 8:                                                 // Noise Meter
+          if((CheckLimeMiniConnect() == 0) || (CheckLimeUSBConnect() == 0))
           {
             DisplayLogo();
-            cleanexit(143);
+            cleanexit(147);
           }
           else
           {
-            MsgBox("No Pluto detected");
+            MsgBox("No LimeSDR Connected");
             wait_touch();
           }
           UpdateWindow();
@@ -18387,40 +18417,16 @@ void waituntil(int w,int h)
           DisplayLogo();
           cleanexit(130);
           break;
-        case 11:                                                 // BandViewer
-          if (CheckAirspyConnect() == 0)
+        case 11:                                                 // Frequency Sweeper
+          if((CheckLimeMiniConnect() == 0) || (CheckLimeUSBConnect() == 0))
           {
             DisplayLogo();
-            cleanexit(140);
+            cleanexit(139);
           }
-          else 
-          { 
-            if((CheckLimeMiniConnect() == 0) || (CheckLimeUSBConnect() == 0))
-            {
-              DisplayLogo();
-              cleanexit(136);
-            }
-            else
-            { 
-              if(CheckPlutoIPConnect() == 0)
-              {
-                DisplayLogo();
-                cleanexit(143);
-              }
-              else
-              {
-                if(CheckRTL() == 0)
-                {
-                  DisplayLogo();
-                  cleanexit(141);
-                }
-                else
-                {
-                  MsgBox("No LimeSDR, Airspy, Pluto or RTL-SDR Connected");
-                  wait_touch();
-                }
-              }
-            }
+          else
+          {
+            MsgBox("No LimeSDR Connected");
+            wait_touch();
           }
           UpdateWindow();
           break;
@@ -22062,38 +22068,35 @@ void Define_Menu7()
   // Bottom Line Menu 7: User Buttons
 
   button = CreateButton(7, 0);
-  AddButtonStatus(button, "Button 1", &Blue);
-  AddButtonStatus(button, "Button 1", &Green);
+  AddButtonStatus(button, "Airspy^BandViewer", &Blue);
 
   button = CreateButton(7, 1);
-  AddButtonStatus(button, "Button 2", &Blue);
-  AddButtonStatus(button, "Button 2", &Green);
+  AddButtonStatus(button, "LimeSDR^BandViewer", &Blue);
 
   button = CreateButton(7, 2);
-  AddButtonStatus(button, "Button 3", &Blue);
-  AddButtonStatus(button, "Button 3", &Green);
+  AddButtonStatus(button, "Pluto^BandViewer", &Blue);
 
   button = CreateButton(7, 3);
-  AddButtonStatus(button, "Button 4", &Blue);
-  AddButtonStatus(button, "Button 4", &Green);
+  AddButtonStatus(button, "RTL-SDR^BandViewer", &Blue);
 
   button = CreateButton(7, 4);
-  AddButtonStatus(button, "Button 5", &Blue);
-  AddButtonStatus(button, "Button 5", &Green);
+  AddButtonStatus(button, "SDR Play^BandViewer", &Grey);
 
   // 2nd line up Menu 7:  
 
   button = CreateButton(7, 5);
-  AddButtonStatus(button, "Frequency^Sweeper", &Blue);
+  AddButtonStatus(button, "Button 1", &Blue);
+  AddButtonStatus(button, "Button 1", &Green);
 
   button = CreateButton(7, 6);
-  AddButtonStatus(button, "RTL-SDR^BandViewer", &Blue);
+  AddButtonStatus(button, "Button 2", &Blue);
+  AddButtonStatus(button, "Button 2", &Green);
 
   button = CreateButton(7, 7);
   AddButtonStatus(button, "Meteor^Viewer", &Blue);
 
   button = CreateButton(7, 8);
-  AddButtonStatus(button, "Pluto^BandViewer", &Blue);
+  AddButtonStatus(button, "Noise^Meter", &Blue);
 
   button = CreateButton(7, 9);
   AddButtonStatus(button, "DMM^Display", &Blue);
@@ -22104,13 +22107,13 @@ void Define_Menu7()
   AddButtonStatus(button, "Signal^Generator", &Blue);
 
   button = CreateButton(7, 11);
-  AddButtonStatus(button, "Band^Viewer", &Blue);
+  AddButtonStatus(button, "Frequency^Sweeper", &Blue);
 
   button = CreateButton(7, 12);
   AddButtonStatus(button, "Power^Meter", &Blue);
 
   button = CreateButton(7, 13);
-  AddButtonStatus(button, "NF^Meter", &Blue);
+  AddButtonStatus(button, "Noise Figure^Meter", &Blue);
 
   button = CreateButton(7, 14);
   AddButtonStatus(button, "XY^Display", &Blue);

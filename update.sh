@@ -553,6 +553,16 @@ make
 cp dmm ../../bin/
 cd /home/pi
 
+# Compile Noise Meter
+echo
+echo "---------------------------------"
+echo "----- Compiling Noise Meter -----"
+echo "---------------------------------"
+cd /home/pi/rpidatv/src/noise_meter
+make
+cp noise_meter ../../bin/
+cd /home/pi
+
 # Compile and install the executable for GPIO-switched transmission (201710080)
 echo "Installing keyedtx"
 cd /home/pi/rpidatv/src/keyedtx

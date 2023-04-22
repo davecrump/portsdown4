@@ -121,6 +121,7 @@ ChooseBandViewerSDR()
 # 144  Exit from rpidatvgui requesting start of SDRPlay BandViewer
 # 145  Run the Langstone TRX V2 Lime
 # 146  Run the Langstone TRX V2 Pluto
+# 147  Exit from rpidatvgui requesting start of Noise Meter
 # 150  Run the Meteor Viewer
 # 160  Shutdown from GUI
 # 192  Reboot from GUI
@@ -277,6 +278,10 @@ while [ "$GUI_RETURN_CODE" -gt 127 ] || [ "$GUI_RETURN_CODE" -eq 0 ];  do
       timeout 2 sshpass -p analog ssh -o StrictHostKeyChecking=no root@"$PLUTOIP" 'PATH=/bin:/sbin:/usr/bin:/usr/sbin;reboot'
       sleep 2
       GUI_RETURN_CODE="129"
+    ;;
+    147)
+      /home/pi/rpidatv/bin/noise_meter
+      GUI_RETURN_CODE="$?"
     ;;
     150)                              # SDRPlay Meteor Viewer
       DisplayMsg "Restarting SDRPlay Service\n\nThis may take up to 90 seconds"

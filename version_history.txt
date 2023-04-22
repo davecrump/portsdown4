@@ -1,3 +1,6 @@
+202304220
+Add Noise Meter
+
 202303290
 Minor MeteorViewer fixes for other RSP models
 
