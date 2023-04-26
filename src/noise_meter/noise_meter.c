@@ -4782,12 +4782,27 @@ int main(void)
       pthread_mutex_unlock(&text_lock);
 
       // Warn if Lime Gain too low
-      rectangle(100, 105, 200, 22, 0, 0, 0);  // Blank area
-      if (smoothedBaseNoise < -65.0)
+      rectangle(100, 80, 200, 47, 0, 0, 0);  // Blank area
+      if (strcmp(mode, "absolute") == 0)
       {
-        pthread_mutex_lock(&text_lock);
-        Text2(100, 110, "Increase Lime Gain", &font_dejavu_sans_18);
-        pthread_mutex_unlock(&text_lock);
+        if (baseline < -65.0)
+        {
+          pthread_mutex_lock(&text_lock);
+          setForeColour(255, 127, 127);
+          Text2(100, 110, "Increase Lime Gain", &font_dejavu_sans_18);
+          Text2(100,  85, "and reset Baseline", &font_dejavu_sans_18);
+          setForeColour(255, 255, 255);
+          pthread_mutex_unlock(&text_lock);
+        }
+      }
+      else
+      {
+        if (smoothedBaseNoise < -65.0)
+        {
+          pthread_mutex_lock(&text_lock);
+          Text2(100, 110, "Increase Lime Gain", &font_dejavu_sans_18);
+          pthread_mutex_unlock(&text_lock);
+        }
       }
 
       // Display History scan width

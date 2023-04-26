@@ -1,7 +1,5 @@
 #!/bin/bash
 
-# Version 202105310
-
 ############ Set Environment Variables ###############
 
 PATHSCRIPT=/home/pi/rpidatv/scripts
@@ -69,4 +67,8 @@ cp -f /home/pi/rpidatv/src/plutoview/plutoview_config.txt.factory /home/pi/rpida
 # nf_meter_config.txt
 cp -f /home/pi/rpidatv/src/nf_meter/nf_meter_config.txt /home/pi/rpidatv/src/nf_meter/nf_meter_config.txt.bak
 cp -f /home/pi/rpidatv/src/nf_meter/nf_meter_config.txt.factory /home/pi/rpidatv/src/nf_meter/nf_meter_config.txt
+
+# noise_meter_config.txt
+cp -f /home/pi/rpidatv/src/noise_meter/noise_meter_config.txt /home/pi/rpidatv/src/noise_meter/noise_meter_config.txt.bak
+cp -f /home/pi/rpidatv/src/noise_meter/noise_meter_config.txt.factory /home/pi/rpidatv/src/noise_meter/noise_meter_config.txt
 

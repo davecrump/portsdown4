@@ -1,3 +1,6 @@
+202304260
+Add variable waterfall time span to MeteorViewer
+
 202304220
 Add Noise Meter
 
