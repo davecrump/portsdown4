@@ -29,7 +29,6 @@ SRC =	$(SRCDIR)/meteorview.c\
 		$(SRCDIR)/graphics.c \
 		$(SRCDIR)/sdrplayfft.c \
 		$(SRCDIR)/timing.c \
-		$(SRCDIR)/temperature.c \
 		$(SRCDIR)/font/font.c \
 		$(SRCDIR)/font/dejavu_sans_18.c \
 		$(SRCDIR)/font/dejavu_sans_20.c \

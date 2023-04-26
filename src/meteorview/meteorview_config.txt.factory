@@ -9,6 +9,7 @@ wfallbase=-40
 wfallrange=40
 wfalloverlap=8
 wfallsamplefraction=4
+wfalltimespan=0
 pfreq1=49969000
 pfreq2=50407000
 pfreq3=143049000
