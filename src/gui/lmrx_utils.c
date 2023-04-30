@@ -200,6 +200,9 @@ int LMLookupVidEncoding(char *stat_string, char *VEncodingtext)
     case 36:
       strcpy(VEncodingtext, "H265");
     break;
+    case 51:
+      strcpy(VEncodingtext, "H266");
+    break;
     default:
       IsVideo = 1;
     break;

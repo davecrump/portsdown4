@@ -60,9 +60,8 @@
 #define STATUS_ERRORS_BCH_UNCORRECTED   23
 #define STATUS_LNB_SUPPLY         24
 #define STATUS_LNB_POLARISATION_H 25
-
-#define STATUS_AGC1_GAIN          35
-#define STATUS_AGC2_GAIN          37
+#define STATUS_AGC1_GAIN          26
+#define STATUS_AGC2_GAIN          27
 
 /* The number of constellation peeks we do for each background loop */
 #define NUM_CONSTELLATIONS 16

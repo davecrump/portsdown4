@@ -20,6 +20,7 @@
 */
 
 #include <string.h>
+#include <iconv.h>
 
 #include "main.h"
 #include "errors.h"
@@ -51,6 +52,79 @@ static longmynd_ts_parse_buffer_t longmynd_ts_parse_buffer = {
     .mutex = PTHREAD_MUTEX_INITIALIZER,
     .signal = PTHREAD_COND_INITIALIZER
 };
+
+const char *dvbCharCodeA3Lookup[] = 
+{
+    /* 0x00 */ NULL,
+    /* 0x01 */ "ISO-8859-5",
+    /* 0x02 */ "ISO-8859-6",
+    /* 0x03 */ "ISO-8859-7",
+    /* 0x04 */ "ISO-8859-8",
+    /* 0x05 */ "ISO-8859-9",
+    /* 0x06 */ "ISO-8859-10",
+    /* 0x07 */ "ISO-8859-11",
+    /* 0x08 */ NULL,
+    /* 0x09 */ "ISO-8859-13",
+    /* 0x0A */ "ISO-8859-14",
+    /* 0x0B */ "ISO-8859-15",
+    /* 0x0C */ NULL,
+    /* 0x0D */ NULL,
+    /* 0x0E */ NULL,
+    /* 0x0F */ NULL,
+    /* 0x10 */ NULL, // See table A.4
+    /* 0x11 */ "ISO-10646",
+    /* 0x12 */ "EUC-KR", // KSX1001-2004
+    /* 0x13 */ "EUC-CN", // GB-2312-1980
+    /* 0x14 */ "BIG5", // Big5 subset of ISO/IEC 10646
+    /* 0x15 */ "ISO-10646/UTF8/", // UTF-8 encoding of ISO/IEC 10646
+    /* 0x16 */ NULL,
+    /* 0x17 */ NULL,
+    /* 0x18 */ NULL,
+    /* 0x19 */ NULL,
+    /* 0x1A */ NULL,
+    /* 0x1B */ NULL,
+    /* 0x1C */ NULL,
+    /* 0x1D */ NULL,
+    /* 0x1E */ NULL,
+    /* 0x1F */ NULL // Described by encoding_type_id
+};
+
+const char *dvbCharCodeA4Lookup[] = 
+{
+    /* 0x00 */ NULL,
+    /* 0x01 */ "ISO-8859-1",
+    /* 0x02 */ "ISO-8859-2",
+    /* 0x03 */ "ISO-8859-3",
+    /* 0x04 */ "ISO-8859-4",
+    /* 0x05 */ "ISO-8859-5",
+    /* 0x06 */ "ISO-8859-6",
+    /* 0x07 */ "ISO-8859-7",
+    /* 0x08 */ "ISO-8859-8",
+    /* 0x09 */ "ISO-8859-9",
+    /* 0x0A */ "ISO-8859-10",
+    /* 0x0B */ "ISO-8859-11",
+    /* 0x0C */ NULL,
+    /* 0x0D */ "ISO-8859-13",
+    /* 0x0E */ "ISO-8859-14",
+    /* 0x0F */ "ISO-8859-15",
+    /* 0x10 */ NULL, // See table A.4
+    /* 0x11 */ "ISO-10646",
+    /* 0x12 */ "EUC-KR", // KSX1001-2004
+    /* 0x13 */ "EUC-CN", // GB-2312-1980
+    /* 0x14 */ "BIG5", // Big5 subset of ISO/IEC 10646
+    /* 0x15 */ "ISO-10646/UTF8/", // UTF-8 encoding of ISO/IEC 10646
+    /* 0x16 */ NULL,
+    /* 0x17 */ NULL,
+    /* 0x18 */ NULL,
+    /* 0x19 */ NULL,
+    /* 0x1A */ NULL,
+    /* 0x1B */ NULL,
+    /* 0x1C */ NULL,
+    /* 0x1D */ NULL,
+    /* 0x1E */ NULL,
+    /* 0x1F */ NULL // Described by encoding_type_id
+};
+
 
 /* -------------------------------------------------------------------------------------------------- */
 void *loop_ts(void *arg) {
@@ -163,6 +237,165 @@ static void ts_callback_sdt_service(
     uint8_t *service_name_ptr, uint32_t *service_name_length_ptr
 )
 {
+    char *service_name_iconv_buffer = NULL;
+    uint32_t service_name_iconv_buffer_length = 0;
+    char *service_provider_name_iconv_buffer = NULL;
+    uint32_t service_provider_name_iconv_buffer_length = 0;
+
+    /* Check character encoding */
+    if(*service_name_length_ptr > 0)
+    {
+        /* Service Name */
+        service_name_iconv_buffer_length = 6*(*service_name_length_ptr);
+        service_name_iconv_buffer = malloc(service_name_iconv_buffer_length);
+        size_t service_name_iconv_buffer_left = service_name_iconv_buffer_length;
+
+        iconv_t dvb_text_ic = NULL;
+
+        /* Check for explicit decoding table */
+        if(service_name_ptr[0] < 0x20)
+        {
+            if(dvbCharCodeA3Lookup[(int)service_name_ptr[0]] != NULL)
+            {
+                dvb_text_ic = iconv_open("UTF-8", dvbCharCodeA3Lookup[(int)service_name_ptr[0]]);
+                /* Move pointer past the character set */
+                service_name_ptr += 1;
+                *service_name_length_ptr -= 1;
+            }
+            else if((int)service_name_ptr[0] == 0x10
+                && (int)service_name_ptr[1] == 0x00
+                && (int)service_name_ptr[2] < 0x10)
+            {
+                if(dvbCharCodeA4Lookup[(int)service_name_ptr[2]] != NULL)
+                {
+                    dvb_text_ic = iconv_open("UTF-8", dvbCharCodeA4Lookup[(int)service_name_ptr[2]]);
+                    /* Move pointer past the character set */
+                    service_name_ptr += 3;
+                    *service_name_length_ptr -= 3;
+                }
+                else
+                {
+                    /* Unknown, assume Latin alphabet */
+                    dvb_text_ic = iconv_open("UTF-8", "ISO6937");
+                    /* Move pointer past the character set */
+                    service_name_ptr += 3;
+                    *service_name_length_ptr -= 3;
+                }
+            }
+            else
+            {
+                /* Unknown, assume Latin alphabet */
+                dvb_text_ic = iconv_open("UTF-8", "ISO6937");
+                /* Move pointer past the character set */
+                service_name_ptr += 1;
+                *service_name_length_ptr -= 1;
+            }
+        }
+        else
+        {
+            /* Default is approximately Latin alphabet */
+            dvb_text_ic = iconv_open("UTF-8", "ISO6937");
+        }
+
+        if(dvb_text_ic != NULL && (intptr_t)dvb_text_ic != -1)
+        {
+            char *service_name_iconv_ptr = (char *)service_name_ptr;
+            size_t service_name_iconv_remaining = *service_name_length_ptr;
+
+            /* iconv modifies the output pointer, so we give it a copy */
+            char *service_name_iconv_buffer_ptr = service_name_iconv_buffer;
+
+            iconv(dvb_text_ic,
+                &service_name_iconv_ptr, &service_name_iconv_remaining,
+                &service_name_iconv_buffer_ptr, &service_name_iconv_buffer_left);
+
+            if(service_name_iconv_remaining == 0)
+            {
+                service_name_ptr = (uint8_t *)service_name_iconv_buffer;
+                service_name_iconv_buffer_length = service_name_iconv_buffer_length - service_name_iconv_buffer_left;
+                service_name_length_ptr = &(service_name_iconv_buffer_length);
+            }
+
+            iconv_close(dvb_text_ic);
+        }
+    }
+    if(*service_provider_name_length_ptr > 0)
+    {
+        /* Service Provider */
+        service_provider_name_iconv_buffer_length = 6*(*service_provider_name_length_ptr);
+        service_provider_name_iconv_buffer = malloc(service_provider_name_iconv_buffer_length);
+        size_t service_provider_name_iconv_buffer_left = service_provider_name_iconv_buffer_length;
+
+        iconv_t dvb_text_ic = NULL;
+
+        /* Check for explicit decoding table */
+        if(service_provider_name_ptr[0] < 0x20)
+        {
+
+            if(dvbCharCodeA3Lookup[(int)service_provider_name_ptr[0]] != NULL)
+            {
+                dvb_text_ic = iconv_open("UTF-8", dvbCharCodeA3Lookup[(int)service_provider_name_ptr[0]]);
+                /* Move pointer past the control codes */
+                service_provider_name_ptr += 1;
+                *service_provider_name_length_ptr -= 1;
+            }
+            else if((int)service_provider_name_ptr[0] == 0x10
+                && (int)service_provider_name_ptr[1] == 0x00
+                && (int)service_provider_name_ptr[2] < 0x10)
+            {
+                if(dvbCharCodeA4Lookup[(int)service_provider_name_ptr[2]] != NULL)
+                {
+                    dvb_text_ic = iconv_open("UTF-8", dvbCharCodeA4Lookup[(int)service_provider_name_ptr[2]]);
+                    /* Move pointer past the control codes */
+                    service_provider_name_ptr += 3;
+                    *service_provider_name_length_ptr -= 3;
+                }
+                else
+                {
+                    /* Unknown, assume Latin alphabet */
+                    dvb_text_ic = iconv_open("UTF-8", "ISO6937");
+                    /* Move pointer past the character set */
+                    service_provider_name_ptr += 3;
+                    *service_provider_name_length_ptr -= 3;
+                }
+            }
+            else
+            {
+                /* Unknown, assume Latin alphabet */
+                dvb_text_ic = iconv_open("UTF-8", "ISO6937");
+                /* Move pointer past the character set */
+                service_provider_name_ptr += 1;
+                *service_provider_name_length_ptr -= 1;
+            }
+        }
+        else
+        {
+            /* Default is approximately Latin alphabet */
+            dvb_text_ic = iconv_open("UTF-8", "ISO6937");
+        }
+
+        if(dvb_text_ic != NULL && (intptr_t)dvb_text_ic != -1)
+        {
+            char *service_provider_name_iconv_ptr = (char *)service_provider_name_ptr;
+            size_t service_provider_name_iconv_remaining = *service_provider_name_length_ptr;
+
+            /* iconv modifies the output pointer, so we give it a copy */
+            char *service_provider_name_iconv_buffer_ptr = service_provider_name_iconv_buffer;
+            iconv(dvb_text_ic,
+                &service_provider_name_iconv_ptr, &service_provider_name_iconv_remaining,
+                &service_provider_name_iconv_buffer_ptr, &service_provider_name_iconv_buffer_left);
+
+            if(service_provider_name_iconv_remaining == 0)
+            {
+                service_provider_name_ptr = (uint8_t *)service_provider_name_iconv_buffer;
+                service_provider_name_iconv_buffer_length = service_provider_name_iconv_buffer_length - service_provider_name_iconv_buffer_left;
+                service_provider_name_length_ptr = &(service_provider_name_iconv_buffer_length);
+            }
+
+            iconv_close(dvb_text_ic);
+        }
+    }
+
     pthread_mutex_lock(&ts_longmynd_status->mutex);
                 
     memcpy(ts_longmynd_status->service_name, service_name_ptr, *service_name_length_ptr);
@@ -172,6 +405,16 @@ static void ts_callback_sdt_service(
     ts_longmynd_status->service_provider_name[*service_provider_name_length_ptr] = '\0';
 
     pthread_mutex_unlock(&ts_longmynd_status->mutex);
+
+    /* Clear up character encoding buffers */
+    if(service_name_iconv_buffer != NULL)
+    {
+        free(service_name_iconv_buffer);
+    }
+    if(service_provider_name_iconv_buffer != NULL)
+    {
+        free(service_provider_name_iconv_buffer);
+    }
 }
 
 static void ts_callback_pmt_pids(uint32_t *ts_pmt_index_ptr, uint32_t *ts_pmt_es_pid, uint32_t *ts_pmt_es_type)

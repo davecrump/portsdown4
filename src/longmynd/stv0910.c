@@ -100,12 +100,7 @@ uint8_t stv0910_read_sr(uint8_t demod, uint32_t *found_sr) {
 /* -------------------------------------------------------------------------------------------------- */
     double sr;
     uint8_t val_h, val_mu, val_ml, val_l;
-    uint8_t tempc ;
-    int32_t temp = 0;
-    double tempf ;
     uint8_t err;
-
-    // Read the basic symbol rate
 
                          err=stv0910_read_reg(demod==STV0910_DEMOD_TOP ? RSTV0910_P2_SFR3 : RSTV0910_P1_SFR3, &val_h);  /* high byte */
     if (err==ERROR_NONE) err=stv0910_read_reg(demod==STV0910_DEMOD_TOP ? RSTV0910_P2_SFR2 : RSTV0910_P1_SFR2, &val_mu); /* mid upper */
@@ -117,22 +112,7 @@ uint8_t stv0910_read_sr(uint8_t demod, uint32_t *found_sr) {
        ((uint32_t)val_l       );
     /* sr (MHz) = ckadc (MHz) * SFR/2^32. So in Symbols per Second we need */
     sr=135000000*sr/256.0/256.0/256.0/256.0;
-
-    // read the symbol rate detection offset (Copied from WinterHill)
-
-    if (err == ERROR_NONE) err = stv0910_read_reg(demod==STV0910_DEMOD_TOP ? RSTV0910_P2_TMGREG2 : RSTV0910_P1_TMGREG2, &tempc);
-    temp |= tempc << 24 ;
-    if (err == ERROR_NONE) err = stv0910_read_reg(demod==STV0910_DEMOD_TOP ? RSTV0910_P2_TMGREG1 : RSTV0910_P1_TMGREG1, &tempc);
-    temp |= tempc << 16 ;
-    if (err == ERROR_NONE) err = stv0910_read_reg(demod==STV0910_DEMOD_TOP ? RSTV0910_P2_TMGREG0 : RSTV0910_P1_TMGREG0, &tempc);
-    temp |= tempc << 8 ;
-
-    temp = temp / 256 ;                                             // move to the bottom 24 bits 
-                                                                    // and extend the sign
-    tempf = temp ;                                                  // convert to double
-    tempf = tempf * 1000 / (1 << 29) ;                              // calculate offset in symbols
-    tempf = tempf * sr / 1000 ;                                     // multiply by nominal symbol rate
-    *found_sr = (int32_t) (sr + tempf) ;                            // update the value
+    *found_sr=(uint32_t)sr;
 
     if (err!=ERROR_NONE) printf("ERROR: STV0910 read symbol rate\n");
 
@@ -667,6 +647,7 @@ uint8_t stv0910_start_scan(uint8_t demod, uint8_t aep) {
     if (err==ERROR_NONE) err=stv0910_write_reg((demod==STV0910_DEMOD_TOP ? RSTV0910_P2_DMDISTATE : RSTV0910_P1_DMDISTATE), aep);
 
 //                                                                                   STV0910_SCAN_BLIND_BEST_GUESS);
+
 
     if (err!=ERROR_NONE) printf("ERROR: STV0910 start scan\n");
 
