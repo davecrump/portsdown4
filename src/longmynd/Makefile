@@ -1,4 +1,5 @@
-BIN = longmynd
+# Makefile for longmynd
+
 SRC = main.c nim.c ftdi.c stv0910.c stv0910_utils.c stvvglna.c stvvglna_utils.c stv6120.c stv6120_utils.c ftdi_usb.c fifo.c udp.c beep.c ts.c libts.c
 OBJ = ${SRC:.c=.o}
 
@@ -28,7 +29,7 @@ COPT += -funsafe-math-optimizations
 CFLAGS += -Wall -Wextra -Wpedantic -Wunused -DVERSION=\"${VER}\" -pthread -D_GNU_SOURCE
 LDFLAGS += -lusb-1.0 -lm -lasound
 
-all: _print_banner ${BIN} fake_read ts_analyse
+all: _print_banner longmynd fake_read ts_analyse
 
 debug: COPT = -Og
 debug: CFLAGS += -ggdb -fno-omit-frame-pointer
@@ -48,7 +49,7 @@ ts_analyse: ts_analyse.c libts.o
 	@echo "  CC     "$@
 	@${CC} ts_analyse.c libts.o -o $@
 
-$(BIN): ${OBJ}
+longmynd: ${OBJ}
 	@echo "  LD     "$@
 	@${CC} ${COPT} ${CFLAGS} -o $@ ${OBJ} ${LDFLAGS}
 
@@ -57,10 +58,7 @@ $(BIN): ${OBJ}
 	@${CC} ${COPT} ${CFLAGS} -c -fPIC -o $@ $<
 
 clean:
-	@rm -rf ${BIN} fake_read ${OBJ}
-
-tags:
-	@ctags *
+	@rm -rf longmynd fake_read ts_analyse ${OBJ}
 
 .PHONY: all clean
 

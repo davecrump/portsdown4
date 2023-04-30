@@ -302,7 +302,7 @@ if ! grep -q 9c983d8 /home/pi/LimeSuite/commit_tag.txt; then
   wget https://downloads.myriadrf.org/project/limesuite/22.09/LimeSDR-Mini_HW_2.0_r2.2.bit -O \
                  /home/pi/.local/share/LimeSuite/images/22.09/LimeSDR-Mini_HW_2.0_r2.2.bit
 
-  // Check that it was downloaded, if not, go to source and get it
+  # Check that it was downloaded, if not, go to source and get it
   if [[ "$?" != "0" ]]; then
     rm /home/pi/.local/share/LimeSuite/images/22.09/LimeSDR-Mini_HW_2.0_r2.2.bit
     wget https://github.com/myriadrf/LimeSDR-Mini-v2_GW/raw/main/LimeSDR-Mini_bitstreams/lms7_trx_impl1.bit -O \
@@ -436,7 +436,7 @@ echo "------------------------------------------"
 echo "----- Compiling the Signal Generator -----"
 echo "------------------------------------------"
 cd /home/pi/rpidatv/src/siggen
-touch siggentouch4.c            // Force recompilation for LimeSuite update
+touch siggentouch4.c            # Force recompilation for LimeSuite update
 make
 sudo make install
 cd /home/pi
@@ -538,7 +538,7 @@ echo "---------------------------------------"
 echo "----- Compiling Frequency Sweeper -----"
 echo "---------------------------------------"
 cd /home/pi/rpidatv/src/sweeper
-touch sweeper.c                  // Force recompilation for LimeSuite update
+touch sweeper.c                  # Force recompilation for LimeSuite update
 make
 cp sweeper ../../bin/
 cd /home/pi

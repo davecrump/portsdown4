@@ -73,5 +73,7 @@ bin/rtlsdrview
 bin/plutoview
 bin/dmm
 bin/wav2lime
-/bin/meteorview
+bin/meteorview
+bin/noise_meter
+
 

@@ -668,6 +668,7 @@ uint8_t stv0910_start_scan(uint8_t demod, uint8_t aep) {
 
 //                                                                                   STV0910_SCAN_BLIND_BEST_GUESS);
 
+
     if (err!=ERROR_NONE) printf("ERROR: STV0910 start scan\n");
 
     return err;
