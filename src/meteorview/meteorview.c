@@ -162,6 +162,7 @@ int WaterfallBase;
 int WaterfallRange;
 uint8_t wfalloverlap = 4;
 uint8_t wfallsamplefraction = 4;
+uint16_t wfalltimespan = 0; 
 
 bool webcontrol = false;   // Enables webcontrol on a Portsdown 4
 
@@ -436,6 +437,10 @@ void ReadSavedParams()
   strcpy(response, "4");
   GetConfigParam(PATH_CONFIG, "wfallsamplefraction", response);
   wfallsamplefraction = atoi(response);
+
+  strcpy(response, "0");
+  GetConfigParam(PATH_CONFIG, "wfalltimespan", response);
+  wfalltimespan = atoi(response);
 
   strcpy(response, "50000000");
   GetConfigParam(PATH_CONFIG, "pfreq1", response);
@@ -1909,6 +1914,25 @@ void SetWfall(int button)
       SetConfigParam(PATH_CONFIG, "wfallsamplefraction", ValueToSave);
       printf("Waterfall sample fraction set to %d\n", wfallsamplefraction);
     break;
+    case 12:                                            // Set Waterfall Base
+      // Define request string
+      strcpy(RequestText, "Enter new waterfall span in seconds (0 for min)");
+
+      // Define initial value
+      snprintf(InitText, 25, "%d", wfalltimespan);
+
+      // Ask for the new value
+      do
+      {
+        Keyboard(RequestText, InitText, 10);
+      }
+      while ((strlen(KeyboardReturn) == 0) || (atoi(KeyboardReturn) < 0));
+
+      wfalltimespan = atoi(KeyboardReturn);
+      snprintf(ValueToSave, 63, "%d", wfalltimespan);
+      SetConfigParam(PATH_CONFIG, "wfalltimespan", ValueToSave);
+      printf("Waterfall timespan set to %d seconds\n", wfalltimespan);
+    break;
   }
   clearScreen();
   DrawEmptyScreen();  // Required to set A value, which is not set in DrawTrace
@@ -2937,9 +2961,9 @@ void *WaitButtonEvent(void * arg)
           UpdateWindow();
           break;
         case 6:                                            // 
-          printf("Freq Presets Menu 10 Requested\n");
-          CurrentMenu = 10;
-          Start_Highlights_Menu10();
+          printf("More Wfall Config Menu 14 Requested\n");
+          CurrentMenu = 14;
+          //Start_Highlights_Menu14();
           UpdateWindow();
           break;
         case 7:                                            // Return to Main Menu
@@ -3184,7 +3208,59 @@ void *WaitButtonEvent(void * arg)
         default:
           printf("Menu 13 Error\n");
       }
-      continue;  // Completed Menu 9 action, go and wait for touch
+      continue;  // Completed Menu 13 action, go and wait for touch
+    }
+    if (CurrentMenu == 14)  // More Waterfall Config
+    {
+      printf("Button Event %d, Entering Menu 14 Case Statement\n",i);
+      CallingMenu = 14;
+      switch (i)
+      {
+        case 0:                                            // Capture Snap
+          freeze = true; 
+          SetButtonStatus(ButtonNumber(CurrentMenu, 0), 1);
+          UpdateWindow();
+          while(! frozen)
+          {
+            usleep(1000);
+          }                                   // wait till the end of the scan
+          system("/home/pi/rpidatv/scripts/snap2.sh");
+          SetButtonStatus(ButtonNumber(CurrentMenu, 0), 0);
+          UpdateWindow();
+          freeze = false;
+          break;
+        case 2:                                            //   Set Waterfall Timespan
+          SetWfall(i + 10);
+          UpdateWindow();
+          break;
+        case 6:                                            // 
+          printf("Freq Presets Menu 10 Requested\n");
+          CurrentMenu = 10;
+          Start_Highlights_Menu10();
+          UpdateWindow();
+          break;
+        case 7:                                            // Return to Main Menu
+          printf("Main Menu 1 Requested\n");
+          CurrentMenu = 1;
+          UpdateWindow();
+          break;
+        case 8:
+          if (freeze)
+          {
+            SetButtonStatus(ButtonNumber(CurrentMenu, 8), 0);
+            freeze = false;
+          }
+          else
+          {
+            SetButtonStatus(ButtonNumber(CurrentMenu, 8), 1);
+            freeze = true;
+          }
+          UpdateWindow();
+          break;
+        default:
+          printf("Menu 14 Error\n");
+      }
+      continue;  // Completed Menu 14 action, go and wait for touch
     }
   }
   return NULL;
@@ -3668,7 +3744,7 @@ void Define_Menu9()                                          // Config Menu
   AddButtonStatus(button, " ", &Black);
 
   button = CreateButton(9, 1);
-  AddButtonStatus(button, "Config^Menu", &Black);
+  AddButtonStatus(button, "Wfall^Config Menu", &Black);
 
   button = CreateButton(9, 2);
   AddButtonStatus(button, "Set Wfall^Base Level", &Blue);
@@ -3683,7 +3759,7 @@ void Define_Menu9()                                          // Config Menu
   AddButtonStatus(button, "Set Wfall^Fraction", &Blue);
 
   button = CreateButton(9, 6);
-  AddButtonStatus(button, "Set Freq^Presets", &Blue);
+  AddButtonStatus(button, "More Wfall^Config", &Blue);
 
   button = CreateButton(9, 7);
   AddButtonStatus(button, "Return to^Main Menu", &DBlue);
@@ -3945,6 +4021,41 @@ void Start_Highlights_Menu13()
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 6), 0);
   }
+}
+
+
+void Define_Menu14()                                          // More Waterfall Config Menu
+{
+  int button = 0;
+
+  button = CreateButton(14, 0);
+  AddButtonStatus(button, "Capture^Snap", &DGrey);
+  AddButtonStatus(button, " ", &Black);
+
+  button = CreateButton(14, 1);
+  AddButtonStatus(button, "More Wfall^Config Menu", &Black);
+
+  button = CreateButton(14, 2);
+  AddButtonStatus(button, "Set Wfall^Time Span", &Blue);
+
+  //button = CreateButton(14, 3);
+  //AddButtonStatus(button, "Set Wfall^Range", &Blue);
+
+  //button = CreateButton(14, 4);
+  //AddButtonStatus(button, "Set Wfall^Overlap", &Blue);
+
+  //button = CreateButton(14, 5);
+  //AddButtonStatus(button, "Set Wfall^Fraction", &Blue);
+
+  button = CreateButton(14, 6);
+  AddButtonStatus(button, "Set Freq^Presets", &Blue);
+
+  button = CreateButton(14, 7);
+  AddButtonStatus(button, "Return to^Main Menu", &DBlue);
+
+  button = CreateButton(14, 8);
+  AddButtonStatus(button, "Freeze", &Blue);
+  AddButtonStatus(button, "Unfreeze", &Green);
 }
 
 
@@ -4608,7 +4719,9 @@ int main(void)
   int pixel;
   int PeakValueZeroCounter = 0;
   int nextwebupdate = 10;
-  //uint64_t last_output = monotonic_ms();
+  uint64_t next_paint = monotonic_ms();
+  uint16_t y4[625];
+  bool paint_line;
   int w_index = 0;
   int j;
   int k;
@@ -4663,6 +4776,7 @@ int main(void)
   Define_Menu11();
   Define_Menu12();
   Define_Menu13();
+  Define_Menu14();
   Define_Menu41();
 
   // Set up wiringPi module
@@ -4791,7 +4905,37 @@ int main(void)
           wfall_height = 399;
         }
 
-        if(true)
+        if (monotonic_ms() > next_paint)
+        {
+          paint_line = true;
+
+          for (j = 8; j <= 506; j++)
+          {
+            if (y3[j] > y4[j])  // store the peaks
+            {
+              y4[j] = y3[j];
+            }
+
+            y3[j] = y4[j];      // overwrite the current value with the peaks
+
+            y4[j] = 0;          // zero the peaks for next time
+          }
+          next_paint = next_paint + (wfalltimespan * 1000) / (wfall_height + 1);
+        }
+
+        else
+        {
+          for (j = 8; j <= 506; j++)
+          {
+            if (y3[j] > y4[j])  // store the peaks
+            {
+              y4[j] = y3[j];
+            }
+          }
+          paint_line = false;
+        } 
+
+        if(paint_line)
         {
           // Add the current line to the waterfall
 

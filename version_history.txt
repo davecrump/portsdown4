@@ -1,3 +1,11 @@
+202304300
+Add direct entry of non-standard SR on RX Menu
+Update LongMynd and identify (but not display) H266
+Simplify Lime SigGen for cleaner signal
+
+202304260
+Add variable waterfall time span to MeteorViewer
+
 202304220
 Add Noise Meter
 

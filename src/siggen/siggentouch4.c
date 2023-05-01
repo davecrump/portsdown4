@@ -2760,7 +2760,8 @@ void AdjustFreq(int button)
 
   if ((strcmp(osc, "lime") == 0) && (LimeRun)) // Change Lime frequency even if in standby
   {
-    if (LMS_SetLOFrequency(device, LMS_CH_TX, 0, (double)(DisplayFreq - 1000000))!=0)
+//    if (LMS_SetLOFrequency(device, LMS_CH_TX, 0, (double)(DisplayFreq - 1000000))!=0)
+    if (LMS_SetLOFrequency(device, LMS_CH_TX, 0, (double)(DisplayFreq)) != 0)
     {
       printf("Error - unable to set Lime Frequency\n");
     }
@@ -3555,7 +3556,8 @@ int PlutoOff()
 
 void *LimeStream(void * arg)
 {
-  const double frequency = (double)(DisplayFreq - 1000000);  //
+  //const double frequency = (double)(DisplayFreq - 1000000);  //
+  const double frequency = (double)(DisplayFreq);              //  No tone used
   const double sample_rate = 5e6;    //sample rate to 5 MHz
   const double tone_freq = 1e6; //tone frequency
   const double f_ratio = tone_freq/sample_rate;
@@ -3640,12 +3642,14 @@ void *LimeStream(void * arg)
     float tx_buffer[2*buffer_size];     //buffer to hold complex values (2*samples))
     int i;
 
-    for (i = 0; i <buffer_size; i++)       //generate TX tone
+    for (i = 0; i <buffer_size; i++)       //generate TX tone (no longer used)
     {
-      const double pi = acos(-1);
-      double w = 2*pi*i*f_ratio;
-      tx_buffer[2*i] = cos(w);
-      tx_buffer[2*i+1] = sin(w);
+      //const double pi = acos(-1);
+      //double w = 2*pi*i*f_ratio;
+      //tx_buffer[2*i] = cos(w);
+      //tx_buffer[2*i+1] = sin(w);
+      tx_buffer[2*i] = 1.0;
+      tx_buffer[2*i+1] = 0.0;
     }  
 
     float null_buffer[2 * buffer_size];

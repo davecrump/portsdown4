@@ -213,7 +213,7 @@ wget https://github.com/natsfr/LimeSDR_DVBSGateware/releases/download/v0.3/LimeS
 wget https://downloads.myriadrf.org/project/limesuite/22.09/LimeSDR-Mini_HW_2.0_r2.2.bit -O \
                /home/pi/.local/share/LimeSuite/images/22.09/LimeSDR-Mini_HW_2.0_r2.2.bit
 
-// Check that it was downloaded, if not, go to source and get it
+# Check that it was downloaded, if not, go to source and get it
 if [[ "$?" != "0" ]]; then
   rm /home/pi/.local/share/LimeSuite/images/22.09/LimeSDR-Mini_HW_2.0_r2.2.bit
   wget https://github.com/myriadrf/LimeSDR-Mini-v2_GW/raw/main/LimeSDR-Mini_bitstreams/lms7_trx_impl1.bit -O \

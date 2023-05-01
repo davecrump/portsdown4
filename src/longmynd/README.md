@@ -117,8 +117,8 @@ A video player (e.g. VLC) can be set to listen for the incoming MPEG-TS UDP, on 
     23  BCH Uncorrected     1 if some BCH-detected errors were not able to be corrected, 0 otherwise (DVB-S2 only)
     24  LNB Voltage Enabled 1 if LNB Voltage Supply is enabled, 0 otherwise (LNB Voltage Supply requires add-on board)
     25  LNB H Polarisation  1 if LNB Voltage Supply is configured for Horizontal Polarisation (18V), 0 otherwise (LNB Voltage Supply requires add-on board)
-    35  AGC1 Gain           Gain value of AGC1 (0: Signal too weak, 65535: Signal too strong)
-    37  AGC2 Gain           Gain value of AGC2 (0: Minimum Gain, 65535: Maximum Gain)
+    26  AGC1 Gain           Gain value of AGC1 (0: Signal too weak, 65535: Signal too strong)
+    27  AGC2 Gain           Gain value of AGC2 (0: Minimum Gain, 65535: Maximum Gain)
 
 
 ### MODCOD Lookup

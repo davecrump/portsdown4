@@ -12087,14 +12087,14 @@ void LMRX(int NoButton)
             }
           }
 
-          if ((stat_string[0] == '3') && (stat_string[1] == '5'))  // AGC1 Setting
+          if ((stat_string[0] == '2') && (stat_string[1] == '6'))  // AGC1 Setting
           {
             strcpy(AGC1text, stat_string);
             chopN(AGC1text, 3);
             AGC1 = atoi(AGC1text);
           }
 
-          if ((stat_string[0] == '3') && (stat_string[1] == '7'))  // AGC2 Setting
+          if ((stat_string[0] == '2') && (stat_string[1] == '7'))  // AGC2 Setting
           {
             strcpy(AGC2text, stat_string);
             chopN(AGC2text, 3);
@@ -12951,14 +12951,14 @@ void LMRX(int NoButton)
             }
           }
 
-          if ((stat_string[0] == '3') && (stat_string[1] == '5'))  // AGC1 Setting
+          if ((stat_string[0] == '2') && (stat_string[1] == '6'))  // AGC1 Setting
           {
             strcpy(AGC1text, stat_string);
             chopN(AGC1text, 3);
             AGC1 = atoi(AGC1text);
           }
 
-          if ((stat_string[0] == '3') && (stat_string[1] == '7'))  // AGC2 Setting
+          if ((stat_string[0] == '2') && (stat_string[1] == '7'))  // AGC2 Setting
           {
             strcpy(AGC2text, stat_string);
             chopN(AGC2text, 3);
@@ -13133,14 +13133,14 @@ void LMRX(int NoButton)
             }
           }
 
-          if ((stat_string[0] == '3') && (stat_string[1] == '5'))  // AGC1 Setting
+          if ((stat_string[0] == '2') && (stat_string[1] == '6'))  // AGC1 Setting
           {
             strcpy(AGC1text, stat_string);
             chopN(AGC1text, 3);
             AGC1 = atoi(AGC1text);
           }
 
-          if ((stat_string[0] == '3') && (stat_string[1] == '7'))  // AGC2 Setting
+          if ((stat_string[0] == '2') && (stat_string[1] == '7'))  // AGC2 Setting
           {
             strcpy(AGC2text, stat_string);
             chopN(AGC2text, 3);
@@ -13260,14 +13260,14 @@ void LMRX(int NoButton)
             strcat(STATEtext, " MER:");
           }
 
-          if ((stat_string[0] == '3') && (stat_string[1] == '5'))  // AGC1 Setting
+          if ((stat_string[0] == '2') && (stat_string[1] == '6'))  // AGC1 Setting
           {
             strcpy(AGC1text, stat_string);
             chopN(AGC1text, 3);
             AGC1 = atoi(AGC1text);
           }
 
-          if ((stat_string[0] == '3') && (stat_string[1] == '7'))  // AGC2 Setting
+          if ((stat_string[0] == '2') && (stat_string[1] == '7'))  // AGC2 Setting
           {
             strcpy(AGC2text, stat_string);
             chopN(AGC2text, 3);
@@ -15459,13 +15459,17 @@ void ChangeLMPresetSR(int NoButton)
   int SRCheck = 0;
 
   // Correct button numbers to index numbers
-  if (NoButton < 4)
+  if (NoButton < 4)          // bottom row
   {
-    SRIndex = NoButton + 6;
+    SRIndex = NoButton + 6;  
   }
-  else
+  else if (NoButton < 10)    // second row
   {
-    SRIndex = NoButton - 4;
+    SRIndex = NoButton - 4; 
+  }
+  else if (NoButton == 20)  // Change preset 6 directly from Menu 8
+  {
+    SRIndex = 6;
   }
 
   if (SRIndex <= 6)  // Only act on valid buttons
@@ -18569,7 +18573,14 @@ void waituntil(int w,int h)
         case 17:
         case 18:
         case 19:
-        case 20:
+          SelectLMSR(i);
+          Start_Highlights_Menu8();
+          UpdateWindow();
+          break;
+        case 20:                                         // Change SR from keyboard
+          ChangeLMPresetSR(i);
+          setBackColour(0, 0, 0);
+          clearScreen();
           SelectLMSR(i);
           Start_Highlights_Menu8();
           UpdateWindow();
@@ -22454,7 +22465,7 @@ void Start_Highlights_Menu8()
     AmendButtonStatus(ButtonNumber(8, 19), 0, LMBStext, &Blue);
     AmendButtonStatus(ButtonNumber(8, 19), 1, LMBStext, &Green);
   
-    snprintf(LMBStext, 15, "SR^%d", LMRXsr[6 + indexoffset]);
+    snprintf(LMBStext, 25, "SR %d^Keyboard", LMRXsr[6 + indexoffset]);
     AmendButtonStatus(ButtonNumber(8, 20), 0, LMBStext, &Blue);
     AmendButtonStatus(ButtonNumber(8, 20), 1, LMBStext, &Green);
   }
@@ -22480,7 +22491,7 @@ void Start_Highlights_Menu8()
     AmendButtonStatus(ButtonNumber(8, 19), 0, LMBStext, &Blue);
     AmendButtonStatus(ButtonNumber(8, 19), 1, LMBStext, &Green);
   
-    snprintf(LMBStext, 21, "Bandwidth^%d kHz", LMRXsr[6 + indexoffset]);
+    snprintf(LMBStext, 25, "BW %d kHz^Keyboard", LMRXsr[6 + indexoffset]);
     AmendButtonStatus(ButtonNumber(8, 20), 0, LMBStext, &Blue);
     AmendButtonStatus(ButtonNumber(8, 20), 1, LMBStext, &Green);
   }
