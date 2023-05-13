@@ -554,7 +554,7 @@ cd /home/pi
 
 # Compile the wav2lime utility (202301140)
 cd /home/pi/rpidatv/src/wav2lime
-gcc -o wav2lime wav2lime.c -lLimeSuite
+gcc -o wav2lime wav642lime.c -lLimeSuite
 cp /home/pi/rpidatv/src/wav2lime/wav2lime /home/pi/rpidatv/bin/wav2lime
 cd /home/pi
 
