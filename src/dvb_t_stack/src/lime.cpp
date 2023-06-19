@@ -61,7 +61,8 @@ int lime_open(DVBTFormat *fmt){
     		return -1;
     	}
 
-    	if(LMS_SetNormalizedGain(m_device, LMS_CH_TX, 0, 1.0) != 0){
+//    	if(LMS_SetNormalizedGain(m_device, LMS_CH_TX, 0, 1.0) != 0){  // gkq correction
+    	if(LMS_SetNormalizedGain(m_device, LMS_CH_TX, 0, fmt->level) != 0){
     		printf("LMS_SetNormalisedGain error\n");
     		return -1;
     	}

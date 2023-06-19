@@ -1,3 +1,9 @@
+202306190
+Bugfix Lime DVB-T Transmit Power level
+
+202305130
+Improvements to wav2lime command line IQ file player
+
 202304300
 Add direct entry of non-standard SR on RX Menu
 Update LongMynd and identify (but not display) H266
