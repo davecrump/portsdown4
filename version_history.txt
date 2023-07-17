@@ -1,3 +1,6 @@
+202307170
+Use more recent versions of config.guess files
+
 202306190
 Bugfix Lime DVB-T Transmit Power level
 

@@ -253,6 +253,9 @@ echo "--------------------------------------------"
 cd /home/pi/avc2ts
 git clone https://github.com/F5OEO/libmpegts.git
 cd libmpegts
+# Overwrite updated config version files 202307170
+cp /home/pi/rpidatv/scripts/configs/config.guess config.guess
+cp /home/pi/rpidatv/scripts/configs/config.sub config.sub
 ./configure
 make
 cd ../
@@ -260,6 +263,9 @@ cd ../
 # For libfdkaac
 git clone https://github.com/mstorsjo/fdk-aac.git
 cd fdk-aac
+# Overwrite updated config version files 202307170
+cp /home/pi/rpidatv/scripts/configs/config.guess config.guess
+cp /home/pi/rpidatv/scripts/configs/config.sub config.sub
 ./autogen.sh
 ./configure
 make && sudo make install
