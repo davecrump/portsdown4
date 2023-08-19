@@ -6773,7 +6773,8 @@ int getTouchSampleThread(int *rawX, int *rawY, int *rawPressure)
   /* the events (up to 64 at once) */
   struct input_event ev[64];
 
-  if (strcmp(DisplayType, "Element14_7") == 0)
+  if (((strcmp(DisplayType, "Element14_7") == 0) || (strcmp(DisplayType, "Browser") == 0))
+      && (strcmp(DisplayType, "dfrobot5") != 0))   // Browser or Element14_7, but not dfrobot5
   {
     // Program flow blocks here until there is a touch event
     rb = read(fd, ev, sizeof(struct input_event) * 64);
@@ -16125,6 +16126,10 @@ void ChangeStartApp(int NoButton)
     SetConfigParam(PATH_PCONFIG, "startup", "Meteorview_boot");
     strcpy(StartApp, "Meteorview_boot");
     break;
+  case 9:
+    SetConfigParam(PATH_PCONFIG, "startup", "Meteorbeacon_boot");
+    strcpy(StartApp, "Meteorbeacon_boot");
+    break;
   default:
     break;
   }
@@ -18454,6 +18459,10 @@ void waituntil(int w,int h)
           DisplayLogo();
           cleanexit(134);
           break;
+        case 19:                                                 // SDRPlay Meteor Bcn RX
+          DisplayLogo();
+          cleanexit(149);
+          break;
         case 21:                              // Menu 1
           printf("MENU 1 \n");
           CurrentMenu=1;
@@ -19970,6 +19979,7 @@ void waituntil(int w,int h)
         case 6:                               // Boot to Langstone
         case 7:                               // Boot to Band Viewer
         case 8:                               // Boot to Meteor Viewer
+        case 9:                               // Boot to Meteor RX Svr
           ChangeStartApp(i);
           //wait_touch();
           setBackColour(0, 0, 0);
@@ -22130,6 +22140,9 @@ void Define_Menu7()
   AddButtonStatus(button, "XY^Display", &Blue);
 
   // 4th line up Menu 7: 
+
+  button = CreateButton(7, 19);
+  AddButtonStatus(button, "Meteor^Bcn RX", &Blue);
 
   // Top of Menu 7
 
@@ -25082,6 +25095,10 @@ void Define_Menu34()
   button = CreateButton(34, 8);
   AddButtonStatus(button, "Boot to^Meteor Viewer", &Blue);
   AddButtonStatus(button, "Boot to^Meteor Viewer", &Green);
+
+  button = CreateButton(34, 9);
+  AddButtonStatus(button, "Boot to^Meteor Bcn RX", &Blue);
+  AddButtonStatus(button, "Boot to^Meteor Bcn RX", &Green);
 }
 
 
@@ -25093,6 +25110,7 @@ void Start_Highlights_Menu34()         // Start-up App
     SetButtonStatus(ButtonNumber(CurrentMenu, 6), 0);
     SetButtonStatus(ButtonNumber(CurrentMenu, 7), 0);
     SetButtonStatus(ButtonNumber(CurrentMenu, 8), 0);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 9), 0);
   }
   else if (strcmp(StartApp, "Langstone_boot") == 0)
   {
@@ -25100,6 +25118,7 @@ void Start_Highlights_Menu34()         // Start-up App
     SetButtonStatus(ButtonNumber(CurrentMenu, 6), 1);
     SetButtonStatus(ButtonNumber(CurrentMenu, 7), 0);
     SetButtonStatus(ButtonNumber(CurrentMenu, 8), 0);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 9), 0);
   }
   else if (strcmp(StartApp, "Bandview_boot") == 0)
   {
@@ -25107,6 +25126,7 @@ void Start_Highlights_Menu34()         // Start-up App
     SetButtonStatus(ButtonNumber(CurrentMenu, 6), 0);
     SetButtonStatus(ButtonNumber(CurrentMenu, 7), 1);
     SetButtonStatus(ButtonNumber(CurrentMenu, 8), 0);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 9), 0);
   }
   else if (strcmp(StartApp, "Meteorview_boot") == 0)
   {
@@ -25114,6 +25134,15 @@ void Start_Highlights_Menu34()         // Start-up App
     SetButtonStatus(ButtonNumber(CurrentMenu, 6), 0);
     SetButtonStatus(ButtonNumber(CurrentMenu, 7), 0);
     SetButtonStatus(ButtonNumber(CurrentMenu, 8), 1);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 9), 0);
+  }
+  else if (strcmp(StartApp, "Meteorbeacon_boot") == 0)
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 5), 0);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 6), 0);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 7), 0);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 8), 0);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 9), 1);
   }
   else
   {
@@ -25121,6 +25150,7 @@ void Start_Highlights_Menu34()         // Start-up App
     SetButtonStatus(ButtonNumber(CurrentMenu, 6), 0);
     SetButtonStatus(ButtonNumber(CurrentMenu, 7), 0);
     SetButtonStatus(ButtonNumber(CurrentMenu, 8), 0);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 9), 0);
   }
 
   // Over-ride if Langstone not installed (set to Grey)
@@ -26539,20 +26569,6 @@ int main(int argc, char *argv[])
   // Initialise all the spi GPIO ports to the correct state
   InitialiseGPIO();
 
-  // Determine if using waveshare or waveshare B screen
-  // Either by first argument or from portsdown_config.txt
-  if(argc > 1)
-  {
-    Inversed=atoi(argv[1]);
-  }
-  strcpy(Param,"display");
-  GetConfigParam(PATH_PCONFIG, Param, Value);
-  strcpy(DisplayType, Value);  //  DisplayType set here and never changes
-  if((strcmp(DisplayType, "Waveshare")==0) || (strcmp(DisplayType, "WaveshareB")==0)
-    || (strcmp(DisplayType, "Waveshare4")==0))
-  {
-    Inversed = 1;
-  }
   // Set the Analog Capture (input) Standard
   GetUSBVidDev(USBVidDevice);
   if (strlen(USBVidDevice) == 12)  // /dev/video* with a new line
@@ -26568,6 +26584,9 @@ int main(int argc, char *argv[])
     system(SetStandard);
   }
 
+  // Check the display type in the config file
+  GetConfigParam(PATH_PCONFIG, "display", DisplayType);
+
   // Check for presence of touchscreen
   for(NoDeviceEvent = 0; NoDeviceEvent < 7; NoDeviceEvent++)
   {
@@ -26576,12 +26595,20 @@ int main(int argc, char *argv[])
       if(getTouchScreenDetails(&screenXmin,&screenXmax,&screenYmin,&screenYmax)==1) break;
     }
   }
-  if(NoDeviceEvent == 7) 
+
+  if(NoDeviceEvent != 7)  // Touchscreen detected
   {
-    if(strcmp(DisplayType, "Browser") != 0)
+    // Create Touchscreen thread
+    pthread_create (&thtouchscreen, NULL, &WaitTouchscreenEvent, NULL);
+  }
+  else // No touchscreen detected
+  {
+    if(strcmp(DisplayType, "Browser") != 0)  // Web control not enabled, so set it up and reboot
     {
-      perror("No Touchscreen found");
-      exit(1);
+      SetConfigParam(PATH_PCONFIG, "webcontrol", "enabled");
+      SetConfigParam(PATH_PCONFIG, "display", "Browser");
+      system ("/home/pi/rpidatv/scripts/set_display_config.sh");
+      system ("sudo reboot now");
     }
   }
 
@@ -26591,13 +26618,7 @@ int main(int argc, char *argv[])
 
   // Calculate screen parameters
   scaleXvalue = ((float)screenXmax-screenXmin) / wscreen;
-  // printf ("X Scale Factor = %f\n", scaleXvalue);
-  // printf ("wscreen = %d\n", wscreen);
-  // printf ("screenXmax = %d\n", screenXmax);
-  // printf ("screenXmim = %d\n", screenXmin);
   scaleYvalue = ((float)screenYmax-screenYmin) / hscreen;
-  // printf ("Y Scale Factor = %f\n", scaleYvalue);
-  // printf ("hscreen = %d\n", hscreen);
 
   // Define button grid
   // -25 keeps right hand side symmetrical with left hand side
@@ -26629,13 +26650,7 @@ int main(int argc, char *argv[])
   ReadTSConfig();
   ReadContestSites();
   ReadVLCVolume();
-  ReadWebControl();
-
-  // Create Touchscreen thread if required
-  if (strcmp(DisplayType, "Browser") != 0)
-  {
-    pthread_create (&thtouchscreen, NULL, &WaitTouchscreenEvent, NULL);
-  }
+  ReadWebControl();  // this starts the web listener thread if required
 
   SetAudioLevels();
 

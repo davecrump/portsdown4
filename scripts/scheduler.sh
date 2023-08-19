@@ -122,6 +122,8 @@ ChooseBandViewerSDR()
 # 145  Run the Langstone TRX V2 Lime
 # 146  Run the Langstone TRX V2 Pluto
 # 147  Exit from rpidatvgui requesting start of Noise Meter
+# 148  Exit from rpidatvgui requesting start of SDRPlay BeaconRX with its GUI
+# 149  SDRPlay BeaconRX no GUI
 # 150  Run the Meteor Viewer
 # 160  Shutdown from GUI
 # 192  Reboot from GUI
@@ -160,6 +162,10 @@ case "$MODE_STARTUP" in
     # Start the Band Viewer
     ChooseBandViewerSDR
     GUI_RETURN_CODE=$BANDVIEW_START_CODE
+  ;;
+  Meteorbeacon_boot)
+    # Start the Meteor Beacon RX
+    GUI_RETURN_CODE=149
   ;;
   Meteorview_boot)
     # Start the Meteor Viewer
@@ -283,6 +289,41 @@ while [ "$GUI_RETURN_CODE" -gt 127 ] || [ "$GUI_RETURN_CODE" -eq 0 ];  do
       /home/pi/rpidatv/bin/noise_meter
       GUI_RETURN_CODE="$?"
     ;;
+# 148  Exit from rpidatvgui requesting start of SDRPlay BeaconRX with its GUI
+
+    149)                              # SDRPlay BeaconRX no GUI
+      DisplayMsg "Restarting SDRPlay Service\n\nThis may take up to 90 seconds"
+      sudo systemctl restart sdrplay
+      DisplayMsg " "                      # Display Blank screen
+
+      lsusb | grep -q '1df7:'             # check for SDRPlay
+      if [ $? != 0 ]; then                # Not detected
+        DisplayMsg "Unable to detect SDRPlay\n\nResetting the USB Bus"
+        sudo uhubctl -R -a 2              # So reset USB bus
+        sleep 1
+        lsusb | grep -q '1df7:'
+        if [ $? != 0 ]; then              # Check again
+          sudo uhubctl -R -a 2            # Try reset USB bus again
+          sleep 1
+          lsusb | grep -q '1df7:'         
+          if [ $? != 0 ]; then            # If still no joy
+            DisplayMsg "Still Unable to detect SDRPlay\n\n\nCheck connections"
+            sleep 2
+            DisplayMsg " "                # Display Blank screen
+            GUI_RETURN_CODE=129           # Return to Portsdown     
+          fi
+        fi
+      fi
+
+      if [ $GUI_RETURN_CODE == 149 ]; then          # MeteorView
+        /home/pi/rpidatv/bin/beacon
+        GUI_RETURN_CODE="$?"
+      fi
+      if [ $GUI_RETURN_CODE != 129 ]; then          # Not Portsdown
+        GUI_RETURN_CODE=149                         # So restart meteorview        
+      fi
+    ;;
+
     150)                              # SDRPlay Meteor Viewer
       DisplayMsg "Restarting SDRPlay Service\n\nThis may take up to 90 seconds"
       sudo systemctl restart sdrplay
