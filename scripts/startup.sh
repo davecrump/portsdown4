@@ -203,6 +203,10 @@ case "$MODE_STARTUP" in
     source /home/pi/rpidatv/scripts/scheduler.sh
     #return
   ;;
+  Meteorbeacon_boot)
+    # Start the Touchscreen Scheduler
+    source /home/pi/rpidatv/scripts/scheduler.sh
+  ;;
   Meteorview_boot)
     # Start the Touchscreen Scheduler
     source /home/pi/rpidatv/scripts/scheduler.sh

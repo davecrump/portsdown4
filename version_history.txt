@@ -1,3 +1,6 @@
+202308190
+Booting without touchscreen enables web control
+
 202307171
 Use more recent versions of config.guess files
 Update RaspBIOS Version for new builds
