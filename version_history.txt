@@ -1,3 +1,6 @@
+202308210
+Meteorview upgraded to work without touchscreen
+
 202308190
 Booting without touchscreen enables web control
 

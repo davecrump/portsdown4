@@ -326,12 +326,15 @@ while [ "$GUI_RETURN_CODE" -gt 127 ] || [ "$GUI_RETURN_CODE" -eq 0 ];  do
 
     150)                              # SDRPlay Meteor Viewer
       DisplayMsg "Restarting SDRPlay Service\n\nThis may take up to 90 seconds"
+      /home/pi/rpidatv/scripts/single_screen_grab_for_web.sh &
       sudo systemctl restart sdrplay
       DisplayMsg " "                      # Display Blank screen
+      /home/pi/rpidatv/scripts/single_screen_grab_for_web.sh &
 
       lsusb | grep -q '1df7:'             # check for SDRPlay
       if [ $? != 0 ]; then                # Not detected
         DisplayMsg "Unable to detect SDRPlay\n\nResetting the USB Bus"
+        /home/pi/rpidatv/scripts/single_screen_grab_for_web.sh &
         sudo uhubctl -R -a 2              # So reset USB bus
         sleep 1
         lsusb | grep -q '1df7:'
@@ -341,8 +344,10 @@ while [ "$GUI_RETURN_CODE" -gt 127 ] || [ "$GUI_RETURN_CODE" -eq 0 ];  do
           lsusb | grep -q '1df7:'         
           if [ $? != 0 ]; then            # If still no joy
             DisplayMsg "Still Unable to detect SDRPlay\n\n\nCheck connections"
+            /home/pi/rpidatv/scripts/single_screen_grab_for_web.sh &
             sleep 2
             DisplayMsg " "                # Display Blank screen
+            /home/pi/rpidatv/scripts/single_screen_grab_for_web.sh &
             GUI_RETURN_CODE=129           # Return to Portsdown     
           fi
         fi

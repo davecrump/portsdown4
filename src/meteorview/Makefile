@@ -14,8 +14,7 @@ endif
 COPT = -O3 -march=native -mtune=native
 # CFLAGS = -Wall -Wextra -Wpedantic -std=gnu11 -D_GNU_SOURCE -pthread 
 CFLAGS = -Wall -std=gnu11 -D_GNU_SOURCE -DNEON_OPTS 
-#CFLAGS += -D BUILD_VERSION="\"$(shell git describe --dirty --always)\""	\
-#		-D BUILD_DATE="\"$(shell date '+%Y-%m-%d_%H:%M:%S')\""
+
 
 BIN = meteorview
 
@@ -29,6 +28,8 @@ SRC =	$(SRCDIR)/meteorview.c\
 		$(SRCDIR)/graphics.c \
 		$(SRCDIR)/sdrplayfft.c \
 		$(SRCDIR)/timing.c \
+		$(SRCDIR)/ffunc.c \
+		$(SRCDIR)/ffunc.h \
 		$(SRCDIR)/font/font.c \
 		$(SRCDIR)/font/dejavu_sans_18.c \
 		$(SRCDIR)/font/dejavu_sans_20.c \
@@ -43,7 +44,8 @@ SRC =	$(SRCDIR)/meteorview.c\
 # OBSDIR = libwebsockets/build/lib
 
 LIBS = -lm -lc -lsdrplay_api -lbcm_host -pthread -lusb-1.0 -lfftw3 -lwiringPi -Wl,-Bstatic -Wl,-Bdynamic
-LIBS += -L/opt/vc/lib 
+LIBS += -L/opt/vc/lib -lrt -ldl -lfcgi -rdynamic
+
 
 #
 # ========================================================================================
