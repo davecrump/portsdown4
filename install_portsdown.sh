@@ -476,6 +476,10 @@ cd /home/pi/rpidatv/src/meteorview
 wget https://www.sdrplay.com/software/SDRplay_RSP_API-ARM-3.09.1.run
 chmod +x SDRplay_RSP_API-ARM-3.09.1.run
 ./sdrplay_api_install.exp
+sudo ldconfig                   ## Install seems unreliable, so try this
+sleep 1
+./sdrplay_api_install.exp       ## And a second attempt!
+
 sudo systemctl disable sdrplay  # service is started only when required
 
 # Compile meteorview
