@@ -1,3 +1,7 @@
+202308220
+Refresh and Bugfix SigGen
+Bugfix sdrplay api install
+
 202308210
 Meteorview upgraded to work without touchscreen
 
