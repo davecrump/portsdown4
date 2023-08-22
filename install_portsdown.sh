@@ -465,26 +465,19 @@ make
 cp plutoview ../../bin/
 cd /home/pi
 
-# Install SDRPlay API and compile MeteorViewer
+# Download sdrplay api for install after first reboot
 echo
-echo "----------------------------------"
-echo "----- Compiling MeteorViewer -----"
-echo "----------------------------------"
+echo "---------------------------------------"
+echo "----- Downloading the sdrplay api -----"
+echo "---------------------------------------"
 cd /home/pi/rpidatv/src/meteorview
 
-# Install api and disable service
+# Download api
 wget https://www.sdrplay.com/software/SDRplay_RSP_API-ARM-3.09.1.run
 chmod +x SDRplay_RSP_API-ARM-3.09.1.run
-./sdrplay_api_install.exp
-sudo ldconfig                   ## Install seems unreliable, so try this
-sleep 1
-./sdrplay_api_install.exp       ## And a second attempt!
 
-sudo systemctl disable sdrplay  # service is started only when required
-
-# Compile meteorview
-make
-cp meteorview ../../bin/
+# Create file to trigger install on next reboot
+touch /home/pi/rpidatv/.post-install_actions
 cd /home/pi
 
 # Compile Power Meter
