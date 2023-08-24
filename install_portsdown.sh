@@ -91,6 +91,7 @@ sudo apt-get -y install libfcgi-dev                                     # For we
 sudo apt-get -y install libairspy-dev                                   # For Airspy Bandviewer
 sudo apt-get -y install expect                                          # For unattended installs
 sudo apt-get -y install uhubctl                                         # For SDRPlay USB resets
+sudo apt-get -y install libssl-dev                                      # For websockets
 
 # Install WiringPi
 cd /tmp
@@ -106,6 +107,16 @@ cmake ./
 make all
 sudo make install
 cd /home/pi
+
+# Install Websockets for Meteor Beacon RX server
+git clone https://github.com/warmcat/libwebsockets.git
+cd libwebsockets
+cmake ./
+make all
+sudo make install
+sudo ldconfig
+cd /home/pi
+
 
 # Enable USB Storage automount in Buster
 echo

@@ -105,7 +105,6 @@ ChooseBandViewerSDR()
 # 128  Exit leaving system running
 # 129  Exit from any app requesting restart of main rpidatvgui
 # 130  Exit from rpidatvgui requesting start of siggen
-# 131  Exit from rpidatvgui requesting start of FreqShow (now deleted)
 # 132  Run Update Script for production load
 # 133  Run Update Script for development load
 # 134  Exit from rpidatvgui requesting start of the XY Display
@@ -122,8 +121,7 @@ ChooseBandViewerSDR()
 # 145  Run the Langstone TRX V2 Lime
 # 146  Run the Langstone TRX V2 Pluto
 # 147  Exit from rpidatvgui requesting start of Noise Meter
-# 148  Exit from rpidatvgui requesting start of SDRPlay BeaconRX with its GUI
-# 149  SDRPlay BeaconRX no GUI
+# 149  SDRPlay BeaconRX Server no GUI
 # 150  Run the Meteor Viewer
 # 160  Shutdown from GUI
 # 192  Reboot from GUI
@@ -164,8 +162,11 @@ case "$MODE_STARTUP" in
     GUI_RETURN_CODE=$BANDVIEW_START_CODE
   ;;
   Meteorbeacon_boot)
-    # Start the Meteor Beacon RX
+    # Start the Meteor Beacon RX Server
     GUI_RETURN_CODE=149
+    DisplayMsg "Waiting 15 seconds for the\n\nLeo Bodnar GPS Ref to stabilise"
+    /home/pi/rpidatv/scripts/single_screen_grab_for_web.sh &
+    sleep 15  # Wait for the Leo Bodnar frequency reference to stabilise
   ;;
   Meteorview_boot)
     # Start the Meteor Viewer
@@ -194,12 +195,6 @@ while [ "$GUI_RETURN_CODE" -gt 127 ] || [ "$GUI_RETURN_CODE" -eq 0 ];  do
     130)
       /home/pi/rpidatv/bin/siggen
       GUI_RETURN_CODE="$?"
-    ;;
-    131)
-      # cd /home/pi/FreqShow
-      # sudo python freqshow.py
-      # cd /home/pi
-      GUI_RETURN_CODE=129
     ;;
     132)
       cd /home/pi
@@ -289,38 +284,61 @@ while [ "$GUI_RETURN_CODE" -gt 127 ] || [ "$GUI_RETURN_CODE" -eq 0 ];  do
       /home/pi/rpidatv/bin/noise_meter
       GUI_RETURN_CODE="$?"
     ;;
-# 148  Exit from rpidatvgui requesting start of SDRPlay BeaconRX with its GUI
 
-    149)                              # SDRPlay BeaconRX no GUI
-      DisplayMsg "Restarting SDRPlay Service\n\nThis may take up to 90 seconds"
-      sudo systemctl restart sdrplay
-      DisplayMsg " "                      # Display Blank screen
+    149)                              # SDRPlay Beacon RX Server no GUI
+      RPISTATE="Not_Ready"
+      while [[ "$RPISTATE" == "Not_Ready" ]]
+      do
+        DisplayMsg "Restarting SDRPlay Service\n\nThis may take up to 90 seconds"
+        /home/pi/rpidatv/scripts/single_screen_grab_for_web.sh &
 
-      lsusb | grep -q '1df7:'             # check for SDRPlay
-      if [ $? != 0 ]; then                # Not detected
-        DisplayMsg "Unable to detect SDRPlay\n\nResetting the USB Bus"
-        sudo uhubctl -R -a 2              # So reset USB bus
-        sleep 1
-        lsusb | grep -q '1df7:'
-        if [ $? != 0 ]; then              # Check again
-          sudo uhubctl -R -a 2            # Try reset USB bus again
+        sudo systemctl restart sdrplay
+
+        DisplayMsg " "                      # Display Blank screen
+        /home/pi/rpidatv/scripts/single_screen_grab_for_web.sh &
+
+        lsusb | grep -q '1df7:'             # check for SDRPlay
+        if [ $? != 0 ]; then                # Not detected
+          DisplayMsg "Unable to detect SDRPlay\n\nResetting the USB Bus"
+          /home/pi/rpidatv/scripts/single_screen_grab_for_web.sh &
+          sudo uhubctl -R -a 2              # So reset USB bus
           sleep 1
-          lsusb | grep -q '1df7:'         
-          if [ $? != 0 ]; then            # If still no joy
-            DisplayMsg "Still Unable to detect SDRPlay\n\n\nCheck connections"
-            sleep 2
-            DisplayMsg " "                # Display Blank screen
-            GUI_RETURN_CODE=129           # Return to Portsdown     
-          fi
-        fi
-      fi
 
-      if [ $GUI_RETURN_CODE == 149 ]; then          # MeteorView
-        /home/pi/rpidatv/bin/beacon
-        GUI_RETURN_CODE="$?"
-      fi
+          lsusb | grep -q '1df7:'           # Check again
+          if [ $? != 0 ]; then              # Not detected   
+            DisplayMsg "Unable to detect SDRPlay\n\nResetting the USB Bus"
+            /home/pi/rpidatv/scripts/single_screen_grab_for_web.sh &
+            sudo uhubctl -R -a 2            # Try reset USB bus again
+            sleep 1
+
+            lsusb | grep -q '1df7:'         # Has that worked?         
+            if [ $? != 0 ]; then            # No
+              DisplayMsg "Still Unable to detect SDRPlay\n\n\nCheck connections"
+              /home/pi/rpidatv/scripts/single_screen_grab_for_web.sh &
+              sleep 2
+              DisplayMsg " "                # Display Blank screen
+            else
+              RPISTATE="Ready"
+            fi
+          else
+            RPISTATE="Ready"
+          fi
+        else
+          RPISTATE="Ready"
+        fi
+      done
+      
+      DisplayMsg "Starting the beacon RX server\n\nThis caption stays on while it is running\n"
+      /home/pi/rpidatv/scripts/single_screen_grab_for_web.sh &
+
+      /home/pi/rpidatv/bin/beacon
+      GUI_RETURN_CODE="$?"
+
       if [ $GUI_RETURN_CODE != 129 ]; then          # Not Portsdown
-        GUI_RETURN_CODE=149                         # So restart meteorview        
+        DisplayMsg "Beacon RX server did not start properly\nTyring again\n"
+        /home/pi/rpidatv/scripts/single_screen_grab_for_web.sh &
+
+        GUI_RETURN_CODE=149                         # So try to restart beacon        
       fi
     ;;
 
