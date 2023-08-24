@@ -1,3 +1,7 @@
+202308240
+Install Open SSL and Websockets
+Add robust scheduler for Meteor Beacon RX
+
 202308220
 Refresh and Bugfix SigGen
 Bugfix sdrplay api install
