@@ -105,7 +105,6 @@ ChooseBandViewerSDR()
 # 128  Exit leaving system running
 # 129  Exit from any app requesting restart of main rpidatvgui
 # 130  Exit from rpidatvgui requesting start of siggen
-# 131  Exit from rpidatvgui requesting start of FreqShow (now deleted)
 # 132  Run Update Script for production load
 # 133  Run Update Script for development load
 # 134  Exit from rpidatvgui requesting start of XY Display
@@ -122,7 +121,6 @@ ChooseBandViewerSDR()
 # 145  Run the Langstone TRX V2 Lime
 # 146  Run the Langstone TRX V2 Pluto
 # 147  Exit from rpidatvgui requesting start of Noise Meter
-# 148  Exit from rpidatvgui requesting start of SDRPlay BeaconRX with its GUI
 # 149  SDRPlay BeaconRX no GUI
 # 150  Run the Meteor Viewer
 # 160  Shutdown from GUI
@@ -193,12 +191,6 @@ while [ "$GUI_RETURN_CODE" -gt 127 ] || [ "$GUI_RETURN_CODE" -eq 0 ];  do
     ;;
     130)
       /home/pi/rpidatv/bin/siggen
-      GUI_RETURN_CODE=129
-    ;;
-    131)
-      # cd /home/pi/FreqShow
-      # sudo python freqshow.py
-      # cd /home/pi
       GUI_RETURN_CODE=129
     ;;
     132)

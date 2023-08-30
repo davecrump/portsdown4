@@ -1631,8 +1631,16 @@ void TransformTouchMap(int x, int y)
   // and transforms it to approx 0 - wscreen and 0 - hscreen in globals scaledX 
   // and scaledY prior to final correction by CorrectTouchMap  
 
-  scaledX = x / scaleXvalue;
-  scaledY = hscreen - y / scaleYvalue;
+  if (strcmp(DisplayType, "Browser") != 0)      // Touchscreen
+  {
+    scaledX = x / scaleXvalue;
+    scaledY = hscreen - y / scaleYvalue;
+  }
+  else                                         // Browser control without touchscreen
+  {
+    scaledX = x;
+    scaledY = 480 - y;
+  }
 }
 
 
@@ -2139,6 +2147,9 @@ int getTouchSampleThread(int *rawX, int *rawY, int *rawPressure)
   struct input_event ev[64];
 
   if (strcmp(DisplayType, "Element14_7") == 0)
+  //if (((strcmp(DisplayType, "Element14_7") == 0) || (strcmp(DisplayType, "Browser") == 0))
+  //    && (strcmp(DisplayType, "dfrobot5") != 0))   // Browser or Element14_7, but not dfrobot5
+
   {
     // Program flow blocks here until there is a touch event
     rb = read(fd, ev, sizeof(struct input_event) * 64);
@@ -7267,10 +7278,10 @@ int main(int argc, char **argv)
       if(getTouchScreenDetails(&screenXmin,&screenXmax,&screenYmin,&screenYmax)==1) break;
     }
   }
-  if(NoDeviceEvent == 7) 
+  if(NoDeviceEvent != 7)  // Touchscreen detected
   {
-    perror("No Touchscreen found");
-    exit(1);
+    // Create Touchscreen thread
+    pthread_create (&thtouchscreen, NULL, &WaitTouchscreenEvent, NULL);
   }
 
   // Show Portsdown Logo
@@ -7333,6 +7344,13 @@ int main(int argc, char **argv)
   // Calculate the starting level
   AdjustLevel(100);  // 100 = no change
   CalcOPLevel();
+
+  // Initialise web access
+
+  web_x = -1;
+  web_y = -1;
+  web_x_ptr = &web_x;
+  web_y_ptr = &web_y;
 
   // Determine button highlights
   Start_Highlights_Menu1();

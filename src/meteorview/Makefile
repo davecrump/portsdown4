@@ -27,6 +27,9 @@ SRC =	$(SRCDIR)/meteorview.c\
 		$(SRCDIR)/screen.c \
 		$(SRCDIR)/graphics.c \
 		$(SRCDIR)/sdrplayfft.c \
+		$(SRCDIR)/transport.c \
+		$(SRCDIR)/websocket_server.c \
+		$(SRCDIR)/protocol.c \
 		$(SRCDIR)/timing.c \
 		$(SRCDIR)/ffunc.c \
 		$(SRCDIR)/ffunc.h \
@@ -44,7 +47,7 @@ SRC =	$(SRCDIR)/meteorview.c\
 # OBSDIR = libwebsockets/build/lib
 
 LIBS = -lm -lc -lsdrplay_api -lbcm_host -pthread -lusb-1.0 -lfftw3 -lwiringPi -Wl,-Bstatic -Wl,-Bdynamic
-LIBS += -L/opt/vc/lib -lrt -ldl -lfcgi -rdynamic
+LIBS += -L/opt/vc/lib -lrt -ldl -lfcgi -rdynamic  -lwebsockets
 
 
 #

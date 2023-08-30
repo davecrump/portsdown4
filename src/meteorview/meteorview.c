@@ -27,6 +27,7 @@
 #include "sdrplayfft.h"
 #include "meteorview.h"
 #include "ffunc.h"
+#include "websocket_server.h"
 
 pthread_t thbutton;
 pthread_t thwebclick;     //  Listens for mouse clicks from web interface
@@ -149,6 +150,9 @@ uint32_t SpanWidth;                      // in Hz
 
 int RFgain;
 int IFgain;
+int remoteRFgain;
+int remoteIFgain;
+bool LocalGain;
 bool agc = false;
 uint8_t decimation_factor = 8;
 
@@ -273,6 +277,7 @@ void Start_Highlights_Menu15();
 void Define_Menu41();
 void DrawEmptyScreen();
 void DrawTickMarks();
+void ShowRemoteCaption();
 void DrawYaxisLabels();
 void DrawSettings();
 void DrawTrace(int xoffset, int prev2, int prev1, int current);
@@ -412,8 +417,8 @@ int CheckWebCtlExists()
 
 
 /***************************************************************************//**
- * @brief Checks to see if clientnumber exists in meteorview Config file
- *        and adds it and 3 other parameters (from 202308210) if required
+ * @brief Checks to see if new entries exist in meteorview Config file
+ *        and adds them if required
  *
  * @param None
  *
@@ -443,6 +448,21 @@ void CheckConfigFile()
     sprintf(shell_command, "echo port=7682 >> %s", PATH_CONFIG);
     system(shell_command);
     sprintf(shell_command, "echo destination=local >> %s", PATH_CONFIG);
+    system(shell_command);
+  }
+
+  sprintf(shell_command, "grep -q 'remoterfgain' %s", PATH_CONFIG);
+  fp = popen(shell_command, "r");
+  r = pclose(fp);
+
+  if (WEXITSTATUS(r) != 0)
+  {
+    printf("remoterfgain parameter not detected\n");
+    printf("Adding 2 parameters to config file\n");
+
+    sprintf(shell_command, "echo remoterfgain=4 >> %s", PATH_CONFIG);
+    system(shell_command);
+    sprintf(shell_command, "echo remoteifgain=40 >> %s", PATH_CONFIG);
     system(shell_command);
   } 
 }
@@ -575,6 +595,14 @@ void ReadSavedParams()
 
   strcpy(response, "local");
   GetConfigParam(PATH_CONFIG, "destination", destination);
+
+  strcpy(response, "40");
+  GetConfigParam(PATH_CONFIG, "remoterfgain", response);
+  remoteRFgain = atoi(response);
+
+  strcpy(response, "4");
+  GetConfigParam(PATH_CONFIG, "remoteifgain", response);
+  remoteIFgain = atoi(response);
 }
 
 
@@ -1860,6 +1888,7 @@ void UpdateWindow()    // Paint each defined button
       }
     }
   }
+  UpdateWeb();
 }
 
 void wait_touch()
@@ -2083,12 +2112,16 @@ void SetMode(int button)
 void SetGain(int button)
 {  
   char ValueToSave[63];
+  int Setgain = 0;
 
   // Stop the scan at the end of the current one and wait for it to stop
-  freeze = true;
-  while(! frozen)
+  if (strcmp(destination, "local") == 0)
   {
-    usleep(10);                                   // wait till the end of the scan
+    freeze = true;
+    while(! frozen)
+    {
+      usleep(10);                                   // wait till the end of the scan
+    }
   }
 
   if (button < 130)     // RF Gain
@@ -2096,56 +2129,79 @@ void SetGain(int button)
     switch (button)
     {
       case 122:
-        RFgain = 0;
+        Setgain = 0;
       break;
       case 123:
-        RFgain = 2;
+        Setgain = 2;
       break;
       case 124:
-        RFgain = 4;
+        Setgain = 4;
       break;
       case 125:
-        RFgain = 6;
+        Setgain = 6;
       break;
       case 126:
-        RFgain = 7;
+        Setgain = 7;
       break;
     }
 
-    // Store the new gain
-    snprintf(ValueToSave, 63, "%d", RFgain);
-    SetConfigParam(PATH_CONFIG, "rfgain", ValueToSave);
-    printf("RFgain set to %d \n", RFgain);
+    if (LocalGain)
+    {
+      RFgain = Setgain;
+      snprintf(ValueToSave, 63, "%d", RFgain);
+      SetConfigParam(PATH_CONFIG, "rfgain", ValueToSave);
+      printf("RFgain set to %d \n", RFgain);
+    }
+    else
+    {
+      remoteRFgain = Setgain;
+      snprintf(ValueToSave, 63, "%d", remoteRFgain);
+      SetConfigParam(PATH_CONFIG, "remoterfgain", ValueToSave);
+      printf("Remote RFgain set to %d \n", remoteRFgain);
+    }
   }
   else   // IF Gain
   {
     switch (button)
     {
       case 132:
-        IFgain = 20;
+        Setgain = 20;
       break;
       case 133:
-        IFgain = 30;
+        Setgain = 30;
       break;
       case 134:
-        IFgain = 40;
+        Setgain = 40;
       break;
       case 135:
-        IFgain = 50;
+        Setgain = 50;
       break;
       case 136:
-        IFgain = 59;
+        Setgain = 59;
       break;
     }
 
-    // Store the new gain
-    snprintf(ValueToSave, 63, "%d", IFgain);
-    SetConfigParam(PATH_CONFIG, "ifgain", ValueToSave);
-    printf("IFgain set to %d \n", IFgain);
+    if (LocalGain)
+    {
+      IFgain = Setgain;
+      snprintf(ValueToSave, 63, "%d", IFgain);
+      SetConfigParam(PATH_CONFIG, "ifgain", ValueToSave);
+      printf("IFgain set to %d \n", IFgain);
+    }
+    else
+    {
+      remoteIFgain = Setgain;
+      snprintf(ValueToSave, 63, "%d", remoteIFgain);
+      SetConfigParam(PATH_CONFIG, "remoteifgain", ValueToSave);
+      printf("Remote IFgain set to %d \n", remoteIFgain);
+    }
   }
 
   // Trigger the gain change
-  NewGain = true;
+  if (strcmp(destination, "local") == 0)
+  {
+    NewGain = true;
+  }
   freeze = false;
 }
 
@@ -2279,10 +2335,13 @@ void SetFreqPreset(int button)
   if (CallingMenu == 7)
   {
     // Stop the scan at the end of the current one and wait for it to stop
-    freeze = true;
-    while(! frozen)
+    if (strcmp(destination, "local") == 0)
     {
-      usleep(10);                                   // wait till the end of the scan
+      freeze = true;
+      while(! frozen)
+      {
+        usleep(10);                                   // wait till the end of the scan
+      }
     }
 
     switch (button)
@@ -2315,11 +2374,13 @@ void SetFreqPreset(int button)
     // Trigger the frequency change
     NewFreq = true;
 
-    while(NewFreq)
+    if (strcmp(destination, "local") == 0)
     {
-      usleep(10);                                   // wait till the frequency has been set
+      while(NewFreq)
+      {
+        usleep(10);                                   // wait till the frequency has been set
+      }
     }
-
     DrawSettings();       // New labels
     freeze = false;
   }
@@ -2424,13 +2485,14 @@ void SetStream(int button)
   char InitText[63];
   uint8_t newclientnumber = 0;
   uint16_t newport = 0;
+  bool reboot_required = false;
 
   // Stop the scan at the end of the current one and wait for it to stop
-  freeze = true;
-  while(! frozen)
-  {
-    usleep(10);                                   // wait till the end of the scan
-  }
+//  freeze = true;
+//  while(! frozen)
+//  {
+//    usleep(10);                                   // wait till the end of the scan
+//  }
 
   switch (button)
   {
@@ -2449,6 +2511,10 @@ void SetStream(int button)
       }
       while ((strlen(KeyboardReturn) == 0) || (newclientnumber < 1) || (newclientnumber > 6));
       
+      if (clientnumber != newclientnumber)
+      {
+        reboot_required = true;
+      }
       clientnumber = newclientnumber;
       
       // Store the new client number
@@ -2470,7 +2536,12 @@ void SetStream(int button)
         Keyboard(RequestText, InitText, 16);
       }
       while (strlen(KeyboardReturn) == 0);
-      
+
+      if (strcmp(serverip, KeyboardReturn) != 0)
+      {
+        reboot_required = true;
+      }
+
       strcpy(serverip, KeyboardReturn);
       
       // Store the new IP Address
@@ -2493,6 +2564,11 @@ void SetStream(int button)
       }
       while ((strlen(KeyboardReturn) == 0) || (newport < 1) || (newport > 65000));
       
+      if (port != newport)
+      {
+        reboot_required = true;
+      }
+
       port = newport;
       
       // Store the new port number
@@ -2516,6 +2592,14 @@ void SetStream(int button)
     case 6:
         
       break;
+  }
+
+  if (reboot_required)
+  {
+    MsgBox4("Restarting application", "with new settings", "", "");
+    UpdateWeb();
+    usleep (2000000);
+    cleanexit(150);
   }
   // Redraw Screen
   clearScreen();
@@ -2564,7 +2648,7 @@ void ShiftFrequency(int button)
 }
 
 
-void CalcSpan()    // takes centre frequency and span and calulates startfreq and stopfreq and decimation
+void CalcSpan()    // takes centre frequency and span and calculates startfreq and stopfreq and decimation
 {
   startfreq = CentreFreq - (span / 2);
   stopfreq =  CentreFreq + (span / 2);
@@ -2583,6 +2667,12 @@ void CalcSpan()    // takes centre frequency and span and calulates startfreq an
       decimation_factor = 32;
       fft_size = 500;
     break;
+  }
+
+  // Overide for remote
+  if (strcmp(destination, "remote") == 0)
+  {
+    fft_size = 512;
   }
 
   printf("fft size set to %d\n", fft_size);
@@ -2635,12 +2725,14 @@ void ChangeLabel(int button)
   char ValueToSave[63];
 
   // Stop the scan at the end of the current one and wait for it to stop
-  freeze = true;
-  while(! frozen)
+  if (strcmp(destination, "local") == 0)
   {
-    usleep(10);                                   // wait till the end of the scan
+    freeze = true;
+    while(! frozen)
+    {
+      usleep(10);                                   // wait till the end of the scan
+    }
   }
-
   switch (button)
   {
     case 2:                                                       // Centre Freq
@@ -2794,6 +2886,7 @@ void *WaitButtonEvent(void * arg)
             usleep(100000);
             setBackColour(0, 0, 0);
             clearScreen();
+            UpdateWeb();
             usleep(1000000);
             closeScreen();
             cleanexit(129);
@@ -2990,6 +3083,13 @@ void *WaitButtonEvent(void * arg)
           CurrentMenu = 3;
           UpdateWindow();          
           RequestPeakValueZero = true;
+          if (strcmp(destination, "remote") == 0)
+          {
+            MsgBox4("Restarting application", "with new frequency", "", "");
+            UpdateWeb();
+            usleep (2000000);
+            cleanexit(150);
+          }
           break;
         case 3:                                            // Frequency Presets
           printf("Frequency Preset Menu 7 Requested\n");
@@ -3101,7 +3201,7 @@ void *WaitButtonEvent(void * arg)
         case 6:                                            // Streaming Menu
           printf("Streaming Menu 15 Requested\n");
           CurrentMenu = 15;
-          // Start_Highlights_Menu1();
+          Start_Highlights_Menu15();
           UpdateWindow();
           break;
         case 7:                                            // Return to Main Menu
@@ -3278,6 +3378,13 @@ void *WaitButtonEvent(void * arg)
           SetFreqPreset(i);
           CurrentMenu = 3;
           UpdateWindow();
+          if (strcmp(destination, "remote") == 0)
+          {
+            MsgBox4("Restarting application", "with new frequency", "", "");
+            UpdateWeb();
+            usleep (2000000);
+            cleanexit(150);
+          }
           break;
         case 7:                                            // Return to Settings Menu
           printf("Settings Menu 3 requested\n");
@@ -3323,12 +3430,14 @@ void *WaitButtonEvent(void * arg)
           UpdateWindow();
           freeze = false;
           break;
-        case 2:                                            // RF Gain
+        case 2:                                            // Local RF Gain
+          LocalGain = true;
           CurrentMenu = 12;
           Start_Highlights_Menu12();
           UpdateWindow();
           break;
-        case 3:                                            // IF Gain
+        case 3:                                            // Local IF Gain
+          LocalGain = true;
           CurrentMenu = 13;
           Start_Highlights_Menu13();
           UpdateWindow();
@@ -3347,8 +3456,18 @@ void *WaitButtonEvent(void * arg)
           Start_Highlights_Menu8();
           UpdateWindow();
           break;
-        //case 5:                                            // 
-        //case 6:                                            // 
+        case 5:                                            // Remote RF Gain
+          LocalGain = false;
+          CurrentMenu = 12;
+          Start_Highlights_Menu12();
+          UpdateWindow();
+          break;
+        case 6:                                            // Remote IF Gain
+          LocalGain = false;
+          CurrentMenu = 13;
+          Start_Highlights_Menu13();
+          UpdateWindow();
+          break;
         case 7:                                            // Return to Settings Menu
           printf("Settings Menu 3 requested\n");
           CurrentMenu=3;
@@ -3574,6 +3693,13 @@ void *WaitButtonEvent(void * arg)
           SetGain(120 + i);
           Start_Highlights_Menu12();
           UpdateWindow();
+          if (strcmp(destination, "remote") == 0)
+          {
+            MsgBox4("Restarting application", "with new gain", "", "");
+            UpdateWeb();
+            usleep (2000000);
+            cleanexit(150);
+          }
           break;
         case 7:                                            // Return to Gains Menu
           printf("Gains Menu 8 Requested\n");
@@ -3626,6 +3752,13 @@ void *WaitButtonEvent(void * arg)
           SetGain(130 + i);
           Start_Highlights_Menu13();
           UpdateWindow();
+          if (strcmp(destination, "remote") == 0)
+          {
+            MsgBox4("Restarting application", "with new gain", "", "");
+            UpdateWeb();
+            usleep (2000000);
+            cleanexit(150);
+          }
           break;
         case 7:                                            // Return to Gains Menu
           printf("Gains Menu 8 Requested\n");
@@ -3704,7 +3837,7 @@ void *WaitButtonEvent(void * arg)
     }
     if (CurrentMenu == 15)  // Streaming Menu
     {
-      printf("Button Event %d, Entering Menu 14 Case Statement\n",i);
+      printf("Button Event %d, Entering Menu 15 Case Statement\n", i);
       CallingMenu = 15;
       switch (i)
       {
@@ -3724,11 +3857,16 @@ void *WaitButtonEvent(void * arg)
         case 2:                                            //   Set Client Number
         case 3:                                            //   Set Server IP
         case 4:                                            //   Set Port
-        case 5:                                            //   Remote/local
           SetStream(i);
           Start_Highlights_Menu15();
           UpdateWindow();
           break;
+        case 5:                                            //   Remote/local
+          SetStream(i);
+          MsgBox4("Restarting application", "in", destination, "mode");
+          UpdateWeb();
+          usleep (2000000);
+          cleanexit(150);
         case 6:                                            // 
           UpdateWindow();
           break;
@@ -3753,6 +3891,7 @@ void *WaitButtonEvent(void * arg)
         default:
           printf("Menu 15 Error\n");
       }
+      printf("End of Menu 15, destination = %s\n", destination);
       continue;  // Completed Menu 15 action, go and wait for touch
     }
   }
@@ -4178,7 +4317,7 @@ void Start_Highlights_Menu7()
 }
 
 
-void Define_Menu8()                                    // Lime Gain Menu
+void Define_Menu8()                                    // Gain Menu
 {
   int button = 0;
 
@@ -4190,22 +4329,20 @@ void Define_Menu8()                                    // Lime Gain Menu
   AddButtonStatus(button, "Gain^Menu", &Black);
 
   button = CreateButton(8, 2);
-  AddButtonStatus(button, "RF Gain", &Blue);
+  AddButtonStatus(button, "Local^RF Gain", &Blue);
 
   button = CreateButton(8, 3);
-  AddButtonStatus(button, "IF Gain", &Blue);
+  AddButtonStatus(button, "Local^IF Gain", &Blue);
 
   button = CreateButton(8, 4);
   AddButtonStatus(button, "AGC^Off", &Blue);
   AddButtonStatus(button, "AGC^On", &Blue);
 
-  //button = CreateButton(8, 5);
-  //AddButtonStatus(button, "5", &Blue);
-  //AddButtonStatus(button, "5", &Green);
+  button = CreateButton(8, 5);
+  AddButtonStatus(button, "Remote^RF Gain", &Blue);
 
-  //button = CreateButton(8, 6);
-  //AddButtonStatus(button, "0", &Blue);
-  //AddButtonStatus(button, "0", &Green);
+  button = CreateButton(8, 6);
+  AddButtonStatus(button, "Remote^IF Gain", &Blue);
 
   button = CreateButton(8, 7);
   AddButtonStatus(button, "Back to^Settings", &DBlue);
@@ -4389,7 +4526,16 @@ void Define_Menu12()                                          // RF Gain Menu
 
 void Start_Highlights_Menu12()
 {
-  if (RFgain == 0)
+  int HLgain;
+  if (LocalGain)
+  {
+    HLgain = RFgain;
+  }
+  else
+  {
+    HLgain = remoteRFgain;
+  }
+  if (HLgain == 0)
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 2), 1);
   }
@@ -4397,7 +4543,7 @@ void Start_Highlights_Menu12()
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 2), 0);
   }
-  if (RFgain == 2)
+  if (HLgain == 2)
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 3), 1);
   }
@@ -4405,7 +4551,7 @@ void Start_Highlights_Menu12()
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 3), 0);
   }
-  if (RFgain == 4)
+  if (HLgain == 4)
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 4), 1);
   }
@@ -4413,7 +4559,7 @@ void Start_Highlights_Menu12()
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 4), 0);
   }
-  if (RFgain == 6)
+  if (HLgain == 6)
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 5), 1);
   }
@@ -4421,7 +4567,7 @@ void Start_Highlights_Menu12()
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 5), 0);
   }
-  if (RFgain == 7)
+  if (HLgain == 7)
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 6), 1);
   }
@@ -4473,7 +4619,17 @@ void Define_Menu13()                                          // IF Gain Menu
 
 void Start_Highlights_Menu13()
 {
-  if (IFgain == 20)
+  int HLgain;
+  if (LocalGain)
+  {
+    HLgain = IFgain;
+  }
+  else
+  {
+    HLgain = remoteIFgain;
+  }
+
+  if (HLgain == 20)
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 2), 1);
   }
@@ -4481,7 +4637,7 @@ void Start_Highlights_Menu13()
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 2), 0);
   }
-  if (IFgain == 30)
+  if (HLgain == 30)
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 3), 1);
   }
@@ -4489,7 +4645,7 @@ void Start_Highlights_Menu13()
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 3), 0);
   }
-  if (IFgain == 40)
+  if (HLgain == 40)
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 4), 1);
   }
@@ -4497,7 +4653,7 @@ void Start_Highlights_Menu13()
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 4), 0);
   }
-  if (IFgain == 50)
+  if (HLgain == 50)
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 5), 1);
   }
@@ -4505,7 +4661,7 @@ void Start_Highlights_Menu13()
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 5), 0);
   }
-  if (IFgain == 59)
+  if (HLgain == 59)
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 6), 1);
   }
@@ -4898,6 +5054,12 @@ void DrawEmptyScreen()
     HorizLine(345, 70 + div * 50 + 30, 10, 63, 63, 63);
     HorizLine(345, 70 + div * 50 + 40, 10, 63, 63, 63);
   }
+
+  // Write caption if data being sent to server
+  if (strcmp(destination, "remote") == 0)
+  {
+    ShowRemoteCaption();
+  }
 }
 
 void DrawTickMarks()
@@ -4914,6 +5076,20 @@ void DrawTickMarks()
     VertLine(550, 64, 5, 255, 255, 255);
     VertLine(600, 64, 5, 255, 255, 255);
 }
+
+
+void ShowRemoteCaption()
+{
+  // Clear the background
+  rectangle(101, 71, 499, 399, 0, 0, 0);
+
+  // Wite the caption
+  setForeColour(255, 255, 255);                    // White text
+  setBackColour(0, 0, 0);                          // on Black
+  TextMid2(350, 300, "No local display", &font_dejavu_sans_32);
+  TextMid2(350, 200, "Streaming to Central Server", &font_dejavu_sans_32);
+}
+
 
 void DrawYaxisLabels()
 {
@@ -5265,6 +5441,7 @@ int main(int argc, char **argv)
   int wfall_offset = 0;
   int wfall_height;
   int16_t pixel_brightness;
+  bool RemoteCaptionDisplayed = false;
 
   // Catch sigaction and call terminate
   for (i = 0; i < 16; i++)
@@ -5351,8 +5528,8 @@ int main(int argc, char **argv)
   // SDR FFT Thread
   if(pthread_create(&sdrplay_fft_thread_obj, NULL, sdrplay_fft_thread, &app_exit))
   {
-      fprintf(stderr, "Error creating %s pthread\n", "SDRPLAY_FFT");
-      return 1;
+    fprintf(stderr, "Error creating %s pthread\n", "SDRPLAY_FFT");
+    return 1;
   }
   pthread_setname_np(sdrplay_fft_thread_obj, "SDRPLAY_FFT");
 
@@ -5361,27 +5538,29 @@ int main(int argc, char **argv)
   {
     y3[i] = 1;
   }
-    CalcSpan();
+  CalcSpan();
 
-    DrawEmptyScreen();  // Required to set A value, which is not set in DrawTrace
-    DrawTickMarks();
-    DrawYaxisLabels();  // dB calibration on LHS
+  DrawEmptyScreen();  // Required to set A value, which is not set in DrawTrace
+  DrawTickMarks();
+  DrawYaxisLabels();  // dB calibration on LHS
 
-    DrawSettings();     // Start, Stop RBW, Ref level and Title
+  DrawSettings();     // Start, Stop RBW, Ref level and Title
 
-    UpdateWindow();     // Draw the buttons
+  UpdateWindow();     // Draw the buttons
 
-    while(true)
-    {
+  while(true)
+  {
 
     while (NewData == false)
     {
       usleep(100);
     }
+
     NewData = false;
-
-      activescan = true;
-
+    activescan = true;
+    
+    if (strcmp(destination, "local") == 0)
+    {
       if (spectrum == true)
       {
         for (pixel = 8; pixel <= 506; pixel++)
@@ -5437,6 +5616,7 @@ int main(int argc, char **argv)
           }
         }
       }
+
       if (waterfall == true)
       {
         if (spectrum == true)
@@ -5465,7 +5645,6 @@ int main(int argc, char **argv)
           }
           next_paint = next_paint + (wfalltimespan * 1000) / (wfall_height + 1);
         }
-
         else
         {
           for (j = 8; j <= 506; j++)
@@ -5534,7 +5713,6 @@ int main(int argc, char **argv)
           {
             w_index = 0;
           }
-
           activescan = false;
         }
       }
@@ -5547,9 +5725,27 @@ int main(int argc, char **argv)
         usleep(10000);
         nextwebupdate = tracecount + 220;  // About 780 ms between updates
       }
-
       //printf("Tracecount = %d\n", tracecount);
     }
+    else  // remote display
+    {
+      NewData = true;
+      activescan = false;
+              while (freeze)
+              {
+                frozen = true;
+                usleep(100000); // Pause to let things happen if CPU is busy
+              }
+              frozen = false;
+      if (RemoteCaptionDisplayed == false)
+      {
+        ShowRemoteCaption();
+        printf("Display Caption\n");
+        UpdateWeb();
+        RemoteCaptionDisplayed = true;
+      }
+    }
+  }
 
 
   printf("Waiting for SDR Play FFT Thread to exit..\n");
