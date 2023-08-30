@@ -1684,50 +1684,22 @@ do_autostart_setup()
   Radio3=OFF
   Radio4=OFF
   Radio5=OFF
-  Radio6=OFF
-  Radio7=OFF
-  Radio8=OFF
-  Radio9=OFF
-  Radio10=OFF
-  Radio11=OFF
-  Radio12=OFF
 
   case "$MODE_STARTUP" in
-    Prompt)
+    Display_boot)
       Radio1=ON
     ;;
-    Console)
+    Langstone_boot)
       Radio2=ON
     ;;
-    TX_boot)
+    Bandview_boot)
       Radio3=ON
     ;;
-    Display_boot)
+    Meteorview_boot)
       Radio4=ON
     ;;
-    Langstone_boot)
+    Meteorbeacon_boot)
       Radio5=ON
-    ;;
-    Button_boot)
-      Radio6=ON
-    ;;
-    Keyed_Stream_boot)
-      Radio7=ON
-    ;;
-    Cont_Stream_boot)
-      Radio8=ON
-    ;;
-    Keyed_TX_boot)
-      Radio9=ON
-    ;;
-    Keyed_TX_Touch_boot)
-      Radio10=ON
-    ;;
-    SigGen_boot)
-      Radio11=ON
-    ;;
-    StreamRX_boot)
-      Radio12=ON
     ;;
     *)
       Radio1=ON
@@ -1736,42 +1708,16 @@ do_autostart_setup()
 
   chstartup=$(whiptail --title "$StrAutostartSetupTitle" --radiolist \
    "$StrAutostartSetupContext" 20 78 12 \
-   "Prompt" "$AutostartSetupPrompt" $Radio1 \
-   "Console" "$AutostartSetupConsole" $Radio2 \
-   "TX_boot" "$AutostartSetupTX_boot" $Radio3 \
-   "Display_boot" "$AutostartSetupDisplay_boot" $Radio4 \
-   "Langstone_boot" "Boot-up to the Langstone TRX" $Radio5 \
-   "Button_boot" "$AutostartSetupButton_boot" $Radio6 \
-   "Keyed_Stream_boot" "Boot up to Keyed Repeater Streamer" $Radio7 \
-   "Cont_Stream_boot" "Boot up to Always-on Repeater Streamer" $Radio8 \
-   "Keyed_TX_boot" "Boot up to GPIO Keyed Repeater TX" $Radio9 \
-   "Keyed_TX_Touch_boot" "Boot up to GPIO Keyed TX with Touchscreen" $Radio10 \
-   "SigGen_boot" "Boot up with the Sig Gen Output On" $Radio11 \
-   "StreamRX_boot" "Boot up to display a BATC Stream" $Radio12 \
+   "Display_boot" "$AutostartSetupDisplay_boot" $Radio1 \
+   "Langstone_boot" "Boot-up to the Langstone TRX" $Radio2 \
+   "Bandview_boot" "Boot-up to the Band Viewer" $Radio3 \
+   "Meteorview_boot" "Boot-up to the Meteor Viewer " $Radio4 \
+   "Meteorbeacon_boot" "Boot-up to the Meteor Beacon RX Server " $Radio5 \
    3>&2 2>&1 1>&3)
 
   if [ $? -eq 0 ]; then
      set_config_var startup "$chstartup" $PCONFIGFILE
      MODE_STARTUP=$chstartup
-  fi
-
-  # Allow user to set stream for display if required
-  if [ "$chstartup" == "StreamRX_boot" ]; then
-    STREAM0=$(get_config_var stream0 $PATH_STREAMPRESETS)
-    STREAM0=$(whiptail --inputbox "Enter the full stream URL" 8 78 $STREAM0 --title "SET URL FOR STREAM TO BE DISPLAYED" 3>&1 1>&2 2>&3)
-    if [ $? -eq 0 ]; then
-      set_config_var stream0 "$STREAM0" $PATH_STREAMPRESETS
-    fi
-  fi
-
-  # If Keyed or Continuous stream selected, set up cron for 12-hourly reboot
-  # Also do it for keyed or continuous TX
-  if [[ "$chstartup" == "Keyed_Stream_boot" || "$chstartup" == "Cont_Stream_boot" \
-     || "$chstartup" == "Keyed_TX_boot" || "$chstartup" == "Keyed_TX_Touch_boot" \
-     || "$chstartup" == "TX_boot" ]]; then
-    sudo crontab /home/pi/rpidatv/scripts/configs/rptrcron
-  else
-    sudo crontab /home/pi/rpidatv/scripts/configs/blankcron
   fi
 }
 
@@ -3437,7 +3383,7 @@ MENU_LANG=$(get_config_var menulanguage $PCONFIGFILE)
 #fi
 
 # Display Splash on Touchscreen if fitted
-display_splash
+# display_splash
 status="0"
 
 # Start DATV Express Server if required

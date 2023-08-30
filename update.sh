@@ -248,6 +248,34 @@ fi
 sudo apt-get -y install libairspy-dev                                   # For Airspy Bandviewer
 sudo apt-get -y install expect                                          # For unattended installs
 sudo apt-get -y install uhubctl                                         # For SDRPlay USB resets
+sudo apt-get -y install libssl-dev                                      # For libwebsockets
+
+# Install libwebsockets if required
+if [ ! -d  /home/pi/libwebsockets ]; then
+  cd /home/pi
+  git clone https://github.com/warmcat/libwebsockets.git
+  cd libwebsockets
+  cmake ./
+  make all
+  sudo make install
+  sudo ldconfig
+  cd /home/pi
+fi
+
+# Install the sdrplay drivers if required
+if [ ! -f  /usr/local/include/sdrplay_api.h ]; then
+  cd /home/pi/rpidatv/src/meteorview
+
+  # Download api
+  wget https://www.sdrplay.com/software/SDRplay_RSP_API-ARM-3.09.1.run
+  chmod +x SDRplay_RSP_API-ARM-3.09.1.run
+
+  # Create file to trigger install on next reboot
+  touch /home/pi/rpidatv/.post-install_actions
+  cd /home/pi
+fi
+
+
 
 # -----------Update LimeSuite if required -------------
 
