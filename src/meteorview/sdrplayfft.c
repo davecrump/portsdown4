@@ -863,7 +863,7 @@ void *sdrplay_fft_thread(void *arg) {
   if ((err = sdrplay_api_Open()) != sdrplay_api_Success)
   {
     printf("sdrplay_api_Open failed %s\n", sdrplay_api_GetErrorString(err));
-    cleanexit(129);
+    cleanexit(150);
   }
   else
   {
@@ -890,14 +890,14 @@ void *sdrplay_fft_thread(void *arg) {
     if ((err = sdrplay_api_GetDevices(devs, &ndev, sizeof(devs) / sizeof(sdrplay_api_DeviceT))) != sdrplay_api_Success)
     {
       printf("sdrplay_api_GetDevices failed %s\n", sdrplay_api_GetErrorString(err));
-      cleanexit(129);
+      cleanexit(150);
     }
 
     // Exit if no devices found
     if (ndev == 0)
     {
       printf("No devices found.  Exiting\n");
-      cleanexit(129);
+      cleanexit(150);
     }
 
     printf("MaxDevs=%d NumDevs=%d\n", sizeof(devs) / sizeof(sdrplay_api_DeviceT), ndev);
@@ -995,14 +995,14 @@ void *sdrplay_fft_thread(void *arg) {
       if ((err = sdrplay_api_GetDeviceParams(chosenDevice->dev, &deviceParams)) != sdrplay_api_Success)
       {
         printf("sdrplay_api_GetDeviceParams failed %s\n",sdrplay_api_GetErrorString(err));
-        cleanexit(129);
+        cleanexit(150);
       }
 			
       // Check for NULL pointers before changing settings
       if (deviceParams == NULL)
       {
         printf("sdrplay_api_GetDeviceParams returned NULL deviceParams pointer\n");
-        cleanexit(129);
+        cleanexit(150);
       }
 		
       // Configure dev parameters

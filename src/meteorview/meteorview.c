@@ -137,7 +137,7 @@ float fft_time_smooth;       // Set for scan width
 uint32_t span = 10000;
 int limegain = 15;
 uint32_t pfreq1 = 49969000;
-uint32_t pfreq2 = 50407000;
+uint32_t pfreq2 = 50407500;
 uint32_t pfreq3 = 143049000;
 uint32_t pfreq4 = 437000000;
 uint32_t pfreq5 = 1296000000;
@@ -2487,12 +2487,15 @@ void SetStream(int button)
   uint16_t newport = 0;
   bool reboot_required = false;
 
-  // Stop the scan at the end of the current one and wait for it to stop
-//  freeze = true;
-//  while(! frozen)
-//  {
-//    usleep(10);                                   // wait till the end of the scan
-//  }
+  // If required, stop the scan at the end of the current one and wait for it to stop
+  if (strcmp(destination, "local") == 0)
+  {
+    freeze = true;
+    while(! frozen)
+    {
+      usleep(10);                                   // wait till the end of the scan
+    }
+  }
 
   switch (button)
   {
@@ -2594,7 +2597,7 @@ void SetStream(int button)
       break;
   }
 
-  if (reboot_required)
+  if ((reboot_required) && (strcmp(destination, "remote") == 0))
   {
     MsgBox4("Restarting application", "with new settings", "", "");
     UpdateWeb();
@@ -5463,10 +5466,21 @@ int main(int argc, char **argv)
       if(getTouchScreenDetails(&screenXmin, &screenXmax, &screenYmin, &screenYmax) == 1) break;
     }
   }
+
   if(NoDeviceEvent != 7)  // Touchscreen detected
   {
     // Create Touchscreen thread
     pthread_create (&thtouchscreen, NULL, &WaitTouchscreenEvent, NULL);
+  }
+  else // No touchscreen detected
+  {
+    if(strcmp(DisplayType, "Browser") != 0)  // Web control not enabled, so set it up and reboot
+    {
+      SetConfigParam(PATH_PCONFIG, "webcontrol", "enabled");
+      SetConfigParam(PATH_PCONFIG, "display", "Browser");
+      system ("/home/pi/rpidatv/scripts/set_display_config.sh");
+      system ("sudo reboot now");
+    }
   }
 
   // Calculate screen parameters
@@ -5519,10 +5533,11 @@ int main(int argc, char **argv)
   // Check that an SDRPlay is accessible
   if (CheckSDRPlay() != 0)
   {
-    MsgBox4("No SDRPlay detected", "Please ensure that it is", "plugged in to a USB2 socket", "Touch screen to return to Portsdown");
-    wait_touch();     // Wait here till screen is touched
+    MsgBox4("No SDRPlay detected", "Please ensure that it is", "plugged in to a USB2 socket", " ");
+    usleep(2000000);
+    //wait_touch();     // Wait here till screen is touched
     MsgBox4(" ", " ", " ", " ");
-    cleanexit(129);   // Exit to portsdown 
+    cleanexit(150);   //  
   }
 
   // SDR FFT Thread
