@@ -75,5 +75,6 @@ bin/dmm
 bin/wav2lime
 bin/meteorview
 bin/noise_meter
-
+bin/beacon
+bin/server
 
