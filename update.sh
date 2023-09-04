@@ -249,6 +249,7 @@ sudo apt-get -y install libairspy-dev                                   # For Ai
 sudo apt-get -y install expect                                          # For unattended installs
 sudo apt-get -y install uhubctl                                         # For SDRPlay USB resets
 sudo apt-get -y install libssl-dev                                      # For libwebsockets
+sudo apt-get -y install libzstd-dev                                     # For libiio 202309040
 
 # Install libwebsockets if required
 if [ ! -d  /home/pi/libwebsockets ]; then
@@ -266,8 +267,10 @@ fi
 if [ ! -f  /usr/local/include/sdrplay_api.h ]; then
   cd /home/pi/rpidatv/src/meteorview
 
-  # Download api
-  wget https://www.sdrplay.com/software/SDRplay_RSP_API-ARM-3.09.1.run
+  # Download api if required
+  if [ ! -f  SDRplay_RSP_API-ARM-3.09.1.run ]; then
+    wget https://www.sdrplay.com/software/SDRplay_RSP_API-ARM-3.09.1.run
+  fi
   chmod +x SDRplay_RSP_API-ARM-3.09.1.run
 
   # Create file to trigger install on next reboot
@@ -528,17 +531,18 @@ echo "----- Compiling MeteorViewer -----"
 echo "----------------------------------"
 cd /home/pi/rpidatv/src/meteorview
 
-# Install api and disable service
-wget https://www.sdrplay.com/software/SDRplay_RSP_API-ARM-3.09.1.run
-chmod +x SDRplay_RSP_API-ARM-3.09.1.run
-./sdrplay_api_install.exp
-sudo systemctl disable sdrplay  # service is started only when required
 
 # Compile meteorview
 make
 cp meteorview ../../bin/
 cd /home/pi
 
+# Compile the meteor beacon and server files
+cd /home/pi/rpidatv/src/meteorbeacon
+make
+cp beacon ../../bin
+cp server ../../bin
+cd /home/pi
 
 # Compile Power Meter
 echo
