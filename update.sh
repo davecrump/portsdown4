@@ -217,15 +217,16 @@ sudo apt-get -y install vlc                       # Removed earlier
 echo
 
 # Install libiio and dependencies if required (used for Pluto SigGen)
-if [ ! -d  /home/pi/libiio ]; then
+if [ ! -f  /home/pi/libiio/iio.h ]; then
   echo "Installing libiio and dependencies"
   echo
   sudo apt-get -y install libxml2 libxml2-dev bison flex libcdk5-dev
   sudo apt-get -y install libaio-dev libserialport-dev libxml2-dev libavahi-client-dev
   cd /home/pi
+  sudo rm -r libiio
   git clone https://github.com/analogdevicesinc/libiio.git
-  git reset --hard b6028fdeef888ab45f7c1dd6e4ed9480ae4b55e3  # Back to Version 0.25
   cd libiio
+  git reset --hard b6028fdeef888ab45f7c1dd6e4ed9480ae4b55e3  # Back to Version 0.25
   cmake ./
   make all
   sudo make install
