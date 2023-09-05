@@ -1,3 +1,6 @@
+202309050
+Pin libiio at version 0.25
+
 202309040
 SDRPlay install fixes
 

@@ -224,6 +224,7 @@ if [ ! -d  /home/pi/libiio ]; then
   sudo apt-get -y install libaio-dev libserialport-dev libxml2-dev libavahi-client-dev
   cd /home/pi
   git clone https://github.com/analogdevicesinc/libiio.git
+  git reset --hard b6028fdeef888ab45f7c1dd6e4ed9480ae4b55e3  # Back to Version 0.25
   cd libiio
   cmake ./
   make all
