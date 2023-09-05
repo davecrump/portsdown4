@@ -527,24 +527,33 @@ cp plutoview ../../bin/
 cd /home/pi
 
 # Install SDRPlay API and compile MeteorViewer
-echo
-echo "----------------------------------"
-echo "----- Compiling MeteorViewer -----"
-echo "----------------------------------"
-cd /home/pi/rpidatv/src/meteorview
 
+if [ ! -f  home/pi/rpidatv/bin/beacon ]; then
+  echo
+  echo "-------------------------------------------------"
+  echo "----- Setting SDRPlay for install on reboot -----"
+  echo "-------------------------------------------------"
 
-# Compile meteorview
-make
-cp meteorview ../../bin/
-cd /home/pi
+  touch /home/pi/rpidatv/.post-install_actions
+else
+  echo
+  echo "----------------------------------"
+  echo "----- Compiling MeteorViewer -----"
+  echo "----------------------------------"
+  cd /home/pi/rpidatv/src/meteorview
 
-# Compile the meteor beacon and server files
-cd /home/pi/rpidatv/src/meteorbeacon
-make
-cp beacon ../../bin
-cp server ../../bin
-cd /home/pi
+  # Compile meteorview
+  make
+  cp meteorview ../../bin/
+  cd /home/pi
+
+  # Compile the meteor beacon and server files
+  cd /home/pi/rpidatv/src/meteorbeacon
+  make
+  cp beacon ../../bin
+  cp server ../../bin
+  cd /home/pi
+fi
 
 # Compile Power Meter
 echo
