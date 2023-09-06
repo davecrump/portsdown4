@@ -2,3 +2,4 @@ hdmi_force_hotplug=1
 hdmi_cvt=800 480 60 6
 hdmi_group=2
 hdmi_mode=87
+dtparam=spi=on

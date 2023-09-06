@@ -1631,8 +1631,16 @@ void TransformTouchMap(int x, int y)
   // and transforms it to approx 0 - wscreen and 0 - hscreen in globals scaledX 
   // and scaledY prior to final correction by CorrectTouchMap  
 
-  scaledX = x / scaleXvalue;
-  scaledY = hscreen - y / scaleYvalue;
+  if (strcmp(DisplayType, "Browser") != 0)      // Touchscreen
+  {
+    scaledX = x / scaleXvalue;
+    scaledY = hscreen - y / scaleYvalue;
+  }
+  else                                         // Browser control without touchscreen
+  {
+    scaledX = x;
+    scaledY = 480 - y;
+  }
 }
 
 
@@ -1981,7 +1989,7 @@ void DrawButton(int ButtonIndex)
     TextMid2(Button->x+Button->w/2, Button->y+Button->h*3/16, line2, &font_dejavu_sans_20);	
   
     // Draw green overlay half-button.  Menus 1 or 4, 2 lines and Button status = 0 only
-    if (((CurrentMenu == 1) || (CurrentMenu == 4)) && (Button->NoStatus == 0))
+    if ((((CurrentMenu == 1) && (ButtonIndex == 5)) || (CurrentMenu == 4)) && (Button->NoStatus == 0))
     {
       // Draw the green box
       rectangle(Button->x, Button->y + 1, Button->w, Button->h/2,
@@ -2139,6 +2147,9 @@ int getTouchSampleThread(int *rawX, int *rawY, int *rawPressure)
   struct input_event ev[64];
 
   if (strcmp(DisplayType, "Element14_7") == 0)
+  //if (((strcmp(DisplayType, "Element14_7") == 0) || (strcmp(DisplayType, "Browser") == 0))
+  //    && (strcmp(DisplayType, "dfrobot5") != 0))   // Browser or Element14_7, but not dfrobot5
+
   {
     // Program flow blocks here until there is a touch event
     rb = read(fd, ev, sizeof(struct input_event) * 64);
@@ -2788,6 +2799,8 @@ void AdjustLevel(int Button)
   char ExpressCommand[255];
   char LevelText[255];
 
+  // If button = 100, calculate, but do not change, level
+
   // Deal with DATV Express Levels
   if (strcmp(osc, "express")==0)
   {
@@ -3084,8 +3097,6 @@ void CalcOPLevel()
     // printf("proportion = %f \n", proportion);
     DisplayLevel = CalLevel[PointBelow] + (CalLevel[PointAbove] - CalLevel[PointBelow]) * proportion;
   }
-
-   //printf("Initial Display Level = %d\n", DisplayLevel);
 
   // Now correct for set oscillator level ******************************************
 
@@ -4860,17 +4871,13 @@ void InitOsc()
     level = 3;
   }
 
-  printf("Reading Cal table\n");
-
   // Read in amplitude Cal table
   if (strcmp(osc, "pluto5") != 0)
   {
     strcpy(Param, osc);
     strcat(Param, "points");
-    //printf("%s\n", Param);
     GetConfigParam(PATH_CAL, Param, Value);
     CalPoints = atoi(Value);
-    //printf("CalPoints= %d \n", CalPoints);
     for ( n = 1; n <= CalPoints; n = n + 1 )
     {
       snprintf(PointNumber, 4, "%d", n);
@@ -4880,14 +4887,12 @@ void InitOsc()
       strcat(Param, PointNumber);
       GetConfigParam(PATH_CAL, Param, Value);
       CalFreq[n] = strtoull(Value, 0, 0);
-      printf(" %lld \n", CalFreq[n]);
 
       strcpy(Param, osc);
       strcat(Param, "lev");
       strcat(Param, PointNumber);
       GetConfigParam(PATH_CAL, Param, Value);
       CalLevel[n] = atoi(Value);
-      printf("CalLevel= %d \n", CalLevel[n]);
     }
   }
   else  // Pluto 5th harmonic
@@ -6206,24 +6211,55 @@ void waituntil(int w, int h)
 
         switch (i)
         {
-        case 0:
+        case 0:                        // Shutdown
+          MsgBox4(" ", "Shutting down now", " ", " ");
+          system("sudo killall express_server >/dev/null 2>/dev/null");
+          system("sudo rm /tmp/expctrl >/dev/null 2>/dev/null");
+          usleep(1000000);
+          cleanexit(160);    // Commands scheduler to initiate shutdown
+          break;
+        case 1:                        // Reboot
+          MsgBox4(" ", "Rebooting now", " ", " ");
+          system("sudo killall express_server >/dev/null 2>/dev/null");
+          system("sudo rm /tmp/expctrl >/dev/null 2>/dev/null");
+          usleep(1000000);
+          cleanexit(192);    // Commands scheduler to initiate reboot
+          break;
+        case 2:                        // Reboot Pluto
+          RebootPluto();
+          Start_Highlights_Menu1();
+          UpdateWindow();
+          break;
+        case 4 :                      // Exit
+          printf("Exit from Sig-gen\n");
+          if ((strcmp(osc, "pluto") == 0) || (strcmp(osc, "pluto5") == 0))
+          {
+            RebootPluto();
+          }
+          clearScreen();
+          cleanexit(129); //exit to Portsdown
+          break;
+
+        case 5:
           printf("MENU 2 \n");       // Output Device Menu
           CurrentMenu=2;
           Start_Highlights_Menu2();
           UpdateWindow();
           break;
-        //case 1:
+        case 6:
+          printf("MENU 4 \n");       // Settings Menu
+          CurrentMenu=4;
+          Start_Highlights_Menu4();
+          UpdateWindow();
+          break;
+
+        //case 7:
         //  printf("MENU 3 \n");       // Attenuator Menu
         //  CurrentMenu=3;
         //  Start_Highlights_Menu3();
         //  UpdateWindow();
         //  break;
-        case 2:
-          printf("MENU 4 \n");       // Configuration Menu
-          CurrentMenu=4;
-          Start_Highlights_Menu4();
-          UpdateWindow();
-          break;
+
         case 20:                       // Run
           printf("MENU 11 \n");
           CurrentMenu=11;
@@ -6234,15 +6270,6 @@ void waituntil(int w, int h)
           ShowAtten();
           ShowOPFreq();
           PlutoCalValid = false;
-          break;
-        case 22:                      // Exit
-          printf("Exit from Sig-gen\n");
-          if ((strcmp(osc, "pluto") == 0) || (strcmp(osc, "pluto5") == 0))
-          {
-            RebootPluto();
-          }
-          clearScreen();
-          cleanexit(129); //exit to Portsdown
           break;
         default:
           printf("Menu 1 Error\n");
@@ -6495,12 +6522,15 @@ void waituntil(int w, int h)
           }
           if (strcmp(osc, "lime") == 0)
           {
-            DoLimeCal = true;
-            if (LimeRun == false)  // Start Lime thread
+            if((CheckLimeMiniConnect() == 0) || (CheckLimeMiniConnect() == 0))
             {
-              LimeOn();
+              DoLimeCal = true;
+              if (LimeRun == false)  // Start Lime thread
+              {
+                LimeOn();
+              }
+              SetButtonStatus(ButtonNumber(11, 32), 6);
             }
-            SetButtonStatus(ButtonNumber(11, 32), 6);
             Start_Highlights_Menu11();
             UpdateWindow();
           }
@@ -6543,25 +6573,36 @@ void Define_Menu1()
 
   // Frequency - Bottom Row, Menu 1
 
+
   button = CreateButton(1, 0);
+  AddButtonStatus(button, "Shutdown", &Blue);
+  AddButtonStatus(button, "Shutdown", &Green);
+
+  button = CreateButton(1, 1);
+  AddButtonStatus(button, "Reboot", &Blue);
+  AddButtonStatus(button, "Reboot", &Green);
+
+  button = CreateButton(1, 2);
+  AddButtonStatus(button, "Reboot^Pluto", &Blue);
+  AddButtonStatus(button, "Reboot^Pluto", &Green);
+
+  button = CreateButton(1, 4);
+  AddButtonStatus(button,"Exit to^Portsdown",&Blue);
+  AddButtonStatus(button,"Exit to^Portsdown",&Green);
+
+  button = CreateButton(1, 5);
   AddButtonStatus(button, "Output to^", &Blue);
   AddButtonStatus(button, "Output to^", &Green);
 
-//  button = CreateButton(1, 1);
-//  AddButtonStatus(button, "Attenuator^", &Blue);
-//  AddButtonStatus(button, "Attenuator^", &Green);
-
-  button = CreateButton(1, 2);
+  button = CreateButton(1, 6);
   AddButtonStatus(button, "Settings", &Blue);
   AddButtonStatus(button, "Settings", &Green);
+
 
   button = CreateButton(1, 20);
   AddButtonStatus(button,"CONTROL",&Blue);
   AddButtonStatus(button,"CONTROL",&Red);
 
-  button = CreateButton(1, 22);
-  AddButtonStatus(button,"EXIT",&Blue);
-  AddButtonStatus(button,"EXIT",&Green);
 }
 
 void Start_Highlights_Menu1()
@@ -6579,11 +6620,11 @@ void Start_Highlights_Menu1()
     strcpy(Presettext, "Output to^");
     strcat(Presettext, osc_text);
   }
-  AmendButtonStatus(0, 0, Presettext, &Blue);
+  AmendButtonStatus(5, 0, Presettext, &Blue);
 
-  strcpy(Presettext, "Attenuator^");
-  strcat(Presettext, AttenType);
-  AmendButtonStatus(1, 0, Presettext, &Blue);
+  //strcpy(Presettext, "Attenuator^");
+  //strcat(Presettext, AttenType);
+  //AmendButtonStatus(1, 0, Presettext, &Blue);
 }
 
 void Define_Menu2()
@@ -6593,10 +6634,6 @@ void Define_Menu2()
   strcpy(MenuTitle[2], "Output Device Menu (2)"); 
 
   // Bottom Row, Menu 2
-
-  button = CreateButton(2, 4);                           // cancel
-  AddButtonStatus(button, "Cancel", &DBlue);
-  AddButtonStatus(button, "Cancel", &LBlue);
 
   button = CreateButton(2, 0);                           // pluto
   AddButtonStatus(button, "Pluto", &Blue);
@@ -6613,6 +6650,10 @@ void Define_Menu2()
   button = CreateButton(2, 3);                           // elcom
   AddButtonStatus(button, "Elcom", &Blue);  
   AddButtonStatus(button, "Elcom", &Green);
+
+  button = CreateButton(2, 4);                           // cancel
+  AddButtonStatus(button, "Return", &DBlue);
+  AddButtonStatus(button, "Return", &LBlue);
 
   // 2nd Row, Menu 2
 
@@ -7237,10 +7278,10 @@ int main(int argc, char **argv)
       if(getTouchScreenDetails(&screenXmin,&screenXmax,&screenYmin,&screenYmax)==1) break;
     }
   }
-  if(NoDeviceEvent == 7) 
+  if(NoDeviceEvent != 7)  // Touchscreen detected
   {
-    perror("No Touchscreen found");
-    exit(1);
+    // Create Touchscreen thread
+    pthread_create (&thtouchscreen, NULL, &WaitTouchscreenEvent, NULL);
   }
 
   // Show Portsdown Logo
@@ -7299,6 +7340,17 @@ int main(int argc, char **argv)
   // Clear the screen ready for Menu 1
   //setBackColour(255, 255, 255);          // White background
   //clearScreen();
+
+  // Calculate the starting level
+  AdjustLevel(100);  // 100 = no change
+  CalcOPLevel();
+
+  // Initialise web access
+
+  web_x = -1;
+  web_y = -1;
+  web_x_ptr = &web_x;
+  web_y_ptr = &web_y;
 
   // Determine button highlights
   Start_Highlights_Menu1();

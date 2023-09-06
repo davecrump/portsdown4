@@ -217,14 +217,16 @@ sudo apt-get -y install vlc                       # Removed earlier
 echo
 
 # Install libiio and dependencies if required (used for Pluto SigGen)
-if [ ! -d  /home/pi/libiio ]; then
+if [ ! -f  /home/pi/libiio/iio.h ]; then
   echo "Installing libiio and dependencies"
   echo
   sudo apt-get -y install libxml2 libxml2-dev bison flex libcdk5-dev
   sudo apt-get -y install libaio-dev libserialport-dev libxml2-dev libavahi-client-dev
   cd /home/pi
+  sudo rm -r libiio
   git clone https://github.com/analogdevicesinc/libiio.git
   cd libiio
+  git reset --hard b6028fdeef888ab45f7c1dd6e4ed9480ae4b55e3  # Back to Version 0.25
   cmake ./
   make all
   sudo make install
@@ -248,6 +250,37 @@ fi
 sudo apt-get -y install libairspy-dev                                   # For Airspy Bandviewer
 sudo apt-get -y install expect                                          # For unattended installs
 sudo apt-get -y install uhubctl                                         # For SDRPlay USB resets
+sudo apt-get -y install libssl-dev                                      # For libwebsockets
+sudo apt-get -y install libzstd-dev                                     # For libiio 202309040
+
+# Install libwebsockets if required
+if [ ! -d  /home/pi/libwebsockets ]; then
+  cd /home/pi
+  git clone https://github.com/warmcat/libwebsockets.git
+  cd libwebsockets
+  cmake ./
+  make all
+  sudo make install
+  sudo ldconfig
+  cd /home/pi
+fi
+
+# Install the sdrplay drivers if required
+if [ ! -f  /usr/local/include/sdrplay_api.h ]; then
+  cd /home/pi/rpidatv/src/meteorview
+
+  # Download api if required
+  if [ ! -f  SDRplay_RSP_API-ARM-3.09.1.run ]; then
+    wget https://www.sdrplay.com/software/SDRplay_RSP_API-ARM-3.09.1.run
+  fi
+  chmod +x SDRplay_RSP_API-ARM-3.09.1.run
+
+  # Create file to trigger install on next reboot
+  touch /home/pi/rpidatv/.post-install_actions
+  cd /home/pi
+fi
+
+
 
 # -----------Update LimeSuite if required -------------
 
@@ -494,23 +527,33 @@ cp plutoview ../../bin/
 cd /home/pi
 
 # Install SDRPlay API and compile MeteorViewer
-echo
-echo "----------------------------------"
-echo "----- Compiling MeteorViewer -----"
-echo "----------------------------------"
-cd /home/pi/rpidatv/src/meteorview
 
-# Install api and disable service
-wget https://www.sdrplay.com/software/SDRplay_RSP_API-ARM-3.09.1.run
-chmod +x SDRplay_RSP_API-ARM-3.09.1.run
-./sdrplay_api_install.exp
-sudo systemctl disable sdrplay  # service is started only when required
+if [ ! -f  home/pi/rpidatv/bin/beacon ]; then
+  echo
+  echo "-------------------------------------------------"
+  echo "----- Setting SDRPlay for install on reboot -----"
+  echo "-------------------------------------------------"
 
-# Compile meteorview
-make
-cp meteorview ../../bin/
-cd /home/pi
+  touch /home/pi/rpidatv/.post-install_actions
+else
+  echo
+  echo "----------------------------------"
+  echo "----- Compiling MeteorViewer -----"
+  echo "----------------------------------"
+  cd /home/pi/rpidatv/src/meteorview
 
+  # Compile meteorview
+  make
+  cp meteorview ../../bin/
+  cd /home/pi
+
+  # Compile the meteor beacon and server files
+  cd /home/pi/rpidatv/src/meteorbeacon
+  make
+  cp beacon ../../bin
+  cp server ../../bin
+  cd /home/pi
+fi
 
 # Compile Power Meter
 echo

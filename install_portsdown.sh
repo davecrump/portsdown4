@@ -91,6 +91,8 @@ sudo apt-get -y install libfcgi-dev                                     # For we
 sudo apt-get -y install libairspy-dev                                   # For Airspy Bandviewer
 sudo apt-get -y install expect                                          # For unattended installs
 sudo apt-get -y install uhubctl                                         # For SDRPlay USB resets
+sudo apt-get -y install libssl-dev                                      # For websockets
+sudo apt-get -y install libzstd-dev                                     # For libiio 202309040
 
 # Install WiringPi
 cd /tmp
@@ -102,10 +104,21 @@ cd /home/pi
 cd /home/pi
 git clone https://github.com/analogdevicesinc/libiio.git
 cd libiio
+git reset --hard b6028fdeef888ab45f7c1dd6e4ed9480ae4b55e3  # Back to Version 0.25
 cmake ./
 make all
 sudo make install
 cd /home/pi
+
+# Install Websockets for Meteor Beacon RX server
+git clone https://github.com/warmcat/libwebsockets.git
+cd libwebsockets
+cmake ./
+make all
+sudo make install
+sudo ldconfig
+cd /home/pi
+
 
 # Enable USB Storage automount in Buster
 echo
@@ -465,22 +478,19 @@ make
 cp plutoview ../../bin/
 cd /home/pi
 
-# Install SDRPlay API and compile MeteorViewer
+# Download sdrplay api for install after first reboot
 echo
-echo "----------------------------------"
-echo "----- Compiling MeteorViewer -----"
-echo "----------------------------------"
+echo "---------------------------------------"
+echo "----- Downloading the sdrplay api -----"
+echo "---------------------------------------"
 cd /home/pi/rpidatv/src/meteorview
 
-# Install api and disable service
+# Download api
 wget https://www.sdrplay.com/software/SDRplay_RSP_API-ARM-3.09.1.run
 chmod +x SDRplay_RSP_API-ARM-3.09.1.run
-./sdrplay_api_install.exp
-sudo systemctl disable sdrplay  # service is started only when required
 
-# Compile meteorview
-make
-cp meteorview ../../bin/
+# Create file to trigger install on next reboot
+touch /home/pi/rpidatv/.post-install_actions
 cd /home/pi
 
 # Compile Power Meter

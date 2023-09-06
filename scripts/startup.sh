@@ -122,6 +122,11 @@ fi
 # So continue assuming that this could be a first-start
 # or it could be a second ssh session.
 
+# If this is the first reboot after install, sort out the sdrplay api and subsequent makes
+if [ -f /home/pi/rpidatv/.post-install_actions ]; then
+  /home/pi/rpidatv/scripts/post-install_actions.sh
+fi
+
 # Read the desired start-up behaviour
 MODE_STARTUP=$(get_config_var startup $PCONFIGFILE)
 
@@ -202,6 +207,10 @@ case "$MODE_STARTUP" in
     # Start the Touchscreen Scheduler
     source /home/pi/rpidatv/scripts/scheduler.sh
     #return
+  ;;
+  Meteorbeacon_boot)
+    # Start the Touchscreen Scheduler
+    source /home/pi/rpidatv/scripts/scheduler.sh
   ;;
   Meteorview_boot)
     # Start the Touchscreen Scheduler

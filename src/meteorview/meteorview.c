@@ -17,6 +17,7 @@
 #include <ctype.h>
 #include <stdbool.h>
 #include <fftw3.h>
+#include <fcntl.h>
 
 #include "screen.h"
 #include "font/font.h"
@@ -25,12 +26,31 @@
 #include "timing.h"
 #include "sdrplayfft.h"
 #include "meteorview.h"
+#include "ffunc.h"
+#include "websocket_server.h"
 
 pthread_t thbutton;
+pthread_t thwebclick;     //  Listens for mouse clicks from web interface
+pthread_t thtouchscreen;  //  listens to the touchscreen   
 
 int fd = 0;
 int wscreen, hscreen;
 float scaleXvalue, scaleYvalue; // Coeff ratio from Screen/TouchArea
+bool webclicklistenerrunning = false; // Used to only start thread if required
+char WebClickForAction[7] = "no";  // no/yes
+char ProgramName[255];             // used to pass prog name char string to listener
+int *web_x_ptr;                // pointer
+int *web_y_ptr;                // pointer
+int web_x;                     // click x 0 - 799 from left
+int web_y;                     // click y 0 - 480 from top
+int TouchX;
+int TouchY;
+int TouchPressure;
+int TouchTrigger = 0;
+bool touchneedsinitialisation = true;
+char DisplayType[31];
+
+
 
 typedef struct
 {
@@ -117,7 +137,7 @@ float fft_time_smooth;       // Set for scan width
 uint32_t span = 10000;
 int limegain = 15;
 uint32_t pfreq1 = 49969000;
-uint32_t pfreq2 = 50407000;
+uint32_t pfreq2 = 50407500;
 uint32_t pfreq3 = 143049000;
 uint32_t pfreq4 = 437000000;
 uint32_t pfreq5 = 1296000000;
@@ -130,6 +150,9 @@ uint32_t SpanWidth;                      // in Hz
 
 int RFgain;
 int IFgain;
+int remoteRFgain;
+int remoteIFgain;
+bool LocalGain;
 bool agc = false;
 uint8_t decimation_factor = 8;
 
@@ -144,6 +167,10 @@ static pthread_t screen_thread_obj;
 
 static pthread_t sdrplay_fft_thread_obj;
 
+uint8_t clientnumber = 6;
+char serverip[20] = "95.154.252.125";
+uint16_t port = 7682;
+char destination[15] = "local";
 
 int markerx = 250;
 int markery = 15;
@@ -178,57 +205,84 @@ int xscaleden = 20;       // Denominator for X scaling fraction
 
 ///////////////////////////////////////////// FUNCTION PROTOTYPES ///////////////////////////////
 
-void GetConfigParam(char *, char *, char *);
-void SetConfigParam(char *, char *, char *);
+void GetConfigParam(char *PathConfigFile, char *Param, char *Value);
+void SetConfigParam(char *PathConfigFile, char *Param, char *Value);
 int CheckWebCtlExists();
+void CheckConfigFile();
 void ReadSavedParams();
-void MsgBox4(char *, char *, char *, char *);
+void *WaitTouchscreenEvent(void * arg);
+void *WebClickListener(void * arg);
+void parseClickQuerystring(char *query_string, int *x_ptr, int *y_ptr);
+FFUNC touchscreenClick(ffunc_session_t * session);
 void do_snapcheck();
-int openTouchScreen(int);
+int IsImageToBeChanged(int x,int y);
+void MsgBox4(char *message1, char *message2, char *message3, char *message4);
 void UpdateWeb();
 int CheckSDRPlay();
-void Keyboard(char *, char *, int);
-int getTouchScreenDetails(int*, int* ,int* ,int*);
-int ButtonNumber(int, int);
-void SetButtonStatus(int ,int);
+void Keyboard(char RequestText[64], char InitText[64], int MaxLength);
+int openTouchScreen(int NoDevice);
+int getTouchScreenDetails(int *screenXmin, int *screenXmax,int *screenYmin,int *screenYmax);
+void TransformTouchMap(int x, int y);
+int IsMenuButtonPushed(int x,int y);
+int InitialiseButtons();
+int AddButton(int x,int y,int w,int h);
+int ButtonNumber(int MenuIndex, int Button);
+int CreateButton(int MenuIndex, int ButtonPosition);
+int AddButtonStatus(int ButtonIndex,char *Text,color_t *Color);
+void AmendButtonStatus(int ButtonIndex, int ButtonStatusIndex, char *Text, color_t *Color);
+void DrawButton(int ButtonIndex);
+void SetButtonStatus(int ButtonIndex,int Status);
+int GetButtonStatus(int ButtonIndex);
+int getTouchSampleThread(int *rawX, int *rawY, int *rawPressure);
+int getTouchSample(int *rawX, int *rawY, int *rawPressure);
 void UpdateWindow();
-int getTouchSample(int*, int*, int*);
-int IsMenuButtonPushed(int, int);
-void DrawButton(int);
-int IsImageToBeChanged(int, int);
-void TransformTouchMap(int, int);
-void CalcSpan();
-void ChangeLabel(int);
-void DrawEmptyScreen();  
-void DrawYaxisLabels();  
-void DrawTickMarks();
-void DrawSettings();
+void wait_touch();
 void CalculateMarkers();
+void SetSpan(int button);
+void SetMode(int button);
+void SetGain(int button);
+void SetWfall(int button);
+void SetFreqPreset(int button);
+void SetStream(int button);
+void ShiftFrequency(int button);
+void CalcSpan();
+void ChangeLabel(int button);
+void RedrawDisplay();
+void *WaitButtonEvent(void * arg);
 void Define_Menu1();
+void Start_Highlights_Menu1();
 void Define_Menu2();
+void Start_Highlights_Menu2();
 void Define_Menu3();
 void Define_Menu4();
 void Define_Menu5();
+void Start_Highlights_Menu5();
 void Define_Menu6();
+void Start_Highlights_Menu6();
 void Define_Menu7();
+void Start_Highlights_Menu7();
 void Define_Menu8();
+void Start_Highlights_Menu8();
 void Define_Menu9();
 void Define_Menu10();
+void Start_Highlights_Menu10();
 void Define_Menu11();
 void Define_Menu12();
-void Define_Menu13();
-//static void cleanexit(int);
-void Start_Highlights_Menu1();
-void Start_Highlights_Menu2();
-void Start_Highlights_Menu5();
-void Start_Highlights_Menu6();
-void Start_Highlights_Menu7();
-void Start_Highlights_Menu8();
-void Start_Highlights_Menu10();
 void Start_Highlights_Menu12();
+void Define_Menu13();
 void Start_Highlights_Menu13();
-void RedrawDisplay();
-
+void Define_Menu14();
+void Define_Menu15();
+void Start_Highlights_Menu15();
+void Define_Menu41();
+void DrawEmptyScreen();
+void DrawTickMarks();
+void ShowRemoteCaption();
+void DrawYaxisLabels();
+void DrawSettings();
+void DrawTrace(int xoffset, int prev2, int prev1, int current);
+void cleanexit(int calling_exit_code);
+static void terminate(int sig);
 
 ///////////////////////////////////////////// SCREEN AND TOUCH UTILITIES ////////////////////////
 
@@ -362,6 +416,58 @@ int CheckWebCtlExists()
 }
 
 
+/***************************************************************************//**
+ * @brief Checks to see if new entries exist in meteorview Config file
+ *        and adds them if required
+ *
+ * @param None
+ *
+ * @return none
+ * 
+*******************************************************************************/
+
+void CheckConfigFile()
+{
+  char shell_command[255];
+  FILE *fp;
+  int r;
+
+  sprintf(shell_command, "grep -q 'clientnumber' %s", PATH_CONFIG);
+  fp = popen(shell_command, "r");
+  r = pclose(fp);
+
+  if (WEXITSTATUS(r) != 0)
+  {
+    printf("clientnumber parameter not detected\n");
+    printf("Adding 4 parameters to config file\n");
+
+    sprintf(shell_command, "echo clientnumber=6 >> %s", PATH_CONFIG);
+    system(shell_command);
+    sprintf(shell_command, "echo serverip=95.154.252.125 >> %s", PATH_CONFIG);
+    system(shell_command);
+    sprintf(shell_command, "echo port=7682 >> %s", PATH_CONFIG);
+    system(shell_command);
+    sprintf(shell_command, "echo destination=local >> %s", PATH_CONFIG);
+    system(shell_command);
+  }
+
+  sprintf(shell_command, "grep -q 'remoterfgain' %s", PATH_CONFIG);
+  fp = popen(shell_command, "r");
+  r = pclose(fp);
+
+  if (WEXITSTATUS(r) != 0)
+  {
+    printf("remoterfgain parameter not detected\n");
+    printf("Adding 2 parameters to config file\n");
+
+    sprintf(shell_command, "echo remoterfgain=4 >> %s", PATH_CONFIG);
+    system(shell_command);
+    sprintf(shell_command, "echo remoteifgain=40 >> %s", PATH_CONFIG);
+    system(shell_command);
+  } 
+}
+
+
 void ReadSavedParams()
 {
   char response[63];
@@ -464,9 +570,135 @@ void ReadSavedParams()
     if (strcmp(response, "enabled") == 0)
     {
       webcontrol = true;
-    } 
+      pthread_create (&thwebclick, NULL, &WebClickListener, NULL);
+      webclicklistenerrunning = true;
+    }
+    else
+    {
+      webcontrol = false;
+      system("cp /home/pi/rpidatv/scripts/images/web_not_enabled.png /home/pi/tmp/screen.png");
+    }
+  }
+
+  CheckConfigFile();           // check and amend config file to latest version
+
+  strcpy(response, "6");
+  GetConfigParam(PATH_CONFIG, "clientnumber", response);
+  clientnumber = atoi(response);
+
+  strcpy(response, "95.154.252.125");
+  GetConfigParam(PATH_CONFIG, "serverip", serverip);
+
+  strcpy(response, "7682");
+  GetConfigParam(PATH_CONFIG, "port", response);
+  port = atoi(response);
+
+  strcpy(response, "local");
+  GetConfigParam(PATH_CONFIG, "destination", destination);
+
+  strcpy(response, "40");
+  GetConfigParam(PATH_CONFIG, "remoterfgain", response);
+  remoteRFgain = atoi(response);
+
+  strcpy(response, "4");
+  GetConfigParam(PATH_CONFIG, "remoteifgain", response);
+  remoteIFgain = atoi(response);
+}
+
+
+void *WaitTouchscreenEvent(void * arg)
+{
+  int TouchTriggerTemp;
+  int rawX;
+  int rawY;
+  int rawPressure;
+  while (true)
+  {
+    TouchTriggerTemp = getTouchSampleThread(&rawX, &rawY, &rawPressure);
+    TouchX = rawX;
+    TouchY = rawY;
+    TouchPressure = rawPressure;
+    TouchTrigger = TouchTriggerTemp;
+  }
+  return NULL;
+}
+
+
+void *WebClickListener(void * arg)
+{
+  while (webcontrol)
+  {
+    //(void)argc;
+	//return ffunc_run(ProgramName);
+	ffunc_run(ProgramName);
+  }
+  webclicklistenerrunning = false;
+  return NULL;
+}
+
+void parseClickQuerystring(char *query_string, int *x_ptr, int *y_ptr)
+{
+  char *query_ptr = strdup(query_string),
+  *tokens = query_ptr,
+  *p = query_ptr;
+
+  while ((p = strsep (&tokens, "&\n")))
+  {
+    char *var = strtok (p, "="),
+         *val = NULL;
+    if (var && (val = strtok (NULL, "=")))
+    {
+      if(strcmp("x", var) == 0)
+      {
+        *x_ptr = atoi(val);
+      }
+      else if(strcmp("y", var) == 0)
+      {
+        *y_ptr = atoi(val);
+      }
+    }
   }
 }
+
+
+FFUNC touchscreenClick(ffunc_session_t * session)
+{
+  ffunc_str_t payload;
+
+  if( (webcontrol == false) || ffunc_read_body(session, &payload) )
+  {
+    if( webcontrol == false)
+    {
+      return;
+    }
+
+    ffunc_write_out(session, "Status: 200 OK\r\n");
+    ffunc_write_out(session, "Content-Type: text/plain\r\n\r\n");
+    ffunc_write_out(session, "%s\n", "click received.");
+    fprintf(stderr, "Received click POST: %s (%d)\n", payload.data?payload.data:"", payload.len);
+
+    int x = -1;
+    int y = -1;
+    parseClickQuerystring(payload.data, &x, &y);
+    printf("After Parse: x: %d, y: %d\n", x, y);
+
+    if((x >= 0) && (y >= 0))
+    {
+      web_x = x;                 // web_x is a global int
+      web_y = y;                 // web_y is a global int
+      strcpy(WebClickForAction, "yes");
+      printf("Web Click Event x: %d, y: %d\n", web_x, web_y);
+    }
+  }
+  else
+  {
+    ffunc_write_out(session, "Status: 400 Bad Request\r\n");
+    ffunc_write_out(session, "Content-Type: text/plain\r\n\r\n");
+    ffunc_write_out(session, "%s\n", "payload not found.");
+  }
+}
+
+
 
 void do_snapcheck()
 {
@@ -710,6 +942,7 @@ void Keyboard(char RequestText[64], char InitText[64], int MaxLength)
 
       refreshed = true;
     }
+    UpdateWeb();
 
     // Wait for key press
     if (getTouchSample(&rawX, &rawY, &rawPressure)==0) continue;
@@ -954,7 +1187,6 @@ void Keyboard(char RequestText[64], char InitText[64], int MaxLength)
 }
 
 
-
 int openTouchScreen(int NoDevice)
 {
   char sDevice[255];
@@ -1033,30 +1265,18 @@ void TransformTouchMap(int x, int y)
   // and transforms it to approx 0 - wscreen and 0 - hscreen in globals scaledX 
   // and scaledY prior to final correction by CorrectTouchMap  
 
-  scaledX = x / scaleXvalue;
-  scaledY = hscreen - y / scaleYvalue;
-}
-
-
-int IsButtonPushed(int NbButton,int x,int y)
-{
-  TransformTouchMap(x,y);  // Sorts out orientation and approx scaling of the touch map
-
-  //printf("x=%d y=%d scaledx %d scaledy %d sxv %f syv %f Button %d\n",x,y,scaledX,scaledY,scaleXvalue,scaleYvalue, NbButton);
-
-  int margin=10;  // was 20
-
-  if((scaledX<=(ButtonArray[NbButton].x+ButtonArray[NbButton].w-margin))&&(scaledX>=ButtonArray[NbButton].x+margin) &&
-    (scaledY<=(ButtonArray[NbButton].y+ButtonArray[NbButton].h-margin))&&(scaledY>=ButtonArray[NbButton].y+margin))
+  if (strcmp(DisplayType, "Browser") != 0)      // Touchscreen
   {
-    // ButtonArray[NbButton].LastEventTime=mymillis(); No longer used
-    return 1;
+    scaledX = x / scaleXvalue;
+    scaledY = hscreen - y / scaleYvalue;
   }
-  else
+  else                                         // Browser control without touchscreen
   {
-    return 0;
+    scaledX = x;
+    scaledY = 480 - y;
   }
 }
+
 
 int IsMenuButtonPushed(int x,int y)
 {
@@ -1092,6 +1312,8 @@ int IsMenuButtonPushed(int x,int y)
   }
   return NbButton;
 }
+
+
 int InitialiseButtons()
 {
   // Writes 0 to IndexStatus of each button to signify that it should not
@@ -1425,57 +1647,189 @@ int GetButtonStatus(int ButtonIndex)
 }
 
 
+int getTouchSampleThread(int *rawX, int *rawY, int *rawPressure)
+{
+  int i;
+  static bool awaitingtouchstart;
+  static bool touchfinished;
+
+  if (touchneedsinitialisation == true)
+  {
+    awaitingtouchstart = true;
+    touchfinished = true;
+    touchneedsinitialisation = false;
+  }
+
+  /* how many bytes were read */
+  size_t rb;
+
+  /* the events (up to 64 at once) */
+  struct input_event ev[64];
+
+  if (((strcmp(DisplayType, "Element14_7") == 0) || (strcmp(DisplayType, "Browser") == 0))
+      && (strcmp(DisplayType, "dfrobot5") != 0))   // Browser or Element14_7, but not dfrobot5
+  {
+    // Thread flow blocks here until there is a touch event
+    rb = read(fd, ev, sizeof(struct input_event) * 64);
+
+    *rawX = -1;
+    *rawY = -1;
+    int StartTouch = 0;
+
+    for (i = 0;  i <  (rb / sizeof(struct input_event)); i++)
+    {
+      if (ev[i].type ==  EV_SYN)
+      {
+        //printf("Event type is %s%s%s = Start of New Event\n",
+        //        KYEL, events[ev[i].type], KWHT);
+      }
+
+      else if (ev[i].type == EV_KEY && ev[i].code == 330 && ev[i].value == 1)
+      {
+        StartTouch = 1;
+        //printf("Event type is %s%s%s & Event code is %sTOUCH(330)%s & Event value is %s1%s = Touch Starting\n",
+        //        KYEL,events[ev[i].type],KWHT,KYEL,KWHT,KYEL,KWHT);
+      }
+
+      else if (ev[i].type == EV_KEY && ev[i].code == 330 && ev[i].value == 0)
+      {
+        //StartTouch=0;
+        //printf("Event type is %s%s%s & Event code is %sTOUCH(330)%s & Event value is %s0%s = Touch Finished\n",
+        //        KYEL,events[ev[i].type],KWHT,KYEL,KWHT,KYEL,KWHT);
+      }
+
+      else if (ev[i].type == EV_ABS && ev[i].code == 0 && ev[i].value > 0)
+      {
+        //printf("Event type is %s%s%s & Event code is %sX(0)%s & Event value is %s%d%s\n",
+        //        KYEL, events[ev[i].type], KWHT, KYEL, KWHT, KYEL, ev[i].value, KWHT);
+	    *rawX = ev[i].value;
+      }
+
+      else if (ev[i].type == EV_ABS  && ev[i].code == 1 && ev[i].value > 0)
+      {
+        //printf("Event type is %s%s%s & Event code is %sY(1)%s & Event value is %s%d%s\n",
+        //        KYEL, events[ev[i].type], KWHT, KYEL, KWHT, KYEL, ev[i].value, KWHT);
+        *rawY = ev[i].value;
+      }
+
+      else if (ev[i].type == EV_ABS  && ev[i].code == 24 && ev[i].value > 0)
+      {
+        //printf("Event type is %s%s%s & Event code is %sPressure(24)%s & Event value is %s%d%s\n",
+        //        KYEL, events[ev[i].type], KWHT, KYEL, KWHT, KYEL, ev[i].value,KWHT);
+        *rawPressure = ev[i].value;
+      }
+
+      if((*rawX != -1) && (*rawY != -1) && (StartTouch == 1))  // 1a
+      {
+        printf("7 inch Touchscreen Touch Event: rawX = %d, rawY = %d, rawPressure = %d\n", 
+                *rawX, *rawY, *rawPressure);
+        return 1;
+      }
+    }
+  }
+
+  if (strcmp(DisplayType, "dfrobot5") == 0)
+  {
+    // Program flow blocks here until there is a touch event
+    rb = read(fd, ev, sizeof(struct input_event) * 64);
+
+    if (awaitingtouchstart == true)
+    {    
+      *rawX = -1;
+      *rawY = -1;
+      touchfinished = false;
+    }
+
+    for (i = 0;  i <  (rb / sizeof(struct input_event)); i++)
+    {
+      //printf("rawX = %d, rawY = %d, rawPressure = %d, \n\n", *rawX, *rawY, *rawPressure);
+
+      if (ev[i].type ==  EV_SYN)
+      {
+        //printf("Event type is %s%s%s = Start of New Event\n",
+        //        KYEL, events[ev[i].type], KWHT);
+      }
+
+      else if (ev[i].type == EV_KEY && ev[i].code == 330 && ev[i].value == 1)
+      {
+        awaitingtouchstart = false;
+        touchfinished = false;
+
+        //printf("Event type is %s%s%s & Event code is %sTOUCH(330)%s & Event value is %s1%s = Touch Starting\n",
+        //        KYEL,events[ev[i].type],KWHT,KYEL,KWHT,KYEL,KWHT);
+      }
+
+      else if (ev[i].type == EV_KEY && ev[i].code == 330 && ev[i].value == 0)
+      {
+        awaitingtouchstart = false;
+        touchfinished = true;
+
+        //printf("Event type is %s%s%s & Event code is %sTOUCH(330)%s & Event value is %s0%s = Touch Finished\n",
+        //        KYEL,events[ev[i].type],KWHT,KYEL,KWHT,KYEL,KWHT);
+      }
+
+      else if (ev[i].type == EV_ABS && ev[i].code == 0 && ev[i].value > 0)
+      {
+        //printf("Event type is %s%s%s & Event code is %sX(0)%s & Event value is %s%d%s\n",
+        //        KYEL, events[ev[i].type], KWHT, KYEL, KWHT, KYEL, ev[i].value, KWHT);
+        *rawX = ev[i].value;
+      }
+
+      else if (ev[i].type == EV_ABS  && ev[i].code == 1 && ev[i].value > 0)
+      {
+        //printf("Event type is %s%s%s & Event code is %sY(1)%s & Event value is %s%d%s\n",
+        //        KYEL, events[ev[i].type], KWHT, KYEL, KWHT, KYEL, ev[i].value, KWHT);
+        *rawY = ev[i].value;
+      }
+
+      else if (ev[i].type == EV_ABS  && ev[i].code == 24 && ev[i].value > 0)
+      {
+        //printf("Event type is %s%s%s & Event code is %sPressure(24)%s & Event value is %s%d%s\n",
+        //        KYEL, events[ev[i].type], KWHT, KYEL, KWHT, KYEL, ev[i].value,KWHT);
+        *rawPressure = ev[i].value;
+      }
+
+      if((*rawX != -1) && (*rawY != -1) && (touchfinished == true))  // 1a
+      {
+        printf("DFRobot Touch Event: rawX = %d, rawY = %d, rawPressure = %d\n", 
+                *rawX, *rawY, *rawPressure);
+        awaitingtouchstart = true;
+        touchfinished = false;
+        return 1;
+      }
+    }
+  }
+  return 0;
+}
+
 int getTouchSample(int *rawX, int *rawY, int *rawPressure)
 {
-	int i;
-        /* how many bytes were read */
-        size_t rb;
-        /* the events (up to 64 at once) */
-        struct input_event ev[64];
-	//static int Last_event=0; //not used?
-	rb=read(fd,ev,sizeof(struct input_event)*64);
-	*rawX=-1;*rawY=-1;
-	int StartTouch=0;
-        for (i = 0;  i <  (rb / sizeof(struct input_event)); i++){
-              if (ev[i].type ==  EV_SYN)
-		{
-                         //printf("Event type is %s%s%s = Start of New Event\n",KYEL,events[ev[i].type],KWHT);
-		}
-                else if (ev[i].type == EV_KEY && ev[i].code == 330 && ev[i].value == 1)
-		{
-			StartTouch=1;
-                        //printf("Event type is %s%s%s & Event code is %sTOUCH(330)%s & Event value is %s1%s = Touch Starting\n", KYEL,events[ev[i].type],KWHT,KYEL,KWHT,KYEL,KWHT);
-		}
-                else if (ev[i].type == EV_KEY && ev[i].code == 330 && ev[i].value == 0)
-		{
-			//StartTouch=0;
-			//printf("Event type is %s%s%s & Event code is %sTOUCH(330)%s & Event value is %s0%s = Touch Finished\n", KYEL,events[ev[i].type],KWHT,KYEL,KWHT,KYEL,KWHT);
-		}
-                else if (ev[i].type == EV_ABS && ev[i].code == 0 && ev[i].value > 0){
-                        //printf("Event type is %s%s%s & Event code is %sX(0)%s & Event value is %s%d%s\n", KYEL,events[ev[i].type],KWHT,KYEL,KWHT,KYEL,ev[i].value,KWHT);
-			*rawX = ev[i].value;
-		}
-                else if (ev[i].type == EV_ABS  && ev[i].code == 1 && ev[i].value > 0){
-                        //printf("Event type is %s%s%s & Event code is %sY(1)%s & Event value is %s%d%s\n", KYEL,events[ev[i].type],KWHT,KYEL,KWHT,KYEL,ev[i].value,KWHT);
-			*rawY = ev[i].value;
-		}
-                else if (ev[i].type == EV_ABS  && ev[i].code == 24 && ev[i].value > 0){
-                        //printf("Event type is %s%s%s & Event code is %sPressure(24)%s & Event value is %s%d%s\n", KYEL,events[ev[i].type],KWHT,KYEL,KWHT,KYEL,ev[i].value,KWHT);
-			*rawPressure = ev[i].value;
-		}
-		if((*rawX!=-1)&&(*rawY!=-1)&&(StartTouch==1))
-		{
-			/*if(Last_event-mymillis()>500)
-			{
-				Last_event=mymillis();
-				return 1;
-			}*/
-			//StartTouch=0;
-			return 1;
-		}
-
-	}
-	return 0;
+  while (true)
+  {
+    if (TouchTrigger == 1)
+    {
+      *rawX = TouchX;
+      *rawY = TouchY;
+      *rawPressure = TouchPressure;
+      printf("Touchtrigger was 1\n");
+      TouchTrigger = 0;
+      return 1;
+    }
+    else if ((webcontrol == true) && (strcmp(WebClickForAction, "yes") == 0))
+    {
+      *rawX = web_x;
+      *rawY = web_y;
+      *rawPressure = 0;
+      strcpy(WebClickForAction, "no");
+      printf("Web rawX = %d, rawY = %d, rawPressure = %d\n", *rawX, *rawY, *rawPressure);
+      return 1;
+    }
+    else
+    {
+      usleep(1000);
+    }
+  }
+  return 0;
 }
 
 
@@ -1501,6 +1855,7 @@ void UpdateWindow()    // Paint each defined button
   // Draw each button in turn
   first = ButtonNumber(CurrentMenu, 0);
   last = ButtonNumber(CurrentMenu + 1 , 0) - 1;
+
   if ((markeron == false) || (CurrentMenu == 41))
   {
     for(i = first; i <= last; i++)
@@ -1533,6 +1888,7 @@ void UpdateWindow()    // Paint each defined button
       }
     }
   }
+  UpdateWeb();
 }
 
 void wait_touch()
@@ -1753,16 +2109,19 @@ void SetMode(int button)
 }
 
 
-
 void SetGain(int button)
 {  
   char ValueToSave[63];
+  int Setgain = 0;
 
   // Stop the scan at the end of the current one and wait for it to stop
-  freeze = true;
-  while(! frozen)
+  if (strcmp(destination, "local") == 0)
   {
-    usleep(10);                                   // wait till the end of the scan
+    freeze = true;
+    while(! frozen)
+    {
+      usleep(10);                                   // wait till the end of the scan
+    }
   }
 
   if (button < 130)     // RF Gain
@@ -1770,56 +2129,79 @@ void SetGain(int button)
     switch (button)
     {
       case 122:
-        RFgain = 0;
+        Setgain = 0;
       break;
       case 123:
-        RFgain = 2;
+        Setgain = 2;
       break;
       case 124:
-        RFgain = 4;
+        Setgain = 4;
       break;
       case 125:
-        RFgain = 6;
+        Setgain = 6;
       break;
       case 126:
-        RFgain = 7;
+        Setgain = 7;
       break;
     }
 
-    // Store the new gain
-    snprintf(ValueToSave, 63, "%d", RFgain);
-    SetConfigParam(PATH_CONFIG, "rfgain", ValueToSave);
-    printf("RFgain set to %d \n", RFgain);
+    if (LocalGain)
+    {
+      RFgain = Setgain;
+      snprintf(ValueToSave, 63, "%d", RFgain);
+      SetConfigParam(PATH_CONFIG, "rfgain", ValueToSave);
+      printf("RFgain set to %d \n", RFgain);
+    }
+    else
+    {
+      remoteRFgain = Setgain;
+      snprintf(ValueToSave, 63, "%d", remoteRFgain);
+      SetConfigParam(PATH_CONFIG, "remoterfgain", ValueToSave);
+      printf("Remote RFgain set to %d \n", remoteRFgain);
+    }
   }
   else   // IF Gain
   {
     switch (button)
     {
       case 132:
-        IFgain = 20;
+        Setgain = 20;
       break;
       case 133:
-        IFgain = 30;
+        Setgain = 30;
       break;
       case 134:
-        IFgain = 40;
+        Setgain = 40;
       break;
       case 135:
-        IFgain = 50;
+        Setgain = 50;
       break;
       case 136:
-        IFgain = 59;
+        Setgain = 59;
       break;
     }
 
-    // Store the new gain
-    snprintf(ValueToSave, 63, "%d", IFgain);
-    SetConfigParam(PATH_CONFIG, "ifgain", ValueToSave);
-    printf("IFgain set to %d \n", IFgain);
+    if (LocalGain)
+    {
+      IFgain = Setgain;
+      snprintf(ValueToSave, 63, "%d", IFgain);
+      SetConfigParam(PATH_CONFIG, "ifgain", ValueToSave);
+      printf("IFgain set to %d \n", IFgain);
+    }
+    else
+    {
+      remoteIFgain = Setgain;
+      snprintf(ValueToSave, 63, "%d", remoteIFgain);
+      SetConfigParam(PATH_CONFIG, "remoteifgain", ValueToSave);
+      printf("Remote IFgain set to %d \n", remoteIFgain);
+    }
   }
 
   // Trigger the gain change
-  NewGain = true;
+  if (strcmp(destination, "local") == 0)
+  {
+    NewGain = true;
+  }
   freeze = false;
 }
 
@@ -1953,10 +2335,13 @@ void SetFreqPreset(int button)
   if (CallingMenu == 7)
   {
     // Stop the scan at the end of the current one and wait for it to stop
-    freeze = true;
-    while(! frozen)
+    if (strcmp(destination, "local") == 0)
     {
-      usleep(10);                                   // wait till the end of the scan
+      freeze = true;
+      while(! frozen)
+      {
+        usleep(10);                                   // wait till the end of the scan
+      }
     }
 
     switch (button)
@@ -1989,11 +2374,13 @@ void SetFreqPreset(int button)
     // Trigger the frequency change
     NewFreq = true;
 
-    while(NewFreq)
+    if (strcmp(destination, "local") == 0)
     {
-      usleep(10);                                   // wait till the frequency has been set
+      while(NewFreq)
+      {
+        usleep(10);                                   // wait till the frequency has been set
+      }
     }
-
     DrawSettings();       // New labels
     freeze = false;
   }
@@ -2091,6 +2478,142 @@ void SetFreqPreset(int button)
 }
 
 
+void SetStream(int button)
+{  
+  char ValueToSave[63];
+  char RequestText[64];
+  char InitText[63];
+  uint8_t newclientnumber = 0;
+  uint16_t newport = 0;
+  bool reboot_required = false;
+
+  // If required, stop the scan at the end of the current one and wait for it to stop
+  if (strcmp(destination, "local") == 0)
+  {
+    freeze = true;
+    while(! frozen)
+    {
+      usleep(10);                                   // wait till the end of the scan
+    }
+  }
+
+  switch (button)
+  {
+    case 2:                           // Set Client number
+      // Define request string
+      strcpy(RequestText, "Enter new Client Number (1 - 6)");
+
+      // Define initial value
+      snprintf(InitText, 25, "%d", clientnumber);
+
+      // Ask for the new value
+      do
+      {
+        Keyboard(RequestText, InitText, 10);
+        newclientnumber = atoi(KeyboardReturn);
+      }
+      while ((strlen(KeyboardReturn) == 0) || (newclientnumber < 1) || (newclientnumber > 6));
+      
+      if (clientnumber != newclientnumber)
+      {
+        reboot_required = true;
+      }
+      clientnumber = newclientnumber;
+      
+      // Store the new client number
+      snprintf(ValueToSave, 63, "%d", clientnumber);
+      SetConfigParam(PATH_CONFIG, "clientnumber", ValueToSave);
+      printf("Client Number set to %d\n", clientnumber);
+
+      break;
+    case 3:
+      // Define request string
+      strcpy(RequestText, "Enter new server IP address");
+
+      // Define initial value
+      strcpy(InitText, serverip);
+
+      // Ask for the new value
+      do
+      {
+        Keyboard(RequestText, InitText, 16);
+      }
+      while (strlen(KeyboardReturn) == 0);
+
+      if (strcmp(serverip, KeyboardReturn) != 0)
+      {
+        reboot_required = true;
+      }
+
+      strcpy(serverip, KeyboardReturn);
+      
+      // Store the new IP Address
+      SetConfigParam(PATH_CONFIG, "serverip", serverip);
+      printf("Server IP set to %s\n", serverip);
+
+      break;
+    case 4:
+      // Define request string
+      strcpy(RequestText, "Enter new Port Number (1 - 65000)");
+
+      // Define initial value
+      snprintf(InitText, 25, "%d", port);
+
+      // Ask for the new value
+      do
+      {
+        Keyboard(RequestText, InitText, 10);
+        newport = atoi(KeyboardReturn);
+      }
+      while ((strlen(KeyboardReturn) == 0) || (newport < 1) || (newport > 65000));
+      
+      if (port != newport)
+      {
+        reboot_required = true;
+      }
+
+      port = newport;
+      
+      // Store the new port number
+      snprintf(ValueToSave, 63, "%d", port);
+      SetConfigParam(PATH_CONFIG, "port", ValueToSave);
+      printf("Port Number set to %d\n", port);
+
+      break;
+    case 5:
+      if (strcmp(destination, "local") == 0)  // currently local, so change to remote
+      {
+        strcpy(destination, "remote");
+      }
+      else                                    // currently remote, so change to local
+      {
+        strcpy(destination, "local");
+      }
+      SetConfigParam(PATH_CONFIG, "destination", destination);
+      printf("Destination set to %s\n", destination); 
+      break;
+    case 6:
+        
+      break;
+  }
+
+  if ((reboot_required) && (strcmp(destination, "remote") == 0))
+  {
+    MsgBox4("Restarting application", "with new settings", "", "");
+    UpdateWeb();
+    usleep (2000000);
+    cleanexit(150);
+  }
+  // Redraw Screen
+  clearScreen();
+  DrawEmptyScreen();  // Required to set A value, which is not set in DrawTrace
+  DrawYaxisLabels();  // dB calibration on LHS
+  DrawTickMarks();    // tick marks on X axis
+  DrawSettings();     // Start, Stop RBW, Ref level and Title
+  freeze = false;
+}
+
+
 void ShiftFrequency(int button)
 {  
   char ValueToSave[63];
@@ -2128,7 +2651,7 @@ void ShiftFrequency(int button)
 }
 
 
-void CalcSpan()    // takes centre frequency and span and calulates startfreq and stopfreq and decimation
+void CalcSpan()    // takes centre frequency and span and calculates startfreq and stopfreq and decimation
 {
   startfreq = CentreFreq - (span / 2);
   stopfreq =  CentreFreq + (span / 2);
@@ -2147,6 +2670,12 @@ void CalcSpan()    // takes centre frequency and span and calulates startfreq an
       decimation_factor = 32;
       fft_size = 500;
     break;
+  }
+
+  // Overide for remote
+  if (strcmp(destination, "remote") == 0)
+  {
+    fft_size = 512;
   }
 
   printf("fft size set to %d\n", fft_size);
@@ -2199,12 +2728,14 @@ void ChangeLabel(int button)
   char ValueToSave[63];
 
   // Stop the scan at the end of the current one and wait for it to stop
-  freeze = true;
-  while(! frozen)
+  if (strcmp(destination, "local") == 0)
   {
-    usleep(10);                                   // wait till the end of the scan
+    freeze = true;
+    while(! frozen)
+    {
+      usleep(10);                                   // wait till the end of the scan
+    }
   }
-
   switch (button)
   {
     case 2:                                                       // Centre Freq
@@ -2285,13 +2816,15 @@ void *WaitButtonEvent(void * arg)
       usleep(10);                                   // wait without burnout
     }
 
-    printf("x=%d y=%d\n", rawX, rawY);
+    // printf("x=%d y=%d at top of WaitButton Event\n", rawX, rawY);
     FinishedButton = 1;
     i = IsMenuButtonPushed(rawX, rawY);
     if (i == -1)
     {
       continue;  //Pressed, but not on a button so wait for the next touch
+      printf("Not a button in Menu %d\n", CurrentMenu);
     }
+
     // Now do the reponses for each Menu in turn
 
     if (CurrentMenu == 1)  // Main Menu
@@ -2356,6 +2889,7 @@ void *WaitButtonEvent(void * arg)
             usleep(100000);
             setBackColour(0, 0, 0);
             clearScreen();
+            UpdateWeb();
             usleep(1000000);
             closeScreen();
             cleanexit(129);
@@ -2552,6 +3086,13 @@ void *WaitButtonEvent(void * arg)
           CurrentMenu = 3;
           UpdateWindow();          
           RequestPeakValueZero = true;
+          if (strcmp(destination, "remote") == 0)
+          {
+            MsgBox4("Restarting application", "with new frequency", "", "");
+            UpdateWeb();
+            usleep (2000000);
+            cleanexit(150);
+          }
           break;
         case 3:                                            // Frequency Presets
           printf("Frequency Preset Menu 7 Requested\n");
@@ -2660,9 +3201,11 @@ void *WaitButtonEvent(void * arg)
         case 5:                                            // Shutdown
           system("sudo shutdown now");
           break;
-        case 6:                                            // Title
-          ChangeLabel(i);
-          UpdateWindow();          
+        case 6:                                            // Streaming Menu
+          printf("Streaming Menu 15 Requested\n");
+          CurrentMenu = 15;
+          Start_Highlights_Menu15();
+          UpdateWindow();
           break;
         case 7:                                            // Return to Main Menu
           printf("Main Menu 1 Requested\n");
@@ -2838,6 +3381,13 @@ void *WaitButtonEvent(void * arg)
           SetFreqPreset(i);
           CurrentMenu = 3;
           UpdateWindow();
+          if (strcmp(destination, "remote") == 0)
+          {
+            MsgBox4("Restarting application", "with new frequency", "", "");
+            UpdateWeb();
+            usleep (2000000);
+            cleanexit(150);
+          }
           break;
         case 7:                                            // Return to Settings Menu
           printf("Settings Menu 3 requested\n");
@@ -2883,12 +3433,14 @@ void *WaitButtonEvent(void * arg)
           UpdateWindow();
           freeze = false;
           break;
-        case 2:                                            // RF Gain
+        case 2:                                            // Local RF Gain
+          LocalGain = true;
           CurrentMenu = 12;
           Start_Highlights_Menu12();
           UpdateWindow();
           break;
-        case 3:                                            // IF Gain
+        case 3:                                            // Local IF Gain
+          LocalGain = true;
           CurrentMenu = 13;
           Start_Highlights_Menu13();
           UpdateWindow();
@@ -2907,8 +3459,18 @@ void *WaitButtonEvent(void * arg)
           Start_Highlights_Menu8();
           UpdateWindow();
           break;
-        //case 5:                                            // 
-        //case 6:                                            // 
+        case 5:                                            // Remote RF Gain
+          LocalGain = false;
+          CurrentMenu = 12;
+          Start_Highlights_Menu12();
+          UpdateWindow();
+          break;
+        case 6:                                            // Remote IF Gain
+          LocalGain = false;
+          CurrentMenu = 13;
+          Start_Highlights_Menu13();
+          UpdateWindow();
+          break;
         case 7:                                            // Return to Settings Menu
           printf("Settings Menu 3 requested\n");
           CurrentMenu=3;
@@ -3134,6 +3696,13 @@ void *WaitButtonEvent(void * arg)
           SetGain(120 + i);
           Start_Highlights_Menu12();
           UpdateWindow();
+          if (strcmp(destination, "remote") == 0)
+          {
+            MsgBox4("Restarting application", "with new gain", "", "");
+            UpdateWeb();
+            usleep (2000000);
+            cleanexit(150);
+          }
           break;
         case 7:                                            // Return to Gains Menu
           printf("Gains Menu 8 Requested\n");
@@ -3186,6 +3755,13 @@ void *WaitButtonEvent(void * arg)
           SetGain(130 + i);
           Start_Highlights_Menu13();
           UpdateWindow();
+          if (strcmp(destination, "remote") == 0)
+          {
+            MsgBox4("Restarting application", "with new gain", "", "");
+            UpdateWeb();
+            usleep (2000000);
+            cleanexit(150);
+          }
           break;
         case 7:                                            // Return to Gains Menu
           printf("Gains Menu 8 Requested\n");
@@ -3261,6 +3837,65 @@ void *WaitButtonEvent(void * arg)
           printf("Menu 14 Error\n");
       }
       continue;  // Completed Menu 14 action, go and wait for touch
+    }
+    if (CurrentMenu == 15)  // Streaming Menu
+    {
+      printf("Button Event %d, Entering Menu 15 Case Statement\n", i);
+      CallingMenu = 15;
+      switch (i)
+      {
+        case 0:                                            // Capture Snap
+          freeze = true; 
+          SetButtonStatus(ButtonNumber(CurrentMenu, 0), 1);
+          UpdateWindow();
+          while(! frozen)
+          {
+            usleep(1000);
+          }                                   // wait till the end of the scan
+          system("/home/pi/rpidatv/scripts/snap2.sh");
+          SetButtonStatus(ButtonNumber(CurrentMenu, 0), 0);
+          UpdateWindow();
+          freeze = false;
+          break;
+        case 2:                                            //   Set Client Number
+        case 3:                                            //   Set Server IP
+        case 4:                                            //   Set Port
+          SetStream(i);
+          Start_Highlights_Menu15();
+          UpdateWindow();
+          break;
+        case 5:                                            //   Remote/local
+          SetStream(i);
+          MsgBox4("Restarting application", "in", destination, "mode");
+          UpdateWeb();
+          usleep (2000000);
+          cleanexit(150);
+        case 6:                                            // 
+          UpdateWindow();
+          break;
+        case 7:                                            // Return to Main Menu
+          printf("Main Menu 1 Requested\n");
+          CurrentMenu = 1;
+          UpdateWindow();
+          break;
+        case 8:
+          if (freeze)
+          {
+            SetButtonStatus(ButtonNumber(CurrentMenu, 8), 0);
+            freeze = false;
+          }
+          else
+          {
+            SetButtonStatus(ButtonNumber(CurrentMenu, 8), 1);
+            freeze = true;
+          }
+          UpdateWindow();
+          break;
+        default:
+          printf("Menu 15 Error\n");
+      }
+      printf("End of Menu 15, destination = %s\n", destination);
+      continue;  // Completed Menu 15 action, go and wait for touch
     }
   }
   return NULL;
@@ -3456,9 +4091,8 @@ void Define_Menu4()                                         // System Menu
   AddButtonStatus(button, "Shutdown^System", &Blue);
   AddButtonStatus(button, " ", &Green);
 
-  //button = CreateButton(4, 6);
-  //AddButtonStatus(button, "Re-cal^LimeSDR", &Blue);
-  //AddButtonStatus(button, " ", &Green);
+  button = CreateButton(4, 6);
+  AddButtonStatus(button, "Streaming^Menu", &Blue);
 
   button = CreateButton(4, 7);
   AddButtonStatus(button, "Return to^Main Menu", &DBlue);
@@ -3686,7 +4320,7 @@ void Start_Highlights_Menu7()
 }
 
 
-void Define_Menu8()                                    // Lime Gain Menu
+void Define_Menu8()                                    // Gain Menu
 {
   int button = 0;
 
@@ -3698,22 +4332,20 @@ void Define_Menu8()                                    // Lime Gain Menu
   AddButtonStatus(button, "Gain^Menu", &Black);
 
   button = CreateButton(8, 2);
-  AddButtonStatus(button, "RF Gain", &Blue);
+  AddButtonStatus(button, "Local^RF Gain", &Blue);
 
   button = CreateButton(8, 3);
-  AddButtonStatus(button, "IF Gain", &Blue);
+  AddButtonStatus(button, "Local^IF Gain", &Blue);
 
   button = CreateButton(8, 4);
   AddButtonStatus(button, "AGC^Off", &Blue);
   AddButtonStatus(button, "AGC^On", &Blue);
 
-  //button = CreateButton(8, 5);
-  //AddButtonStatus(button, "5", &Blue);
-  //AddButtonStatus(button, "5", &Green);
+  button = CreateButton(8, 5);
+  AddButtonStatus(button, "Remote^RF Gain", &Blue);
 
-  //button = CreateButton(8, 6);
-  //AddButtonStatus(button, "0", &Blue);
-  //AddButtonStatus(button, "0", &Green);
+  button = CreateButton(8, 6);
+  AddButtonStatus(button, "Remote^IF Gain", &Blue);
 
   button = CreateButton(8, 7);
   AddButtonStatus(button, "Back to^Settings", &DBlue);
@@ -3897,7 +4529,16 @@ void Define_Menu12()                                          // RF Gain Menu
 
 void Start_Highlights_Menu12()
 {
-  if (RFgain == 0)
+  int HLgain;
+  if (LocalGain)
+  {
+    HLgain = RFgain;
+  }
+  else
+  {
+    HLgain = remoteRFgain;
+  }
+  if (HLgain == 0)
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 2), 1);
   }
@@ -3905,7 +4546,7 @@ void Start_Highlights_Menu12()
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 2), 0);
   }
-  if (RFgain == 2)
+  if (HLgain == 2)
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 3), 1);
   }
@@ -3913,7 +4554,7 @@ void Start_Highlights_Menu12()
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 3), 0);
   }
-  if (RFgain == 4)
+  if (HLgain == 4)
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 4), 1);
   }
@@ -3921,7 +4562,7 @@ void Start_Highlights_Menu12()
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 4), 0);
   }
-  if (RFgain == 6)
+  if (HLgain == 6)
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 5), 1);
   }
@@ -3929,7 +4570,7 @@ void Start_Highlights_Menu12()
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 5), 0);
   }
-  if (RFgain == 7)
+  if (HLgain == 7)
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 6), 1);
   }
@@ -3981,7 +4622,17 @@ void Define_Menu13()                                          // IF Gain Menu
 
 void Start_Highlights_Menu13()
 {
-  if (IFgain == 20)
+  int HLgain;
+  if (LocalGain)
+  {
+    HLgain = IFgain;
+  }
+  else
+  {
+    HLgain = remoteIFgain;
+  }
+
+  if (HLgain == 20)
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 2), 1);
   }
@@ -3989,7 +4640,7 @@ void Start_Highlights_Menu13()
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 2), 0);
   }
-  if (IFgain == 30)
+  if (HLgain == 30)
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 3), 1);
   }
@@ -3997,7 +4648,7 @@ void Start_Highlights_Menu13()
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 3), 0);
   }
-  if (IFgain == 40)
+  if (HLgain == 40)
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 4), 1);
   }
@@ -4005,7 +4656,7 @@ void Start_Highlights_Menu13()
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 4), 0);
   }
-  if (IFgain == 50)
+  if (HLgain == 50)
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 5), 1);
   }
@@ -4013,7 +4664,7 @@ void Start_Highlights_Menu13()
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 5), 0);
   }
-  if (IFgain == 59)
+  if (HLgain == 59)
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 6), 1);
   }
@@ -4056,6 +4707,52 @@ void Define_Menu14()                                          // More Waterfall 
   button = CreateButton(14, 8);
   AddButtonStatus(button, "Freeze", &Blue);
   AddButtonStatus(button, "Unfreeze", &Green);
+}
+
+void Define_Menu15()                                          // More Waterfall Config Menu
+{
+  int button = 0;
+
+  button = CreateButton(15, 0);
+  AddButtonStatus(button, "Capture^Snap", &DGrey);
+  AddButtonStatus(button, " ", &Black);
+
+  button = CreateButton(15, 1);
+  AddButtonStatus(button, "Streaming^Config Menu", &Black);
+
+  button = CreateButton(15, 2);
+  AddButtonStatus(button, "Set Client^Number", &Blue);
+
+  button = CreateButton(15, 3);
+  AddButtonStatus(button, "Set^Svr IP", &Blue);
+
+  button = CreateButton(15, 4);
+  AddButtonStatus(button, "Set^Port", &Blue);
+
+  button = CreateButton(15, 5);
+  AddButtonStatus(button, "Local^Display", &Blue);
+
+  //button = CreateButton(15, 6);
+  //AddButtonStatus(button, " ^ ", &Blue);
+
+  button = CreateButton(15, 7);
+  AddButtonStatus(button, "Return to^Main Menu", &DBlue);
+
+  button = CreateButton(15, 8);
+  AddButtonStatus(button, "Freeze", &Blue);
+  AddButtonStatus(button, "Unfreeze", &Green);
+}
+
+void Start_Highlights_Menu15()
+{
+  if (strcmp(destination, "local") == 0)
+  {
+    AmendButtonStatus(ButtonNumber(CurrentMenu, 5), 0, "Local^Display", &Blue);
+  }
+  else
+  {
+    AmendButtonStatus(ButtonNumber(CurrentMenu, 5), 0, "Remote^Display", &Blue);
+  }
 }
 
 
@@ -4313,8 +5010,6 @@ void Define_Menu41()
 }
 
 
-
-
 /////////////////////////////////////////// APPLICATION DRAWING //////////////////////////////////
 
 
@@ -4362,6 +5057,12 @@ void DrawEmptyScreen()
     HorizLine(345, 70 + div * 50 + 30, 10, 63, 63, 63);
     HorizLine(345, 70 + div * 50 + 40, 10, 63, 63, 63);
   }
+
+  // Write caption if data being sent to server
+  if (strcmp(destination, "remote") == 0)
+  {
+    ShowRemoteCaption();
+  }
 }
 
 void DrawTickMarks()
@@ -4378,6 +5079,20 @@ void DrawTickMarks()
     VertLine(550, 64, 5, 255, 255, 255);
     VertLine(600, 64, 5, 255, 255, 255);
 }
+
+
+void ShowRemoteCaption()
+{
+  // Clear the background
+  rectangle(101, 71, 499, 399, 0, 0, 0);
+
+  // Wite the caption
+  setForeColour(255, 255, 255);                    // White text
+  setBackColour(0, 0, 0);                          // on Black
+  TextMid2(350, 300, "No local display", &font_dejavu_sans_32);
+  TextMid2(350, 200, "Streaming to Central Server", &font_dejavu_sans_32);
+}
+
 
 void DrawYaxisLabels()
 {
@@ -4708,7 +5423,7 @@ static void terminate(int sig)
 }
 
 
-int main(void)
+int main(int argc, char **argv)
 {
   int NoDeviceEvent=0;
   wscreen = 800;
@@ -4729,6 +5444,7 @@ int main(void)
   int wfall_offset = 0;
   int wfall_height;
   int16_t pixel_brightness;
+  bool RemoteCaptionDisplayed = false;
 
   // Catch sigaction and call terminate
   for (i = 0; i < 16; i++)
@@ -4739,6 +5455,9 @@ int main(void)
     sigaction(i, &sa, NULL);
   }
 
+  // Check the display type in the config file
+  GetConfigParam(PATH_PCONFIG, "display", DisplayType);
+
   // Check for presence of touchscreen
   for(NoDeviceEvent = 0; NoDeviceEvent < 7; NoDeviceEvent++)
   {
@@ -4747,10 +5466,21 @@ int main(void)
       if(getTouchScreenDetails(&screenXmin, &screenXmax, &screenYmin, &screenYmax) == 1) break;
     }
   }
-  if(NoDeviceEvent == 7) 
+
+  if(NoDeviceEvent != 7)  // Touchscreen detected
   {
-    perror("No Touchscreen found");
-    exit(1);
+    // Create Touchscreen thread
+    pthread_create (&thtouchscreen, NULL, &WaitTouchscreenEvent, NULL);
+  }
+  else // No touchscreen detected
+  {
+    if(strcmp(DisplayType, "Browser") != 0)  // Web control not enabled, so set it up and reboot
+    {
+      SetConfigParam(PATH_PCONFIG, "webcontrol", "enabled");
+      SetConfigParam(PATH_PCONFIG, "display", "Browser");
+      system ("/home/pi/rpidatv/scripts/set_display_config.sh");
+      system ("sudo reboot now");
+    }
   }
 
   // Calculate screen parameters
@@ -4777,6 +5507,7 @@ int main(void)
   Define_Menu12();
   Define_Menu13();
   Define_Menu14();
+  Define_Menu15();
   Define_Menu41();
 
   // Set up wiringPi module
@@ -4796,20 +5527,24 @@ int main(void)
 
   initScreen();
 
+  // Create Touchscreen thread
+  //pthread_create (&thtouchscreen, NULL, &WaitTouchscreenEvent, NULL);
+
   // Check that an SDRPlay is accessible
   if (CheckSDRPlay() != 0)
   {
-    MsgBox4("No SDRPlay detected", "Please ensure that it is", "plugged in to a USB2 socket", "Touch screen to return to Portsdown");
-    wait_touch();     // Wait here till screen is touched
+    MsgBox4("No SDRPlay detected", "Please ensure that it is", "plugged in to a USB2 socket", " ");
+    usleep(2000000);
+    //wait_touch();     // Wait here till screen is touched
     MsgBox4(" ", " ", " ", " ");
-    cleanexit(129);   // Exit to portsdown 
+    cleanexit(150);   //  
   }
 
   // SDR FFT Thread
   if(pthread_create(&sdrplay_fft_thread_obj, NULL, sdrplay_fft_thread, &app_exit))
   {
-      fprintf(stderr, "Error creating %s pthread\n", "SDRPLAY_FFT");
-      return 1;
+    fprintf(stderr, "Error creating %s pthread\n", "SDRPLAY_FFT");
+    return 1;
   }
   pthread_setname_np(sdrplay_fft_thread_obj, "SDRPLAY_FFT");
 
@@ -4818,27 +5553,29 @@ int main(void)
   {
     y3[i] = 1;
   }
-    CalcSpan();
+  CalcSpan();
 
-    DrawEmptyScreen();  // Required to set A value, which is not set in DrawTrace
-    DrawTickMarks();
-    DrawYaxisLabels();  // dB calibration on LHS
+  DrawEmptyScreen();  // Required to set A value, which is not set in DrawTrace
+  DrawTickMarks();
+  DrawYaxisLabels();  // dB calibration on LHS
 
-    DrawSettings();     // Start, Stop RBW, Ref level and Title
+  DrawSettings();     // Start, Stop RBW, Ref level and Title
 
-    UpdateWindow();     // Draw the buttons
+  UpdateWindow();     // Draw the buttons
 
-    while(true)
-    {
+  while(true)
+  {
 
     while (NewData == false)
     {
       usleep(100);
     }
+
     NewData = false;
-
-      activescan = true;
-
+    activescan = true;
+    
+    if (strcmp(destination, "local") == 0)
+    {
       if (spectrum == true)
       {
         for (pixel = 8; pixel <= 506; pixel++)
@@ -4894,6 +5631,7 @@ int main(void)
           }
         }
       }
+
       if (waterfall == true)
       {
         if (spectrum == true)
@@ -4922,7 +5660,6 @@ int main(void)
           }
           next_paint = next_paint + (wfalltimespan * 1000) / (wfall_height + 1);
         }
-
         else
         {
           for (j = 8; j <= 506; j++)
@@ -4991,7 +5728,6 @@ int main(void)
           {
             w_index = 0;
           }
-
           activescan = false;
         }
       }
@@ -5004,9 +5740,27 @@ int main(void)
         usleep(10000);
         nextwebupdate = tracecount + 220;  // About 780 ms between updates
       }
-
       //printf("Tracecount = %d\n", tracecount);
     }
+    else  // remote display
+    {
+      NewData = true;
+      activescan = false;
+              while (freeze)
+              {
+                frozen = true;
+                usleep(100000); // Pause to let things happen if CPU is busy
+              }
+              frozen = false;
+      if (RemoteCaptionDisplayed == false)
+      {
+        ShowRemoteCaption();
+        printf("Display Caption\n");
+        UpdateWeb();
+        RemoteCaptionDisplayed = true;
+      }
+    }
+  }
 
 
   printf("Waiting for SDR Play FFT Thread to exit..\n");

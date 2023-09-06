@@ -1,3 +1,29 @@
+202309050
+Pin libiio at version 0.25
+
+202309040
+SDRPlay install fixes
+
+202309030
+MeteorView Reliability Improvements
+
+202308300
+Update MeteorView to control headless receiver server from browser
+
+202308240
+Install Open SSL and Websockets
+Add robust scheduler for Meteor Beacon RX
+
+202308220
+Refresh and Bugfix SigGen
+Bugfix sdrplay api install
+
+202308210
+Meteorview upgraded to work without touchscreen
+
+202308190
+Booting without touchscreen enables web control
+
 202307171
 Use more recent versions of config.guess files
 Update RaspBIOS Version for new builds

@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset=utf-8 http-equiv="Content-Language" content="en"/>
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+    <meta name="viewport" content="width=device-width" />
+
+    <script src="/fft.js"></script>
+    <script src="/gb3mba.js"></script>
+    <script src="/gb3mba_audio.js"></script>
+
+
+
+    <title>GB3MBA Beacon Client</title>
+
+    <link rel="stylesheet" href="" />
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+  </head>
+
+  <body>
+    
+    <h1>GB3MBA Beacon Client</h1>
+
+    <button id="playButton">Play Audio</button>
+    <br><br>
+    <table>
+    <tr> <td>Audio Gain:       </td> <td><input type="number" id="AudioGain" value="1.0"></td> </tr>
+    <tr> <td>Waterfall Gain:   </td> <td><input type="number" id="WFGain"    value="1.0"></td>
+         <td>Waterfall Offset: </td> <td><input type="number" id="WFOffset"  value="0.0"></td> </tr>
+    </table>
+    <canvas id="waterfall" height="300" width="1024"></canvas>
+ 
+  </body>
+</html>
+

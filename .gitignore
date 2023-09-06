@@ -46,6 +46,8 @@ src/dmm/dmm
 src/wav2lime/wav2lime
 src/meteorview/meteorview
 src/noise_meter/noise_meter
+src/meteorbeacon/beacon
+src/meteorbeacon/server
 scripts/configs/Langstone.conf
 scripts/configs/Langstone_Lime.conf
 scripts/configs/Langstone_Pluto.conf
@@ -75,5 +77,6 @@ bin/dmm
 bin/wav2lime
 bin/meteorview
 bin/noise_meter
-
+bin/beacon
+bin/server
 
