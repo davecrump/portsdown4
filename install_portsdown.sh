@@ -478,6 +478,7 @@ make
 cp plutoview ../../bin/
 cd /home/pi
 
+# For Metoeorview and sdrplayview
 # Download sdrplay api for install after first reboot
 echo
 echo "---------------------------------------"

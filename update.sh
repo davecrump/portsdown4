@@ -51,6 +51,8 @@ end
 EOF
 }
 
+##############################################################
+
 reset
 
 printf "\nCommencing update.\n\n"
@@ -89,6 +91,7 @@ sudo killall keyedtx >/dev/null 2>/dev/null
 sudo killall ffmpeg >/dev/null 2>/dev/null
 
 DisplayUpdateMsg "Step 3 of 10\nSaving Current Config\n\nXXX-------"
+/home/pi/rpidatv/scripts/single_screen_grab_for_web.sh &
 
 PATHSCRIPT="/home/pi/rpidatv/scripts"
 PATHUBACKUP="/home/pi/user_backups"
@@ -148,6 +151,12 @@ cp -f -r /home/pi/rpidatv/src/rtlsdrview/rtlsdrview_config.txt "$PATHUBACKUP"/rt
 # Make a safe copy of the Pluto Band Viewer config
 cp -f -r /home/pi/rpidatv/src/plutoview/plutoview_config.txt "$PATHUBACKUP"/plutoview_config.txt
 
+# Make a safe copy of the SDRplay Band Viewer config
+cp -f -r /home/pi/rpidatv/src/sdrplayview/sdrplayview_config.txt "$PATHUBACKUP"/sdrplayview_config.txt
+
+# Make a safe copy of the Meteor Viewer config
+cp -f -r /home/pi/rpidatv/src/meteorview/meteorview_config.txt "$PATHUBACKUP"/meteorview_config.txt
+
 # Make a safe copy of the Contest Codes
 cp -f -r "$PATHSCRIPT"/portsdown_C_codes.txt "$PATHUBACKUP"/portsdown_C_codes.txt
 
@@ -165,8 +174,8 @@ cp -f -r "$PATHSCRIPT"/TXstopextras.sh "$PATHUBACKUP"/TXstopextras.sh
 # Make a safe copy of the user's Test cards
 cp -f -r "$PATHSCRIPT"/images "$PATHUBACKUP"/images
 
-
 DisplayUpdateMsg "Step 4 of 10\nUpdating Software Package List\n\nXXXX------"
+/home/pi/rpidatv/scripts/single_screen_grab_for_web.sh &
 
 # Download and install the VLC apt Preferences File 202212010
 cd /home/pi
@@ -205,6 +214,7 @@ if apt-mark showhold | grep -q 'vlc'; then
 fi
 
 DisplayUpdateMsg "Step 5 of 10\nUpdating Software Packages\n\nXXXX------"
+/home/pi/rpidatv/scripts/single_screen_grab_for_web.sh &
 
 # --------- Update Packages ------
 
@@ -347,6 +357,7 @@ fi
 # ---------- Update rpidatv -----------
 
 DisplayUpdateMsg "Step 6 of 10\nDownloading Portsdown SW\n\nXXXXX-----"
+/home/pi/rpidatv/scripts/single_screen_grab_for_web.sh &
 
 echo
 echo "-------------------------------------------------------"
@@ -381,6 +392,7 @@ rm -rf portsdown4-master
 cd /home/pi
 
 DisplayUpdateMsg "Step 7 of 10\nCompiling Portsdown SW\n\nXXXXXX----"
+/home/pi/rpidatv/scripts/single_screen_grab_for_web.sh &
 
 # Compile rpidatv gui
 sudo killall -9 rpidatvgui
@@ -634,6 +646,7 @@ cp /home/pi/rpidatv/src/wav2lime/wav2lime /home/pi/rpidatv/bin/wav2lime
 cd /home/pi
 
 DisplayUpdateMsg "Step 8 of 10\nRestoring Config\n\nXXXXXXXX--"
+/home/pi/rpidatv/scripts/single_screen_grab_for_web.sh &
 
 # Restore portsdown_config.txt and portsdown_presets.txt
 cp -f -r "$PATHUBACKUP"/portsdown_config.txt "$PATHSCRIPT"/portsdown_config.txt
@@ -677,6 +690,12 @@ cp -f -r "$PATHUBACKUP"/rtlsdrview_config.txt /home/pi/rpidatv/src/rtlsdrview/rt
 
 # Restore the user's original Pluto Band Viewer config
 cp -f -r "$PATHUBACKUP"/plutoview_config.txt /home/pi/rpidatv/src/plutoview/plutoview_config.txt
+
+# Restore the user's original SDRplay Band Viewer config
+cp -f -r "$PATHUBACKUP"/sdrplayview_config.txt /home/pi/rpidatv/src/sdrplayview/sdrplayview_config.txt
+
+# Restore the user's original Meteor Viewer config
+cp -f -r "$PATHUBACKUP"/meteorview_config.txt /home/pi/rpidatv/src/meteorview/meteorview_config.txt
 
 # Restore the user's original Contest Codes
 cp -f -r "$PATHUBACKUP"/portsdown_C_codes.txt "$PATHSCRIPT"/portsdown_C_codes.txt 
@@ -852,6 +871,7 @@ cp -r /home/pi/rpidatv/scripts/configs/webroot /home/pi/webroot
 sudo cp /home/pi/rpidatv/scripts/configs/nginx.conf /etc/nginx/nginx.conf
 
 DisplayUpdateMsg "Step 9 of 10\nFinishing Off\n\nXXXXXXXXX-"
+/home/pi/rpidatv/scripts/single_screen_grab_for_web.sh &
 
 # Update the version number
 
@@ -865,6 +885,7 @@ echo "${GIT_SRC}" > /home/pi/${GIT_SRC_FILE}
 
 # Reboot
 DisplayRebootMsg "Step 10 of 10\nRebooting\n\nUpdate Complete"
+/home/pi/rpidatv/scripts/single_screen_grab_for_web.sh &
 printf "\nRebooting\n"
 
 sleep 1

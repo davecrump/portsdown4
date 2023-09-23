@@ -63,6 +63,13 @@ ChooseBandViewerSDR()
     return
   fi
 
+  # Check for presence of SDRplay   
+  lsusb | grep -q '1df7:'
+  if [ $? == 0 ]; then   ## Present
+    BANDVIEW_START_CODE=144
+    return
+  fi
+
   # Check for presence of Lime Mini
   lsusb | grep -q '0403:601f'
   if [ $? == 0 ]; then   ## Present
@@ -121,7 +128,6 @@ ChooseBandViewerSDR()
 # 145  Run the Langstone TRX V2 Lime
 # 146  Run the Langstone TRX V2 Pluto
 # 147  Exit from rpidatvgui requesting start of Noise Meter
-# 149  SDRPlay BeaconRX Server no GUI
 # 150  Run the Meteor Viewer
 # 160  Shutdown from GUI
 # 192  Reboot from GUI
@@ -160,13 +166,6 @@ case "$MODE_STARTUP" in
     # Start the Band Viewer
     ChooseBandViewerSDR
     GUI_RETURN_CODE=$BANDVIEW_START_CODE
-  ;;
-  Meteorbeacon_boot)
-    # Start the Meteor Beacon RX Server
-    GUI_RETURN_CODE=149
-    DisplayMsg "Waiting 15 seconds for the\n\nLeo Bodnar GPS Ref to stabilise"
-    /home/pi/rpidatv/scripts/single_screen_grab_for_web.sh &
-    sleep 15  # Wait for the Leo Bodnar frequency reference to stabilise
   ;;
   Meteorview_boot)
     # Start the Meteor Viewer
@@ -260,10 +259,57 @@ while [ "$GUI_RETURN_CODE" -gt 127 ] || [ "$GUI_RETURN_CODE" -eq 0 ];  do
       /home/pi/rpidatv/bin/plutoview
       GUI_RETURN_CODE="$?"
     ;;
-    144)
+    144)                                    # SDRplayview
       sleep 1
+      RPISTATE="Not_Ready"
+      while [[ "$RPISTATE" == "Not_Ready" ]]
+      do
+        DisplayMsg "Restarting SDRPlay Service\n\nThis may take up to 90 seconds"
+        /home/pi/rpidatv/scripts/single_screen_grab_for_web.sh &
+
+        sudo systemctl restart sdrplay
+
+        DisplayMsg " "                      # Display Blank screen
+        /home/pi/rpidatv/scripts/single_screen_grab_for_web.sh &
+
+        lsusb | grep -q '1df7:'             # check for SDRPlay
+        if [ $? != 0 ]; then                # Not detected
+          DisplayMsg "Unable to detect SDRPlay\n\nResetting the USB Bus"
+          /home/pi/rpidatv/scripts/single_screen_grab_for_web.sh &
+          sudo uhubctl -R -a 2              # So reset USB bus
+          sleep 1
+
+          lsusb | grep -q '1df7:'           # Check again
+          if [ $? != 0 ]; then              # Not detected
+            DisplayMsg "Unable to detect SDRPlay\n\nResetting the USB Bus"
+            /home/pi/rpidatv/scripts/single_screen_grab_for_web.sh &
+            sudo uhubctl -R -a 2            # Try reset USB bus again
+            sleep 1
+
+            lsusb | grep -q '1df7:'         # Has that worked?
+            if [ $? != 0 ]; then            # No
+              DisplayMsg "Still Unable to detect SDRPlay\n\n\nCheck connections"
+              /home/pi/rpidatv/scripts/single_screen_grab_for_web.sh &
+              sleep 2
+              DisplayMsg " "                # Display Blank screen
+              /home/pi/rpidatv/scripts/single_screen_grab_for_web.sh &
+            else
+              RPISTATE="Ready"     
+            fi
+          else
+            RPISTATE="Ready"
+          fi
+        else
+          RPISTATE="Ready"
+        fi
+      done
+
       /home/pi/rpidatv/bin/sdrplayview
       GUI_RETURN_CODE="$?"
+
+      if [ $GUI_RETURN_CODE != 129 ] && [ $GUI_RETURN_CODE != 160 ]; then     # Not Portsdown and not shutdown
+        GUI_RETURN_CODE=144                         # So restart sdrplayview        
+      fi
     ;;
     145)                              # Langstone V2 Lime
       cd /home/pi
@@ -287,64 +333,6 @@ while [ "$GUI_RETURN_CODE" -gt 127 ] || [ "$GUI_RETURN_CODE" -eq 0 ];  do
       /home/pi/rpidatv/bin/noise_meter
       GUI_RETURN_CODE="$?"
     ;;
-
-    149)                              # SDRPlay Beacon RX Server no GUI
-      RPISTATE="Not_Ready"
-      while [[ "$RPISTATE" == "Not_Ready" ]]
-      do
-        DisplayMsg "Restarting SDRPlay Service\n\nThis may take up to 90 seconds"
-        /home/pi/rpidatv/scripts/single_screen_grab_for_web.sh &
-
-        sudo systemctl restart sdrplay
-
-        DisplayMsg " "                      # Display Blank screen
-        /home/pi/rpidatv/scripts/single_screen_grab_for_web.sh &
-
-        lsusb | grep -q '1df7:'             # check for SDRPlay
-        if [ $? != 0 ]; then                # Not detected
-          DisplayMsg "Unable to detect SDRPlay\n\nResetting the USB Bus"
-          /home/pi/rpidatv/scripts/single_screen_grab_for_web.sh &
-          sudo uhubctl -R -a 2              # So reset USB bus
-          sleep 1
-
-          lsusb | grep -q '1df7:'           # Check again
-          if [ $? != 0 ]; then              # Not detected   
-            DisplayMsg "Unable to detect SDRPlay\n\nResetting the USB Bus"
-            /home/pi/rpidatv/scripts/single_screen_grab_for_web.sh &
-            sudo uhubctl -R -a 2            # Try reset USB bus again
-            sleep 1
-
-            lsusb | grep -q '1df7:'         # Has that worked?         
-            if [ $? != 0 ]; then            # No
-              DisplayMsg "Still Unable to detect SDRPlay\n\n\nCheck connections"
-              /home/pi/rpidatv/scripts/single_screen_grab_for_web.sh &
-              sleep 2
-              DisplayMsg " "                # Display Blank screen
-            else
-              RPISTATE="Ready"
-            fi
-          else
-            RPISTATE="Ready"
-          fi
-        else
-          RPISTATE="Ready"
-        fi
-      done
-      
-      DisplayMsg "Starting the beacon RX server\n\nThis caption stays on while it is running\n"
-      /home/pi/rpidatv/scripts/single_screen_grab_for_web.sh &
-
-      /home/pi/rpidatv/bin/beacon
-      GUI_RETURN_CODE="$?"
-
-      if [ $GUI_RETURN_CODE != 129 ] && [ $GUI_RETURN_CODE != 160 ]; then   # Not Portsdown and not shutdown
-        DisplayMsg "Beacon RX server did not start properly\nTrying again\n"
-        /home/pi/rpidatv/scripts/single_screen_grab_for_web.sh &
-
-        GUI_RETURN_CODE=149                         # So try to restart beacon        
-      fi
-    ;;
-
     150)                              # SDRPlay Meteor Viewer
       RPISTATE="Not_Ready"
       while [[ "$RPISTATE" == "Not_Ready" ]]
