@@ -1542,6 +1542,7 @@ void ExecuteUpdate(int NoButton)
       // Display the updating message
       strcpy(Step, "Step 1 of 10\\nDownloading Update\\n\\nX---------");
       DisplayUpdateMsg("Latest" , Step);
+      UpdateWeb();
 
       // Delete any old update
       strcpy(LinuxCommand, "rm /home/pi/update.sh >/dev/null 2>/dev/null");
@@ -1554,6 +1555,7 @@ void ExecuteUpdate(int NoButton)
 
       strcpy(Step, "Step 2 of 10\\nLoading Update Script\\n\\nXX--------");
       DisplayUpdateMsg("Latest Portsdown 4", Step);
+      UpdateWeb();
 
       strcpy(LinuxCommand, "chmod +x /home/pi/update.sh");   
       system(LinuxCommand);
@@ -1574,6 +1576,7 @@ void ExecuteUpdate(int NoButton)
       // Display the updating message
       strcpy(Step, "Step 1 of 10\\nDownloading Update\\n\\nX---------");
       DisplayUpdateMsg("Development", Step);
+      UpdateWeb();
 
       // Delete any old update
       strcpy(LinuxCommand, "rm /home/pi/update.sh >/dev/null 2>/dev/null");
@@ -1586,6 +1589,7 @@ void ExecuteUpdate(int NoButton)
 
       strcpy(Step, "Step 2 of 10\\nLoading Update Script\\n\\nXX--------");
       DisplayUpdateMsg("Development", Step);
+      UpdateWeb();
 
       strcpy(LinuxCommand, "chmod +x /home/pi/update.sh");   
       system(LinuxCommand);
@@ -22115,7 +22119,7 @@ void Define_Menu7()
   AddButtonStatus(button, "RTL-SDR^BandViewer", &Blue);
 
   button = CreateButton(7, 4);
-  AddButtonStatus(button, "SDR Play^BandViewer", &Grey);
+  AddButtonStatus(button, "SDR Play^BandViewer", &Blue);
 
   // 2nd line up Menu 7:  
 

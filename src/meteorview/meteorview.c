@@ -5456,7 +5456,7 @@ int main(int argc, char **argv)
   int i;
   int pixel;
   int PeakValueZeroCounter = 0;
-  int nextwebupdate = 10;
+  uint64_t nextwebupdate = monotonic_ms() + 1000;
   uint64_t next_paint = monotonic_ms();
   uint16_t y4[625];
   bool paint_line;
@@ -5755,15 +5755,8 @@ int main(int argc, char **argv)
         }
       }
       tracecount++;
-
-      if (tracecount >= nextwebupdate)
-      {
-        // printf("tracecount = %d, Time ms = %llu \n", tracecount, monotonic_ms());
-        UpdateWeb();
-        usleep(10000);
-        nextwebupdate = tracecount + 220;  // About 780 ms between updates
-      }
       //printf("Tracecount = %d\n", tracecount);
+
     }
     else  // remote display
     {
@@ -5783,8 +5776,13 @@ int main(int argc, char **argv)
         RemoteCaptionDisplayed = true;
       }
     }
+    if (monotonic_ms() >= nextwebupdate)
+    {
+      UpdateWeb();
+      usleep(10000);  // Alow time for paint
+      nextwebupdate = nextwebupdate + 1000;
+    }
   }
-
 
   printf("Waiting for SDR Play FFT Thread to exit..\n");
   pthread_join(sdrplay_fft_thread_obj, NULL);
