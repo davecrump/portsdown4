@@ -1,3 +1,8 @@
+202309230
+Add SDRplay BandViewer with waterfall and web control
+Improve MeteorViewer
+Update Web View during software update process
+
 202309050
 Pin libiio at version 0.25
 
