@@ -26719,9 +26719,6 @@ int main(int argc, char *argv[])
   // Check if DATV Express Server required and, if so, start it
   CheckExpress();
 
-  // Check Lime connected if selected
-  CheckLimeReady();
-
   // Check Pluto reboot status
   if (strcmp(CurrentModeOP, "PLUTO") == 0)
   {
