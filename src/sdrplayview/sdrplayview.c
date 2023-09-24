@@ -5252,7 +5252,7 @@ int main(int argc, char **argv)
         wfall_height = 399;
       }
 
-      if (monotonic_ms() > next_paint)  // Detect and store peaks and paint the line
+      if (monotonic_ms() > next_paint)  // Paint the line with current peaks added in
       {
         paint_line = true;
 
@@ -5262,11 +5262,9 @@ int main(int argc, char **argv)
           {
             y4[j] = y3[j];
           }
-
-          y3[j] = y4[j];      // overwrite the current value with the peaks
-
-          y4[j] = 0;          // zero the peaks for next time
         }
+
+        // Set the time for the next paint after this one
         next_paint = monotonic_ms() + (wfalltimespan * 25) / 10;
       }
       else         // Store the peak, but don't paint the waterfall line
@@ -5275,7 +5273,7 @@ int main(int argc, char **argv)
         {
           if (y3[j] > y4[j])  // store the peaks
           {
-          y4[j] = y3[j];
+            y4[j] = y3[j];
           }
         }
         paint_line = false;
@@ -5287,9 +5285,11 @@ int main(int argc, char **argv)
 
         for (j = 8; j <= 506; j++)
         {
-          pixel_brightness = y3[j] - (400 + (5 * WaterfallBase)); // this in range -400 to +400, but only 0 to 400 is valid
-          pixel_brightness = (255 * pixel_brightness) / (WaterfallRange * 5);  // scale to 0 - 255
-          if (pixel_brightness < 0)
+          pixel_brightness = y4[j] - (400 + (5 * WaterfallBase));              // this in range -400 to +400, but only 0 to 400 is valid
+          y4[j] = 0;                                                           // Zero peak value in preparation for next line
+          pixel_brightness = (255 * pixel_brightness) / (WaterfallRange * 5);  // scale pixel brightness to 0 - 255
+
+          if (pixel_brightness < 0)                                            // and limit to 0 - 255
           {
             pixel_brightness = 0;
           }
@@ -5297,7 +5297,7 @@ int main(int argc, char **argv)
           {
             pixel_brightness = 255;
           }
-          wfparray[j][w_index] = waterfall_map((uint8_t)pixel_brightness);
+          wfparray[j][w_index] = waterfall_map((uint8_t)pixel_brightness);     // Look up colour and store in array
         }
 
         // Render the waterfall
@@ -5346,8 +5346,8 @@ int main(int argc, char **argv)
     if (monotonic_ms() >= nextwebupdate)
     {
       UpdateWeb();
-      usleep(10000);  // Alow time for paint
-      nextwebupdate = nextwebupdate + 1000;  // 
+      usleep(10000);                         // Alow 10ms for paint
+      nextwebupdate = nextwebupdate + 1000;  // Set next update for 1 second later
     }
   }
 
