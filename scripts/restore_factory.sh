@@ -64,6 +64,14 @@ cp -f /home/pi/rpidatv/src/rtlsdrview/rtlsdrview_config.txt.factory /home/pi/rpi
 cp -f /home/pi/rpidatv/src/plutoview/plutoview_config.txt /home/pi/rpidatv/src/plutoview/plutoview_config.txt.bak
 cp -f /home/pi/rpidatv/src/plutoview/plutoview_config.txt.factory /home/pi/rpidatv/src/plutoview/plutoview_config.txt
 
+# sdrplayview_config.txt
+cp -f /home/pi/rpidatv/src/sdrplayview/sdrplayview_config.txt /home/pi/rpidatv/src/sdrplayview/sdrplayview_config.txt.bak
+cp -f /home/pi/rpidatv/src/sdrplayview/sdrplayview_config.txt.factory /home/pi/rpidatv/src/sdrplayview/sdrplayview_config.txt
+
+# meteorview_config.txt
+cp -f /home/pi/rpidatv/src/meteorview/meteorview_config.txt /home/pi/rpidatv/src/meteorview/meteorview_config.txt.bak
+cp -f /home/pi/rpidatv/src/meteorview/meteorview_config.txt.factory /home/pi/rpidatv/src/meteorview/meteorview_config.txt
+
 # nf_meter_config.txt
 cp -f /home/pi/rpidatv/src/nf_meter/nf_meter_config.txt /home/pi/rpidatv/src/nf_meter/nf_meter_config.txt.bak
 cp -f /home/pi/rpidatv/src/nf_meter/nf_meter_config.txt.factory /home/pi/rpidatv/src/nf_meter/nf_meter_config.txt

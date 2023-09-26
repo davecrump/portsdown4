@@ -9,7 +9,7 @@ wfallbase=-40
 wfallrange=50
 wfalloverlap=8
 wfallsamplefraction=4
-wfalltimespan=0
+wfalltimespan=5
 pfreq1=49969000
 pfreq2=50407500
 pfreq3=143049000
@@ -21,3 +21,5 @@ port=7682
 destination=local
 remoterfgain=4
 remoteifgain=40
+
+

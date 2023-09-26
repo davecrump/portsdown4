@@ -10,7 +10,6 @@
 #include <linux/types.h>
 #include <linux/spi/spidev.h>
 #include <math.h>
-#include <wiringPi.h>
 #include <signal.h>
 #include <dirent.h>
 #include <pthread.h>
@@ -25,9 +24,8 @@
 #include "graphics.h"
 #include "timing.h"
 #include "sdrplayfft.h"
-#include "meteorview.h"
+#include "sdrplayview.h"
 #include "ffunc.h"
-#include "websocket_server.h"
 
 pthread_t thbutton;
 pthread_t thwebclick;     //  Listens for mouse clicks from web interface
@@ -49,7 +47,6 @@ int TouchPressure;
 int TouchTrigger = 0;
 bool touchneedsinitialisation = true;
 char DisplayType[31];
-
 
 
 typedef struct
@@ -84,7 +81,7 @@ color_t Red   = {.r = 255, .g = 0  , .b = 0  };
 color_t Black = {.r = 0  , .g = 0  , .b = 0  };
 
 #define PATH_PCONFIG "/home/pi/rpidatv/scripts/portsdown_config.txt"
-#define PATH_CONFIG "/home/pi/rpidatv/src/meteorview/meteorview_config.txt"
+#define PATH_CONFIG "/home/pi/rpidatv/src/sdrplayview/sdrplayview_config.txt"
 
 #define MAX_BUTTON 675
 int IndexButtonInArray=0;
@@ -98,7 +95,9 @@ bool NewFreq = false;
 bool NewGain = false;
 bool NewSpan = false;
 bool NewCal  = false;
+bool NewPort = false;
 float gain;
+bool Show20dBLower = false;
 
 bool NewData = false;
 
@@ -117,7 +116,6 @@ bool readyfornewscanwidth = false;
 
 bool activescan = false;
 bool PeakPlot = false;
-//int y[501];               // Actual displayed values on the chart
 bool PortsdownExitRequested = false;
 
 int scaledadresult[501];  // Sensed AD Result
@@ -136,10 +134,10 @@ float fft_time_smooth;       // Set for scan width
 
 uint32_t span = 10000;
 int limegain = 15;
-uint32_t pfreq1 = 49969000;
-uint32_t pfreq2 = 50407500;
-uint32_t pfreq3 = 143049000;
-uint32_t pfreq4 = 437000000;
+uint32_t pfreq1 = 146500000;
+uint32_t pfreq2 = 437000000;
+uint32_t pfreq3 = 748000000;
+uint32_t pfreq4 = 1255000000;
 uint32_t pfreq5 = 1296000000;
 
 bool app_exit = false;
@@ -150,11 +148,10 @@ uint32_t SpanWidth;                      // in Hz
 
 int RFgain;
 int IFgain;
-int remoteRFgain;
-int remoteIFgain;
 bool LocalGain;
 bool agc = false;
 uint8_t decimation_factor = 8;
+float SampleRate;
 
 extern uint16_t y3[1250];
 extern int force_exit;
@@ -166,11 +163,6 @@ extern pthread_mutex_t histogram;
 static pthread_t screen_thread_obj;
 
 static pthread_t sdrplay_fft_thread_obj;
-
-uint8_t clientnumber = 6;
-char serverip[20] = "95.154.252.125";
-uint16_t port = 7682;
-char destination[15] = "local";
 
 int markerx = 250;
 int markery = 15;
@@ -187,9 +179,9 @@ int BaseLine20dB = -80;
 
 int WaterfallBase;
 int WaterfallRange;
-uint8_t wfalloverlap = 4;
-uint8_t wfallsamplefraction = 4;
-uint16_t wfalltimespan = 0; 
+uint16_t wfalltimespan = 0;
+uint8_t Antenna_port;
+bool BiasT_volts = false;
 
 bool webcontrol = false;   // Enables webcontrol on a Portsdown 4
 
@@ -208,7 +200,6 @@ int xscaleden = 20;       // Denominator for X scaling fraction
 void GetConfigParam(char *PathConfigFile, char *Param, char *Value);
 void SetConfigParam(char *PathConfigFile, char *Param, char *Value);
 int CheckWebCtlExists();
-void CheckConfigFile();
 void ReadSavedParams();
 void *WaitTouchscreenEvent(void * arg);
 void *WebClickListener(void * arg);
@@ -243,7 +234,6 @@ void SetMode(int button);
 void SetGain(int button);
 void SetWfall(int button);
 void SetFreqPreset(int button);
-void SetStream(int button);
 void ShiftFrequency(int button);
 void CalcSpan();
 void ChangeLabel(int button);
@@ -264,6 +254,7 @@ void Start_Highlights_Menu7();
 void Define_Menu8();
 void Start_Highlights_Menu8();
 void Define_Menu9();
+void Start_Highlights_Menu9();
 void Define_Menu10();
 void Start_Highlights_Menu10();
 void Define_Menu11();
@@ -271,13 +262,9 @@ void Define_Menu12();
 void Start_Highlights_Menu12();
 void Define_Menu13();
 void Start_Highlights_Menu13();
-void Define_Menu14();
-void Define_Menu15();
-void Start_Highlights_Menu15();
 void Define_Menu41();
 void DrawEmptyScreen();
 void DrawTickMarks();
-void ShowRemoteCaption();
 void DrawYaxisLabels();
 void DrawSettings();
 void DrawTrace(int xoffset, int prev2, int prev1, int current);
@@ -416,58 +403,6 @@ int CheckWebCtlExists()
 }
 
 
-/***************************************************************************//**
- * @brief Checks to see if new entries exist in meteorview Config file
- *        and adds them if required
- *
- * @param None
- *
- * @return none
- * 
-*******************************************************************************/
-
-void CheckConfigFile()
-{
-  char shell_command[255];
-  FILE *fp;
-  int r;
-
-  sprintf(shell_command, "grep -q 'clientnumber' %s", PATH_CONFIG);
-  fp = popen(shell_command, "r");
-  r = pclose(fp);
-
-  if (WEXITSTATUS(r) != 0)
-  {
-    printf("clientnumber parameter not detected\n");
-    printf("Adding 4 parameters to config file\n");
-
-    sprintf(shell_command, "echo clientnumber=6 >> %s", PATH_CONFIG);
-    system(shell_command);
-    sprintf(shell_command, "echo serverip=95.154.252.125 >> %s", PATH_CONFIG);
-    system(shell_command);
-    sprintf(shell_command, "echo port=7682 >> %s", PATH_CONFIG);
-    system(shell_command);
-    sprintf(shell_command, "echo destination=local >> %s", PATH_CONFIG);
-    system(shell_command);
-  }
-
-  sprintf(shell_command, "grep -q 'remoterfgain' %s", PATH_CONFIG);
-  fp = popen(shell_command, "r");
-  r = pclose(fp);
-
-  if (WEXITSTATUS(r) != 0)
-  {
-    printf("remoterfgain parameter not detected\n");
-    printf("Adding 2 parameters to config file\n");
-
-    sprintf(shell_command, "echo remoterfgain=4 >> %s", PATH_CONFIG);
-    system(shell_command);
-    sprintf(shell_command, "echo remoteifgain=40 >> %s", PATH_CONFIG);
-    system(shell_command);
-  } 
-}
-
-
 void ReadSavedParams()
 {
   char response[63];
@@ -536,14 +471,6 @@ void ReadSavedParams()
   GetConfigParam(PATH_CONFIG, "wfallrange", response);
   WaterfallRange = atoi(response);
 
-  strcpy(response, "4");
-  GetConfigParam(PATH_CONFIG, "wfalloverlap", response);
-  wfalloverlap = atoi(response);
-
-  strcpy(response, "4");
-  GetConfigParam(PATH_CONFIG, "wfallsamplefraction", response);
-  wfallsamplefraction = atoi(response);
-
   strcpy(response, "0");
   GetConfigParam(PATH_CONFIG, "wfalltimespan", response);
   wfalltimespan = atoi(response);
@@ -580,29 +507,20 @@ void ReadSavedParams()
     }
   }
 
-  CheckConfigFile();           // check and amend config file to latest version
-
-  strcpy(response, "6");
-  GetConfigParam(PATH_CONFIG, "clientnumber", response);
-  clientnumber = atoi(response);
-
-  strcpy(response, "95.154.252.125");
-  GetConfigParam(PATH_CONFIG, "serverip", serverip);
-
-  strcpy(response, "7682");
+  strcpy(response, "0");
   GetConfigParam(PATH_CONFIG, "port", response);
-  port = atoi(response);
+  Antenna_port = atoi(response);
 
-  strcpy(response, "local");
-  GetConfigParam(PATH_CONFIG, "destination", destination);
-
-  strcpy(response, "40");
-  GetConfigParam(PATH_CONFIG, "remoterfgain", response);
-  remoteRFgain = atoi(response);
-
-  strcpy(response, "4");
-  GetConfigParam(PATH_CONFIG, "remoteifgain", response);
-  remoteIFgain = atoi(response);
+  strcpy(response, "off");
+  GetConfigParam(PATH_CONFIG, "biast", response);
+  if (strcmp(response, "on") == 0)
+  {
+    BiasT_volts = true;
+  }
+  else
+  {
+    BiasT_volts = false;
+  }
 }
 
 
@@ -1447,31 +1365,45 @@ int CreateButton(int MenuIndex, int ButtonPosition)
       h = 50;
     }
 
-    if ((ButtonPosition > 0) && (ButtonPosition < 6))  // 6 right hand buttons
+    if ((ButtonPosition >= 1) && (ButtonPosition <= 4))  // Title, 100 kHz, 200 kHz, 500 kHz
     {
       x = normal_xpos;
       y = 480 - (ButtonPosition * 60);
       w = normal_width;
       h = 50;
     }
-    if (ButtonPosition == 6) // 10
+    if (ButtonPosition == 5) // 1 MHz
+    {
+      x = normal_xpos;  
+      y = 480 - (5 * 60);
+      w = 50;
+      h = 50;
+    }
+    if (ButtonPosition == 6) // 2 MHz
+    {
+      x = 710;  // = normal_xpos + 50 button width + 20 gap
+      y = 480 - (5 * 60);
+      w = 50;
+      h = 50;
+    }
+    if (ButtonPosition == 7) // 5 MHz
     {
       x = normal_xpos;  
       y = 480 - (6 * 60);
       w = 50;
       h = 50;
     }
-    if (ButtonPosition == 7) // 20
+    if (ButtonPosition == 8) // 10 MHz
     {
       x = 710;  // = normal_xpos + 50 button width + 20 gap
       y = 480 - (6 * 60);
       w = 50;
       h = 50;
     }
-    if ((ButtonPosition > 7) && (ButtonPosition < 10))  // Bottom 2 buttons
+    if ((ButtonPosition == 9) || (ButtonPosition == 10))  // Bottom 2 buttons = Back and Freeze
     {
       x = normal_xpos;
-      y = 480 - ((ButtonPosition - 1) * 60);
+      y = 480 - ((ButtonPosition - 2) * 60);
       w = normal_width;
       h = 50;
     }
@@ -2010,11 +1942,6 @@ void SetSpan(int button)
 {  
   char ValueToSave[63];
 
-  if (strcmp(destination, "local") != 0)
-  {
-    return;
-  }
-
   // Stop the scan at the end of the current one and wait for it to stop
   freeze = true;
   while(! frozen)
@@ -2030,15 +1957,27 @@ void SetSpan(int button)
 
   switch (button)
   {
-    case 3:
-      span = 2500;
-    break;
-    case 4:
-      span = 5000;
-    break;
-    case 5:
-      span = 10000;
-    break;
+    case 2:                                          // 100 kHz
+      span = 100000;
+      break;
+    case 3:                                          // 200 kHz
+      span = 200000;
+      break;
+    case 4:                                          // 500 kHz
+      span = 500000;
+      break;
+    case 5:                                         // 1000 kHz
+      span = 1000000;
+      break;
+    case 6:                                         // 2000 kHz
+      span = 2000000;
+      break;
+    case 7:                                         // 5000 kHz
+      span = 5000000;
+      break;
+    case 8:                                        // 10000 kHz
+      span = 10000000;
+      break;
   }
 
   // Store the new span
@@ -2051,7 +1990,7 @@ void SetSpan(int button)
   Start_Highlights_Menu6();
   UpdateWindow();
 
-  cleanexit(150);
+  //cleanexit(144);
 
   // Trigger the span change
   CalcSpan();
@@ -2120,13 +2059,10 @@ void SetGain(int button)
   int Setgain = 0;
 
   // Stop the scan at the end of the current one and wait for it to stop
-  if (strcmp(destination, "local") == 0)
+  freeze = true;
+  while(! frozen)
   {
-    freeze = true;
-    while(! frozen)
-    {
-      usleep(10);                                   // wait till the end of the scan
-    }
+    usleep(10);                                   // wait till the end of the scan
   }
 
   if (button < 130)     // RF Gain
@@ -2150,20 +2086,10 @@ void SetGain(int button)
       break;
     }
 
-    if (LocalGain)
-    {
-      RFgain = Setgain;
-      snprintf(ValueToSave, 63, "%d", RFgain);
-      SetConfigParam(PATH_CONFIG, "rfgain", ValueToSave);
-      printf("RFgain set to %d \n", RFgain);
-    }
-    else
-    {
-      remoteRFgain = Setgain;
-      snprintf(ValueToSave, 63, "%d", remoteRFgain);
-      SetConfigParam(PATH_CONFIG, "remoterfgain", ValueToSave);
-      printf("Remote RFgain set to %d \n", remoteRFgain);
-    }
+    RFgain = Setgain;
+    snprintf(ValueToSave, 63, "%d", RFgain);
+    SetConfigParam(PATH_CONFIG, "rfgain", ValueToSave);
+    printf("RFgain set to %d \n", RFgain);
   }
   else   // IF Gain
   {
@@ -2186,27 +2112,14 @@ void SetGain(int button)
       break;
     }
 
-    if (LocalGain)
-    {
-      IFgain = Setgain;
-      snprintf(ValueToSave, 63, "%d", IFgain);
-      SetConfigParam(PATH_CONFIG, "ifgain", ValueToSave);
-      printf("IFgain set to %d \n", IFgain);
-    }
-    else
-    {
-      remoteIFgain = Setgain;
-      snprintf(ValueToSave, 63, "%d", remoteIFgain);
-      SetConfigParam(PATH_CONFIG, "remoteifgain", ValueToSave);
-      printf("Remote IFgain set to %d \n", remoteIFgain);
-    }
+    IFgain = Setgain;
+    snprintf(ValueToSave, 63, "%d", IFgain);
+    SetConfigParam(PATH_CONFIG, "ifgain", ValueToSave);
+    printf("IFgain set to %d \n", IFgain);
   }
 
   // Trigger the gain change
-  if (strcmp(destination, "local") == 0)
-  {
-    NewGain = true;
-  }
+  NewGain = true;
   freeze = false;
 }
 
@@ -2263,44 +2176,6 @@ void SetWfall(int button)
       SetConfigParam(PATH_CONFIG, "wfallrange", ValueToSave);
       printf("Waterfall Range set to %d dB\n", WaterfallRange);
     break;
-    case 4:                                            // Set Waterfall overlap
-      // Define request string
-      strcpy(RequestText, "Enter new overlap for waterfall (1, 2, 4, or 8)");
-
-      // Define initial value
-      snprintf(InitText, 25, "%d", wfalloverlap);
-
-      // Ask for the new value
-      do
-      {
-        Keyboard(RequestText, InitText, 10);
-      }
-      while ((strlen(KeyboardReturn) == 0) || (atoi(KeyboardReturn) < 1) || (atoi(KeyboardReturn) > 256));
-
-      wfalloverlap = atoi(KeyboardReturn);
-      snprintf(ValueToSave, 63, "%d", wfalloverlap);
-      SetConfigParam(PATH_CONFIG, "wfalloverlap", ValueToSave);
-      printf("Waterfall overlap set to %d\n", wfalloverlap);
-    break;
-    case 5:                                            // Set Waterfall sample fraction
-      // Define request string
-      strcpy(RequestText, "Enter new sample fraction for waterfall (1, 2, 4, or 8)");
-
-      // Define initial value
-      snprintf(InitText, 25, "%d", wfallsamplefraction);
-
-      // Ask for the new value
-      do
-      {
-        Keyboard(RequestText, InitText, 10);
-      }
-      while ((strlen(KeyboardReturn) == 0) || (atoi(KeyboardReturn) < 1) || (atoi(KeyboardReturn) > 256));
-
-      wfallsamplefraction = atoi(KeyboardReturn);
-      snprintf(ValueToSave, 63, "%d", wfallsamplefraction);
-      SetConfigParam(PATH_CONFIG, "wfallsamplefraction", ValueToSave);
-      printf("Waterfall sample fraction set to %d\n", wfallsamplefraction);
-    break;
     case 12:                                            // Set Waterfall Base
       // Define request string
       strcpy(RequestText, "Enter new waterfall span in seconds (0 for min)");
@@ -2329,6 +2204,65 @@ void SetWfall(int button)
   freeze = false;
 }
 
+void SetPort(int button)
+{
+  char ValueToSave[63];
+  char RequestText[63];
+  char InitText[63];
+
+  // Stop the scan at the end of the current one and wait for it to stop
+  freeze = true;
+  while(! frozen)
+  {
+    usleep(10);                                   // wait till the end of the scan
+  }
+
+  switch (button)
+  {
+    case 5:                                            // Set Input Port
+      // Define request string
+      strcpy(RequestText, "Enter 0, 1 or 2 for Antenna port A, B or C ");
+
+      // Define initial value
+      snprintf(InitText, 25, "%d", Antenna_port);
+
+      // Ask for the new value
+      do
+      {
+        Keyboard(RequestText, InitText, 10);
+      }
+      while ((strlen(KeyboardReturn) == 0) || (atoi(KeyboardReturn) < 0) || (atoi(KeyboardReturn) > 9));
+
+      Antenna_port = atoi(KeyboardReturn);
+      snprintf(ValueToSave, 63, "%d", Antenna_port);
+      SetConfigParam(PATH_CONFIG, "port", ValueToSave);
+      printf("Antenna port set to %d\n", Antenna_port);
+      break;
+    case 6:                                            // Set BiasT on/off
+      if (BiasT_volts)
+      {
+        BiasT_volts = false;
+        SetConfigParam(PATH_CONFIG, "biast", "off");
+        printf("BiasT volts set to off\n");
+      }
+      else
+      {
+        BiasT_volts = true;
+        SetConfigParam(PATH_CONFIG, "biast", "on");
+        printf("BiasT volts set to on\n");
+      }
+
+      break;
+  }
+  NewPort = true;
+  clearScreen();
+  DrawEmptyScreen();  // Required to set A value, which is not set in DrawTrace
+  DrawYaxisLabels();  // dB calibration on LHS
+  DrawTickMarks();    // tick marks on X axis
+  DrawSettings();     // Start, Stop RBW, Ref level and Title
+  freeze = false;
+}
+
 
 void SetFreqPreset(int button)
 {  
@@ -2340,13 +2274,10 @@ void SetFreqPreset(int button)
   if (CallingMenu == 7)
   {
     // Stop the scan at the end of the current one and wait for it to stop
-    if (strcmp(destination, "local") == 0)
+    freeze = true;
+    while(! frozen)
     {
-      freeze = true;
-      while(! frozen)
-      {
-        usleep(10);                                   // wait till the end of the scan
-      }
+      usleep(10);                                   // wait till the end of the scan
     }
 
     switch (button)
@@ -2379,13 +2310,11 @@ void SetFreqPreset(int button)
     // Trigger the frequency change
     NewFreq = true;
 
-    if (strcmp(destination, "local") == 0)
+    while(NewFreq)
     {
-      while(NewFreq)
-      {
-        usleep(10);                                   // wait till the frequency has been set
-      }
+      usleep(10);                                   // wait till the frequency has been set
     }
+
     DrawSettings();       // New labels
     freeze = false;
   }
@@ -2483,145 +2412,6 @@ void SetFreqPreset(int button)
 }
 
 
-void SetStream(int button)
-{  
-  char ValueToSave[63];
-  char RequestText[64];
-  char InitText[63];
-  uint8_t newclientnumber = 0;
-  uint16_t newport = 0;
-  bool reboot_required = false;
-
-  // If required, stop the scan at the end of the current one and wait for it to stop
-  if (strcmp(destination, "local") == 0)
-  {
-    freeze = true;
-    while(! frozen)
-    {
-      usleep(10);                                   // wait till the end of the scan
-    }
-  }
-
-  switch (button)
-  {
-    case 2:                           // Set Client number
-      // Define request string
-      strcpy(RequestText, "Enter new Client Number (1 - 6)");
-
-      // Define initial value
-      snprintf(InitText, 25, "%d", clientnumber);
-
-      // Ask for the new value
-      do
-      {
-        Keyboard(RequestText, InitText, 10);
-        newclientnumber = atoi(KeyboardReturn);
-      }
-      while ((strlen(KeyboardReturn) == 0) || (newclientnumber < 1) || (newclientnumber > 6));
-      
-      if (clientnumber != newclientnumber)
-      {
-        reboot_required = true;
-      }
-      clientnumber = newclientnumber;
-      
-      // Store the new client number
-      snprintf(ValueToSave, 63, "%d", clientnumber);
-      SetConfigParam(PATH_CONFIG, "clientnumber", ValueToSave);
-      printf("Client Number set to %d\n", clientnumber);
-
-      break;
-    case 3:
-      // Define request string
-      strcpy(RequestText, "Enter new server IP address");
-
-      // Define initial value
-      strcpy(InitText, serverip);
-
-      // Ask for the new value
-      do
-      {
-        Keyboard(RequestText, InitText, 16);
-      }
-      while (strlen(KeyboardReturn) == 0);
-
-      if (strcmp(serverip, KeyboardReturn) != 0)
-      {
-        reboot_required = true;
-      }
-
-      strcpy(serverip, KeyboardReturn);
-      
-      // Store the new IP Address
-      SetConfigParam(PATH_CONFIG, "serverip", serverip);
-      printf("Server IP set to %s\n", serverip);
-
-      break;
-    case 4:
-      // Define request string
-      strcpy(RequestText, "Enter new Port Number (1 - 65000)");
-
-      // Define initial value
-      snprintf(InitText, 25, "%d", port);
-
-      // Ask for the new value
-      do
-      {
-        Keyboard(RequestText, InitText, 10);
-        newport = atoi(KeyboardReturn);
-      }
-      while ((strlen(KeyboardReturn) == 0) || (newport < 1) || (newport > 65000));
-      
-      if (port != newport)
-      {
-        reboot_required = true;
-      }
-
-      port = newport;
-      
-      // Store the new port number
-      snprintf(ValueToSave, 63, "%d", port);
-      SetConfigParam(PATH_CONFIG, "port", ValueToSave);
-      printf("Port Number set to %d\n", port);
-
-      break;
-    case 5:
-      if (strcmp(destination, "local") == 0)  // currently local, so change to remote and set span width to 10 kHz.
-      {
-        strcpy(destination, "remote");
-        span = 10000;
-        // Store the new span
-        SetConfigParam(PATH_CONFIG, "span", "10000");
-        printf("Span set to %d Hz\n", span);
-      }
-      else                                    // currently remote, so change to local
-      {
-        strcpy(destination, "local");
-      }
-      SetConfigParam(PATH_CONFIG, "destination", destination);
-      printf("Destination set to %s\n", destination); 
-      break;
-    case 6:
-      break;
-  }
-
-  if ((reboot_required) && (strcmp(destination, "remote") == 0))
-  {
-    MsgBox4("Restarting application", "with new settings", "", "");
-    UpdateWeb();
-    usleep (2000000);
-    cleanexit(150);
-  }
-  // Redraw Screen
-  clearScreen();
-  DrawEmptyScreen();  // Required to set A value, which is not set in DrawTrace
-  DrawYaxisLabels();  // dB calibration on LHS
-  DrawTickMarks();    // tick marks on X axis
-  DrawSettings();     // Start, Stop RBW, Ref level and Title
-  freeze = false;
-}
-
-
 void ShiftFrequency(int button)
 {  
   char ValueToSave[63];
@@ -2666,24 +2456,41 @@ void CalcSpan()    // takes centre frequency and span and calculates startfreq a
 
   switch (span)
   {
-    case 2500:                                            // 2.5 kHz
+    case 100000:                                          // 100 kHz
+      SampleRate = 3276800;
       decimation_factor = 32;
-      fft_size = 2000;
-    break;
-    case 5000:                                            // 5 kHz
-      decimation_factor = 32;
-      fft_size = 1000;
-    break;
-    case 10000:                                           // 10 kHz
-      decimation_factor = 32;
+      fft_size = 512;
+      break;
+    case 200000:                                          // 200 kHz
+      SampleRate = 3276800;
+      decimation_factor = 16;
+      fft_size = 512;
+      break;
+    case 500000:                                          // 500 kHz
+      SampleRate = 4096000;
+      decimation_factor = 8;
+      fft_size = 512;
+      break;
+    case 1000000:                                         // 1000 kHz
+      SampleRate = 4096000;
+      decimation_factor = 4;
+      fft_size = 512;
+      break;
+    case 2000000:                                         // 2000 kHz
+      SampleRate = 4096000;
+      decimation_factor = 2;
+      fft_size = 512;
+      break;
+    case 5000000:                                         // 5000 kHz
+      SampleRate = 5120000;
+      decimation_factor = 1;
+      fft_size = 512;
+      break;
+    case 10000000:                                        // 10000 kHz
+      SampleRate = 10000000;                              // Spec says 10.66 MS, but api won't accept more then 10 MS
+      decimation_factor = 1;
       fft_size = 500;
-    break;
-  }
-
-  // Overide for remote
-  if (strcmp(destination, "remote") == 0)
-  {
-    fft_size = 512;
+      break;
   }
 
   printf("fft size set to %d\n", fft_size);
@@ -2699,33 +2506,56 @@ void CalcSpan()    // takes centre frequency and span and calculates startfreq a
     {
       switch (span)
       {
-        case 2500:                                            // 2.0 kHz
+        case 100000:                                          // 100 kHz
+          fft_time_smooth = 0.91;
+          break;
+        case 200000:                                          // 200 kHz
+          fft_time_smooth = 0.92;
+          break;
+        case 500000:                                          // 500 kHz
+          fft_time_smooth = 0.93;
+          break;
+        case 1000000:                                         // 1000 kHz
+          fft_time_smooth = 0.945;
+           break;
+       case 2000000:                                         // 2000 kHz
           fft_time_smooth = 0.95;
-        break;
-        case 5000:                                            // 5 kHz
-          fft_time_smooth = 0.90;
-        break;
-        case 10000:                                           // 10 kHz
-          fft_time_smooth = 0.90;
-        break;
+          break;
+        case 5000000:                                         // 5000 kHz
+          fft_time_smooth = 0.95;
+          break;
+        case 10000000:                                        // 10000 kHz
+          fft_time_smooth = 0.96;
+          break;
       }
     }
     else
     {
       switch (span)
       {
-        case 2500:                                            // 2.0 kHz
-          fft_time_smooth = 0.96;
-        break;
-        case 5000:                                            // 5 kHz
-          fft_time_smooth = 0.90;
-        break;
-        case 10000:                                           // 10 kHz
-          fft_time_smooth = 0.96;
-        break;
+        case 100000:                                          // 100 kHz
+          fft_time_smooth = 0.94;
+          break;
+        case 200000:                                          // 200 kHz
+          fft_time_smooth = 0.94;
+          break;
+        case 500000:                                          // 500 kHz
+          fft_time_smooth = 0.94;
+          break;
+        case 1000000:                                         // 1000 kHz
+          fft_time_smooth = 0.94;
+          break;
+        case 2000000:                                         // 2000 kHz
+          fft_time_smooth = 0.95;
+          break;
+        case 5000000:                                         // 5000 kHz
+          fft_time_smooth = 0.98;
+          break;
+        case 10000000:                                        // 10000 kHz
+          fft_time_smooth = 0.985;
+          break;
       }
     }
-    //fft_time_smooth = 0.98;
   }
 }
 
@@ -2734,32 +2564,104 @@ void ChangeLabel(int button)
   char RequestText[64];
   char InitText[64];
   char ValueToSave[63];
+  div_t div_10;
+  div_t div_100;
+  div_t div_1000;
+  div_t div_10000;
+  div_t div_100000;
+  div_t div_1000000;
 
   // Stop the scan at the end of the current one and wait for it to stop
-  if (strcmp(destination, "local") == 0)
+  freeze = true;
+  while(! frozen)
   {
-    freeze = true;
-    while(! frozen)
-    {
-      usleep(10);                                   // wait till the end of the scan
-    }
+    usleep(10);                                   // wait till the end of the scan
   }
+
   switch (button)
   {
     case 2:                                                       // Centre Freq
-      // Define request string
-      strcpy(RequestText, "Enter new centre frequency in Hz");
-
-      snprintf(InitText, 25, "%d", CentreFreq);
-
-      // Ask for the new value
-      do
+      // If intial value is less than 1 MHz, use Hz
+      if (CentreFreq < 1000000)
       {
-        Keyboard(RequestText, InitText, 10);
-      }
-      while ((strlen(KeyboardReturn) == 0) || (atoi(KeyboardReturn) < 10000) || (atoi(KeyboardReturn) > 2000000000));
+        // Define request string
+        strcpy(RequestText, "Enter new centre frequency in Hz");
+        snprintf(InitText, 20, "%d", CentreFreq);
 
-      CentreFreq = atoi(KeyboardReturn);
+        // Ask for the new value
+        do
+        {
+          Keyboard(RequestText, InitText, 11);
+        }
+        while ((strlen(KeyboardReturn) == 0) || (atoi(KeyboardReturn) < 1000) || (atoi(KeyboardReturn) > 2000000000));
+
+        CentreFreq = atoi(KeyboardReturn);
+      }
+      else                        // > 1 MHz to use MHz.
+      {
+        strcpy(RequestText, "Enter new centre frequency in MHz");
+
+        // Define initial value and convert to MHz
+        div_10 = div(CentreFreq, 10);
+        div_1000000 = div(CentreFreq, 1000000);  //  so div_1000000.quotand div_1000000.rem are MHz and Hz
+
+        if(div_10.rem != 0)  // last character (units) not zero, so make answer of form xxxx.xxxxxx
+        {
+          snprintf(InitText, 20, "%d.%06d", div_1000000.quot, div_1000000.rem);
+        }
+        else
+        {
+          div_100 = div(CentreFreq, 100);
+          if(div_100.rem != 0)  // tens not zero, so make answer of form xxxx.xxxxx
+          {
+            snprintf(InitText, 20, "%d.%05d", div_1000000.quot, div_1000000.rem / 10);
+          }
+          else
+          {
+            div_1000 = div(CentreFreq, 1000);
+            if(div_1000.rem != 0)  // hundreds not zero, so make answer of form xxxx.xxxx
+            {
+              snprintf(InitText, 20, "%d.%04d", div_1000000.quot, div_1000000.rem / 100);
+            }
+            else
+            {
+              div_10000 = div(CentreFreq, 10000);
+              if(div_10000.rem != 0)  // thousands not zero, so make answer of form xxxx.xxx
+              {
+                snprintf(InitText, 20, "%d.%03d", div_1000000.quot, div_1000000.rem / 1000);
+              }
+              else
+              {
+                div_100000 = div(CentreFreq, 100000);
+                if(div_100000.rem != 0)  // tens of thousands not zero, so make answer of form xxxx.xx
+                {
+                  snprintf(InitText, 20, "%d.%02d", div_1000000.quot, div_1000000.rem / 10000);
+                }
+                else
+                {
+                  div_1000000 = div(CentreFreq, 1000000);
+                  if(div_1000000.rem != 0)  // hundreds of thousands not zero, so make answer of form xxxx.x
+                  {
+                    snprintf(InitText, 20, "%d.%01d", div_1000000.quot, div_1000000.rem / 100000);
+                  }
+                  else  // integer MHz, so just xxxx (no dp)
+                  {
+                    snprintf(InitText, 20, "%d", div_1000000.quot);
+                  }
+                }
+              }
+            }
+          }
+        }
+        // Ask for the new value
+        do
+        {
+          Keyboard(RequestText, InitText, 12);
+        }
+        while ((strlen(KeyboardReturn) == 0) || (atof(KeyboardReturn) < 0.001) || (atof(KeyboardReturn) > 2000.0));
+
+        CentreFreq = (int)((1000000 * atof(KeyboardReturn)) + 0.1);
+      }
 
       snprintf(ValueToSave, 63, "%d", CentreFreq);
       SetConfigParam(PATH_CONFIG, "centrefreq", ValueToSave);
@@ -3094,13 +2996,6 @@ void *WaitButtonEvent(void * arg)
           CurrentMenu = 3;
           UpdateWindow();          
           RequestPeakValueZero = true;
-          if (strcmp(destination, "remote") == 0)
-          {
-            MsgBox4("Restarting application", "with new frequency", "", "");
-            UpdateWeb();
-            usleep (2000000);
-            cleanexit(150);
-          }
           break;
         case 3:                                            // Frequency Presets
           printf("Frequency Preset Menu 7 Requested\n");
@@ -3126,6 +3021,7 @@ void *WaitButtonEvent(void * arg)
         case 6:                                            // Waterfall Config
          printf("Waterfall Config Menu 9 Requested\n");
           CurrentMenu = 9;
+          Start_Highlights_Menu9();
           UpdateWindow();
           break;
         case 7:                                            // Return to Main Menu
@@ -3209,10 +3105,10 @@ void *WaitButtonEvent(void * arg)
         case 5:                                            // Shutdown
           system("sudo shutdown now");
           break;
-        case 6:                                            // Streaming Menu
-          printf("Streaming Menu 15 Requested\n");
-          CurrentMenu = 15;
-          Start_Highlights_Menu15();
+        case 6:                                            // Set Freq Presets
+          printf("Set Freq Presets Menu 10 Requested\n");
+          CurrentMenu = 10;
+          Start_Highlights_Menu10();
           UpdateWindow();
           break;
         case 7:                                            // Return to Main Menu
@@ -3280,6 +3176,7 @@ void *WaitButtonEvent(void * arg)
         case 6:                                            // Config Menu
           printf("Config Menu 9 Requested\n");
           CurrentMenu = 9;
+          Start_Highlights_Menu9();
           UpdateWindow();
           break;
         case 7:                                            // Return to Main Menu
@@ -3327,22 +3224,23 @@ void *WaitButtonEvent(void * arg)
           UpdateWindow();
           freeze = false;
           break;
-        //case 2:                                            // 1
-        case 3:                                            // 2
-        case 4:                                            // 5
-        case 5:                                            // 10
-        //case 6:                                            // 10
-        //case 7:                                            // 20
+        case 2:                                            // 100 kHz
+        case 3:                                            // 200 kHz
+        case 4:                                            // 500 kHz
+        case 5:                                            // 1 MHz
+        case 6:                                            // 2 MHz
+        case 7:                                            // 5 MHz
+        case 8:                                            // 10 MHz
           SetSpan(i);
           CurrentMenu = 6;
           Start_Highlights_Menu6();
           UpdateWindow();
           break;
-        case 8:                                            // Return to Settings Menu
+        case 9:                                            // Return to Settings Menu
           CurrentMenu=3;
           UpdateWindow();
           break;
-        case 9:
+        case 10:
           if (freeze)
           {
             SetButtonStatus(ButtonNumber(CurrentMenu, 9), 0);
@@ -3389,13 +3287,6 @@ void *WaitButtonEvent(void * arg)
           SetFreqPreset(i);
           CurrentMenu = 3;
           UpdateWindow();
-          if (strcmp(destination, "remote") == 0)
-          {
-            MsgBox4("Restarting application", "with new frequency", "", "");
-            UpdateWeb();
-            usleep (2000000);
-            cleanexit(150);
-          }
           break;
         case 7:                                            // Return to Settings Menu
           printf("Settings Menu 3 requested\n");
@@ -3457,26 +3348,29 @@ void *WaitButtonEvent(void * arg)
           if (agc == true)
           {
             agc = false;
+            SetConfigParam(PATH_CONFIG, "agc", "off");
           }
           else
           {
             agc = true;
+            SetConfigParam(PATH_CONFIG, "agc", "on");
           }
           NewGain = true;
           CurrentMenu = 8;
           Start_Highlights_Menu8();
           UpdateWindow();
           break;
-        case 5:                                            // Remote RF Gain
-          LocalGain = false;
-          CurrentMenu = 12;
-          Start_Highlights_Menu12();
-          UpdateWindow();
-          break;
-        case 6:                                            // Remote IF Gain
-          LocalGain = false;
-          CurrentMenu = 13;
-          Start_Highlights_Menu13();
+        case 6:                                            // Show20dBLower
+          if (Show20dBLower == true)
+          {
+            Show20dBLower = false;
+          }
+          else
+          {
+            Show20dBLower = true;
+          }
+          CurrentMenu = 8;
+          Start_Highlights_Menu8();
           UpdateWindow();
           break;
         case 7:                                            // Return to Settings Menu
@@ -3525,16 +3419,19 @@ void *WaitButtonEvent(void * arg)
           break;
         case 2:                                            // Set Waterfall Base
         case 3:                                            // Set waterfall range
-        case 4:                                            // Set Waterfall overlap
-        case 5:                                            // Set Waterfall sample fraction
           SetWfall(i);
           UpdateWindow();
           break;
-        case 6:                                            // 
-          printf("More Wfall Config Menu 14 Requested\n");
-          CurrentMenu = 14;
-          //Start_Highlights_Menu14();
+        case 4:                                            // Set Waterfall TimeSpan
+          SetWfall(12);
           UpdateWindow();
+          break;
+        case 5:                                            // Set Input Port
+        case 6:                                            // Set BiasT Volts
+          SetPort(i);
+          Start_Highlights_Menu9();
+          UpdateWindow();
+          break;
           break;
         case 7:                                            // Return to Main Menu
           printf("Main Menu 1 Requested\n");
@@ -3633,6 +3530,8 @@ void *WaitButtonEvent(void * arg)
           break;
         case 2:                                            // Back to Full Range
           Range20dB = false;
+          SetConfigParam(PATH_CONFIG, "mode", "spectrum");
+          printf("Mode set to spectrum \n");
           CalcSpan();
           RedrawDisplay();
           CurrentMenu=1;
@@ -3704,13 +3603,6 @@ void *WaitButtonEvent(void * arg)
           SetGain(120 + i);
           Start_Highlights_Menu12();
           UpdateWindow();
-          if (strcmp(destination, "remote") == 0)
-          {
-            MsgBox4("Restarting application", "with new gain", "", "");
-            UpdateWeb();
-            usleep (2000000);
-            cleanexit(150);
-          }
           break;
         case 7:                                            // Return to Gains Menu
           printf("Gains Menu 8 Requested\n");
@@ -3763,13 +3655,6 @@ void *WaitButtonEvent(void * arg)
           SetGain(130 + i);
           Start_Highlights_Menu13();
           UpdateWindow();
-          if (strcmp(destination, "remote") == 0)
-          {
-            MsgBox4("Restarting application", "with new gain", "", "");
-            UpdateWeb();
-            usleep (2000000);
-            cleanexit(150);
-          }
           break;
         case 7:                                            // Return to Gains Menu
           printf("Gains Menu 8 Requested\n");
@@ -3793,125 +3678,6 @@ void *WaitButtonEvent(void * arg)
           printf("Menu 13 Error\n");
       }
       continue;  // Completed Menu 13 action, go and wait for touch
-    }
-    if (CurrentMenu == 14)  // More Waterfall Config
-    {
-      printf("Button Event %d, Entering Menu 14 Case Statement\n",i);
-      CallingMenu = 14;
-      switch (i)
-      {
-        case 0:                                            // Capture Snap
-          freeze = true; 
-          SetButtonStatus(ButtonNumber(CurrentMenu, 0), 1);
-          UpdateWindow();
-          while(! frozen)
-          {
-            usleep(1000);
-          }                                   // wait till the end of the scan
-          system("/home/pi/rpidatv/scripts/snap2.sh");
-          SetButtonStatus(ButtonNumber(CurrentMenu, 0), 0);
-          UpdateWindow();
-          freeze = false;
-          break;
-        case 2:                                            //   Set Waterfall Timespan
-          SetWfall(i + 10);
-          UpdateWindow();
-          break;
-        case 5:                                            //   Factory Reset Requested
-          system("cp -f /home/pi/rpidatv/src/meteorview/meteorview_config.txt /home/pi/rpidatv/src/meteorview/meteorview_config.txt.bak");
-          system("cp -f /home/pi/rpidatv/src/meteorview/meteorview_config.txt.factory /home/pi/rpidatv/src/meteorview/meteorview_config.txt");
-          MsgBox4("Restarting application", "with new settings", "", "");
-          UpdateWeb();
-          usleep (2000000);
-          cleanexit(150);
-          break;
-        case 6:                                            // 
-          printf("Freq Presets Menu 10 Requested\n");
-          CurrentMenu = 10;
-          Start_Highlights_Menu10();
-          UpdateWindow();
-          break;
-        case 7:                                            // Return to Main Menu
-          printf("Main Menu 1 Requested\n");
-          CurrentMenu = 1;
-          UpdateWindow();
-          break;
-        case 8:
-          if (freeze)
-          {
-            SetButtonStatus(ButtonNumber(CurrentMenu, 8), 0);
-            freeze = false;
-          }
-          else
-          {
-            SetButtonStatus(ButtonNumber(CurrentMenu, 8), 1);
-            freeze = true;
-          }
-          UpdateWindow();
-          break;
-        default:
-          printf("Menu 14 Error\n");
-      }
-      continue;  // Completed Menu 14 action, go and wait for touch
-    }
-    if (CurrentMenu == 15)  // Streaming Menu
-    {
-      printf("Button Event %d, Entering Menu 15 Case Statement\n", i);
-      CallingMenu = 15;
-      switch (i)
-      {
-        case 0:                                            // Capture Snap
-          freeze = true; 
-          SetButtonStatus(ButtonNumber(CurrentMenu, 0), 1);
-          UpdateWindow();
-          while(! frozen)
-          {
-            usleep(1000);
-          }                                   // wait till the end of the scan
-          system("/home/pi/rpidatv/scripts/snap2.sh");
-          SetButtonStatus(ButtonNumber(CurrentMenu, 0), 0);
-          UpdateWindow();
-          freeze = false;
-          break;
-        case 2:                                            //   Set Client Number
-        case 3:                                            //   Set Server IP
-        case 4:                                            //   Set Port
-          SetStream(i);
-          Start_Highlights_Menu15();
-          UpdateWindow();
-          break;
-        case 5:                                            //   Remote/local
-          SetStream(i);
-          MsgBox4("Restarting application", "in", destination, "mode");
-          UpdateWeb();
-          usleep (2000000);
-          cleanexit(150);
-        case 6:                                            // 
-          UpdateWindow();
-          break;
-        case 7:                                            // Return to Main Menu
-          printf("Main Menu 1 Requested\n");
-          CurrentMenu = 1;
-          UpdateWindow();
-          break;
-        case 8:
-          if (freeze)
-          {
-            SetButtonStatus(ButtonNumber(CurrentMenu, 8), 0);
-            freeze = false;
-          }
-          else
-          {
-            SetButtonStatus(ButtonNumber(CurrentMenu, 8), 1);
-            freeze = true;
-          }
-          UpdateWindow();
-          break;
-        default:
-          printf("Menu 15 Error\n");
-      }
-      printf("End of Menu 15, destination = %s\n", destination);
-      continue;  // Completed Menu 15 action, go and wait for touch
     }
   }
   return NULL;
@@ -4108,7 +3874,7 @@ void Define_Menu4()                                         // System Menu
   AddButtonStatus(button, " ", &Green);
 
   button = CreateButton(4, 6);
-  AddButtonStatus(button, "Streaming^Menu", &Blue);
+  AddButtonStatus(button, "Set Freq^Presets", &Blue);
 
   button = CreateButton(4, 7);
   AddButtonStatus(button, "Return to^Main Menu", &DBlue);
@@ -4173,66 +3939,75 @@ void Define_Menu6()                                           // Span Menu
   AddButtonStatus(button, "Span^Menu", &Black);
   AddButtonStatus(button, " ", &Green);
 
+  button = CreateButton(6, 2);
+  AddButtonStatus(button, "100 kHz", &Blue);
+  AddButtonStatus(button, "100 kHz", &Green);
+
   button = CreateButton(6, 3);
-  AddButtonStatus(button, "2.5 kHz", &Blue);
-  AddButtonStatus(button, "2.5 kHz", &Green);
-  AddButtonStatus(button, "2.5 kHz", &Grey);
+  AddButtonStatus(button, "200 kHz", &Blue);
+  AddButtonStatus(button, "200 kHz", &Green);
 
   button = CreateButton(6, 4);
-  AddButtonStatus(button, "5 kHz", &Blue);
-  AddButtonStatus(button, "5 kHz", &Green);
-  AddButtonStatus(button, "5 kHz", &Grey);
+  AddButtonStatus(button, "500 kHz", &Blue);
+  AddButtonStatus(button, "500 kHz", &Green);
 
   button = CreateButton(6, 5);
-  AddButtonStatus(button, "10 kHz", &Blue);
-  AddButtonStatus(button, "10 kHz", &Green);
+  AddButtonStatus(button, "1^MHz", &Blue);
+  AddButtonStatus(button, "1^MHz", &Green);
 
-  //button = CreateButton(6, 6);
-  //AddButtonStatus(button, "10", &Blue);
-  //AddButtonStatus(button, "10", &Green);
+  button = CreateButton(6, 6);
+  AddButtonStatus(button, "2^MHz", &Blue);
+  AddButtonStatus(button, "2^MHz", &Green);
 
-  //button = CreateButton(6, 7);
-  //AddButtonStatus(button, "20", &Blue);
-  //AddButtonStatus(button, "20", &Green);
+  button = CreateButton(6, 7);
+  AddButtonStatus(button, "5^MHz", &Blue);
+  AddButtonStatus(button, "5^MHz", &Green);
 
   button = CreateButton(6, 8);
-  AddButtonStatus(button, "Back to^Settings", &DBlue);
+  AddButtonStatus(button, "10^MHz", &Blue);
+  AddButtonStatus(button, "10^MHz", &Green);
 
   button = CreateButton(6, 9);
+  AddButtonStatus(button, "Back to^Settings", &DBlue);
+
+  button = CreateButton(6, 10);
   AddButtonStatus(button, "Freeze", &Blue);
   AddButtonStatus(button, "Unfreeze", &Green);
 }
 
 void Start_Highlights_Menu6()
 {
-  if (span == 2500)
+  SetButtonStatus(ButtonNumber(CurrentMenu, 2), 0);
+  SetButtonStatus(ButtonNumber(CurrentMenu, 3), 0);
+  SetButtonStatus(ButtonNumber(CurrentMenu, 4), 0);
+  SetButtonStatus(ButtonNumber(CurrentMenu, 5), 0);
+  SetButtonStatus(ButtonNumber(CurrentMenu, 6), 0);
+  SetButtonStatus(ButtonNumber(CurrentMenu, 7), 0);
+  SetButtonStatus(ButtonNumber(CurrentMenu, 8), 0);
+
+  switch (span)
   {
-    SetButtonStatus(ButtonNumber(CurrentMenu, 3), 1);
-  }
-  else
-  {
-    SetButtonStatus(ButtonNumber(CurrentMenu, 3), 0);
-  }
-  if (span == 5000)
-  {
-    SetButtonStatus(ButtonNumber(CurrentMenu, 4), 1);
-  }
-  else
-  {
-    SetButtonStatus(ButtonNumber(CurrentMenu, 4), 0);
-  }
-  if (span == 10000)
-  {
-    SetButtonStatus(ButtonNumber(CurrentMenu, 5), 1);
-  }
-  else
-  {
-    SetButtonStatus(ButtonNumber(CurrentMenu, 5), 0);
-  }
-  if (strcmp(destination, "local") != 0)
-  {
-    SetButtonStatus(ButtonNumber(CurrentMenu, 3), 2);
-    SetButtonStatus(ButtonNumber(CurrentMenu, 4), 2);
+    case 100000:                                          // 100 kHz
+      SetButtonStatus(ButtonNumber(CurrentMenu, 2), 1);
+      break;
+    case 200000:                                          // 200 kHz
+      SetButtonStatus(ButtonNumber(CurrentMenu, 3), 1);
+      break;
+    case 500000:                                          // 500 kHz
+      SetButtonStatus(ButtonNumber(CurrentMenu, 4), 1);
+      break;
+    case 1000000:                                         // 1000 kHz
+      SetButtonStatus(ButtonNumber(CurrentMenu, 5), 1);
+      break;
+    case 2000000:                                         // 2000 kHz
+      SetButtonStatus(ButtonNumber(CurrentMenu, 6), 1);
+      break;
+    case 5000000:                                         // 5000 kHz
+      SetButtonStatus(ButtonNumber(CurrentMenu, 7), 1);
+      break;
+    case 10000000:                                        // 10000 kHz
+      SetButtonStatus(ButtonNumber(CurrentMenu, 8), 1);
+      break;
   }
 }
 
@@ -4279,26 +4054,25 @@ void Define_Menu7()                                            //Presets Menu
 void Start_Highlights_Menu7()
 {
   char ButtText[15];
-  snprintf(ButtText, 14, "%0.1f^kHz", ((float)pfreq1) / 1000);
+  snprintf(ButtText, 14, "%0.2f^MHz", ((float)pfreq1) / 1000000);
   AmendButtonStatus(ButtonNumber(CurrentMenu, 2), 0, ButtText, &Blue);
   AmendButtonStatus(ButtonNumber(CurrentMenu, 2), 1, ButtText, &Green);
 
-  snprintf(ButtText, 14, "%0.1f^kHz", ((float)pfreq2) / 1000);
+  snprintf(ButtText, 14, "%0.2f^MHz", ((float)pfreq2) / 1000000);
   AmendButtonStatus(ButtonNumber(CurrentMenu, 3), 0, ButtText, &Blue);
   AmendButtonStatus(ButtonNumber(CurrentMenu, 3), 1, ButtText, &Green);
 
-  snprintf(ButtText, 14, "%0.1f^kHz", ((float)pfreq3) / 1000);
+  snprintf(ButtText, 14, "%0.2f^MHz", ((float)pfreq3) / 1000000);
   AmendButtonStatus(ButtonNumber(CurrentMenu, 4), 0, ButtText, &Blue);
   AmendButtonStatus(ButtonNumber(CurrentMenu, 4), 1, ButtText, &Green);
 
-  snprintf(ButtText, 14, "%0.1f^kHz", ((float)pfreq4) / 1000);
+  snprintf(ButtText, 14, "%0.2f^MHz", ((float)pfreq4) / 1000000);
   AmendButtonStatus(ButtonNumber(CurrentMenu, 5), 0, ButtText, &Blue);
   AmendButtonStatus(ButtonNumber(CurrentMenu, 5), 1, ButtText, &Green);
 
-  snprintf(ButtText, 14, "%0.1f^kHz", ((float)pfreq5) / 1000);
+  snprintf(ButtText, 14, "%0.2f^MHz", ((float)pfreq5) / 1000000);
   AmendButtonStatus(ButtonNumber(CurrentMenu, 6), 0, ButtText, &Blue);
   AmendButtonStatus(ButtonNumber(CurrentMenu, 6), 1, ButtText, &Green);
-
 
   if (CentreFreq == pfreq1)
   {
@@ -4355,20 +4129,21 @@ void Define_Menu8()                                    // Gain Menu
   AddButtonStatus(button, "Gain^Menu", &Black);
 
   button = CreateButton(8, 2);
-  AddButtonStatus(button, "Local^RF Gain", &Blue);
+  AddButtonStatus(button, "RF Gain", &Blue);
 
   button = CreateButton(8, 3);
-  AddButtonStatus(button, "Local^IF Gain", &Blue);
+  AddButtonStatus(button, "IF Gain", &Blue);
 
   button = CreateButton(8, 4);
   AddButtonStatus(button, "AGC^Off", &Blue);
   AddButtonStatus(button, "AGC^On", &Blue);
 
-  button = CreateButton(8, 5);
-  AddButtonStatus(button, "Streaming^RF Gain", &Blue);
+  //button = CreateButton(8, 5);
+  //AddButtonStatus(button, "Remote^RF Gain", &Blue);
 
   button = CreateButton(8, 6);
-  AddButtonStatus(button, "Streaming^IF Gain", &Blue);
+  AddButtonStatus(button, "Show 20dB^Lower", &Blue);
+  AddButtonStatus(button, "Show 20dB^Lower", &Green);
 
   button = CreateButton(8, 7);
   AddButtonStatus(button, "Back to^Settings", &DBlue);
@@ -4387,6 +4162,14 @@ void Start_Highlights_Menu8()
   else
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 4), 0);
+  }
+  if (Show20dBLower == true)
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 6), 1);
+  }
+  else
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 6), 0);
   }
 }
 
@@ -4408,13 +4191,14 @@ void Define_Menu9()                                          // Config Menu
   AddButtonStatus(button, "Set Wfall^Range", &Blue);
 
   button = CreateButton(9, 4);
-  AddButtonStatus(button, "Set Wfall^Overlap", &Blue);
+  AddButtonStatus(button, "Set Wfall^Time Span", &Blue);
 
   button = CreateButton(9, 5);
-  AddButtonStatus(button, "Set Wfall^Fraction", &Blue);
+  AddButtonStatus(button, "Antenna^port", &Blue);
 
   button = CreateButton(9, 6);
-  AddButtonStatus(button, "More Wfall^Config", &Blue);
+  AddButtonStatus(button, "BiasT Volts^Off", &Blue);
+  AddButtonStatus(button, "BiasT Volts^On", &Green);
 
   button = CreateButton(9, 7);
   AddButtonStatus(button, "Return to^Main Menu", &DBlue);
@@ -4422,6 +4206,22 @@ void Define_Menu9()                                          // Config Menu
   button = CreateButton(9, 8);
   AddButtonStatus(button, "Freeze", &Blue);
   AddButtonStatus(button, "Unfreeze", &Green);
+}
+
+void Start_Highlights_Menu9()
+{
+  char ButtText[31];
+  snprintf(ButtText, 30, "Antenna^port %d", Antenna_port);
+  AmendButtonStatus(ButtonNumber(CurrentMenu, 5), 0, ButtText, &Blue);
+
+  if (BiasT_volts)
+  {
+    SetButtonStatus(ButtonNumber(9, 6), 1);
+  }
+  else
+  {
+    SetButtonStatus(ButtonNumber(9, 6), 0);
+  }
 }
 
 void Define_Menu10()                                          // Set Freq Presets Menu
@@ -4461,19 +4261,19 @@ void Define_Menu10()                                          // Set Freq Preset
 void Start_Highlights_Menu10()
 {
   char ButtText[31];
-  snprintf(ButtText, 30, "Preset 1^%0.1f kHz", ((float)pfreq1) / 1000);
+  snprintf(ButtText, 30, "Preset 1^%0.2f MHz", ((float)pfreq1) / 1000000);
   AmendButtonStatus(ButtonNumber(CurrentMenu, 2), 0, ButtText, &Blue);
 
-  snprintf(ButtText, 30, "Preset 2^%0.1f kHz", ((float)pfreq2) / 1000);
+  snprintf(ButtText, 30, "Preset 2^%0.2f MHz", ((float)pfreq2) / 1000000);
   AmendButtonStatus(ButtonNumber(CurrentMenu, 3), 0, ButtText, &Blue);
 
-  snprintf(ButtText, 30, "Preset 3^%0.1f kHz", ((float)pfreq3) / 1000);
+  snprintf(ButtText, 30, "Preset 3^%0.2f MHz", ((float)pfreq3) / 1000000);
   AmendButtonStatus(ButtonNumber(CurrentMenu, 4), 0, ButtText, &Blue);
 
-  snprintf(ButtText, 30, "Preset 4^%0.1f kHz", ((float)pfreq4) / 1000);
+  snprintf(ButtText, 30, "Preset 4^%0.2f MHz", ((float)pfreq4) / 1000000);
   AmendButtonStatus(ButtonNumber(CurrentMenu, 5), 0, ButtText, &Blue);
 
-  snprintf(ButtText, 30, "Preset 5^%0.1f kHz", ((float)pfreq5) / 1000);
+  snprintf(ButtText, 30, "Preset 5^%0.2f MHz", ((float)pfreq5) / 1000000);
   AmendButtonStatus(ButtonNumber(CurrentMenu, 6), 0, ButtText, &Blue);
 }
 
@@ -4552,16 +4352,7 @@ void Define_Menu12()                                          // RF Gain Menu
 
 void Start_Highlights_Menu12()
 {
-  int HLgain;
-  if (LocalGain)
-  {
-    HLgain = RFgain;
-  }
-  else
-  {
-    HLgain = remoteRFgain;
-  }
-  if (HLgain == 0)
+  if (RFgain == 0)
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 2), 1);
   }
@@ -4569,7 +4360,7 @@ void Start_Highlights_Menu12()
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 2), 0);
   }
-  if (HLgain == 2)
+  if (RFgain == 2)
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 3), 1);
   }
@@ -4577,7 +4368,7 @@ void Start_Highlights_Menu12()
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 3), 0);
   }
-  if (HLgain == 4)
+  if (RFgain == 4)
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 4), 1);
   }
@@ -4585,7 +4376,7 @@ void Start_Highlights_Menu12()
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 4), 0);
   }
-  if (HLgain == 6)
+  if (RFgain == 6)
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 5), 1);
   }
@@ -4593,7 +4384,7 @@ void Start_Highlights_Menu12()
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 5), 0);
   }
-  if (HLgain == 7)
+  if (RFgain == 7)
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 6), 1);
   }
@@ -4645,17 +4436,7 @@ void Define_Menu13()                                          // IF Gain Menu
 
 void Start_Highlights_Menu13()
 {
-  int HLgain;
-  if (LocalGain)
-  {
-    HLgain = IFgain;
-  }
-  else
-  {
-    HLgain = remoteIFgain;
-  }
-
-  if (HLgain == 20)
+  if (IFgain == 20)
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 2), 1);
   }
@@ -4663,7 +4444,7 @@ void Start_Highlights_Menu13()
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 2), 0);
   }
-  if (HLgain == 30)
+  if (IFgain == 30)
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 3), 1);
   }
@@ -4671,7 +4452,7 @@ void Start_Highlights_Menu13()
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 3), 0);
   }
-  if (HLgain == 40)
+  if (IFgain == 40)
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 4), 1);
   }
@@ -4679,7 +4460,7 @@ void Start_Highlights_Menu13()
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 4), 0);
   }
-  if (HLgain == 50)
+  if (IFgain == 50)
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 5), 1);
   }
@@ -4687,94 +4468,13 @@ void Start_Highlights_Menu13()
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 5), 0);
   }
-  if (HLgain == 59)
+  if (IFgain == 59)
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 6), 1);
   }
   else
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 6), 0);
-  }
-}
-
-
-void Define_Menu14()                                          // More Waterfall Config Menu
-{
-  int button = 0;
-
-  button = CreateButton(14, 0);
-  AddButtonStatus(button, "Capture^Snap", &DGrey);
-  AddButtonStatus(button, " ", &Black);
-
-  button = CreateButton(14, 1);
-  AddButtonStatus(button, "More Wfall^Config Menu", &Black);
-
-  button = CreateButton(14, 2);
-  AddButtonStatus(button, "Set Wfall^Time Span", &Blue);
-
-  //button = CreateButton(14, 3);
-  //AddButtonStatus(button, "Set Wfall^Range", &Blue);
-
-  //button = CreateButton(14, 4);
-  //AddButtonStatus(button, "Set Wfall^Overlap", &Blue);
-
-  button = CreateButton(14, 5);
-  AddButtonStatus(button, "Factory^Reset", &Blue);
-
-  button = CreateButton(14, 6);
-  AddButtonStatus(button, "Set Freq^Presets", &Blue);
-
-  button = CreateButton(14, 7);
-  AddButtonStatus(button, "Return to^Main Menu", &DBlue);
-
-  button = CreateButton(14, 8);
-  AddButtonStatus(button, "Freeze", &Blue);
-  AddButtonStatus(button, "Unfreeze", &Green);
-}
-
-void Define_Menu15()                                          // More Waterfall Config Menu
-{
-  int button = 0;
-
-  button = CreateButton(15, 0);
-  AddButtonStatus(button, "Capture^Snap", &DGrey);
-  AddButtonStatus(button, " ", &Black);
-
-  button = CreateButton(15, 1);
-  AddButtonStatus(button, "Streaming^Config Menu", &Black);
-
-  button = CreateButton(15, 2);
-  AddButtonStatus(button, "Set Client^Number", &Blue);
-
-  button = CreateButton(15, 3);
-  AddButtonStatus(button, "Set^Svr IP", &Blue);
-
-  button = CreateButton(15, 4);
-  AddButtonStatus(button, "Set^Port", &Blue);
-
-  button = CreateButton(15, 5);
-  AddButtonStatus(button, "Local^Display", &Blue);
-
-  //button = CreateButton(15, 6);
-  //AddButtonStatus(button, " ^ ", &Blue);
-
-  button = CreateButton(15, 7);
-  AddButtonStatus(button, "Return to^Main Menu", &DBlue);
-
-  button = CreateButton(15, 8);
-  AddButtonStatus(button, "Freeze", &Blue);
-  AddButtonStatus(button, "Unfreeze", &Green);
-}
-
-void Start_Highlights_Menu15()
-{
-  if (strcmp(destination, "local") == 0)
-  {
-    AmendButtonStatus(ButtonNumber(CurrentMenu, 5), 0, "Local^Display", &Blue);
-  }
-  else
-  {
-    AmendButtonStatus(ButtonNumber(CurrentMenu, 5), 0, "Remote^Display", &Blue);
   }
 }
 
@@ -5080,12 +4780,6 @@ void DrawEmptyScreen()
     HorizLine(345, 70 + div * 50 + 30, 10, 63, 63, 63);
     HorizLine(345, 70 + div * 50 + 40, 10, 63, 63, 63);
   }
-
-  // Write caption if data being sent to server
-  if (strcmp(destination, "remote") == 0)
-  {
-    ShowRemoteCaption();
-  }
 }
 
 void DrawTickMarks()
@@ -5101,19 +4795,6 @@ void DrawTickMarks()
     VertLine(500, 64, 5, 255, 255, 255);
     VertLine(550, 64, 5, 255, 255, 255);
     VertLine(600, 64, 5, 255, 255, 255);
-}
-
-
-void ShowRemoteCaption()
-{
-  // Clear the background
-  rectangle(101, 71, 499, 399, 0, 0, 0);
-
-  // Wite the caption
-  setForeColour(255, 255, 255);                    // White text
-  setBackColour(0, 0, 0);                          // on Black
-  TextMid2(350, 300, "No local display", &font_dejavu_sans_32);
-  TextMid2(350, 200, "Streaming to Central Server", &font_dejavu_sans_32);
 }
 
 
@@ -5197,16 +4878,16 @@ void DrawSettings()
   rectangle(100, 0, 505, 64, 0, 0, 0);
  
   ParamAsFloat = (float)startfreq / 1000000.0;
-  snprintf(DisplayText, 63, "%.5f", ParamAsFloat);
+  snprintf(DisplayText, 63, "%5.2f MHz", ParamAsFloat);
   Text2(100, line1y, DisplayText, font_ptr);
  
   ParamAsFloat = (float)CentreFreq / 1000000.0;
-  snprintf(DisplayText, 63, "%.5f MHz", ParamAsFloat);
+  snprintf(DisplayText, 63, "%5.2f MHz", ParamAsFloat);
   Text2(300, line1y, DisplayText, font_ptr);
 
   ParamAsFloat = (float)stopfreq / 1000000.0;
-  snprintf(DisplayText, 63, "%.5f", ParamAsFloat);
-  Text2(510, line1y, DisplayText, font_ptr);
+  snprintf(DisplayText, 63, "%5.2f MHz", ParamAsFloat);
+  Text2(490, line1y, DisplayText, font_ptr);
 
   if (reflevel != 99)                           // valid
   {
@@ -5467,7 +5148,6 @@ int main(int argc, char **argv)
   int wfall_offset = 0;
   int wfall_height;
   int16_t pixel_brightness;
-  bool RemoteCaptionDisplayed = false;
 
   // Catch sigaction and call terminate
   for (i = 0; i < 16; i++)
@@ -5529,15 +5209,7 @@ int main(int argc, char **argv)
   Define_Menu11();
   Define_Menu12();
   Define_Menu13();
-  Define_Menu14();
-  Define_Menu15();
   Define_Menu41();
-
-  // Set up wiringPi module
-  if (wiringPiSetup() < 0)
-  {
-    return 0;
-  }
 
   ReadSavedParams();
 
@@ -5597,190 +5269,169 @@ int main(int argc, char **argv)
     NewData = false;
     activescan = true;
     
-    if (strcmp(destination, "local") == 0)
+    if (spectrum == true)
+    {
+      for (pixel = 8; pixel <= 506; pixel++)
+      {
+        //pthread_mutex_lock(&histogram);
+
+        if (waterfall == false)
+        {
+          DrawTrace((pixel - 6), y3[pixel - 2], y3[pixel - 1], y3[pixel]);
+        }
+        else             //  mix
+        {
+          DrawTrace((pixel - 6), (y3[pixel - 2] / 4) + 301, (y3[pixel - 1] / 4) + 301, (y3[pixel] / 4) + 301);
+        }
+
+        //pthread_mutex_unlock(&histogram);
+
+        //printf("pixel=%d, prev2=%d, prev1=%d, current=%d\n", pixel, y3[pixel - 2], y3[pixel - 1], y3[pixel]);
+
+        if ((PeakPlot == true) && (waterfall == false))  // only works without waterfall!
+        {
+          // draw [pixel - 1] here based on PeakValue[pixel -1]
+          if (y3[pixel - 1] > PeakValue[pixel -1])
+          {
+            PeakValue[pixel - 1] = y3[pixel - 1];
+          }
+          setPixelNoA(pixel + 93, 409 - PeakValue[pixel - 1], 255, 0, 63);
+        }
+
+        while (freeze)
+        {
+          frozen = true;
+          usleep(1000); // Pause to let things happen if CPU is busy
+        }
+        frozen = false;
+      }
+
+      activescan = false;
+
+      if (markeron == true)
+      {
+        CalculateMarkers();
+      }
+
+      if (RequestPeakValueZero == true)
+      {
+        PeakValueZeroCounter++;
+        if (PeakValueZeroCounter > 19)
+        {
+          memset(PeakValue, 0, sizeof(PeakValue));
+          PeakValueZeroCounter = 0;
+          RequestPeakValueZero = false;
+        }
+      }
+    }
+
+    if (waterfall == true)
     {
       if (spectrum == true)
       {
-        for (pixel = 8; pixel <= 506; pixel++)
-        {
-          //pthread_mutex_lock(&histogram);
-
-          if (waterfall == false)
-          {
-            DrawTrace((pixel - 6), y3[pixel - 2], y3[pixel - 1], y3[pixel]);
-          }
-          else             //  mix
-          {
-            DrawTrace((pixel - 6), (y3[pixel - 2] / 4) + 301, (y3[pixel - 1] / 4) + 301, (y3[pixel] / 4) + 301);
-          }
-
-          //pthread_mutex_unlock(&histogram);
-
-	      //printf("pixel=%d, prev2=%d, prev1=%d, current=%d\n", pixel, y3[pixel - 2], y3[pixel - 1], y3[pixel]);
-
-          if ((PeakPlot == true) && (waterfall == false))  // only works without waterfall!
-          {
-            // draw [pixel - 1] here based on PeakValue[pixel -1]
-            if (y3[pixel - 1] > PeakValue[pixel -1])
-            {
-              PeakValue[pixel - 1] = y3[pixel - 1];
-            }
-            setPixelNoA(pixel + 93, 409 - PeakValue[pixel - 1], 255, 0, 63);
-          }
-
-          while (freeze)
-          {
-            frozen = true;
-            usleep(1000); // Pause to let things happen if CPU is busy
-          }
-          frozen = false;
-        }
-
-        activescan = false;
-
-        if (markeron == true)
-        {
-          CalculateMarkers();
-        }
-
-        if (RequestPeakValueZero == true)
-        {
-          PeakValueZeroCounter++;
-          if (PeakValueZeroCounter > 19)
-          {
-            memset(PeakValue, 0, sizeof(PeakValue));
-            PeakValueZeroCounter = 0;
-            RequestPeakValueZero = false;
-          }
-        }
+        wfall_height = 299;
+      }
+      else
+      {
+        wfall_height = 399;
       }
 
-      if (waterfall == true)
+      if (monotonic_ms() > next_paint)  // Paint the line with current peaks added in
       {
-        if (spectrum == true)
+        paint_line = true;
+
+        for (j = 8; j <= 506; j++)
         {
-          wfall_height = 299;
+          if (y3[j] > y4[j])  // store the peaks
+          {
+            y4[j] = y3[j];
+          }
         }
-        else
+
+        // Set the time for the next paint after this one
+        next_paint = monotonic_ms() + (wfalltimespan * 25) / 10;
+      }
+      else         // Store the peak, but don't paint the waterfall line
+      {
+        for (j = 8; j <= 506; j++)
         {
-          wfall_height = 399;
+          if (y3[j] > y4[j])  // store the peaks
+          {
+            y4[j] = y3[j];
+          }
+        }
+        paint_line = false;
+      } 
+
+      if(paint_line)
+      {
+        // Add the current line to the waterfall
+
+        for (j = 8; j <= 506; j++)
+        {
+          pixel_brightness = y4[j] - (400 + (5 * WaterfallBase));              // this in range -400 to +400, but only 0 to 400 is valid
+          y4[j] = 0;                                                           // Zero peak value in preparation for next line
+          pixel_brightness = (255 * pixel_brightness) / (WaterfallRange * 5);  // scale pixel brightness to 0 - 255
+
+          if (pixel_brightness < 0)                                            // and limit to 0 - 255
+          {
+            pixel_brightness = 0;
+          }
+          if (pixel_brightness > 255)
+          {
+            pixel_brightness = 255;
+          }
+          wfparray[j][w_index] = waterfall_map((uint8_t)pixel_brightness);     // Look up colour and store in array
         }
 
-        if (monotonic_ms() > next_paint)
+        // Render the waterfall
+        for (k = 0; k < wfall_height; k++)
         {
-          paint_line = true;
+          // start by displaying the line stored at array[0] at the top of the waterfall
+          // so waterfall offset needs to be zero
 
-          for (j = 8; j <= 506; j++)
+          // in the next frame w_index will be 1, so we need to display that line at the top
+          // so waterfall offset needs to be 0 when k is 1
+
+          wfall_offset = w_index - k;
+          if (wfall_offset >= wfall_height)
           {
-            if (y3[j] > y4[j])  // store the peaks
-            {
-              y4[j] = y3[j];
-            }
-
-            y3[j] = y4[j];      // overwrite the current value with the peaks
-
-            y4[j] = 0;          // zero the peaks for next time
+            wfall_offset = wfall_offset - wfall_height;
           }
-          next_paint =  monotonic_ms() + (wfalltimespan * 25) / 10;
+          if (wfall_offset < 0)
+          {
+            wfall_offset = wfall_offset + wfall_height;
+          }
+          for (j = 7; j <= 505; j++)
+          {
+            setPixelNoA(j + 94, (409 - wfall_height + wfall_offset), wfparray[j][k].Red, wfparray[j][k].Green, wfparray[j][k].Blue);
+
+            while (freeze)
+            {
+              frozen = true;
+              usleep(100000); // Pause to let things happen if CPU is busy
+            }
+            frozen = false;
+          }
         }
-        else
+        //printf("waterfall render time %lld\n", monotonic_ms());
+        //last_output = monotonic_ms();
+        w_index++;
+        if (w_index >= wfall_height)
         {
-          for (j = 8; j <= 506; j++)
-          {
-            if (y3[j] > y4[j])  // store the peaks
-            {
-              y4[j] = y3[j];
-            }
-          }
-          paint_line = false;
-        } 
-
-        if(paint_line)
-        {
-          // Add the current line to the waterfall
-
-          for (j = 8; j <= 506; j++)
-          {
-            pixel_brightness = y3[j] - (400 + (5 * WaterfallBase)); // this in range -400 to +400, but only 0 to 400 is valid
-            pixel_brightness = (255 * pixel_brightness) / (WaterfallRange * 5);  // scale to 0 - 255
-            if (pixel_brightness < 0)
-            {
-              pixel_brightness = 0;
-            }
-            if (pixel_brightness > 255)
-            {
-              pixel_brightness = 255;
-            }
-            wfparray[j][w_index] = waterfall_map((uint8_t)pixel_brightness);
-          }
-
-          // Render the waterfall
-          for (k = 0; k < wfall_height; k++)
-          {
-            // start by displaying the line stored at array[0] at the top of the waterfall
-            // so waterfall offset needs to be zero
-
-            // in the next frame w_index will be 1, so we need to display that line at the top
-            // so waterfall offset needs to be 0 when k is 1
-
-            wfall_offset = w_index - k;
-            if (wfall_offset >= wfall_height)
-            {
-              wfall_offset = wfall_offset - wfall_height;
-            }
-            if (wfall_offset < 0)
-            {
-              wfall_offset = wfall_offset + wfall_height;
-            }
-            for (j = 7; j <= 505; j++)
-            {
-              setPixelNoA(j + 94, (409 - wfall_height + wfall_offset), wfparray[j][k].Red, wfparray[j][k].Green, wfparray[j][k].Blue);
-
-              while (freeze)
-              {
-                frozen = true;
-                usleep(100000); // Pause to let things happen if CPU is busy
-              }
-              frozen = false;
-            }
-          }
-          //printf("waterfall render time %lld\n", monotonic_ms());
-          //last_output = monotonic_ms();
-          w_index++;
-          if (w_index >= wfall_height)
-          {
-            w_index = 0;
-          }
-          activescan = false;
+          w_index = 0;
         }
+        activescan = false;
       }
       tracecount++;
-      //printf("Tracecount = %d\n", tracecount);
 
-    }
-    else  // remote display
-    {
-      NewData = true;
-      activescan = false;
-              while (freeze)
-              {
-                frozen = true;
-                usleep(100000); // Pause to let things happen if CPU is busy
-              }
-              frozen = false;
-      if (RemoteCaptionDisplayed == false)
-      {
-        ShowRemoteCaption();
-        printf("Display Caption\n");
-        UpdateWeb();
-        RemoteCaptionDisplayed = true;
-      }
+      //printf("Tracecount = %d\n", tracecount);
     }
     if (monotonic_ms() >= nextwebupdate)
     {
       UpdateWeb();
-      usleep(10000);  // Alow time for paint
-      nextwebupdate = nextwebupdate + 1000;
+      usleep(10000);                         // Alow 10ms for paint
+      nextwebupdate = nextwebupdate + 1000;  // Set next update for 1 second later
     }
   }
 

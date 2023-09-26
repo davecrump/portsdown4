@@ -1,0 +1,17 @@
+title=Portsdown SDRplay BandViewer
+centrefreq=437000000
+span=10000000
+mode=spectrum
+rfgain=0
+ifgain=30
+agc=off
+wfallbase=-70
+wfallrange=60
+wfalltimespan=10
+pfreq1=146500000
+pfreq2=437000000
+pfreq3=748000000
+pfreq4=1255000000
+pfreq5=1296000000
+port=0
+biast=off
