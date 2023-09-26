@@ -1,3 +1,6 @@
+202309260
+Correct bin power calculation in SDRPlay BandViewer
+
 202309230
 Add SDRplay BandViewer with waterfall and web control
 Improve MeteorViewer
