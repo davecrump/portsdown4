@@ -22,6 +22,8 @@
 #include "sdrplay_api.h"
 #include "sdrplayfft.h"
 
+#define PI 3.14159265358979323846
+
 int masterInitialised = 0;
 int slaveUninitialised = 0;
 
@@ -44,6 +46,7 @@ extern bool NewGain;                 // Set to true to indicate that gain needs 
 extern int RFgain;
 extern int IFgain;
 extern bool agc;
+extern bool Show20dBLower;
 
 extern bool NewPort;                 // Set to true to indicate that port or BiasT needs changing
 extern uint8_t Antenna_port;
@@ -156,10 +159,27 @@ void fft()
   pthread_mutex_lock(&rf_buffer2.mutex);
   rf_buffer2.index = 0;
 
+  // Set cal true to to calibrate dBfs
+  // It generates a sine wave at -20 dB with varying phase
+  bool cal = false;
+  float amplitude = 3276.70;
+  static float foffset = 2.55;
+  static float phaseoffset  = 0;
+  phaseoffset = phaseoffset + 0.0002;
+  foffset = foffset + 0.000001;
+
   for (i = 0; i < fft_size; i++)
   {
-    rf_buffer2.idata[i]  = (int16_t)(output_buffer_i[i] / 256);
-    rf_buffer2.qdata[i]  = (int16_t)(output_buffer_q[i] / 256);
+    if (cal == false)
+    {
+      rf_buffer2.idata[i]  = (int16_t)(output_buffer_i[i] / 256);
+      rf_buffer2.qdata[i]  = (int16_t)(output_buffer_q[i] / 256);
+    }
+    else
+    {
+      rf_buffer2.idata[i]  = (int16_t)(amplitude * sin((((float)i / foffset) + phaseoffset) * 2.f * PI));
+      rf_buffer2.qdata[i]  = (int16_t)(amplitude * cos((((float)i / foffset) + phaseoffset) * 2.f * PI));
+    }
   }   
 
   pthread_cond_signal(&rf_buffer2.signal);
@@ -365,10 +385,13 @@ void *thread_fft(void *dummy)
 	      pt[1] = fft_out[i - fft_size / 2][1] / fft_size;
 	    }
 
-	    pwr = pwr_scale * (pt[0] * pt[0]) + (pt[1] * pt[1]);
+        // Calculate power from I and Q voltages
+	    pwr = pwr_scale * ((pt[0] * pt[0]) + (pt[1] * pt[1]));
 
+        // Convert to dB
         lpwr = 10.f * log10(pwr + 1.0e-20);
 
+        // Time smooth
         fft_buffer.data[i] = (lpwr * (1.f - fft_time_smooth)) + (fft_buffer.data[i] * fft_time_smooth);
       }
 
@@ -412,7 +435,13 @@ void fft_to_buffer()
   for(j = 0; j < fft_size; j++)
   {
     // Add a constant to position the baseline
-    fft_output_data[j] = fft_output_data[j] + 10;
+    fft_output_data[j] = fft_output_data[j] + 49.8; // 49.8 gives true dBfs (maybe 50??)
+
+    // Shift the display up by 20 dB if required
+    if(Show20dBLower == true)
+    {
+      fft_output_data[j] = fft_output_data[j] + 20.0;
+    }
 
     // Multiply by 5 (pixels per dB on display)
     fft_output_data[j] = fft_output_data[j] * 5;

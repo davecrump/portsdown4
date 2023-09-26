@@ -97,6 +97,7 @@ bool NewSpan = false;
 bool NewCal  = false;
 bool NewPort = false;
 float gain;
+bool Show20dBLower = false;
 
 bool NewData = false;
 
@@ -2455,19 +2456,6 @@ void CalcSpan()    // takes centre frequency and span and calculates startfreq a
 
   switch (span)
   {
-    case 2500:                                            // 2.5 kHz
-      decimation_factor = 32;
-      fft_size = 2000;
-      break;
-    case 5000:                                            // 5 kHz
-      decimation_factor = 32;
-      fft_size = 1000;
-      break;
-    case 10000:                                           // 10 kHz
-      SampleRate = 2560000;
-      decimation_factor = 32;
-      fft_size = 500;
-      break;
     case 100000:                                          // 100 kHz
       SampleRate = 3276800;
       decimation_factor = 32;
@@ -2499,7 +2487,7 @@ void CalcSpan()    // takes centre frequency and span and calculates startfreq a
       fft_size = 512;
       break;
     case 10000000:                                        // 10000 kHz
-      SampleRate = 10000000;
+      SampleRate = 10000000;                              // Spec says 10.66 MS, but api won't accept more then 10 MS
       decimation_factor = 1;
       fft_size = 500;
       break;
@@ -2576,6 +2564,12 @@ void ChangeLabel(int button)
   char RequestText[64];
   char InitText[64];
   char ValueToSave[63];
+  div_t div_10;
+  div_t div_100;
+  div_t div_1000;
+  div_t div_10000;
+  div_t div_100000;
+  div_t div_1000000;
 
   // Stop the scan at the end of the current one and wait for it to stop
   freeze = true;
@@ -2587,19 +2581,87 @@ void ChangeLabel(int button)
   switch (button)
   {
     case 2:                                                       // Centre Freq
-      // Define request string
-      strcpy(RequestText, "Enter new centre frequency in Hz");
-
-      snprintf(InitText, 25, "%d", CentreFreq);
-
-      // Ask for the new value
-      do
+      // If intial value is less than 1 MHz, use Hz
+      if (CentreFreq < 1000000)
       {
-        Keyboard(RequestText, InitText, 10);
-      }
-      while ((strlen(KeyboardReturn) == 0) || (atoi(KeyboardReturn) < 10000) || (atoi(KeyboardReturn) > 2000000000));
+        // Define request string
+        strcpy(RequestText, "Enter new centre frequency in Hz");
+        snprintf(InitText, 20, "%d", CentreFreq);
 
-      CentreFreq = atoi(KeyboardReturn);
+        // Ask for the new value
+        do
+        {
+          Keyboard(RequestText, InitText, 11);
+        }
+        while ((strlen(KeyboardReturn) == 0) || (atoi(KeyboardReturn) < 1000) || (atoi(KeyboardReturn) > 2000000000));
+
+        CentreFreq = atoi(KeyboardReturn);
+      }
+      else                        // > 1 MHz to use MHz.
+      {
+        strcpy(RequestText, "Enter new centre frequency in MHz");
+
+        // Define initial value and convert to MHz
+        div_10 = div(CentreFreq, 10);
+        div_1000000 = div(CentreFreq, 1000000);  //  so div_1000000.quotand div_1000000.rem are MHz and Hz
+
+        if(div_10.rem != 0)  // last character (units) not zero, so make answer of form xxxx.xxxxxx
+        {
+          snprintf(InitText, 20, "%d.%06d", div_1000000.quot, div_1000000.rem);
+        }
+        else
+        {
+          div_100 = div(CentreFreq, 100);
+          if(div_100.rem != 0)  // tens not zero, so make answer of form xxxx.xxxxx
+          {
+            snprintf(InitText, 20, "%d.%05d", div_1000000.quot, div_1000000.rem / 10);
+          }
+          else
+          {
+            div_1000 = div(CentreFreq, 1000);
+            if(div_1000.rem != 0)  // hundreds not zero, so make answer of form xxxx.xxxx
+            {
+              snprintf(InitText, 20, "%d.%04d", div_1000000.quot, div_1000000.rem / 100);
+            }
+            else
+            {
+              div_10000 = div(CentreFreq, 10000);
+              if(div_10000.rem != 0)  // thousands not zero, so make answer of form xxxx.xxx
+              {
+                snprintf(InitText, 20, "%d.%03d", div_1000000.quot, div_1000000.rem / 1000);
+              }
+              else
+              {
+                div_100000 = div(CentreFreq, 100000);
+                if(div_100000.rem != 0)  // tens of thousands not zero, so make answer of form xxxx.xx
+                {
+                  snprintf(InitText, 20, "%d.%02d", div_1000000.quot, div_1000000.rem / 10000);
+                }
+                else
+                {
+                  div_1000000 = div(CentreFreq, 1000000);
+                  if(div_1000000.rem != 0)  // hundreds of thousands not zero, so make answer of form xxxx.x
+                  {
+                    snprintf(InitText, 20, "%d.%01d", div_1000000.quot, div_1000000.rem / 100000);
+                  }
+                  else  // integer MHz, so just xxxx (no dp)
+                  {
+                    snprintf(InitText, 20, "%d", div_1000000.quot);
+                  }
+                }
+              }
+            }
+          }
+        }
+        // Ask for the new value
+        do
+        {
+          Keyboard(RequestText, InitText, 12);
+        }
+        while ((strlen(KeyboardReturn) == 0) || (atof(KeyboardReturn) < 0.001) || (atof(KeyboardReturn) > 2000.0));
+
+        CentreFreq = (int)((1000000 * atof(KeyboardReturn)) + 0.1);
+      }
 
       snprintf(ValueToSave, 63, "%d", CentreFreq);
       SetConfigParam(PATH_CONFIG, "centrefreq", ValueToSave);
@@ -3294,6 +3356,19 @@ void *WaitButtonEvent(void * arg)
             SetConfigParam(PATH_CONFIG, "agc", "on");
           }
           NewGain = true;
+          CurrentMenu = 8;
+          Start_Highlights_Menu8();
+          UpdateWindow();
+          break;
+        case 6:                                            // Show20dBLower
+          if (Show20dBLower == true)
+          {
+            Show20dBLower = false;
+          }
+          else
+          {
+            Show20dBLower = true;
+          }
           CurrentMenu = 8;
           Start_Highlights_Menu8();
           UpdateWindow();
@@ -4066,8 +4141,9 @@ void Define_Menu8()                                    // Gain Menu
   //button = CreateButton(8, 5);
   //AddButtonStatus(button, "Remote^RF Gain", &Blue);
 
-  //button = CreateButton(8, 6);
-  //AddButtonStatus(button, "Remote^IF Gain", &Blue);
+  button = CreateButton(8, 6);
+  AddButtonStatus(button, "Show 20dB^Lower", &Blue);
+  AddButtonStatus(button, "Show 20dB^Lower", &Green);
 
   button = CreateButton(8, 7);
   AddButtonStatus(button, "Back to^Settings", &DBlue);
@@ -4086,6 +4162,14 @@ void Start_Highlights_Menu8()
   else
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 4), 0);
+  }
+  if (Show20dBLower == true)
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 6), 1);
+  }
+  else
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 6), 0);
   }
 }
 
