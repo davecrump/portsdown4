@@ -319,7 +319,7 @@ void perform_fft()
 	  pt[0] = fft_out[i - fft_size / 2][0] / fft_size;
 	  pt[1] = fft_out[i - fft_size / 2][1] / fft_size;
 	}
-	pwr = pwr_scale * (pt[0] * pt[0]) + (pt[1] * pt[1]);
+	pwr = pwr_scale * ((pt[0] * pt[0]) + (pt[1] * pt[1]));
 	lpwr = 10.f * log10(pwr + 1.0e-20);
 	        
 	fft_buffer.data[i] = (lpwr * (1.f - fft_time_smooth)) + (fft_buffer.data[i] * fft_time_smooth);
@@ -350,7 +350,7 @@ void fft_to_buffer()
   for(j = 0; j < fft_size; j++)
   {
     // Add 110 to put the baseline at -110 dB and another 30!
-    fft_output_data[j] = fft_output_data[j] + 90.0;
+    fft_output_data[j] = fft_output_data[j] + 145.0;
 
     // Multiply by 5 (pixels per dB on display)
     fft_output_data[j] = fft_output_data[j] * 5;

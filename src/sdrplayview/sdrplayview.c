@@ -4997,6 +4997,11 @@ void DrawTrace(int xoffset, int prev2, int prev1, int current)
     ymin = current;
   }
 
+  if (ymax > 399)  // Limit the highest point to 399 (otherwise mix mode paints at pixel 400)
+  {
+    ymax = 399;
+  }
+
   if (column[ypos] > 255)  // Limit the max brightness of the trace to 255
   {
     column[ypos] = 255;
@@ -5005,7 +5010,6 @@ void DrawTrace(int xoffset, int prev2, int prev1, int current)
   // Draw the trace in the column
 
   for(ypos = ymin; ypos <= ymax; ypos++)
-  
   {
     ypospix = 409 - ypos;  //409 = 479 - 70
     setPixelNoA(xpos, ypospix, column[ypos], column[ypos], 0);  

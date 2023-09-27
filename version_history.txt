@@ -1,3 +1,7 @@
+202309270
+Correct bin power calculation in all BandViewers and noise meters
+In SigGen, trial new touchscreen routine with better response.
+
 202309260
 Correct bin power calculation in SDRPlay BandViewer
 

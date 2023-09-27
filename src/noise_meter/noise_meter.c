@@ -237,7 +237,6 @@ static bool app_exit = false;
 extern double frequency_actual_rx;
 extern double bandwidth;
 extern int y[260];
-extern float rawpwr[260];
 
 static pthread_t screen_thread_obj;
 static pthread_t lime_thread_obj;
