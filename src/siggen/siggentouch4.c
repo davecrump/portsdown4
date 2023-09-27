@@ -164,7 +164,7 @@ int GPIO_Band_LSB = 26;  // Band D0, Changed for RPi 4
 int GPIO_Band_MSB = 24;  // Band D1
 int GPIO_Tverter = 7;    // Band D2
 int GPIO_SD_LED = 2;
-int debug_level = 0; // 0 minimum, 1 medium, 2 max
+int debug_level = 0; // 0 minimum, 1 medium, 2 max, 3 touchscreen
 
 char MenuTitle[50][127];
 char KeyboardReturn[64];
@@ -188,15 +188,16 @@ pthread_t thlimestream;        //
 char PlutoIP[16];             // Pluto IP address
 
 // Touch display variables
-int PresetStoreTrigger = 0;   //Set to 1 if awaiting preset being stored
+int PresetStoreTrigger = 0;   // Set to 1 if awaiting preset being stored
 int FinishedButton = 0;       // Used to indicate screentouch during TX or RX
 int touch_response = 0;       // set to 1 on touch and used to reboot display if it locks up
 int TouchX;
 int TouchY;
-int TouchPressure;
 int TouchTrigger = 0;
-bool touchneedsinitialisation = true;
 char DisplayType[31];
+int ValidX = -1;
+int ValidY = -1;
+
 
 // Web Control globals
 bool webcontrol = false;           // Enables remote control of touchscreen functions
@@ -276,7 +277,7 @@ void SetButtonStatus(int ButtonIndex, int Status);
 int GetButtonStatus(int ButtonIndex);
 int openTouchScreen(int NoDevice);
 int getTouchScreenDetails(int *screenXmin, int *screenXmax, int *screenYmin, int *screenYmax);
-int getTouchSampleThread(int *rawX, int *rawY, int *rawPressure);
+int getTouchSampleThread(int *rawX, int *rawY);
 int getTouchSample(int *rawX, int *rawY, int *rawPressure);
 void *WaitTouchscreenEvent(void * arg);
 void *WebClickListener(void * arg);
@@ -1648,7 +1649,7 @@ int IsMenuButtonPushed(int x, int y)
 {
   int  i, NbButton, cmo, cmsize;
   NbButton = -1;
-  int margin= 5 ;  // was 20 then 10
+  int margin= 0 ;  // was 20 then 10 then 5
   cmo = ButtonNumber(CurrentMenu, 0); // Current Menu Button number Offset
   if (CurrentMenu == 12)
   {
@@ -2068,6 +2069,37 @@ Supported events:
      Value      0
      Min        0
      Max      255
+
+Input device name: "raspberrypi-ts"
+Supported events:
+  Event type 0 (Sync)
+  Event type 1 (Key)
+    Event code 330 (Touch)
+  Event type 3 (Absolute)
+    Event code 0 (X)
+     Value      0
+     Min        0
+     Max      799
+    Event code 1 (Y)
+     Value      0
+     Min        0
+     Max      479
+    Event code 47 (?)
+     Value      0
+     Min        0
+     Max        9
+    Event code 53 (Position X)
+     Value      0
+     Min        0
+     Max      799
+    Event code 54 (Position Y)
+     Value      0
+     Min        0
+     Max      479
+    Event code 57 (Tracking ID)
+     Value      0
+     Min        0
+     Max    65535
 */
 
 int getTouchScreenDetails(int *screenXmin, int *screenXmax, int *screenYmin, int *screenYmax)
@@ -2127,156 +2159,95 @@ int getTouchScreenDetails(int *screenXmin, int *screenXmax, int *screenYmin, int
 }
 
 
-int getTouchSampleThread(int *rawX, int *rawY, int *rawPressure)
+int getTouchSampleThread(int *rawX, int *rawY)
 {
   int i;
-  static bool awaitingtouchstart;
-  static bool touchfinished;
+  size_t rb;                       // how many bytes were read
+  struct input_event ev[128];      // the events (up to 128 at once)
+  int StartTouch = 0;
+  int FinishTouch = 0;
 
-  if (touchneedsinitialisation == true)
+  *rawX = -1;                      // Start with invalid values
+  *rawY = -1;
+
+  //debug_level = 3;  // uncomment for touchscreen diagnostics
+
+  if (debug_level == 3)
   {
-    awaitingtouchstart = true;
-    touchfinished = true;
-    touchneedsinitialisation = false;
+    printf("\n***************Waiting for next Touch*************** \n\n");
   }
 
-  /* how many bytes were read */
-  size_t rb;
-
-  /* the events (up to 64 at once) */
-  struct input_event ev[64];
-
-  if (strcmp(DisplayType, "Element14_7") == 0)
-  //if (((strcmp(DisplayType, "Element14_7") == 0) || (strcmp(DisplayType, "Browser") == 0))
-  //    && (strcmp(DisplayType, "dfrobot5") != 0))   // Browser or Element14_7, but not dfrobot5
-
+  while (FinishTouch == 0)     // keep listening until touch has finished,; exit with most recent x and y
   {
     // Program flow blocks here until there is a touch event
     rb = read(fd, ev, sizeof(struct input_event) * 64);
 
-    *rawX = -1;
-    *rawY = -1;
-    int StartTouch = 0;
+    if (debug_level == 3)
+    {
+      printf("\n*** %d bytes read.  Input event size %d bytes, so %d events:\n", rb, sizeof(struct input_event), (rb / sizeof(struct input_event)));
+    }
 
-    for (i = 0;  i <  (rb / sizeof(struct input_event)); i++)
+    for (i = 0;  i <  (rb / sizeof(struct input_event)); i++)  // For each input event:
     {
       if (ev[i].type ==  EV_SYN)
       {
-        //printf("Event type is %s%s%s = Start of New Event\n",
-        //        KYEL, events[ev[i].type], KWHT);
+        if (debug_level == 3)
+        {
+            printf("Event type is %s%s%s = Start of New Event\n", KYEL, events[ev[i].type], KWHT);
+        }
       }
-
       else if (ev[i].type == EV_KEY && ev[i].code == 330 && ev[i].value == 1)
       {
         StartTouch = 1;
-        //printf("Event type is %s%s%s & Event code is %sTOUCH(330)%s & Event value is %s1%s = Touch Starting\n",
-        //        KYEL,events[ev[i].type],KWHT,KYEL,KWHT,KYEL,KWHT);
+        if (debug_level == 3)
+        {
+          printf("Event type is %s%s%s & Event code is %sTOUCH(330)%s & Event value is %s1%s = Touch Starting\n",
+                  KYEL, events[ev[i].type], KWHT, KYEL, KWHT, KYEL, KWHT);
+        }
       }
-
       else if (ev[i].type == EV_KEY && ev[i].code == 330 && ev[i].value == 0)
       {
-        //StartTouch=0;
-        //printf("Event type is %s%s%s & Event code is %sTOUCH(330)%s & Event value is %s0%s = Touch Finished\n",
-        //        KYEL,events[ev[i].type],KWHT,KYEL,KWHT,KYEL,KWHT);
+        FinishTouch = 1;
+        if (debug_level == 3)
+        {
+          printf("Event type is %s%s%s & Event code is %sTOUCH(330)%s & Event value is %s0%s = Touch Finished\n",
+                  KYEL, events[ev[i].type], KWHT, KYEL, KWHT, KYEL, KWHT);
+        }
       }
-
       else if (ev[i].type == EV_ABS && ev[i].code == 0 && ev[i].value > 0)
       {
-        //printf("Event type is %s%s%s & Event code is %sX(0)%s & Event value is %s%d%s\n",
-        //        KYEL, events[ev[i].type], KWHT, KYEL, KWHT, KYEL, ev[i].value, KWHT);
-	    *rawX = ev[i].value;
+        ValidX = ev[i].value;
+        if (debug_level == 3)
+        {
+          printf("Event type is %s%s%s & Event code is %sX(0)%s & Event value is %s%d%s\n",
+                  KYEL, events[ev[i].type], KWHT, KYEL, KWHT, KYEL, ev[i].value, KWHT);
+        }
       }
-
       else if (ev[i].type == EV_ABS  && ev[i].code == 1 && ev[i].value > 0)
       {
-        //printf("Event type is %s%s%s & Event code is %sY(1)%s & Event value is %s%d%s\n",
-        //        KYEL, events[ev[i].type], KWHT, KYEL, KWHT, KYEL, ev[i].value, KWHT);
-        *rawY = ev[i].value;
+        ValidY = ev[i].value;
+        if (debug_level == 3)
+        {
+          printf("Event type is %s%s%s & Event code is %sY(1)%s & Event value is %s%d%s\n",
+                  KYEL, events[ev[i].type], KWHT, KYEL, KWHT, KYEL, ev[i].value, KWHT);
+        }
       }
 
-      else if (ev[i].type == EV_ABS  && ev[i].code == 24 && ev[i].value > 0)
+      if (debug_level == 3)
       {
-        //printf("Event type is %s%s%s & Event code is %sPressure(24)%s & Event value is %s%d%s\n",
-        //        KYEL, events[ev[i].type], KWHT, KYEL, KWHT, KYEL, ev[i].value,KWHT);
-        *rawPressure = ev[i].value;
+        printf(" At end of Event %d, ValidX = %d, ValidY = %d, StartTouch = %d, FinishTouch = %d\n", i, ValidX, ValidY, StartTouch, FinishTouch);
       }
 
-      if((*rawX != -1) && (*rawY != -1) && (StartTouch == 1))  // 1a
+      if((ValidX != -1) && (ValidY != -1) && (FinishTouch == 1))  // Check for valid touch criteria
       {
-        printf("7 inch Touchscreen Touch Event: rawX = %d, rawY = %d, rawPressure = %d\n", 
-                *rawX, *rawY, *rawPressure);
-        return 1;
-      }
-    }
-  }
-
-  if (strcmp(DisplayType, "dfrobot5") == 0)
-  {
-    // Program flow blocks here until there is a touch event
-    rb = read(fd, ev, sizeof(struct input_event) * 64);
-
-    if (awaitingtouchstart == true)
-    {    
-      *rawX = -1;
-      *rawY = -1;
-      touchfinished = false;
-    }
-
-    for (i = 0;  i <  (rb / sizeof(struct input_event)); i++)
-    {
-      //printf("rawX = %d, rawY = %d, rawPressure = %d, \n\n", *rawX, *rawY, *rawPressure);
-
-      if (ev[i].type ==  EV_SYN)
-      {
-        //printf("Event type is %s%s%s = Start of New Event\n",
-        //        KYEL, events[ev[i].type], KWHT);
-      }
-
-      else if (ev[i].type == EV_KEY && ev[i].code == 330 && ev[i].value == 1)
-      {
-        awaitingtouchstart = false;
-        touchfinished = false;
-
-        //printf("Event type is %s%s%s & Event code is %sTOUCH(330)%s & Event value is %s1%s = Touch Starting\n",
-        //        KYEL,events[ev[i].type],KWHT,KYEL,KWHT,KYEL,KWHT);
-      }
-
-      else if (ev[i].type == EV_KEY && ev[i].code == 330 && ev[i].value == 0)
-      {
-        awaitingtouchstart = false;
-        touchfinished = true;
-
-        //printf("Event type is %s%s%s & Event code is %sTOUCH(330)%s & Event value is %s0%s = Touch Finished\n",
-        //        KYEL,events[ev[i].type],KWHT,KYEL,KWHT,KYEL,KWHT);
-      }
-
-      else if (ev[i].type == EV_ABS && ev[i].code == 0 && ev[i].value > 0)
-      {
-        //printf("Event type is %s%s%s & Event code is %sX(0)%s & Event value is %s%d%s\n",
-        //        KYEL, events[ev[i].type], KWHT, KYEL, KWHT, KYEL, ev[i].value, KWHT);
-        *rawX = ev[i].value;
-      }
-
-      else if (ev[i].type == EV_ABS  && ev[i].code == 1 && ev[i].value > 0)
-      {
-        //printf("Event type is %s%s%s & Event code is %sY(1)%s & Event value is %s%d%s\n",
-        //        KYEL, events[ev[i].type], KWHT, KYEL, KWHT, KYEL, ev[i].value, KWHT);
-        *rawY = ev[i].value;
-      }
-
-      else if (ev[i].type == EV_ABS  && ev[i].code == 24 && ev[i].value > 0)
-      {
-        //printf("Event type is %s%s%s & Event code is %sPressure(24)%s & Event value is %s%d%s\n",
-        //        KYEL, events[ev[i].type], KWHT, KYEL, KWHT, KYEL, ev[i].value,KWHT);
-        *rawPressure = ev[i].value;
-      }
-
-      if((*rawX != -1) && (*rawY != -1) && (touchfinished == true))  // 1a
-      {
-        printf("DFRobot Touch Event: rawX = %d, rawY = %d, rawPressure = %d\n", 
-                *rawX, *rawY, *rawPressure);
-        awaitingtouchstart = true;
-        touchfinished = false;
+        *rawX = ValidX;
+        ValidX = -1;
+        *rawY = ValidY;
+        ValidY = -1;
+        if (debug_level == 3)
+        {
+          printf("\nValid Touchscreen Touch Event: rawX = %d, rawY = %d\n", *rawX, *rawY);
+        }
         return 1;
       }
     }
@@ -2287,13 +2258,14 @@ int getTouchSampleThread(int *rawX, int *rawY, int *rawPressure)
 
 int getTouchSample(int *rawX, int *rawY, int *rawPressure)
 {
+  *rawPressure = 0;
   while (true)
   {
     if (TouchTrigger == 1)
     {
       *rawX = TouchX;
       *rawY = TouchY;
-      *rawPressure = TouchPressure;
+      //*rawPressure = TouchPressure;
       TouchTrigger = 0;
       return 1;
     }
@@ -2301,7 +2273,6 @@ int getTouchSample(int *rawX, int *rawY, int *rawPressure)
     {
       *rawX = web_x;
       *rawY = web_y;
-      *rawPressure = 0;
       strcpy(WebClickForAction, "no");
       printf("Web rawX = %d, rawY = %d, rawPressure = %d\n", *rawX, *rawY, *rawPressure);
       return 1;
@@ -2320,13 +2291,14 @@ void *WaitTouchscreenEvent(void * arg)
   int TouchTriggerTemp;
   int rawX;
   int rawY;
-  int rawPressure;
+  //int rawPressure;
   while (true)
   {
-    TouchTriggerTemp = getTouchSampleThread(&rawX, &rawY, &rawPressure);
+    //TouchTriggerTemp = getTouchSampleThread(&rawX, &rawY, &rawPressure);
+    TouchTriggerTemp = getTouchSampleThread(&rawX, &rawY);
     TouchX = rawX;
     TouchY = rawY;
-    TouchPressure = rawPressure;
+    //TouchPressure = rawPressure;
     TouchTrigger = TouchTriggerTemp;
   }
   return NULL;
@@ -6190,7 +6162,12 @@ void waituntil(int w, int h)
   // Start the main loop for the Touchscreen
   for (;;)
   {
-    if (getTouchSample(&rawX, &rawY, &rawPressure)==0) continue;
+    //if (getTouchSample(&rawX, &rawY, &rawPressure)==0) continue;
+
+    if (getTouchSample(&rawX, &rawY, &rawPressure) != 0)
+    {
+      usleep(10);
+    }
 
     // Screen has been touched
     printf("x=%d y=%d\n", rawX, rawY);
@@ -7270,6 +7247,9 @@ int main(int argc, char **argv)
   // Initialise all the spi GPIO ports to the correct state
   InitialiseGPIO();
 
+  // Check the display type in the config file
+  GetConfigParam(PATH_PCONFIG, "display", DisplayType);
+
   // Check for presence of touchscreen
   for(NoDeviceEvent = 0; NoDeviceEvent < 7; NoDeviceEvent++)
   {
@@ -7282,6 +7262,16 @@ int main(int argc, char **argv)
   {
     // Create Touchscreen thread
     pthread_create (&thtouchscreen, NULL, &WaitTouchscreenEvent, NULL);
+  }
+  else // No touchscreen detected
+  {
+    if(strcmp(DisplayType, "Browser") != 0)  // Web control not enabled, so set it up and reboot
+    {
+      SetConfigParam(PATH_PCONFIG, "webcontrol", "enabled");
+      SetConfigParam(PATH_PCONFIG, "display", "Browser");
+      system ("/home/pi/rpidatv/scripts/set_display_config.sh");
+      system ("sudo reboot now");
+    }
   }
 
   // Show Portsdown Logo

@@ -1937,16 +1937,16 @@ void CalcSpan()    // takes centre frequency and span and calulates startfreq an
     switch (span)
     {
       case 1000:                                            // 1 MHz
-        fft_time_smooth = 0.996;
+        fft_time_smooth = 0.995;
       break;
       case 2000:                                            // 2 MHz
-        fft_time_smooth = 0.998;
+        fft_time_smooth = 0.997;
       break;
       case 5000:                                            // 5 MHz
-        fft_time_smooth = 0.9985;
+        fft_time_smooth = 0.9975;
       break;
       case 10000:                                           // 10 MHz
-        fft_time_smooth = 0.999;
+        fft_time_smooth = 0.998;
       break;
     }
   }

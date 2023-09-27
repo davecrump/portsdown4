@@ -22326,7 +22326,8 @@ void Start_Highlights_Menu8()
   if (strcmp(LMRXmode, "terr") == 0)
   {
     indexoffset = 10;
-    if((CheckLimeMiniConnect() == 0) || (CheckLimeUSBConnect() == 0) || (CheckAirspyConnect() == 0) || (CheckRTL() == 0))
+    if((CheckLimeMiniConnect() == 0) || (CheckLimeUSBConnect() == 0) || (CheckAirspyConnect() == 0) || (CheckRTL() == 0)
+        || (CheckSDRPlay() == 0) || (CheckPlutoIPConnect() == 0))
     {
       SetButtonStatus(ButtonNumber(CurrentMenu, 4), 2);
     }
