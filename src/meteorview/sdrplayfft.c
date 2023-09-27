@@ -637,7 +637,7 @@ void *thread_fft(void *dummy)
 	      pt[1] = fft_out[i - fft_size / 2][1] / fft_size;
 	    }
 
-	    pwr = pwr_scale * (pt[0] * pt[0]) + (pt[1] * pt[1]);
+	    pwr = pwr_scale * ((pt[0] * pt[0]) + (pt[1] * pt[1]));
 
         lpwr = 10.f * log10(pwr + 1.0e-20);
 
@@ -705,7 +705,7 @@ void fft_to_buffer()
   for(j = 0; j < fft_size; j++)
   {
     // Add a constant to position the baseline
-    fft_output_data[j] = fft_output_data[j] + 20.0;
+    fft_output_data[j] = fft_output_data[j] + 75.0;
 
     // Multiply by 5 (pixels per dB on display)
     fft_output_data[j] = fft_output_data[j] * 5;

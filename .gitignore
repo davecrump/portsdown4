@@ -48,6 +48,7 @@ src/meteorview/meteorview
 src/noise_meter/noise_meter
 src/meteorbeacon/beacon
 src/meteorbeacon/server
+src/sdrplayview/sdrplayview
 scripts/configs/Langstone.conf
 scripts/configs/Langstone_Lime.conf
 scripts/configs/Langstone_Pluto.conf
@@ -79,4 +80,5 @@ bin/meteorview
 bin/noise_meter
 bin/beacon
 bin/server
+bin/sdrplayview
 
