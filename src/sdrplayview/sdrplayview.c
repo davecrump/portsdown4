@@ -143,7 +143,6 @@ uint32_t pfreq5 = 1296000000;
 bool app_exit = false;
 
 uint32_t CentreFreq;                     // in Hz
-
 uint32_t SpanWidth;                      // in Hz
 
 int RFgain;
@@ -230,6 +229,7 @@ void UpdateWindow();
 void wait_touch();
 void CalculateMarkers();
 void SetSpan(int button);
+uint32_t ConstrainFreq(uint32_t);
 void SetMode(int button);
 void SetGain(int button);
 void SetWfall(int button);
@@ -413,6 +413,7 @@ void ReadSavedParams()
   strcpy(response, "50000000");
   GetConfigParam(PATH_CONFIG, "centrefreq", response);
   CentreFreq = atoi(response);
+  CentreFreq = ConstrainFreq(CentreFreq);
 
   strcpy(response, "10000");
   GetConfigParam(PATH_CONFIG, "span", response);
@@ -1985,12 +1986,8 @@ void SetSpan(int button)
   SetConfigParam(PATH_CONFIG, "span", ValueToSave);
   printf("Span set to %d Hz\n", span);
 
-  // Restart App with new settings
-
   Start_Highlights_Menu6();
   UpdateWindow();
-
-  //cleanexit(144);
 
   // Trigger the span change
   CalcSpan();
@@ -1999,6 +1996,20 @@ void SetSpan(int button)
   NewSpan = true;
 
   freeze = false;
+}
+
+
+uint32_t ConstrainFreq(uint32_t CheckFreq)  // Check Freq is within bounds
+{
+  if (CheckFreq < 1000)
+  {
+    return 1000;
+  }
+  if (CheckFreq > 2000000000)
+  {
+    return 2000000000;
+  }
+  return CheckFreq;
 }
 
 
@@ -2298,6 +2309,7 @@ void SetFreqPreset(int button)
         CentreFreq = pfreq5;
       break;
     }
+    CentreFreq = ConstrainFreq(CentreFreq);
 
     // Store the new frequency
     snprintf(ValueToSave, 63, "%d", CentreFreq);
@@ -2357,7 +2369,7 @@ void SetFreqPreset(int button)
     {
       Keyboard(RequestText, InitText, 10);
     }
-    while (strlen(KeyboardReturn) == 0);
+    while ((strlen(KeyboardReturn) == 0) || (atoi(KeyboardReturn) < 1000) || (atoi(KeyboardReturn) > 2000000000)) ;
 
     amendfreq = atoi(KeyboardReturn);
     snprintf(ValueToSave, 63, "%d", amendfreq);
@@ -2391,6 +2403,7 @@ void SetFreqPreset(int button)
       break;
     }
     CentreFreq = amendfreq;
+    CentreFreq = ConstrainFreq(CentreFreq);
 
     // Store the new frequency
     snprintf(ValueToSave, 63, "%d", CentreFreq);
@@ -2426,12 +2439,17 @@ void ShiftFrequency(int button)
   switch (button)
   {
     case 5:                                                       // Left 1/10 span
-      CentreFreq = CentreFreq - (span / 10);
+      if (CentreFreq > span / 10)                                 // but don't shift into -ve frequency
+      {
+        CentreFreq = CentreFreq - (span / 10);
+      }
     break;
-    case 6:                                                       // Left 1/10 span
+    case 6:                                                       // Right 1/10 span
       CentreFreq = CentreFreq + (span / 10);
     break;
   }
+
+  CentreFreq = ConstrainFreq(CentreFreq);
 
   // Store the new frequency
   snprintf(ValueToSave, 63, "%d", CentreFreq);
@@ -2663,6 +2681,7 @@ void ChangeLabel(int button)
         CentreFreq = (int)((1000000 * atof(KeyboardReturn)) + 0.1);
       }
 
+      CentreFreq = ConstrainFreq(CentreFreq);
       snprintf(ValueToSave, 63, "%d", CentreFreq);
       SetConfigParam(PATH_CONFIG, "centrefreq", ValueToSave);
       printf("Centre Freq set to %d Hz\n", CentreFreq);
@@ -4808,12 +4827,12 @@ void DrawYaxisLabels()
   int pixel_brightness;
 
   // Clear the previous scale first
-  rectangle(25, 63, 65, 417, 0, 0, 0);
+  rectangle(20, 63, 75, 417, 0, 0, 0);
 
   // Clear the previous waterfall calibration
   rectangle(610, 63, 5, 417, 0, 0, 0);
 
-  if ((Range20dB == false) && (waterfall == false))
+  if ((Range20dB == false) && (waterfall == false))       // Full range spectrum
   {
     Text2(48, 463, "0 dB", font_ptr);
     Text2(30, 416, "-10 dB", font_ptr);
@@ -4848,7 +4867,7 @@ void DrawYaxisLabels()
 
     }
   }
-  else if ((Range20dB == true) && (waterfall == false))
+  else if ((Range20dB == true) && (waterfall == false))  // 20 dB range spectrum
   {
     snprintf(caption, 15, "%d dB", BaseLine20dB + 20);
     Text2(30, 463, caption, font_ptr);
@@ -4860,6 +4879,55 @@ void DrawYaxisLabels()
     Text2(30, 166, caption, font_ptr);
     snprintf(caption, 15, "%d dB", BaseLine20dB);
     Text2(30,  66, caption, font_ptr);
+  }
+  else if ((spectrum == false) && (waterfall == true))   // Waterfall only
+  {
+    Text2(35, 463, "0 s", font_ptr);
+    if (wfalltimespan > 4)   // only display requested timespan if not too fast
+    {
+      snprintf(caption, 15, "%3.1f s", (float)wfalltimespan * 0.5);
+      Text2(25, 266, caption, font_ptr);
+      snprintf(caption, 15, "%3.1f s", (float)wfalltimespan);
+      Text2(25,  66, caption, font_ptr);
+    }
+  }
+
+  else if ((spectrum == true) && (waterfall == true))   // Mix
+  {
+    Text2(48, 463, "0 dB", font_ptr);
+    Text2(30, 416, "-40 dB", font_ptr);
+    Text2(30, 366, "-80 dB", font_ptr);
+    if (wfalltimespan > 4)   // only display requested timespan if not too fast
+    {
+      snprintf(caption, 15, "%3.1f s", (float)wfalltimespan * 0.5);
+      Text2(25, 216, caption, font_ptr);
+      snprintf(caption, 15, "%3.1f s", (float)wfalltimespan);
+      Text2(25,  66, caption, font_ptr);
+    }
+
+    // Draw the waterfall calibration chart
+    for (i = 301; i <= 399; i++)
+    {
+      pixel_brightness = (i - 300) - (400 + (5 * WaterfallBase)) / 4; // this in range -400 to +400, but only 0 to 400 is valid
+      pixel_brightness =  4 * (255 * pixel_brightness) / (WaterfallRange * 5);  // scale to 0 - 255
+
+      if (pixel_brightness < 0) 
+      {
+        pixel_brightness = 0;  // Black below gradient line
+      }
+      if (pixel_brightness > 256)
+      {
+        pixel_brightness = 255;
+      }
+      setPixelNoA(610, 410 - i, waterfall_map(pixel_brightness).Red, waterfall_map(pixel_brightness).Green, waterfall_map(pixel_brightness).Blue);
+      setPixelNoA(611, 410 - i, waterfall_map(pixel_brightness).Red, waterfall_map(pixel_brightness).Green, waterfall_map(pixel_brightness).Blue);
+      setPixelNoA(612, 410 - i, waterfall_map(pixel_brightness).Red, waterfall_map(pixel_brightness).Green, waterfall_map(pixel_brightness).Blue);
+      setPixelNoA(613, 410 - i, waterfall_map(pixel_brightness).Red, waterfall_map(pixel_brightness).Green, waterfall_map(pixel_brightness).Blue);
+      setPixelNoA(614, 410 - i, waterfall_map(pixel_brightness).Red, waterfall_map(pixel_brightness).Green, waterfall_map(pixel_brightness).Blue);
+      HorizLine(610, 470 + (5 * WaterfallBase) / 4, 5, 255, 255, 255);  // White bar at bottom of gradient line
+      HorizLine(610, 470 + (5 * WaterfallBase) / 4 + (WaterfallRange * 5) /4, 5, 0, 0, 0);  // Black bar at top of gradient line
+      HorizLine(610, 471 + (5 * WaterfallBase) / 4 + (WaterfallRange * 5) /4, 5, 0, 0, 0);  // Black bar at top of gradient line
+    }
   }
 }
 
@@ -4873,12 +4941,21 @@ void DrawSettings()
   int line1y = 40;
   int line2y = 15;
   int titley = 5;
+  int32_t negfreq;
 
   // Clear the previous text first
   rectangle(100, 0, 505, 64, 0, 0, 0);
- 
-  ParamAsFloat = (float)startfreq / 1000000.0;
-  snprintf(DisplayText, 63, "%5.2f MHz", ParamAsFloat);
+
+  if (span / 2 > CentreFreq)
+  {
+    negfreq = CentreFreq - span / 2;
+    snprintf(DisplayText, 63, "%5.2f MHz", (float)negfreq / 1000000.0);
+  }
+  else
+  {
+    ParamAsFloat = (float)startfreq / 1000000.0;
+    snprintf(DisplayText, 63, "%5.2f MHz", ParamAsFloat);
+  }
   Text2(100, line1y, DisplayText, font_ptr);
  
   ParamAsFloat = (float)CentreFreq / 1000000.0;
@@ -5264,11 +5341,13 @@ int main(int argc, char **argv)
 
   while(true)
   {
-
+    //uint16_t sleep_count = 0;
     while (NewData == false)
     {
       usleep(100);
+      //sleep_count++;
     }
+    //printf("fft plot slept for %d periods of 100us\n", sleep_count);
 
     NewData = false;
     activescan = true;
@@ -5285,7 +5364,7 @@ int main(int argc, char **argv)
         }
         else             //  mix
         {
-          DrawTrace((pixel - 6), (y3[pixel - 2] / 4) + 301, (y3[pixel - 1] / 4) + 301, (y3[pixel] / 4) + 301);
+          DrawTrace((pixel - 6), (y3[pixel - 2] / 4) + 300, (y3[pixel - 1] / 4) + 300, (y3[pixel] / 4) + 300);
         }
 
         //pthread_mutex_unlock(&histogram);
@@ -5308,6 +5387,11 @@ int main(int argc, char **argv)
           usleep(1000); // Pause to let things happen if CPU is busy
         }
         frozen = false;
+      }
+
+      if (waterfall == true) // mix, so draw the dividing line
+      {
+        HorizLine(101, 370, 499, 63, 63, 63);
       }
 
       activescan = false;
@@ -5342,6 +5426,16 @@ int main(int argc, char **argv)
 
       if (monotonic_ms() > next_paint)  // Paint the line with current peaks added in
       {
+        //printf("time = %lld, next_paint was %lld, new next_paint = %lld\n", monotonic_ms(), next_paint, next_paint + (wfalltimespan * 25) / 10);
+        // Set the time for the next paint after this one
+        if (spectrum == false)            // full screen waterfall
+        {
+          next_paint = next_paint + (wfalltimespan * 25) / 10;
+        }
+        else                              // only 300 (not 400) lines so paint slower
+        {
+          next_paint = next_paint + (wfalltimespan * 100) / 30;
+        }
         paint_line = true;
 
         for (j = 8; j <= 506; j++)
@@ -5352,8 +5446,7 @@ int main(int argc, char **argv)
           }
         }
 
-        // Set the time for the next paint after this one
-        next_paint = monotonic_ms() + (wfalltimespan * 25) / 10;
+
       }
       else         // Store the peak, but don't paint the waterfall line
       {

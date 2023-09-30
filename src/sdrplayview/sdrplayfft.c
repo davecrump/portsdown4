@@ -121,6 +121,7 @@ void fft();
 void fft_to_buffer();
 int legal_gain(int demanded_Gain);
 void non_filter(short xi, short xq, int reset);
+void ConstrainFreq();
 
 void setup_fft(void)
 {
@@ -494,11 +495,15 @@ void fft_to_buffer()
 
   // Wait here until data has been read
   NewData = true;
+  //uint16_t sleep_count = 0;
   while (NewData == true)
   {
     usleep(100);
+    //sleep_count++;
   }
+  //printf("fft output slept for %d periods of 100us\n", sleep_count);
 }
+
 
 // Takes demanded gain and returns a valid gain for the device
 int legal_gain(int demanded_Gain)
@@ -758,7 +763,6 @@ void *sdrplay_fft_thread(void *arg) {
       if (chParams != NULL)
       {
         // Set Frequency
-        //chParams->tunerParams.rfFreq.rfHz = 50407000.0;
         chParams->tunerParams.rfFreq.rfHz = (float)CentreFreq;  // Frequency is float in Hz
         printf("Frequency: %.0f\n", (float)CentreFreq);
 
