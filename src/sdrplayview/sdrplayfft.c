@@ -59,6 +59,7 @@ extern float fft_time_smooth;
 extern uint8_t decimation_factor;           // decimation applied by SDRPlay api
 extern int span;
 extern float SampleRate;
+extern int64_t freqoffset;
 
 //extern pthread_t sdrplay_fft_thread_obj;
 
@@ -355,11 +356,23 @@ void *thread_fft(void *dummy)
       pthread_cond_wait(&rf_buffer2.signal, &rf_buffer2.mutex);
 
       // Now read it out of the buffer and apply window shaping
-      for (i = 0; i < fft_size; i++)
+      // Reverse i and q if spectrum needs to be reversed
+      if (freqoffset < 0)
       {
-        fft_in[i][0] = (float)(rf_buffer2.idata[i]) * hanning_window_const[i];
-        fft_in[i][1] = (float)(rf_buffer2.qdata[i]) * hanning_window_const[i];
-	  }
+        for (i = 0; i < fft_size; i++)
+        {
+          fft_in[i][1] = (float)(rf_buffer2.idata[i]) * hanning_window_const[i];
+          fft_in[i][0] = (float)(rf_buffer2.qdata[i]) * hanning_window_const[i];
+	    }
+      }
+      else
+      {
+        for (i = 0; i < fft_size; i++)
+        {
+          fft_in[i][0] = (float)(rf_buffer2.idata[i]) * hanning_window_const[i];
+          fft_in[i][1] = (float)(rf_buffer2.qdata[i]) * hanning_window_const[i];
+	    }
+      }
 
 	  // Unlock input buffer
       pthread_mutex_unlock(&rf_buffer2.mutex);
