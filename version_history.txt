@@ -1,6 +1,7 @@
 202309300
 Improve SDRplay driver installation handling in update
-SDRplay BandViewer frequency limit checking and display tweaks 
+SDRplay BandViewer frequency limit checking and display tweaks
+SDRplay Bandviewer frequency offset entry 
 
 202309270
 Correct bin power calculation in all BandViewers and noise meters

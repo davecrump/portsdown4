@@ -122,8 +122,9 @@ int scaledadresult[501];  // Sensed AD Result
 int PeakValue[513] = {0};
 bool RequestPeakValueZero = false;
 
-uint32_t startfreq = 0;  // Hz
-uint32_t stopfreq = 0;   // Hz
+uint64_t startfreq = 0;    // Hz
+uint64_t stopfreq = 0;     // Hz
+int64_t freqoffset = 0;   // 0 for none, positive for low side, negative for high side
 int rbw = 0;
 int reflevel = 99;
 char PlotTitle[63] = "-";
@@ -181,6 +182,7 @@ int WaterfallRange;
 uint16_t wfalltimespan = 0;
 uint8_t Antenna_port;
 bool BiasT_volts = false;
+char TraceType[10] = "single"; // single, average or peak
 
 bool webcontrol = false;   // Enables webcontrol on a Portsdown 4
 
@@ -199,6 +201,7 @@ int xscaleden = 20;       // Denominator for X scaling fraction
 void GetConfigParam(char *PathConfigFile, char *Param, char *Value);
 void SetConfigParam(char *PathConfigFile, char *Param, char *Value);
 int CheckWebCtlExists();
+void CheckConfigFile();
 void ReadSavedParams();
 void *WaitTouchscreenEvent(void * arg);
 void *WebClickListener(void * arg);
@@ -262,6 +265,8 @@ void Define_Menu12();
 void Start_Highlights_Menu12();
 void Define_Menu13();
 void Start_Highlights_Menu13();
+void Define_Menu14();
+void Start_Highlights_Menu14();
 void Define_Menu41();
 void DrawEmptyScreen();
 void DrawTickMarks();
@@ -403,6 +408,34 @@ int CheckWebCtlExists()
 }
 
 
+void CheckConfigFile()
+{
+  char shell_command[255];
+  FILE *fp;
+  int r;
+
+  sprintf(shell_command, "grep -q 'tracetype=' %s", PATH_CONFIG);
+  fp = popen(shell_command, "r");
+  r = pclose(fp);
+  if (WEXITSTATUS(r) != 0)
+  {
+    printf("Updating Config File\n");
+    sprintf(shell_command, "echo tracetype=single >> %s", PATH_CONFIG);
+    system(shell_command); 
+  } 
+
+  sprintf(shell_command, "grep -q 'freqoffset=' %s", PATH_CONFIG);
+  fp = popen(shell_command, "r");
+  r = pclose(fp);
+  if (WEXITSTATUS(r) != 0)
+  {
+    printf("Updating Config File\n");
+    sprintf(shell_command, "echo freqoffset=0 >> %s", PATH_CONFIG);
+    system(shell_command); 
+  } 
+}
+
+
 void ReadSavedParams()
 {
   char response[63];
@@ -522,6 +555,16 @@ void ReadSavedParams()
   {
     BiasT_volts = false;
   }
+
+  strcpy(response, "single");
+  GetConfigParam(PATH_CONFIG, "tracetype", response);
+  strcpy(TraceType, response);
+
+  printf("TraceType read in as %s\n", TraceType);
+
+  strcpy(response, "0");
+  GetConfigParam(PATH_CONFIG, "freqoffset", response);
+  freqoffset = strtoll(response, NULL, 10);
 }
 
 
@@ -2230,7 +2273,7 @@ void SetPort(int button)
 
   switch (button)
   {
-    case 5:                                            // Set Input Port
+    case 2:                                            // Set Input Port
       // Define request string
       strcpy(RequestText, "Enter 0, 1 or 2 for Antenna port A, B or C ");
 
@@ -2249,7 +2292,7 @@ void SetPort(int button)
       SetConfigParam(PATH_CONFIG, "port", ValueToSave);
       printf("Antenna port set to %d\n", Antenna_port);
       break;
-    case 6:                                            // Set BiasT on/off
+    case 3:                                            // Set BiasT on/off
       if (BiasT_volts)
       {
         BiasT_volts = false;
@@ -2599,7 +2642,7 @@ void ChangeLabel(int button)
   switch (button)
   {
     case 2:                                                       // Centre Freq
-      // If intial value is less than 1 MHz, use Hz
+      // If initial value is less than 1 MHz, use Hz
       if (CentreFreq < 1000000)
       {
         // Define request string
@@ -2712,6 +2755,24 @@ void ChangeLabel(int button)
       SetConfigParam(PATH_CONFIG, "title", PlotTitle);
       printf("Plot Title set to: %s\n", KeyboardReturn);
       break;
+
+    case 16:                                                       // Offset Freq
+      strcpy(RequestText, "Enter offset freq in Hz. 0 for none, -ve for high side");
+      snprintf(InitText, 20, "%lld", freqoffset);
+ 
+      // Ask for the new value
+      do
+      {
+        Keyboard(RequestText, InitText, 12);
+      }
+      while (strlen(KeyboardReturn) == 0);
+
+      freqoffset = strtoll(KeyboardReturn, NULL, 10);
+      snprintf(ValueToSave, 63, "%lld", freqoffset);
+      SetConfigParam(PATH_CONFIG, "freqoffset", ValueToSave);
+      printf("Freq Offset set to %d Hz\n", CentreFreq);
+      break;
+
   }
 
   // Tidy up, paint around the screen and then unfreeze
@@ -3445,12 +3506,28 @@ void *WaitButtonEvent(void * arg)
           SetWfall(12);
           UpdateWindow();
           break;
-        case 5:                                            // Set Input Port
-        case 6:                                            // Set BiasT Volts
-          SetPort(i);
+        case 5:                                            // Set Waterfall trace type 
+          if (strcmp(TraceType, "single") == 0)
+          {
+            strcpy(TraceType, "average");
+          }
+          else if (strcmp(TraceType, "average") == 0)
+          {
+            strcpy(TraceType, "peak");
+          }
+          else if (strcmp(TraceType, "peak") == 0)
+          {
+            strcpy(TraceType, "single");
+          }
+          SetConfigParam(PATH_CONFIG, "tracetype", TraceType);
           Start_Highlights_Menu9();
           UpdateWindow();
           break;
+        case 6:                                            // Advanced Config Menu
+          printf("Advanced Config Menu 14 Requested\n");
+          CurrentMenu = 14;
+          Start_Highlights_Menu14();
+          UpdateWindow();
           break;
         case 7:                                            // Return to Main Menu
           printf("Main Menu 1 Requested\n");
@@ -3698,6 +3775,62 @@ void *WaitButtonEvent(void * arg)
       }
       continue;  // Completed Menu 13 action, go and wait for touch
     }
+
+    if (CurrentMenu == 14)  // Advanced Config Menu
+    {
+      printf("Button Event %d, Entering Menu 14 Case Statement\n",i);
+      CallingMenu = 14;
+      switch (i)
+      {
+        case 0:                                            // Capture Snap
+          freeze = true; 
+          SetButtonStatus(ButtonNumber(CurrentMenu, 0), 1);
+          UpdateWindow();
+          while(! frozen)
+          {
+            usleep(1000);
+          }                                   // wait till the end of the scan
+          system("/home/pi/rpidatv/scripts/snap2.sh");
+          SetButtonStatus(ButtonNumber(CurrentMenu, 0), 0);
+          UpdateWindow();
+          freeze = false;
+          break;
+        case 2:                                            // Set Antenna Port
+        case 3:                                            // Set BiasT volts
+          SetPort(i);
+          Start_Highlights_Menu14();
+          UpdateWindow();
+          break;
+        case 6:                                            // Set display frequency Offset
+          ChangeLabel(16);
+          Start_Highlights_Menu14();
+          UpdateWindow();
+          break;
+        case 7:                                            // Return to Main Menu
+          printf("Main Menu 1 Requested\n");
+          CurrentMenu = 1;
+          UpdateWindow();
+          break;
+        case 8:
+          if (freeze)
+          {
+            SetButtonStatus(ButtonNumber(CurrentMenu, 8), 0);
+            freeze = false;
+          }
+          else
+          {
+            SetButtonStatus(ButtonNumber(CurrentMenu, 8), 1);
+            freeze = true;
+          }
+          UpdateWindow();
+          break;
+        default:
+          printf("Menu 14 Error\n");
+      }
+      continue;  // Completed Menu 14 action, go and wait for touch
+    }
+
+
   }
   return NULL;
 }
@@ -4213,11 +4346,10 @@ void Define_Menu9()                                          // Config Menu
   AddButtonStatus(button, "Set Wfall^Time Span", &Blue);
 
   button = CreateButton(9, 5);
-  AddButtonStatus(button, "Antenna^port", &Blue);
+  AddButtonStatus(button, "Waterfall^Normal", &Blue);
 
   button = CreateButton(9, 6);
-  AddButtonStatus(button, "BiasT Volts^Off", &Blue);
-  AddButtonStatus(button, "BiasT Volts^On", &Green);
+  AddButtonStatus(button, "Advanced^Config Menu", &Blue);
 
   button = CreateButton(9, 7);
   AddButtonStatus(button, "Return to^Main Menu", &DBlue);
@@ -4229,18 +4361,20 @@ void Define_Menu9()                                          // Config Menu
 
 void Start_Highlights_Menu9()
 {
-  char ButtText[31];
-  snprintf(ButtText, 30, "Antenna^port %d", Antenna_port);
+  char ButtText[31] = "Waterfall";
+  if (strcmp(TraceType, "single") == 0)
+  {
+    snprintf(ButtText, 30, "Waterfall^Normal");
+  }
+  else if (strcmp(TraceType, "average") == 0)
+  {
+    snprintf(ButtText, 30, "Waterfall^Average");
+  }
+  else if (strcmp(TraceType, "peak") == 0)
+  {
+    snprintf(ButtText, 30, "Waterfall^Peak");
+  }
   AmendButtonStatus(ButtonNumber(CurrentMenu, 5), 0, ButtText, &Blue);
-
-  if (BiasT_volts)
-  {
-    SetButtonStatus(ButtonNumber(9, 6), 1);
-  }
-  else
-  {
-    SetButtonStatus(ButtonNumber(9, 6), 0);
-  }
 }
 
 void Define_Menu10()                                          // Set Freq Presets Menu
@@ -4494,6 +4628,70 @@ void Start_Highlights_Menu13()
   else
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 6), 0);
+  }
+}
+
+void Define_Menu14()                                          // Advanced Config Menu
+{
+  int button = 0;
+
+  button = CreateButton(14, 0);
+  AddButtonStatus(button, "Capture^Snap", &DGrey);
+  AddButtonStatus(button, " ", &Black);
+
+  button = CreateButton(14, 1);
+  AddButtonStatus(button, "Advanced^Config", &Black);
+
+  button = CreateButton(14, 2);
+  AddButtonStatus(button, "Antenna^port", &Blue);
+
+  button = CreateButton(14, 3);
+  AddButtonStatus(button, "BiasT Volts^Off", &Blue);
+  AddButtonStatus(button, "BiasT Volts^On", &Green);
+
+  //button = CreateButton(14, 4);
+  //AddButtonStatus(button, "-20 dB", &Blue);
+  //AddButtonStatus(button, "-20 dB", &Green);
+
+  //button = CreateButton(14, 5);
+  //AddButtonStatus(button, "-30 dB", &Blue);
+  //AddButtonStatus(button, "-30 dB", &Green);
+
+  button = CreateButton(14, 6);
+  AddButtonStatus(button, "Set Freq^Offset", &Blue);
+  AddButtonStatus(button, "Freq^Offset On", &Green);
+
+  button = CreateButton(14, 7);
+  AddButtonStatus(button, "Return to^Main Menu", &DBlue);
+
+  button = CreateButton(14, 8);
+  AddButtonStatus(button, "Freeze", &Blue);
+  AddButtonStatus(button, "Unfreeze", &Green);
+}
+
+
+void Start_Highlights_Menu14()
+{
+  char ButtText[31];
+  snprintf(ButtText, 30, "Antenna^port %d", Antenna_port);
+  AmendButtonStatus(ButtonNumber(CurrentMenu, 2), 0, ButtText, &Blue);
+
+  if (BiasT_volts)
+  {
+    SetButtonStatus(ButtonNumber(14, 3), 1);
+  }
+  else
+  {
+    SetButtonStatus(ButtonNumber(14, 3), 0);
+  }
+
+  if (freqoffset == 0)
+  {
+    SetButtonStatus(ButtonNumber(14, 6), 0);
+  }
+  else
+  {
+    SetButtonStatus(ButtonNumber(14, 6), 1);
   }
 }
 
@@ -4946,6 +5144,7 @@ void DrawSettings()
   // Clear the previous text first
   rectangle(100, 0, 505, 64, 0, 0, 0);
 
+  // Left hand x Axis Label
   if (span / 2 > CentreFreq)
   {
     negfreq = CentreFreq - span / 2;
@@ -4953,17 +5152,43 @@ void DrawSettings()
   }
   else
   {
-    ParamAsFloat = (float)startfreq / 1000000.0;
-    snprintf(DisplayText, 63, "%5.2f MHz", ParamAsFloat);
+    if (freqoffset >= 0)
+    {
+      ParamAsFloat = (float)(startfreq + freqoffset) / 1000000.0;
+      snprintf(DisplayText, 63, "%5.2f MHz", ParamAsFloat);
+    }
+    else
+    {
+      ParamAsFloat = (float)abs(0 - freqoffset - stopfreq) / 1000000.0;
+      snprintf(DisplayText, 63, "%5.2f MHz", ParamAsFloat);
+    }
   }
   Text2(100, line1y, DisplayText, font_ptr);
  
-  ParamAsFloat = (float)CentreFreq / 1000000.0;
-  snprintf(DisplayText, 63, "%5.2f MHz", ParamAsFloat);
+  // Centre x Axis Label
+  if (freqoffset >= 0)
+  {
+    ParamAsFloat = (float)(CentreFreq + freqoffset) / 1000000.0;
+    snprintf(DisplayText, 63, "%5.2f MHz", ParamAsFloat);
+  }
+  else
+  {
+    ParamAsFloat = (float)abs(0 - freqoffset - CentreFreq) / 1000000.0;
+    snprintf(DisplayText, 63, "%5.2f MHz", ParamAsFloat);
+  }
   Text2(300, line1y, DisplayText, font_ptr);
 
-  ParamAsFloat = (float)stopfreq / 1000000.0;
-  snprintf(DisplayText, 63, "%5.2f MHz", ParamAsFloat);
+  // Right hand x Axis Label
+  if (freqoffset >= 0)
+  {
+    ParamAsFloat = (float)(stopfreq  + freqoffset)/ 1000000.0;
+    snprintf(DisplayText, 63, "%5.2f MHz", ParamAsFloat);
+  }
+  else
+  {
+    ParamAsFloat = (float)abs(0 - freqoffset - startfreq)/ 1000000.0;
+    snprintf(DisplayText, 63, "%5.2f MHz", ParamAsFloat);
+  }
   Text2(490, line1y, DisplayText, font_ptr);
 
   if (reflevel != 99)                           // valid
@@ -5220,6 +5445,7 @@ int main(int argc, char **argv)
   int PeakValueZeroCounter = 0;
   uint64_t nextwebupdate = monotonic_ms() + 1000;
   uint64_t next_paint = monotonic_ms();
+  uint64_t check_time;
   uint16_t y4[625];
   bool paint_line;
   int w_index = 0;
@@ -5229,6 +5455,7 @@ int main(int argc, char **argv)
   int wfall_offset = 0;
   int wfall_height;
   int16_t pixel_brightness;
+  uint16_t AverageCount = 0;
 
   // Catch sigaction and call terminate
   for (i = 0; i < 16; i++)
@@ -5290,8 +5517,10 @@ int main(int argc, char **argv)
   Define_Menu11();
   Define_Menu12();
   Define_Menu13();
+  Define_Menu14();
   Define_Menu41();
 
+  CheckConfigFile();
   ReadSavedParams();
 
   // Create Wait Button thread
@@ -5424,9 +5653,10 @@ int main(int argc, char **argv)
         wfall_height = 399;
       }
 
-      if (monotonic_ms() > next_paint)  // Paint the line with current peaks added in
+      check_time = monotonic_ms();
+      if (check_time > next_paint)  // Paint the line with current peaks added in
       {
-        //printf("time = %lld, next_paint was %lld, new next_paint = %lld\n", monotonic_ms(), next_paint, next_paint + (wfalltimespan * 25) / 10);
+        //printf("time = %lld, next_paint was %lld, new next_paint = %lld\n", check_time, next_paint, next_paint + (wfalltimespan * 25) / 10);
         // Set the time for the next paint after this one
         if (spectrum == false)            // full screen waterfall
         {
@@ -5436,26 +5666,62 @@ int main(int argc, char **argv)
         {
           next_paint = next_paint + (wfalltimespan * 100) / 30;
         }
+
+        // Make sure that we don't build up a time deficit
+        if (next_paint < check_time)
+        {
+          next_paint = check_time + (wfalltimespan * 100) / 30;
+        }
         paint_line = true;
 
-        for (j = 8; j <= 506; j++)
+        if (strcmp(TraceType, "peak") == 0)
         {
-          if (y3[j] > y4[j])  // store the peaks
+          for (j = 8; j <= 506; j++)
+          {
+            if (y3[j] > y4[j])  // store the peaks
+            {
+              y4[j] = y3[j];
+            }
+          }
+        }
+        else if (strcmp(TraceType, "single") == 0)
+        {
+          for (j = 8; j <= 506; j++)
           {
             y4[j] = y3[j];
           }
         }
-
-
-      }
-      else         // Store the peak, but don't paint the waterfall line
-      {
-        for (j = 8; j <= 506; j++)
+        else if (strcmp(TraceType, "average") == 0)
         {
-          if (y3[j] > y4[j])  // store the peaks
           {
-            y4[j] = y3[j];
+            for (j = 8; j <= 506; j++)
+            {
+              y4[j] = y4[j] + y3[j];
+              y4[j] = y4[j] / (AverageCount + 1);
+            }
+            AverageCount = 0;
           }
+        }
+      }
+      else         // If average or peak, add to the average or store the peak, but don't paint the waterfall line
+      {
+        if (strcmp(TraceType, "peak") == 0)
+        {
+          for (j = 8; j <= 506; j++)
+          {
+            if (y3[j] > y4[j])  // store the peaks
+            {
+              y4[j] = y3[j];
+            }
+          }
+        }
+        else if (strcmp(TraceType, "average") == 0)
+        {
+          for (j = 8; j <= 506; j++)
+          {
+            y4[j] = y4[j] + y3[j];
+          }
+          AverageCount++;
         }
         paint_line = false;
       } 
