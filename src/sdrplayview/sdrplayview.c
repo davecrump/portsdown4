@@ -97,7 +97,7 @@ bool NewSpan = false;
 bool NewCal  = false;
 bool NewPort = false;
 float gain;
-bool Show20dBLower = false;
+int8_t BaselineShift = 0;
 
 bool NewData = false;
 
@@ -432,6 +432,26 @@ void CheckConfigFile()
     printf("Updating Config File\n");
     sprintf(shell_command, "echo freqoffset=0 >> %s", PATH_CONFIG);
     system(shell_command); 
+  }
+
+  sprintf(shell_command, "grep -q 'baselineshift=' %s", PATH_CONFIG);
+  fp = popen(shell_command, "r");
+  r = pclose(fp);
+  if (WEXITSTATUS(r) != 0)
+  {
+    printf("Updating Config File\n");
+    sprintf(shell_command, "echo baselineshift=0 >> %s", PATH_CONFIG);
+    system(shell_command); 
+  }
+ 
+  sprintf(shell_command, "grep -q 'baseline20db=' %s", PATH_CONFIG);
+  fp = popen(shell_command, "r");
+  r = pclose(fp);
+  if (WEXITSTATUS(r) != 0)
+  {
+    printf("Updating Config File\n");
+    sprintf(shell_command, "echo baseline20db=-80 >> %s", PATH_CONFIG);
+    system(shell_command); 
   } 
 }
 
@@ -565,6 +585,14 @@ void ReadSavedParams()
   strcpy(response, "0");
   GetConfigParam(PATH_CONFIG, "freqoffset", response);
   freqoffset = strtoll(response, NULL, 10);
+
+  strcpy(response, "0");
+  GetConfigParam(PATH_CONFIG, "baselineshift", response);
+  BaselineShift = atoi(response);
+
+  strcpy(response, "-80");
+  GetConfigParam(PATH_CONFIG, "baseline20db", response);
+  BaseLine20dB = atoi(response);
 }
 
 
@@ -1963,18 +1991,18 @@ void CalculateMarkers()
   // And display it
   if (Range20dB == false)
   {
-    markerlev = ((float)(410 - markery) / 5.0) - 80.0;  // in dB for a 0 to -80 screen
+    markerlev = ((float)(410 - markery) / 5.0) - 80.0 - BaselineShift;  // in dB for a 0 to -80 screen
   }
   else
   {
-    markerlev = ((float)(410 - markery) / 20.0) + (float)BaseLine20dB;  // in dB for a BaseLine20dB to 20 above screen
+    markerlev = ((float)(410 - markery) / 20.0) + (float)(BaseLine20dB - BaselineShift);  // in dB for a BaseLine20dB to 20 above screen
   }
   rectangle(620, 420, 160, 60, 0, 0, 0);  // Blank the Menu title
   snprintf(markerlevel, 14, "Mkr %0.1f dB", markerlev);
   Text2(640, 450, markerlevel, &font_dejavu_sans_18);
 
-  markerf = (float)((((markerx - 100) * (stopfreq - startfreq)) / 500 + startfreq)) / 1000.0; // value for display
-  snprintf(markerfreq, 14, "%0.2f kHz", markerf);
+  markerf = (float)((((markerx - 100) * (stopfreq - startfreq)) / 500 + startfreq)) / 1000000.0; // value for display
+  snprintf(markerfreq, 14, "%0.3f MHz", markerf);
   setBackColour(0, 0, 0);
   Text2(640, 425, markerfreq, &font_dejavu_sans_18);
 
@@ -2770,7 +2798,7 @@ void ChangeLabel(int button)
       freqoffset = strtoll(KeyboardReturn, NULL, 10);
       snprintf(ValueToSave, 63, "%lld", freqoffset);
       SetConfigParam(PATH_CONFIG, "freqoffset", ValueToSave);
-      printf("Freq Offset set to %d Hz\n", CentreFreq);
+      printf("Freq Offset set to %lld Hz\n", freqoffset);
       break;
 
   }
@@ -2798,6 +2826,7 @@ void RedrawDisplay()
 void *WaitButtonEvent(void * arg)
 {
   int  rawPressure;
+  char ValueToSave[63];
 
   for (;;)
   {
@@ -3440,15 +3469,18 @@ void *WaitButtonEvent(void * arg)
           Start_Highlights_Menu8();
           UpdateWindow();
           break;
-        case 6:                                            // Show20dBLower
-          if (Show20dBLower == true)
+        case 6:                                            // Show 20dB Lower
+          if (BaselineShift == 20)
           {
-            Show20dBLower = false;
+            BaselineShift = 0;
           }
           else
           {
-            Show20dBLower = true;
+            BaselineShift = 20;
           }
+          snprintf(ValueToSave, 8, "%d", BaselineShift);
+          SetConfigParam(PATH_CONFIG, "baselineshift", ValueToSave);
+          DrawYaxisLabels();
           CurrentMenu = 8;
           Start_Highlights_Menu8();
           UpdateWindow();
@@ -3638,6 +3670,8 @@ void *WaitButtonEvent(void * arg)
           {
             BaseLine20dB = BaseLine20dB + 5;
             RedrawDisplay();
+            snprintf(ValueToSave, 8, "%d", BaseLine20dB);
+            SetConfigParam(PATH_CONFIG, "baseline20db", ValueToSave);
           }
           UpdateWindow();
           break;
@@ -3646,6 +3680,8 @@ void *WaitButtonEvent(void * arg)
           {
             BaseLine20dB = BaseLine20dB - 5;
             RedrawDisplay();
+            snprintf(ValueToSave, 8, "%d", BaseLine20dB);
+            SetConfigParam(PATH_CONFIG, "baseline20db", ValueToSave);
           }
           UpdateWindow();
           break;
@@ -4315,7 +4351,7 @@ void Start_Highlights_Menu8()
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 4), 0);
   }
-  if (Show20dBLower == true)
+  if (BaselineShift == 20)
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 6), 1);
   }
@@ -5025,23 +5061,37 @@ void DrawYaxisLabels()
   int pixel_brightness;
 
   // Clear the previous scale first
-  rectangle(20, 63, 75, 417, 0, 0, 0);
+  rectangle(20, 63, 79, 417, 0, 0, 0);
 
   // Clear the previous waterfall calibration
   rectangle(610, 63, 5, 417, 0, 0, 0);
 
   if ((Range20dB == false) && (waterfall == false))       // Full range spectrum
   {
-    Text2(48, 463, "0 dB", font_ptr);
-    Text2(30, 416, "-10 dB", font_ptr);
-    Text2(30, 366, "-20 dB", font_ptr);
-    Text2(30, 316, "-30 dB", font_ptr);
-    Text2(30, 266, "-40 dB", font_ptr);
-    Text2(30, 216, "-50 dB", font_ptr);
-    Text2(30, 166, "-60 dB", font_ptr);
-    Text2(30, 116, "-70 dB", font_ptr);
-    Text2(30,  66, "-80 dB", font_ptr);
-
+    if (BaselineShift == 0)                     // 0 to -80
+    {
+      Text2(48, 463, "0 dB", font_ptr);
+      Text2(30, 416, "-10 dB", font_ptr);
+      Text2(30, 366, "-20 dB", font_ptr);
+      Text2(30, 316, "-30 dB", font_ptr);
+      Text2(30, 266, "-40 dB", font_ptr);
+      Text2(30, 216, "-50 dB", font_ptr);
+      Text2(30, 166, "-60 dB", font_ptr);
+      Text2(30, 116, "-70 dB", font_ptr);
+      Text2(30,  66, "-80 dB", font_ptr);
+    }
+    else                                         // -20 to -100
+    {
+      Text2(30, 463, "-20 dB", font_ptr);
+      Text2(30, 416, "-30 dB", font_ptr);
+      Text2(30, 366, "-40 dB", font_ptr);
+      Text2(30, 316, "-50 dB", font_ptr);
+      Text2(30, 266, "-60 dB", font_ptr);
+      Text2(30, 216, "-70 dB", font_ptr);
+      Text2(30, 166, "-80 dB", font_ptr);
+      Text2(30, 116, "-90 dB", font_ptr);
+      Text2(20,  66, "-100 dB", font_ptr);
+    }
     // Draw the waterfall calibration chart
     for (i = 1; i <= 399; i++)
     {
@@ -5067,15 +5117,15 @@ void DrawYaxisLabels()
   }
   else if ((Range20dB == true) && (waterfall == false))  // 20 dB range spectrum
   {
-    snprintf(caption, 15, "%d dB", BaseLine20dB + 20);
+    snprintf(caption, 15, "%d dB", BaseLine20dB + 20 - BaselineShift);
     Text2(30, 463, caption, font_ptr);
-    snprintf(caption, 15, "%d dB", BaseLine20dB + 15);
+    snprintf(caption, 15, "%d dB", BaseLine20dB + 15 - BaselineShift);
     Text2(30, 366, caption, font_ptr);
-    snprintf(caption, 15, "%d dB", BaseLine20dB + 10);
+    snprintf(caption, 15, "%d dB", BaseLine20dB + 10 - BaselineShift);
     Text2(30, 266, caption, font_ptr);
-    snprintf(caption, 15, "%d dB", BaseLine20dB + 5);
+    snprintf(caption, 15, "%d dB", BaseLine20dB + 5 - BaselineShift);
     Text2(30, 166, caption, font_ptr);
-    snprintf(caption, 15, "%d dB", BaseLine20dB);
+    snprintf(caption, 15, "%d dB", BaseLine20dB - BaselineShift);
     Text2(30,  66, caption, font_ptr);
   }
   else if ((spectrum == false) && (waterfall == true))   // Waterfall only
@@ -5092,9 +5142,18 @@ void DrawYaxisLabels()
 
   else if ((spectrum == true) && (waterfall == true))   // Mix
   {
-    Text2(48, 463, "0 dB", font_ptr);
-    Text2(30, 416, "-40 dB", font_ptr);
-    Text2(30, 366, "-80 dB", font_ptr);
+    if (BaselineShift == 0)                     // 0 to -80
+    {
+      Text2(48, 463, "0 dB", font_ptr);
+      Text2(30, 416, "-40 dB", font_ptr);
+      Text2(30, 366, "-80 dB", font_ptr);
+    }
+    else                                        // -20 to -100
+    {
+      Text2(30, 463, "-20 dB", font_ptr);
+      Text2(30, 416, "-60 dB", font_ptr);
+      Text2(20, 366, "-100 dB", font_ptr);
+    }
     if (wfalltimespan > 4)   // only display requested timespan if not too fast
     {
       snprintf(caption, 15, "%3.1f s", (float)wfalltimespan * 0.5);
@@ -5159,7 +5218,7 @@ void DrawSettings()
     }
     else
     {
-      ParamAsFloat = (float)abs(0 - freqoffset - stopfreq) / 1000000.0;
+      ParamAsFloat = (float)(0 - freqoffset - (int64_t)stopfreq) / 1000000.0;
       snprintf(DisplayText, 63, "%5.2f MHz", ParamAsFloat);
     }
   }
@@ -5173,7 +5232,7 @@ void DrawSettings()
   }
   else
   {
-    ParamAsFloat = (float)abs(0 - freqoffset - CentreFreq) / 1000000.0;
+    ParamAsFloat = (float)(0 - freqoffset - (int64_t)CentreFreq) / 1000000.0;
     snprintf(DisplayText, 63, "%5.2f MHz", ParamAsFloat);
   }
   Text2(300, line1y, DisplayText, font_ptr);
@@ -5186,7 +5245,7 @@ void DrawSettings()
   }
   else
   {
-    ParamAsFloat = (float)abs(0 - freqoffset - startfreq)/ 1000000.0;
+    ParamAsFloat = (float)(0 - freqoffset - (int64_t)startfreq)/ 1000000.0;
     snprintf(DisplayText, 63, "%5.2f MHz", ParamAsFloat);
   }
   Text2(490, line1y, DisplayText, font_ptr);
@@ -5793,8 +5852,11 @@ int main(int argc, char **argv)
     if (monotonic_ms() >= nextwebupdate)
     {
       UpdateWeb();
-      usleep(10000);                         // Alow 10ms for paint
-      nextwebupdate = nextwebupdate + 1000;  // Set next update for 1 second later
+      nextwebupdate = nextwebupdate + 1000;  // Set next update for 1 second after the previous
+      if (nextwebupdate < monotonic_ms())    // Check for backlog due to a freeze
+      {
+        nextwebupdate = monotonic_ms() + 1000;  //Set next update for 1 second ahead
+      }
     }
   }
 

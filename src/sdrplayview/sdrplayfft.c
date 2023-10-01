@@ -46,7 +46,7 @@ extern bool NewGain;                 // Set to true to indicate that gain needs 
 extern int RFgain;
 extern int IFgain;
 extern bool agc;
-extern bool Show20dBLower;
+extern int8_t BaselineShift;
 
 extern bool NewPort;                 // Set to true to indicate that port or BiasT needs changing
 extern uint8_t Antenna_port;
@@ -452,10 +452,7 @@ void fft_to_buffer()
     fft_output_data[j] = fft_output_data[j] + 49.8; // 49.8 gives true dBfs (maybe 50??)
 
     // Shift the display up by 20 dB if required
-    if(Show20dBLower == true)
-    {
-      fft_output_data[j] = fft_output_data[j] + 20.0;
-    }
+    fft_output_data[j] = fft_output_data[j] + (float)BaselineShift;
 
     // Multiply by 5 (pixels per dB on display)
     fft_output_data[j] = fft_output_data[j] * 5;
