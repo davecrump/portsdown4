@@ -46,7 +46,7 @@ extern bool NewGain;                 // Set to true to indicate that gain needs 
 extern int RFgain;
 extern int IFgain;
 extern bool agc;
-extern bool Show20dBLower;
+extern int8_t BaselineShift;
 
 extern bool NewPort;                 // Set to true to indicate that port or BiasT needs changing
 extern uint8_t Antenna_port;
@@ -59,6 +59,7 @@ extern float fft_time_smooth;
 extern uint8_t decimation_factor;           // decimation applied by SDRPlay api
 extern int span;
 extern float SampleRate;
+extern int64_t freqoffset;
 
 //extern pthread_t sdrplay_fft_thread_obj;
 
@@ -121,6 +122,7 @@ void fft();
 void fft_to_buffer();
 int legal_gain(int demanded_Gain);
 void non_filter(short xi, short xq, int reset);
+void ConstrainFreq();
 
 void setup_fft(void)
 {
@@ -354,11 +356,23 @@ void *thread_fft(void *dummy)
       pthread_cond_wait(&rf_buffer2.signal, &rf_buffer2.mutex);
 
       // Now read it out of the buffer and apply window shaping
-      for (i = 0; i < fft_size; i++)
+      // Reverse i and q if spectrum needs to be reversed
+      if (freqoffset < 0)
       {
-        fft_in[i][0] = (float)(rf_buffer2.idata[i]) * hanning_window_const[i];
-        fft_in[i][1] = (float)(rf_buffer2.qdata[i]) * hanning_window_const[i];
-	  }
+        for (i = 0; i < fft_size; i++)
+        {
+          fft_in[i][1] = (float)(rf_buffer2.idata[i]) * hanning_window_const[i];
+          fft_in[i][0] = (float)(rf_buffer2.qdata[i]) * hanning_window_const[i];
+	    }
+      }
+      else
+      {
+        for (i = 0; i < fft_size; i++)
+        {
+          fft_in[i][0] = (float)(rf_buffer2.idata[i]) * hanning_window_const[i];
+          fft_in[i][1] = (float)(rf_buffer2.qdata[i]) * hanning_window_const[i];
+	    }
+      }
 
 	  // Unlock input buffer
       pthread_mutex_unlock(&rf_buffer2.mutex);
@@ -438,10 +452,7 @@ void fft_to_buffer()
     fft_output_data[j] = fft_output_data[j] + 49.8; // 49.8 gives true dBfs (maybe 50??)
 
     // Shift the display up by 20 dB if required
-    if(Show20dBLower == true)
-    {
-      fft_output_data[j] = fft_output_data[j] + 20.0;
-    }
+    fft_output_data[j] = fft_output_data[j] + (float)BaselineShift;
 
     // Multiply by 5 (pixels per dB on display)
     fft_output_data[j] = fft_output_data[j] * 5;
@@ -494,11 +505,15 @@ void fft_to_buffer()
 
   // Wait here until data has been read
   NewData = true;
+  //uint16_t sleep_count = 0;
   while (NewData == true)
   {
     usleep(100);
+    //sleep_count++;
   }
+  //printf("fft output slept for %d periods of 100us\n", sleep_count);
 }
+
 
 // Takes demanded gain and returns a valid gain for the device
 int legal_gain(int demanded_Gain)
@@ -758,7 +773,6 @@ void *sdrplay_fft_thread(void *arg) {
       if (chParams != NULL)
       {
         // Set Frequency
-        //chParams->tunerParams.rfFreq.rfHz = 50407000.0;
         chParams->tunerParams.rfFreq.rfHz = (float)CentreFreq;  // Frequency is float in Hz
         printf("Frequency: %.0f\n", (float)CentreFreq);
 

@@ -15,3 +15,7 @@ pfreq4=1255000000
 pfreq5=1296000000
 port=0
 biast=off
+tracetype=single
+freqoffset=0
+baselineshift=0
+baseline20db=-80
