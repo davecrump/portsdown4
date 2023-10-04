@@ -1,4 +1,4 @@
-title=Portsdown Band Viewer
+title=Portsdown LimeSDR Band Viewer
 centrefreq=437000
 span=2048
 limegain=90

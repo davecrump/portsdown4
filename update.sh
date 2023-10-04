@@ -177,53 +177,62 @@ cp -f -r "$PATHSCRIPT"/images "$PATHUBACKUP"/images
 
 DisplayUpdateMsg "Step 4 of 10\nUpdating Software Package List\n\nXXXX------"
 
-# Download and install the VLC apt Preferences File 202212010
+# Check for the VLC apt Preferences File.  If not present, write it, and re-install VLC
+# Because installed version may not be the right one
 cd /home/pi
 if [ ! -f  /etc/apt/preferences.d/vlc ]; then
   wget https://github.com/${GIT_SRC}/portsdown4/raw/master/scripts/configs/vlc
   sudo cp vlc /etc/apt/preferences.d/vlc
+
+  sudo apt -y remove vlc*
+  sudo apt -y remove libvlc*
+  sudo apt -y remove vlc-data 
+
+  sudo dpkg --configure -a                            # Make sure that all the packages are properly configured
+  sudo apt-get clean                                  # Clean up the old archived packages
+  sudo apt-get update --allow-releaseinfo-change      # Update the package list
+
+  # --------- Remove any previous hold on VLC -----------------
+
+  if apt-mark showhold | grep -q 'vlc'; then
+    sudo apt-mark unhold vlc
+    sudo apt-mark unhold libvlc-bin
+    sudo apt-mark unhold libvlc5
+    sudo apt-mark unhold libvlccore9
+    sudo apt-mark unhold vlc-bin
+    sudo apt-mark unhold vlc-data
+    sudo apt-mark unhold vlc-plugin-base
+    sudo apt-mark unhold vlc-plugin-qt
+    sudo apt-mark unhold vlc-plugin-video-output
+    sudo apt-mark unhold vlc-l10n
+    sudo apt-mark unhold vlc-plugin-notify
+    sudo apt-mark unhold vlc-plugin-samba
+    sudo apt-mark unhold vlc-plugin-skins2
+    sudo apt-mark unhold vlc-plugin-video-splitter
+    sudo apt-mark unhold vlc-plugin-visualization
+  fi
+
+  sudo apt-get -y dist-upgrade # Upgrade all the installed packages to their latest version
+
+  echo
+  echo "Updating VLC"
+  echo
+
+  sudo apt-get -y install vlc                         # Reload the correct version
+
+else                                                  # VLC is the correct version, so leave it there
+
+  sudo dpkg --configure -a                            # Make sure that all the packages are properly configured
+  sudo apt-get clean                                  # Clean up the old archived packages
+  sudo apt-get update --allow-releaseinfo-change      # Update the package list
+
 fi
-
-sudo apt -y remove vlc*
-sudo apt -y remove libvlc*
-sudo apt -y remove vlc-data 
-
-
-sudo dpkg --configure -a                            # Make sure that all the packages are properly configured
-sudo apt-get clean                                  # Clean up the old archived packages
-sudo apt-get update --allow-releaseinfo-change      # Update the package list
-
-# --------- Remove any previous hold on VLC -----------------
-
-if apt-mark showhold | grep -q 'vlc'; then
-  sudo apt-mark unhold vlc
-  sudo apt-mark unhold libvlc-bin
-  sudo apt-mark unhold libvlc5
-  sudo apt-mark unhold libvlccore9
-  sudo apt-mark unhold vlc-bin
-  sudo apt-mark unhold vlc-data
-  sudo apt-mark unhold vlc-plugin-base
-  sudo apt-mark unhold vlc-plugin-qt
-  sudo apt-mark unhold vlc-plugin-video-output
-  sudo apt-mark unhold vlc-l10n
-  sudo apt-mark unhold vlc-plugin-notify
-  sudo apt-mark unhold vlc-plugin-samba
-  sudo apt-mark unhold vlc-plugin-skins2
-  sudo apt-mark unhold vlc-plugin-video-splitter
-  sudo apt-mark unhold vlc-plugin-visualization
-fi
-
-DisplayUpdateMsg "Step 5 of 10\nUpdating Software Packages\n\nXXXX------"
-
-# --------- Update Packages ------
 
 sudo apt-get -y dist-upgrade # Upgrade all the installed packages to their latest version
 
 # --------- Install new packages as Required ---------
 
-sudo apt-get -y install vlc                       # Removed earlier
-
-echo
+DisplayUpdateMsg "Step 5 of 10\nUpdating Software Packages\n\nXXXX------"
 
 # Install libiio and dependencies if required (used for Pluto SigGen)
 if [ ! -f  /home/pi/libiio/iio.h ]; then
@@ -415,6 +424,8 @@ make dvb
 cp limesdr_dvb /home/pi/rpidatv/bin/
 cd /home/pi
 
+DisplayUpdateMsg "Step 7 of 10\nCompiling Portsdown SW\nDVB-T Transmitter\nXXXXXX----"
+
 echo
 echo "--------------------------------"
 echo "----- Updating dvb_t_stack -----"
@@ -445,6 +456,8 @@ make
 cp avc2ts ../rpidatv/bin/
 cd /home/pi
 
+DisplayUpdateMsg "Step 7 of 10\nCompiling Portsdown SW\nLongMynd Receiver\nXXXXXX----"
+
 echo
 echo "------------------------------------------"
 echo "----- Updating the LongMynd Receiver -----"
@@ -455,6 +468,8 @@ cp -r /home/pi/rpidatv/src/longmynd/ /home/pi/
 cd longmynd
 make
 cd /home/pi
+
+DisplayUpdateMsg "Step 7 of 10\nCompiling Portsdown SW\nSignal Generator\nXXXXXX----"
 
 echo
 echo "------------------------------------------"
@@ -474,6 +489,8 @@ cd /home/pi/rpidatv/src/adf4351
 make
 cp adf4351 ../../bin/
 cd /home/pi
+
+DisplayUpdateMsg "Step 7 of 10\nCompiling Portsdown SW\nBandViewer\nXXXXXX----"
 
 # Compile Band Viewer
 echo
@@ -569,6 +586,9 @@ else            # api is intalled, so try to compile SDRplay apps
     cd /home/pi
   fi
 fi
+
+DisplayUpdateMsg "Step 7 of 10\nCompiling Portsdown SW\nTest Equipment\nXXXXXX----"
+
 
 # Compile Power Meter
 echo
@@ -871,6 +891,9 @@ sudo systemctl stop nginx
 rm -rf /home/pi/webroot
 cp -r /home/pi/rpidatv/scripts/configs/webroot /home/pi/webroot
 sudo cp /home/pi/rpidatv/scripts/configs/nginx.conf /etc/nginx/nginx.conf
+sudo systemctl start nginx
+
+sleep 1
 
 DisplayUpdateMsg "Step 9 of 10\nFinishing Off\n\nXXXXXXXXX-"
 
@@ -888,9 +911,10 @@ echo "${GIT_SRC}" > /home/pi/${GIT_SRC_FILE}
 DisplayRebootMsg "Step 10 of 10\nRebooting\n\nUpdate Complete"
 printf "\nRebooting\n"
 
-sleep 2  ## Allow rebooting message to be displayed on web view
+sleep 5  ## Allow rebooting message to be displayed on web view
 # Turn off swap to prevent reboot hang
 sudo swapoff -a
+
 sudo shutdown -r now  # Seems to be more reliable than reboot
 
 exit

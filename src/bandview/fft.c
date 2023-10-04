@@ -19,6 +19,9 @@
 #include "font/font.h"
 #include "graphics.h"
 
+#define PI 3.14159265358979323846
+
+
 /* Input from lime.c */
 extern lime_fft_buffer_t lime_fft_buffer;
 
@@ -27,13 +30,8 @@ extern bool NewSettings;
 
 extern bool Range20dB;
 extern int BaseLine20dB;
-extern bool NFMeter;
-
-//extern double bandwidth;
 
 #define FFT_SIZE    512 //2048
-//#define FFT_TIME_SMOOTH 0.999f // 0.0 - 1.0
-#define FFT_TIME_SMOOTH 0.96f // 0.0 - 1.0
 
 extern float MAIN_SPECTRUM_TIME_SMOOTH; // 0.0 - 1.0
 
@@ -51,7 +49,7 @@ int y[515];
 
 void main_fft_init(void)
 {
-    for(int i=0; i<FFT_SIZE; i++)
+    for(int i = 0; i < FFT_SIZE; i++)
     {
         /* Hanning */
         hanning_window_const[i] = 0.5 * (1.0 - cos(2*M_PI*(((float)i)/FFT_SIZE)));
@@ -79,162 +77,146 @@ static void fft_fftw_close(void)
 /* FFT Thread */
 void *fft_thread(void *arg)
 {
-    bool *exit_requested = (bool *)arg;
+  bool *exit_requested = (bool *)arg;
+  int i, offset;
+  fftw_complex pt;
+  double pwr, lpwr;
 
-    int i, offset;
-    fftw_complex pt;
-    double pwr, lpwr;
+  double pwr_scale = 1.0 / ((float)FFT_SIZE * (float)FFT_SIZE);
 
-    float main_spectrum_smooth_buffer[FFT_SIZE] = { 0 };
+  struct timespec ts;
 
-    double pwr_scale = 1.0 / ((float)FFT_SIZE * (float)FFT_SIZE);
+  uint64_t last_output = monotonic_ms();
 
-    struct timespec ts;
+  /* Set pthread timer on .signal to use monotonic clock */
+  pthread_condattr_t attr;
+  pthread_condattr_init(&attr);
+  pthread_condattr_setclock(&attr, CLOCK_MONOTONIC);
+  pthread_cond_init (&lime_fft_buffer.signal, &attr);
+  pthread_condattr_destroy(&attr);
 
-    uint64_t last_output = monotonic_ms();
+  while((false == *exit_requested))   // Go around once for each Lime input buffer fill?
+  {
+    /* Lock input buffer */
+    pthread_mutex_lock(&lime_fft_buffer.mutex);
 
-    /* Set pthread timer on .signal to use monotonic clock */
-    pthread_condattr_t attr;
-    pthread_condattr_init(&attr);
-    pthread_condattr_setclock(&attr, CLOCK_MONOTONIC);
-    pthread_cond_init (&lime_fft_buffer.signal, &attr);
-    pthread_condattr_destroy(&attr);
-
-    while((false == *exit_requested)) 
+    while(lime_fft_buffer.index >= (lime_fft_buffer.size/(FFT_SIZE * sizeof(float) * 2)) && false == *exit_requested)
     {
-        /* Lock input buffer */
-        pthread_mutex_lock(&lime_fft_buffer.mutex);
+      /* Set timer for 10ms */
+      clock_gettime(CLOCK_MONOTONIC, &ts);
+      ts.tv_nsec += 10 * 1000000;
 
-        while(lime_fft_buffer.index >= (lime_fft_buffer.size/(FFT_SIZE * sizeof(float) * 2))
-            && false == *exit_requested)
-        {
-            /* Set timer for 100ms */
-            clock_gettime(CLOCK_MONOTONIC, &ts);
-            ts.tv_nsec += 10 * 1000000;
-
-            pthread_cond_timedwait(&lime_fft_buffer.signal, &lime_fft_buffer.mutex, &ts);
-        }
-
-        if((*exit_requested))
-        {
-            break;
-        }
-
-        offset = lime_fft_buffer.index * FFT_SIZE * 2;
-
-        /* Copy data out of rf buffer into fft_input buffer */
-        for (i = 0; i < FFT_SIZE; i++)
-        {
-            fft_in[i][0] = (((float*)lime_fft_buffer.data)[offset+(2*i)]+0.00048828125) * hanning_window_const[i];
-            fft_in[i][1] = (((float*)lime_fft_buffer.data)[offset+(2*i)+1]+0.00048828125) * hanning_window_const[i];
-        }
-
-        lime_fft_buffer.index++;
-
-        /* Unlock input buffer */
-        pthread_mutex_unlock(&lime_fft_buffer.mutex);
-
-        /* Run FFT */
-        fftwf_execute(fft_plan);
-
-        //float int_max = -9999.0;
-        //float int_min = 9999.0;
-
-        for (i = 0; i < FFT_SIZE; i++)
-        {
-            /* shift, normalize and convert to dBFS */
-            if (i < FFT_SIZE / 2)
-            {
-                pt[0] = fft_out[FFT_SIZE / 2 + i][0] / FFT_SIZE;
-                pt[1] = fft_out[FFT_SIZE / 2 + i][1] / FFT_SIZE;
-            }
-            else
-            {
-                pt[0] = fft_out[i - FFT_SIZE / 2][0] / FFT_SIZE;
-                pt[1] = fft_out[i - FFT_SIZE / 2][1] / FFT_SIZE;
-            }
-            pwr = pwr_scale * ((pt[0] * pt[0]) + (pt[1] * pt[1]));
-            lpwr = 10.f * log10(pwr + 1.0e-20);
-
-            fft_data_staging[i] = (lpwr * (1.f - FFT_TIME_SMOOTH)) + (fft_data_staging[i] * FFT_TIME_SMOOTH);
-
-            if (wfall == true)
-            {
-
-              //printf("%f\n", fft_data_staging[i]);
-
-              fft_scaled_data[i] = 20 * (fft_data_staging[i] + 68);
-              //fft_scaled_data[i] = 20 * (fft_data_staging[i] + 78);
-
-              //if(fft_scaled_data[i] > int_max) int_max = fft_scaled_data[i];
-              //if(fft_scaled_data[i] < int_min) int_min = fft_scaled_data[i];
-
-              if(fft_scaled_data[i] < 0) fft_scaled_data[i] = 0;
-              if(fft_scaled_data[i] > 255) fft_scaled_data[i] = 255;
-
-              fft_data_output[i] = (uint8_t)(fft_scaled_data[i]);
-            }
-            else   // Standard Spectrum plot
-            {
-              // Set the scaling and vertical offset
-              fft_scaled_data[i] = 5 * (fft_data_staging[i] + 146);  
-
-              // Apply some time smoothing if not NF Measuring
-
-              if (NFMeter == false)
-              {
-                main_spectrum_smooth_buffer[i] = ((fft_scaled_data[i]) * (1.f - MAIN_SPECTRUM_TIME_SMOOTH))
-                  + (main_spectrum_smooth_buffer[i] * MAIN_SPECTRUM_TIME_SMOOTH);
-              }
-              else
-              {
-                main_spectrum_smooth_buffer[i] = fft_scaled_data[i];
-              }
-
-              // Correct for the roll-off at the ends of the fft
-              if (i < 46)
-              {
-                fft_scaled_data[i] = main_spectrum_smooth_buffer[i] + ((46 - i) * 2) / 5;
-              }
-              else if (i > 466)
-              {
-                fft_scaled_data[i] = main_spectrum_smooth_buffer[i] + ((i - 466) * 2) / 5;
-              }
-              else
-              {
-                fft_scaled_data[i] = main_spectrum_smooth_buffer[i];
-              }
-
-              if (Range20dB) // Range20dB
-              {
-                
-                fft_scaled_data[i] = fft_scaled_data[i] - 5 * (80 + BaseLine20dB);  
-                fft_scaled_data[i] = 4 * fft_scaled_data[i];
-              }
-              // Make sure that the data is within bounds
-              if(fft_scaled_data[i] < 1) fft_scaled_data[i] = 1;
-              if(fft_scaled_data[i] > 399) fft_scaled_data[i] = 399;
-
-              // Convert to int
-              y[i] = (uint16_t)(fft_scaled_data[i]);
-            }
-        }
-        //printf("Max: %f, Min %f\n", int_max, int_min);
-
-        //ws_fft_submit((uint8_t *)fft_data_staging, (FFT_SIZE * sizeof(float)));
-
-        if(monotonic_ms() > (last_output + 50))  // so 20 Hz refresh
-        {
-            if (wfall == true)
-            {
-              waterfall_render_fft(fft_data_output);
-            }
-            last_output = monotonic_ms();
-        }
+      pthread_cond_timedwait(&lime_fft_buffer.signal, &lime_fft_buffer.mutex, &ts);
     }
 
-    fft_fftw_close();
-    printf("fft Thread Closed\n");
-    return NULL;
+    if((*exit_requested))
+    {
+      break;
+    }
+
+    offset = lime_fft_buffer.index * FFT_SIZE * 2;
+
+    // Set up changing phase and fequency for cal signal (not used for normal operation)
+    bool cal  = false;
+    static float foffset = 2.55;
+    static float phaseoffset  = 0;
+    phaseoffset = phaseoffset + 0.0002;
+    foffset = foffset + 0.000001;
+    float amplitude = 0.1;  // Cal at -20 dBfs
+    // lime_fft_buffer.data is in range -1.0 to + 1.0
+ 
+    for (i = 0; i < FFT_SIZE; i++)
+    {
+      if (cal == false)
+      {
+        fft_in[i][0] = (((float*)lime_fft_buffer.data)[offset + (2 * i)    ] + 0.00048828125) * hanning_window_const[i];
+        fft_in[i][1] = (((float*)lime_fft_buffer.data)[offset + (2 * i) + 1] + 0.00048828125) * hanning_window_const[i];
+      }
+      else
+      {
+        fft_in[i][0] = (float)(amplitude * sin((((float)i / foffset) + phaseoffset) * 2.f * PI)) * hanning_window_const[i];
+        fft_in[i][1] = (float)(amplitude * cos((((float)i / foffset) + phaseoffset) * 2.f * PI)) * hanning_window_const[i];
+      }
+    }   
+    lime_fft_buffer.index++;
+
+    // Unlock input buffer
+    pthread_mutex_unlock(&lime_fft_buffer.mutex);
+
+    // Run FFT
+    fftwf_execute(fft_plan);
+
+    if (wfall == true)
+    {
+      MAIN_SPECTRUM_TIME_SMOOTH = 0;
+    }
+
+    for (i = 0; i < FFT_SIZE; i++)
+    {
+      // shift, normalize and convert to dBFS
+      if (i < FFT_SIZE / 2)
+      {
+        pt[0] = fft_out[FFT_SIZE / 2 + i][0] / FFT_SIZE;
+        pt[1] = fft_out[FFT_SIZE / 2 + i][1] / FFT_SIZE;
+      }
+      else
+      {
+        pt[0] = fft_out[i - FFT_SIZE / 2][0] / FFT_SIZE;
+        pt[1] = fft_out[i - FFT_SIZE / 2][1] / FFT_SIZE;
+      }
+      pwr = pwr_scale * ((pt[0] * pt[0]) + (pt[1] * pt[1]));
+      lpwr = 10.f * log10(pwr + 1.0e-20);
+
+      fft_data_staging[i] = (lpwr * (1.f - MAIN_SPECTRUM_TIME_SMOOTH)) + (fft_data_staging[i] * MAIN_SPECTRUM_TIME_SMOOTH);
+
+      // Set the scaling and vertical offset
+      fft_scaled_data[i] = 5 * (fft_data_staging[i] + 140);  
+
+      // Correct for the roll-off at the ends of the fft
+      if (i < 46)
+      {
+        fft_scaled_data[i] = fft_scaled_data[i] + ((46 - i) * 2) / 5;
+      }
+      else if (i > 466)
+      {
+        fft_scaled_data[i] = fft_scaled_data[i] + ((i - 466) * 2) / 5;
+      }
+
+      if (Range20dB) // Range20dB
+      {
+        fft_scaled_data[i] = fft_scaled_data[i] - 5 * (80 + BaseLine20dB);  
+        fft_scaled_data[i] = 4 * fft_scaled_data[i];
+      }
+
+      // Convert to int
+      y[i] = (uint16_t)(fft_scaled_data[i]);
+
+      // Make sure that the data is within bounds
+      if(y[i] < 1)
+      {
+        y[i] = 1;
+      }
+      if(y[i] > 399)
+      {
+        fft_scaled_data[i] = 399;
+      }
+    }
+    //printf("Max: %f, Min %f\n", int_max, int_min);
+
+    //ws_fft_submit((uint8_t *)fft_data_staging, (FFT_SIZE * sizeof(float)));
+
+    if(monotonic_ms() > (last_output + 50))  // so 20 Hz refresh
+    {
+      if (wfall == true)
+      {
+        waterfall_render_fft(fft_data_output);
+      }
+      last_output = monotonic_ms();
+    }
+  }
+
+  fft_fftw_close();
+  printf("fft Thread Closed\n");
+  return NULL;
 }
 
