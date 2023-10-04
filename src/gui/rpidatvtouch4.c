@@ -6792,8 +6792,7 @@ int getTouchSampleThread(int *rawX, int *rawY, int *rawPressure)
     {
       if (ev[i].type ==  EV_SYN)
       {
-        printf("Event type is %s%s%s = Start of New Event\n",
-                KYEL, events[ev[i].type], KWHT);
+        //printf("Event type is %s%s%s = Start of New Event\n", KYEL, events[ev[i].type], KWHT);
       }
 
       else if (ev[i].type == EV_KEY && ev[i].code == 330 && ev[i].value == 1)
@@ -6833,8 +6832,7 @@ int getTouchSampleThread(int *rawX, int *rawY, int *rawPressure)
 
       if((*rawX != -1) && (*rawY != -1) && (StartTouch == 1))  // 1a
       {
-        printf("7 inch Touchscreen Touch Event: rawX = %d, rawY = %d, rawPressure = %d\n", 
-                *rawX, *rawY, *rawPressure);
+        printf("7 inch Touchscreen Touch Event: rawX = %d, rawY = %d\n", *rawX, *rawY);
         return 1;
       }
     }
@@ -6903,8 +6901,7 @@ int getTouchSampleThread(int *rawX, int *rawY, int *rawPressure)
 
       if((*rawX != -1) && (*rawY != -1) && (touchfinished == true))  // 1a
       {
-        printf("DFRobot Touch Event: rawX = %d, rawY = %d, rawPressure = %d\n", 
-                *rawX, *rawY, *rawPressure);
+        printf("DFRobot Touch Event: rawX = %d, rawY = %d, rawPressure = %d\n", *rawX, *rawY, *rawPressure);
         awaitingtouchstart = true;
         touchfinished = false;
         return 1;
