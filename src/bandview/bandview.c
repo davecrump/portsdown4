@@ -107,7 +107,7 @@ char PlotTitle[63] = "-";
 bool ContScan = false;
 
 int centrefreq = 437000;
-int span = 5120;
+int span = 512;  // 
 int limegain = 90;
 int pfreq1 = 146500;
 int pfreq2 = 437000;
@@ -1114,31 +1114,67 @@ int CreateButton(int MenuIndex, int ButtonPosition)
       h = 50;
     }
 
-    if ((ButtonPosition > 0) && (ButtonPosition < 6))  // 6 right hand buttons
+    if (ButtonPosition == 1)                            // Menu Title
     {
       x = normal_xpos;
       y = 480 - (ButtonPosition * 60);
       w = normal_width;
       h = 50;
     }
-    if (ButtonPosition == 6) // 10
+    if (ButtonPosition == 2)                             // 100 kHz
+    {
+      x = normal_xpos;  
+      y = 480 - (2 * 60);
+      w = 50;
+      h = 50;
+    }
+    if (ButtonPosition == 3)                             // 200 kHz
+    {
+      x = 710;   // = normal_xpos + 50 button width + 20 gap
+      y = 480 - (2 * 60);
+      w = 50;
+      h = 50;
+    }
+
+    if ((ButtonPosition == 4) || (ButtonPosition == 5))  // 500 kHz and 1 MHz
+    {
+      x = normal_xpos;
+      y = 480 - (ButtonPosition * 60) + 60;
+      w = normal_width;
+      h = 50;
+    }
+    if (ButtonPosition == 6) // 2
+    {
+      x = normal_xpos;  
+      y = 480 - (5 * 60);
+      w = 50;
+      h = 50;
+    }
+    if (ButtonPosition == 7) // 5
+    {
+      x = 710;  // = normal_xpos + 50 button width + 20 gap
+      y = 480 - (5 * 60);
+      w = 50;
+      h = 50;
+    }
+    if (ButtonPosition == 8) // 10
     {
       x = normal_xpos;  
       y = 480 - (6 * 60);
       w = 50;
       h = 50;
     }
-    if (ButtonPosition == 7) // 20
+    if (ButtonPosition == 9) // 20
     {
       x = 710;  // = normal_xpos + 50 button width + 20 gap
       y = 480 - (6 * 60);
       w = 50;
       h = 50;
     }
-    if ((ButtonPosition > 7) && (ButtonPosition < 10))  // Bottom 2 buttons
+    if ((ButtonPosition == 10) || (ButtonPosition == 11))  // Bottom 2 buttons
     {
       x = normal_xpos;
-      y = 480 - ((ButtonPosition - 1) * 60);
+      y = 480 - ((ButtonPosition - 3) * 60);
       w = normal_width;
       h = 50;
     }
@@ -1556,21 +1592,27 @@ void SetSpanWidth(int button)
   switch (button)
   {
     case 2:
-      span = 512;
+      span = 102;
     break;
     case 3:
-      span = 1024;
+      span = 205;
     break;
     case 4:
-      span = 2048;
+      span = 512;
     break;
     case 5:
-      span = 5120;
+      span = 1024;
     break;
     case 6:
-      span = 10240;
+      span = 2048;
     break;
     case 7:
+      span = 5120;
+    break;
+    case 8:
+      span = 10240;
+    break;
+    case 9:
       span = 20480;
     break;
   }
@@ -1890,29 +1932,83 @@ void CalcSpan()    // takes centre frequency and span and calulates startfreq an
   startfreq = centrefreq - (span * 125) / 256;
   stopfreq =  centrefreq + (span * 125) / 256;
   frequency_actual_rx = 1000.0 * (float)(centrefreq);
-  bandwidth = (float)(span * 1000);
+
+  if (span == 102)
+  {
+    bandwidth = 102400.0;
+  }
+  else if (span == 205)
+  {
+    bandwidth = 204800.0;
+  }
+  else
+  {
+    bandwidth = (float)(span * 1000);
+  }
 
   // set a sensible time constant for the fft display
   if (Range20dB == false)
   {
-    if (bandwidth >= 2048000)
+    switch (span)
     {
-      MAIN_SPECTRUM_TIME_SMOOTH =  0.98;
-    }
-    else
-    {
-      MAIN_SPECTRUM_TIME_SMOOTH =  0.92;
+      case 102:                                             // 100 kHz use 30
+        MAIN_SPECTRUM_TIME_SMOOTH =  0.85;
+        break;
+      case 205:                                             // 200 kHz use 30
+        MAIN_SPECTRUM_TIME_SMOOTH =  0.90;
+        break;
+      case 512:                                             // 500 kHz use 30
+        MAIN_SPECTRUM_TIME_SMOOTH =  0.92;
+        break;
+      case 1024:                                            // 1 MHz use 20
+        MAIN_SPECTRUM_TIME_SMOOTH =  0.95;
+        break;
+      case 2048:                                            // 2 MHz use 10
+        MAIN_SPECTRUM_TIME_SMOOTH =  0.96;
+        break;
+      case 5120:                                            // 5 MHz use 5
+        MAIN_SPECTRUM_TIME_SMOOTH =  0.965;
+        break;
+      case 10240:                                           // 10 MHz use 3
+        MAIN_SPECTRUM_TIME_SMOOTH =  0.97;
+        break;
+      case 20480:                                           // 20 MHz use 3
+        MAIN_SPECTRUM_TIME_SMOOTH =  0.97;
+        break;
+      default:
+        MAIN_SPECTRUM_TIME_SMOOTH =  0.98;
     }
   }
   else
   {
-    if (bandwidth >= 2048000)
+    switch (span)
     {
-      MAIN_SPECTRUM_TIME_SMOOTH =  0.9991;
-    }
-    else
-    {
-      MAIN_SPECTRUM_TIME_SMOOTH =  0.995;
+      case 102:                                             // 100 kHz use 30
+        MAIN_SPECTRUM_TIME_SMOOTH =  0.85;
+        break;
+      case 205:                                             // 200 kHz use 30
+        MAIN_SPECTRUM_TIME_SMOOTH =  0.90;
+        break;
+      case 512:                                             // 500 kHz use 30
+        MAIN_SPECTRUM_TIME_SMOOTH =  0.92;
+        break;
+      case 1024:                                            // 1 MHz use 20
+        MAIN_SPECTRUM_TIME_SMOOTH =  0.95;
+        break;
+      case 2048:                                            // 2 MHz use 10
+        MAIN_SPECTRUM_TIME_SMOOTH =  0.96;
+        break;
+      case 5120:                                            // 5 MHz use 5
+        MAIN_SPECTRUM_TIME_SMOOTH =  0.965;
+        break;
+      case 10240:                                           // 10 MHz use 3
+        MAIN_SPECTRUM_TIME_SMOOTH =  0.97;
+        break;
+      case 20480:                                           // 20 MHz use 3
+        MAIN_SPECTRUM_TIME_SMOOTH =  0.97;
+        break;
+      default:
+        MAIN_SPECTRUM_TIME_SMOOTH =  0.98;
     }
   }
 
@@ -2551,22 +2647,24 @@ void *WaitButtonEvent(void * arg)
           UpdateWindow();
           freeze = false;
           break;
-        case 2:                                            // 0.5
-        case 3:                                            // 1
-        case 4:                                            // 2
-        case 5:                                            // 5
-        case 6:                                            // 10
-        case 7:                                            // 20
+        case 2:                                            // 100 kHz
+        case 3:                                            // 200 kHz
+        case 4:                                            // 500 kHz
+        case 5:                                            // 1
+        case 6:                                            // 2
+        case 7:                                            // 5
+        case 8:                                            // 10
+        case 9:                                            // 20
           SetSpanWidth(i);
           CurrentMenu = 6;
           Start_Highlights_Menu6();
           UpdateWindow();
           break;
-        case 8:                                            // Return to Settings Menu
+        case 10:                                            // Return to Settings Menu
           CurrentMenu=3;
           UpdateWindow();
           break;
-        case 9:
+        case 11:
           if (freeze)
           {
             SetButtonStatus(ButtonNumber(CurrentMenu, 9), 0);
@@ -3220,40 +3318,48 @@ void Define_Menu6()                                           // Span Menu
   AddButtonStatus(button, " ", &Green);
 
   button = CreateButton(6, 2);
+  AddButtonStatus(button, "100", &Blue);
+  AddButtonStatus(button, "100", &Green);
+
+  button = CreateButton(6, 3);
+  AddButtonStatus(button, "200", &Blue);
+  AddButtonStatus(button, "200", &Green);
+
+  button = CreateButton(6, 4);
   AddButtonStatus(button, "500 kHz", &Blue);
   AddButtonStatus(button, "500 kHz", &Green);
 
-  button = CreateButton(6, 3);
+  button = CreateButton(6, 5);
   AddButtonStatus(button, "1 MHz", &Blue);
   AddButtonStatus(button, "1 MHz", &Green);
 
-  button = CreateButton(6, 4);
-  AddButtonStatus(button, "2 MHz", &Blue);
-  AddButtonStatus(button, "2 MHz", &Green);
-
-  button = CreateButton(6, 5);
-  AddButtonStatus(button, "5 MHz", &Blue);
-  AddButtonStatus(button, "5 MHz", &Green);
-
   button = CreateButton(6, 6);
+  AddButtonStatus(button, "2", &Blue);
+  AddButtonStatus(button, "2", &Green);
+
+  button = CreateButton(6, 7);
+  AddButtonStatus(button, "5", &Blue);
+  AddButtonStatus(button, "5", &Green);
+
+  button = CreateButton(6, 8);
   AddButtonStatus(button, "10", &Blue);
   AddButtonStatus(button, "10", &Green);
 
-  button = CreateButton(6, 7);
+  button = CreateButton(6, 9);
   AddButtonStatus(button, "20", &Blue);
   AddButtonStatus(button, "20", &Green);
 
-  button = CreateButton(6, 8);
+  button = CreateButton(6, 10);
   AddButtonStatus(button, "Back to^Settings", &DBlue);
 
-  button = CreateButton(6, 9);
+  button = CreateButton(6, 11);
   AddButtonStatus(button, "Freeze", &Blue);
   AddButtonStatus(button, "Unfreeze", &Green);
 }
 
 void Start_Highlights_Menu6()
 {
-  if (span == 512)
+  if (span == 102)
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 2), 1);
   }
@@ -3261,7 +3367,7 @@ void Start_Highlights_Menu6()
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 2), 0);
   }
-  if (span == 1024)
+  if (span == 205)
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 3), 1);
   }
@@ -3269,7 +3375,7 @@ void Start_Highlights_Menu6()
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 3), 0);
   }
-  if (span == 2048)
+  if (span == 512)
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 4), 1);
   }
@@ -3277,7 +3383,7 @@ void Start_Highlights_Menu6()
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 4), 0);
   }
-  if (span == 5120)
+  if (span == 1024)
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 5), 1);
   }
@@ -3285,7 +3391,7 @@ void Start_Highlights_Menu6()
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 5), 0);
   }
-  if (span == 10240)
+  if (span == 2048)
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 6), 1);
   }
@@ -3293,13 +3399,29 @@ void Start_Highlights_Menu6()
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 6), 0);
   }
-  if (span == 20480)
+  if (span == 5120)
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 7), 1);
   }
   else
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 7), 0);
+  }
+  if (span == 10240)
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 8), 1);
+  }
+  else
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 8), 0);
+  }
+  if (span == 20480)
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 9), 1);
+  }
+  else
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 9), 0);
   }
 }
 
