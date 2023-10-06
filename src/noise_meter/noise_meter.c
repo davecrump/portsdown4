@@ -116,7 +116,7 @@ int pfreq2 = 437000;
 int pfreq3 = 748000;
 int pfreq4 = 1255000;
 int pfreq5 = 2409000;
-char mode[31];           // absolute or differential or carrier
+char mode[31];           // absolute or differential or carrier or abscarrier
 int smoothing;           // 1 to 1000
 float noiseSmoothingFactor = 0.9;  // = 1.0 - (1 / (smoothing + 1))
 float carrierSmoothingFactor;
@@ -1684,8 +1684,8 @@ void SetBaseline()
   char InitText[63];
   float newBaseline;
 
-  // Don't do anything (so return) unless "absolute" mode is selected
-  if (strcmp(mode, "absolute") != 0)
+  // Don't do anything (so return) unless "absolute" or "absolute carrier mode is selected
+  if ((strcmp(mode, "absolute") != 0) && (strcmp(mode, "abscarrier") != 0))
   {
     return;
   }
@@ -2364,6 +2364,7 @@ void *WaitButtonEvent(void * arg)
         case 4:                                            // Mode
           printf("Mode Menu 5 Requested\n");
           CurrentMenu = 5;
+          Start_Highlights_Menu5();
           UpdateWindow();
           break;
         case 5:                                            // Left Arrow
@@ -2450,10 +2451,13 @@ void *WaitButtonEvent(void * arg)
           break;
         case 4:                                            // No action, show Lime Gain
           break;
-        case 6:                                            // Establish baseline
-          CalibrateBLRequested = true;
-          Start_Highlights_Menu2();
-          UpdateWindow();
+        case 6:                                            // Establish baseline in absolute noise mode
+          if (strcmp(mode, "absolute") == 0)
+          {
+            CalibrateBLRequested = true;
+            Start_Highlights_Menu2();
+            UpdateWindow();
+          }
           break;
         case 7:                                            // Return to Main Menu
           printf("Main Menu 1 Requested\n");
@@ -2658,13 +2662,17 @@ void *WaitButtonEvent(void * arg)
           Start_Highlights_Menu5();
           UpdateWindow();
           break;
-        case 4:                                            // Carrier Level Measurement
+        case 4:                                            // Carrier over Noise Level Measurement
           strcpy(mode, "carrier");
           SetConfigParam(PATH_CONFIG, "mode", "carrier");
           Start_Highlights_Menu5();
           UpdateWindow();
           break;
-        case 5:                                            // 
+        case 5:                                            // Absolute Carrier Level Measurement
+          strcpy(mode, "abscarrier");
+          SetConfigParam(PATH_CONFIG, "mode", "abscarrier");
+          Start_Highlights_Menu5();
+          UpdateWindow();
           break;
         case 6:                                            // Config Menu
           printf("Config Menu 9 Requested\n");
@@ -3091,10 +3099,15 @@ void Start_Highlights_Menu2()
       SetButtonStatus(ButtonNumber(2, 6), 0);
     }
   }
-  if ((strcmp(mode, "differential") == 0) || (strcmp(mode, "carrier") == 0))
+  if ((strcmp(mode, "differential") == 0) || (strcmp(mode, "carrier") == 0) || (strcmp(mode, "abscarrier") == 0))
   {
     SetButtonStatus(ButtonNumber(2, 2), 1);
     SetButtonStatus(ButtonNumber(2, 6), 3);
+
+    if (strcmp(mode, "abscarrier") == 0)
+    {
+      SetButtonStatus(ButtonNumber(2, 2), 0);  // Allow baseline to be established for absolute carrier mode
+    }
   }
   else
   {
@@ -3216,11 +3229,12 @@ void Define_Menu5()                                          // Mode Menu
   AddButtonStatus(button, "Differential^Noise", &Green);
 
   button = CreateButton(5, 4);
-  AddButtonStatus(button, "Carrier^Level", &Blue);
-  AddButtonStatus(button, "Carrier^Level", &Green);
+  AddButtonStatus(button, "Carrier/^Noise Level", &Blue);
+  AddButtonStatus(button, "Carrier/^Noise Level", &Green);
 
   button = CreateButton(5, 5);
-  AddButtonStatus(button, " ", &Blue);
+  AddButtonStatus(button, "Carrier^Abs Level", &Blue);
+  AddButtonStatus(button, "Carrier^Abs Level", &Green);
 
   button = CreateButton(5, 6);
   AddButtonStatus(button, "Config^Menu", &Blue);
@@ -3241,18 +3255,28 @@ void Start_Highlights_Menu5()
     SetButtonStatus(ButtonNumber(5, 2), 1);
     SetButtonStatus(ButtonNumber(5, 3), 0);
     SetButtonStatus(ButtonNumber(5, 4), 0);
+    SetButtonStatus(ButtonNumber(5, 5), 0);
   }
   if (strcmp(mode, "differential") == 0)
   {
     SetButtonStatus(ButtonNumber(5, 2), 0);
     SetButtonStatus(ButtonNumber(5, 3), 1);
     SetButtonStatus(ButtonNumber(5, 4), 0);
+    SetButtonStatus(ButtonNumber(5, 5), 0);
   }
   if (strcmp(mode, "carrier") == 0)
   {
     SetButtonStatus(ButtonNumber(5, 2), 0);
     SetButtonStatus(ButtonNumber(5, 3), 0);
     SetButtonStatus(ButtonNumber(5, 4), 1);
+    SetButtonStatus(ButtonNumber(5, 5), 0);
+  }
+  if (strcmp(mode, "abscarrier") == 0)
+  {
+    SetButtonStatus(ButtonNumber(5, 2), 0);
+    SetButtonStatus(ButtonNumber(5, 3), 0);
+    SetButtonStatus(ButtonNumber(5, 4), 0);
+    SetButtonStatus(ButtonNumber(5, 5), 1);
   }
 }
 
@@ -4080,13 +4104,13 @@ void DrawTrace(int xoffset, int prev2, int prev1, int current)
       }
       else
       {
-        if (((strcmp(mode, "differential") == 0) || (strcmp(mode, "carrier") == 0)) && 
+        if (((strcmp(mode, "differential") == 0) || (strcmp(mode, "carrier") == 0) || (strcmp(mode, "abscarrier") == 0)) && 
             (((xpos > 97 + refstartpixel ) && (xpos < 97 + refendpixel)) ||
             ((xpos > 97 + sigstartpixel) && (xpos < 97 + sigendpixel)))) // Show measurement frquencies
         {
           setPixelNoAGra(xpos, ypospix);
 
-          if ((strcmp(mode, "carrier") == 0) && (xpos == peakLine + 98))  // Draw carrier marker line
+          if (((strcmp(mode, "carrier") == 0) || (strcmp(mode, "abscarrier") == 0)) && (xpos == peakLine + 98))  // Draw carrier marker line
           {
             setPixelNoA(xpos, ypospix, 0, 255, 0);
           }
@@ -4721,6 +4745,14 @@ int main(void)
       baseNoiseSum = 0;
       meterdB = relativeNoise;
     }
+    else if (strcmp(mode, "abscarrier") == 0)
+    {
+      signalNoise = (signalNoiseSum)/ 5 - 80.0;
+      smoothedSignalNoise = (signalNoise * (1.f - carrierSmoothingFactor)) + (smoothedSignalNoise * carrierSmoothingFactor);
+      relativeNoise = smoothedSignalNoise - baseline;
+      signalNoiseSum = 0;
+      meterdB = relativeNoise;
+    }
 
     ScanCountforRefresh++;
 
@@ -4751,7 +4783,7 @@ int main(void)
       {
         snprintf(dBText, 20, "Signal %0.1f dB", smoothedSignalNoise);
       }
-      else if (strcmp(mode, "carrier") == 0)
+      else if ((strcmp(mode, "carrier") == 0) || (strcmp(mode, "abscarrier") == 0))
       {
         snprintf(dBText, 20, "Carrier %0.1f dB", smoothedSignalNoise);
       }
@@ -4762,7 +4794,7 @@ int main(void)
 
       // Display Lower Power Level
       rectangle(100, 130, 200, 22, 0, 0, 0);  // Blank area
-      if (strcmp(mode, "absolute") == 0)
+      if ((strcmp(mode, "absolute") == 0) || (strcmp(mode, "abscarrier") == 0))
       {
         snprintf(dBText, 20, "Baseline %0.1f dB", baseline);
       }
@@ -4772,7 +4804,7 @@ int main(void)
       }
       pthread_mutex_lock(&text_lock);
       setBackColour(0, 0, 0);
-      if (smoothedBaseNoise < -65.0)                         // Warn if outside linear region
+      if ((smoothedBaseNoise < -65.0) && (strcmp(mode, "abscarrier") != 0))           // Warn if outside linear region
       {
         setForeColour(255, 127, 127);
       }
@@ -4794,7 +4826,7 @@ int main(void)
           pthread_mutex_unlock(&text_lock);
         }
       }
-      else
+      else if ((strcmp(mode, "differential") == 0) || (strcmp(mode, "carrier") == 0))
       {
         if (smoothedBaseNoise < -65.0)
         {
@@ -4839,7 +4871,7 @@ int main(void)
         break;
       }
 
-      if (strcmp(mode, "carrier") != 0)
+      if ((strcmp(mode, "absolute") == 0) || (strcmp(mode, "differential") == 0))
       {
         snprintf(dBText, 20, "Noise Delta %0.1f dB", meterdB);
       }
@@ -4961,7 +4993,7 @@ int main(void)
           signalNoiseSum = signalNoiseSum + 2 * (y[pixel - 1] - 200);
         }
       }
-      else if (strcmp(mode, "carrier") == 0)
+      else if ((strcmp(mode, "carrier") == 0) || (strcmp(mode, "abscarrier") == 0))
       {
         // pixels go from 4 to 252
 
@@ -4971,8 +5003,6 @@ int main(void)
         }
         if ((pixel > sigstartpixel) && (pixel < sigendpixel))
         {
-          //signalNoiseSum = signalNoiseSum + 2 * (y[pixel - 1] - 200);
-
           if (y[pixel - 1] > peakY)
           {
             peakY = y[pixel - 1];
@@ -4988,9 +5018,9 @@ int main(void)
       frozen = false;
     }
 
-    if (strcmp(mode, "carrier") == 0)
+    if ((strcmp(mode, "carrier") == 0) || (strcmp(mode, "abscarrier") == 0))
     {
-      signalNoiseSum = signalNoiseSum + 2 * (y[peakPixel - 1] - 200);
+      signalNoiseSum = signalNoiseSum + 2 * (y[peakPixel - 1] - 200 + 3);  // 0 dB is at pixel 3
       peakLine = peakPixel;
       peakY = 0;
     }

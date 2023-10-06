@@ -126,7 +126,7 @@ void *fft_thread(void *arg)
 
         /* Copy data out of rf buffer into fft_input buffer */
 
-        if (strcmp(mode, "carrier") != 0)      // Normal, so use Hanning Window
+        if ((strcmp(mode, "differential") == 0) || (strcmp(mode, "absolute") == 0))   // Noise, so use Hanning Window
         {
           for (i = 0; i < FFT_SIZE; i++)
           {
