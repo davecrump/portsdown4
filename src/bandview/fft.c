@@ -81,6 +81,7 @@ void *fft_thread(void *arg)
   int i, offset;
   fftw_complex pt;
   double pwr, lpwr;
+  int16_t y_buffer;
 
   double pwr_scale = 1.0 / ((float)FFT_SIZE * (float)FFT_SIZE);
 
@@ -189,16 +190,20 @@ void *fft_thread(void *arg)
       }
 
       // Convert to int
-      y[i] = (uint16_t)(fft_scaled_data[i]);
+      y_buffer = (int16_t)(fft_scaled_data[i]);
 
       // Make sure that the data is within bounds
-      if(y[i] < 1)
+      if (y_buffer < 1)
       {
         y[i] = 1;
       }
-      if(y[i] > 399)
+      else if (y_buffer > 399)
       {
-        fft_scaled_data[i] = 399;
+        y[i] = 399;
+      }
+      else
+      {
+        y[i] = (uint16_t)y_buffer;
       }
     }
     //printf("Max: %f, Min %f\n", int_max, int_min);

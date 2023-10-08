@@ -1,3 +1,6 @@
+202310080
+Bugfix crash on Lime BandViewer 20 dB range selection
+
 202310060
 Add absolute carrier level measurement to noise meter
 
