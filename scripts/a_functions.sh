@@ -241,6 +241,36 @@ detect_audio()
       WC_VIDEO_FPS=25
     fi
 
+    Logi4KPresent=0
+    # Check for the presence of an Logi 4K Stream Edition with stereo audio
+    arecord -l | grep -E -q \
+      "Logi 4K"
+    if [ $? == 0 ]; then   ## Present
+      Logi4KPresent=1
+
+      WCAM="$(arecord -l | grep -E \
+        "Logi 4K" \
+        | head -c 6 | tail -c 1)"
+      WC_AUDIO_CHANNELS=2
+      WC_AUDIO_SAMPLE=32000
+      WC_VIDEO_FPS=30
+    fi
+
+    Ali4KPresent=0
+    # Check for the presence of PA3FBX's Ali Express 4K UHD Webcam
+    arecord -l | grep -E -q \
+      "WEBCAM [USB WEBCAM], device 0: USB Audio [USB Audio]"
+    if [ $? == 0 ]; then   ## Present
+      Ali4KPresent=1
+
+      WCAM="$(arecord -l | grep -E \
+        "WEBCAM [USB WEBCAM], device 0: USB Audio [USB Audio]" \
+        | head -c 6 | tail -c 1)"
+      WC_AUDIO_CHANNELS=1
+      WC_AUDIO_SAMPLE=16000
+      WC_VIDEO_FPS=30
+    fi
+
     printf "MIC = $MIC\n"
     printf "USBTV = $USBTV\n"
     printf "WCAM = $WCAM\n"
@@ -257,7 +287,7 @@ detect_audio()
               AUDIO_CHANNELS=1
               AUDIO_SAMPLE=48000
             elif [ "$USBTV" != "9" ] && [ "$MIC" == "9" ] && [ "$CamLink4KPresent" != "1" ]; then # Mic not available, but EasyCap is
-              AUDIO_CARD=1                                  # so use EasyCap audio
+              AUDIO_CARD=1                                  # so use EasyCap audio (correct for old and new EasyCaps)
               AUDIO_CARD_NUMBER=$USBTV
               AUDIO_CHANNELS=2
               AUDIO_SAMPLE=48000
@@ -375,13 +405,14 @@ detect_audio()
 
 detect_video()
 {
-  # List the video devices, select the 2 lines for any Webcam device, then
+  # List the video devices, select the 2 lines for any listed device, then
   # select the line with the device details and delete the leading tab
-  # This selects any device with "Webcam" in its description
+ 
+  #                                                         Check for any device with "Webcam" in its description
   VID_WEBCAM="$(v4l2-ctl --list-devices 2> /dev/null | \
     sed -n '/Webcam/,/dev/p' | grep 'dev' | tr -d '\t')"
 
-  if [ "${#VID_WEBCAM}" -lt "10" ]; then # $VID_WEBCAM currently empty
+  if [ "${#VID_WEBCAM}" -lt "10" ]; then #                 Check for Logitech C270
 
     # List the video devices, select the 2 lines for a C270 device, then
     # select the line with the device details and delete the leading tab
@@ -389,7 +420,7 @@ detect_video()
       sed -n '/046d:0825/,/dev/p' | grep 'dev' | tr -d '\t')"
   fi
 
-  if [ "${#VID_WEBCAM}" -lt "10" ]; then # $VID_WEBCAM currently empty
+  if [ "${#VID_WEBCAM}" -lt "10" ]; then #                 Check for Logitech C910
 
     # List the video devices, select the 2 lines for a C910 device, then
     # select the line with the device details and delete the leading tab
@@ -397,7 +428,7 @@ detect_video()
       sed -n '/046d:0821/,/dev/p' | grep 'dev' | tr -d '\t')"
   fi
 
-  if [ "${#VID_WEBCAM}" -lt "10" ]; then # $VID_WEBCAM currently empty
+  if [ "${#VID_WEBCAM}" -lt "10" ]; then #                 Check for Logitech B910
 
     # List the video devices, select the 2 lines for a new C910 (B910) device, then
     # select the line with the device details and delete the leading tab
@@ -405,7 +436,7 @@ detect_video()
       sed -n '/046d:0823/,/dev/p' | grep 'dev' | tr -d '\t')"
   fi
 
-  if [ "${#VID_WEBCAM}" -lt "10" ]; then # $VID_WEBCAM currently empty
+  if [ "${#VID_WEBCAM}" -lt "10" ]; then #                 Check for Logitech C310
 
     # List the video devices, select the 2 lines for a C310 device, then
     # select the line with the device details and delete the leading tab
@@ -413,7 +444,7 @@ detect_video()
       sed -n '/046d:081b/,/dev/p' | grep 'dev' | tr -d '\t')"
   fi
 
-  if [ "${#VID_WEBCAM}" -lt "10" ]; then # $VID_WEBCAM currently empty
+  if [ "${#VID_WEBCAM}" -lt "10" ]; then #                 Check for Polycom EagleEye
 
     # List the video devices, select the 2 lines for a Polycom EagleEye device, then
     # select the line with the device details and delete the leading tab
@@ -421,12 +452,26 @@ detect_video()
       sed -n '/EagleEye/,/dev/p' | grep 'dev' | tr -d '\t')"
   fi
 
-  if [ "${#VID_WEBCAM}" -lt "10" ]; then # $VID_WEBCAM currently empty
+  if [ "${#VID_WEBCAM}" -lt "10" ]; then #                 Check for CamLink 4K
 
-    # List the video devices, select the 2 lines for a CamL Link 4K device, then
+    # List the video devices, select the 2 lines for a CamLink 4K device, then
     # select the line with the device details and delete the leading tab
     VID_WEBCAM="$(v4l2-ctl --list-devices 2> /dev/null | \
       sed -n '/Cam Link 4K/,/dev/p' | grep 'dev' | tr -d '\t')"
+  fi
+
+  if [ "${#VID_WEBCAM}" -lt "10" ]; then #                 Check for BRIO 4K Stream Edition 
+    # List the video devices, select the 2 lines for a BRIO 4K Stream Edition device, then
+    # select the line with the device details and delete the leading tab
+    VID_WEBCAM="$(v4l2-ctl --list-devices 2> /dev/null | \
+      sed -n '/Logi 4K Stream Edition/,/dev/p' | grep 'dev' | tr -d '\t')"
+  fi
+
+  if [ "${#VID_WEBCAM}" -lt "10" ]; then #                 Check for Ali Express 4K UHD 
+    # List the video devices, select the 2 lines for an Ali Express 4K UHD device, then
+    # select the line with the device details and delete the leading tab
+    VID_WEBCAM="$(v4l2-ctl --list-devices 2> /dev/null | \
+      sed -n '/USB WEBCAM: USB WEBCAM/,/dev/p' | grep 'dev' | tr -d '\t')"
   fi
 
   printf "The first Webcam device string is $VID_WEBCAM\n"
@@ -496,6 +541,7 @@ detect_video()
   # C910
   # B910
   # C310
+  # BRIO4K
   # Webcam
 
   WEBCAM_TYPE="None"
@@ -583,12 +629,25 @@ detect_video()
   fi
 
   if [ "$WEBCAM_TYPE" == "None" ]; then
+    lsusb | grep -q "046d:086b"
+    if [ $? == 0 ]; then
+      WEBCAM_TYPE="BRIO4K"
+    fi
+  fi
+
+  if [ "$WEBCAM_TYPE" == "None" ]; then
+    lsusb | grep -q "1b3f:1167"
+    if [ $? == 0 ]; then
+      WEBCAM_TYPE="ALI4K"
+    fi
+  fi
+
+  if [ "$WEBCAM_TYPE" == "None" ]; then
     lsusb | grep -q "Webcam"
     if [ $? == 0 ]; then
       WEBCAM_TYPE="Webcam"
     fi
   fi
-
 
   if [ "$WEBCAM_TYPE" == "None" ]; then
     printf "No Webcam identified\n"
