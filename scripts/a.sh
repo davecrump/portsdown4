@@ -948,6 +948,20 @@ fi
         fi
       fi
 
+      # Logitech Brio 4K
+      if [ "$WEBCAM_TYPE" == "BRIO4K" ]; then
+        INPUT_FORMAT="yuyv422"
+        AUDIO_SAMPLE=24000
+        AUDIO_CHANNELS=2
+        if [ "$FORMAT" == "16:9" ]; then
+          VIDEO_WIDTH=800
+          VIDEO_HEIGHT=448
+        else
+          VIDEO_WIDTH=800
+          VIDEO_HEIGHT=600
+        fi
+      fi
+
       if [ "$WEBCAM_TYPE" == "C930e" ]; then  # C930e (G4KLB)
         INPUT_FORMAT="yuyv422"
         AUDIO_CHANNELS=2
@@ -958,6 +972,22 @@ fi
         elif [ "$FORMAT" == "16:9" ]; then
           VIDEO_WIDTH=800
           VIDEO_HEIGHT=448
+        else
+          VIDEO_WIDTH=800
+          VIDEO_HEIGHT=600
+        fi
+      fi
+
+      if [ "$WEBCAM_TYPE" == "ALI4K" ]; then  # Ali Express 4K UHD (PA3FBX)
+        INPUT_FORMAT="yuyv422"
+        AUDIO_CHANNELS=1
+        AUDIO_SAMPLE=16000
+        if [ "$FORMAT" == "720p" ]; then
+          VIDEO_WIDTH=1280
+          VIDEO_HEIGHT=720
+        elif [ "$FORMAT" == "16:9" ]; then
+          VIDEO_WIDTH=800
+          VIDEO_HEIGHT=480
         else
           VIDEO_WIDTH=800
           VIDEO_HEIGHT=600
@@ -1019,7 +1049,7 @@ fi
       exit
     fi
 
-    ##################### Pluto H264 EasyCap Code ##############################
+    ##################### Pluto DVB-S/S2 H264 EasyCap Code ##############################
 
     # Widescreen switching
     if [ "$FORMAT" == "16:9" ]; then
@@ -1029,7 +1059,7 @@ fi
       SCALE=""
     fi
 
-    if [ "$MODE_INPUT" == "ANALOGCAM" ]; then
+    if [ "$MODE_INPUT" == "ANALOGCAM" ] && [ "$MODULATION" != "DVB-T" ]; then
       # Set the EasyCap input and video standard
       if [ "$ANALOGCAMINPUT" != "-" ]; then
         v4l2-ctl -d $ANALOGCAMNAME "--set-input="$ANALOGCAMINPUT
@@ -1071,11 +1101,17 @@ fi
         if [ "$WEBCAM_TYPE" == "C930e" ] || [ "$WEBCAM_TYPE" == "EagleEye" ]; then
           AUDIO_SAMPLE=48000
         fi
+        if [ "$WEBCAM_TYPE" == "BRIO4K" ]; then
+          AUDIO_SAMPLE=24000
+        fi
+        if [ "$WEBCAM_TYPE" == "ALI4K" ]; then
+          AUDIO_SAMPLE=16000
+        fi
       fi
 
       # If a C920 put it in the right mode
       # Anything over 800x448 does not work
-      if [ "$WEBCAM_TYPE" == "OldC920" ] || [ "$WEBCAM_TYPE" == "OrbicamC920" ] \
+      if [ "$WEBCAM_TYPE" == "OldC920" ] || [ "$WEBCAM_TYPE" == "OrbicamC920" ] || [ "$WEBCAM_TYPE" == "BRIO4K" ] \
       || [ "$WEBCAM_TYPE" == "NewerC920" ] || [ "$WEBCAM_TYPE" == "C930e" ]; then
         if [ "$FORMAT" == "4:3" ]; then
           if [ "$BITRATE_VIDEO" -gt 190000 ]; then  # 333KS FEC 1/2 or better
@@ -1139,6 +1175,22 @@ fi
           VIDEO_WIDTH=352
           VIDEO_HEIGHT=288
           VIDEO_FPS=15
+        fi
+      fi
+
+      if [ "$WEBCAM_TYPE" == "ALI4K" ]; then
+        AUDIO_SAMPLE=16000
+        AUDIO_CHANNELS=1
+        if [ "$BITRATE_VIDEO" -gt 190000 ]; then  # 333KS FEC 1/2 or better
+          v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=800,height=480,pixelformat=0 --set-parm=30
+          VIDEO_WIDTH=800
+          VIDEO_HEIGHT=480
+          VIDEO_FPS=30
+        else
+          v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=320,height=240,pixelformat=0 --set-parm=30
+          VIDEO_WIDTH=320
+          VIDEO_HEIGHT=240
+          VIDEO_FPS=30
         fi
       fi
 
@@ -1238,11 +1290,19 @@ fi
           #VIDEO_HEIGHT=576
         fi
 
-        arecord -f S16_LE -r $AUDIO_SAMPLE -c 2 -B $ARECORD_BUF -D plughw:$AUDIO_CARD_NUMBER,0 > audioin.wav &
+        # Select correct audio capture
+        lsusb | grep -q "1b71:3002"
+        if [ $? == 0 ]; then #                              Fushicai EasyCap
+          arecord -f S16_LE -r $AUDIO_SAMPLE -c 2 -B $ARECORD_BUF -D plughw:$AUDIO_CARD_NUMBER,0 > audioin.wav &
+        else
+          rpidatv/bin/ffmpeg -f alsa -flags low_delay -ac 2 -i hw:$AUDIO_CARD_NUMBER,0 -f wav - > audioin.wav &
+        fi
 
         sudo $PATHRPI"/avc2ts" -b $BITRATE_VIDEO -m $BITRATE_TS -d 300 -x $VIDEO_WIDTH -y $VIDEO_HEIGHT \
           -f $VIDEO_FPS -i $IDRPERIOD $OUTPUT_FILE -t 2 -e $ANALOGCAMNAME -p $PIDPMT -s $CALL $OUTPUT_IP \
-          -a audioin.wav -z $BITRATE_AUDIO > /dev/null &
+          -a audioin.wav > /dev/null &
+
+          #-a audioin.wav -z $BITRATE_AUDIO > /dev/null &
 
         # Set the EasyCap contrast to prevent crushed whites
         sleep 2
@@ -1640,7 +1700,8 @@ fi
     WEBCAMMPEG-2)
       if [ "$WEBCAM_TYPE" == "OldC920" ] || [ "$WEBCAM_TYPE" == "OrbicamC920" ] \
       || [ "$WEBCAM_TYPE" == "NewerC920" ] || [ "$WEBCAM_TYPE" == "C910" ] \
-      || [ "$WEBCAM_TYPE" == "C930e" ] || [ "$WEBCAM_TYPE" == "B910" ]; then
+      || [ "$WEBCAM_TYPE" == "C930e" ] || [ "$WEBCAM_TYPE" == "B910" ] \
+      || [ "$WEBCAM_TYPE" == "BRIO4K" ] || [ "$WEBCAM_TYPE" == "ALI4K" ]; then
         v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=640,height=480,pixelformat=0 \
           --set-ctrl power_line_frequency=1
         AUDIO_SAMPLE=32000
@@ -1651,6 +1712,12 @@ fi
       if [ "$WEBCAM_TYPE" == "C310" ]; then
         ITS_OFFSET="-00:00:1.8"
       fi
+      if [ "$WEBCAM_TYPE" == "BRIO4K" ]; then
+        AUDIO_SAMPLE=24000
+      fi
+      if [ "$WEBCAM_TYPE" == "ALI4K" ]; then
+        AUDIO_SAMPLE=16000
+      fi
       VIDEO_WIDTH="640"
       VIDEO_HEIGHT="480"
       VIDEO_FPS=$WC_VIDEO_FPS
@@ -1658,7 +1725,8 @@ fi
     WEBCAM16MPEG-2)
       if [ "$WEBCAM_TYPE" == "OldC920" ] || [ "$WEBCAM_TYPE" == "OrbicamC920" ] \
       || [ "$WEBCAM_TYPE" == "NewerC920" ] || [ "$WEBCAM_TYPE" == "C910" ] \
-      || [ "$WEBCAM_TYPE" == "C930e" ] || [ "$WEBCAM_TYPE" == "B910" ]; then
+      || [ "$WEBCAM_TYPE" == "C930e" ] || [ "$WEBCAM_TYPE" == "B910" ] \
+      || [ "$WEBCAM_TYPE" == "BRIO4K" ] || [ "$WEBCAM_TYPE" == "ALI4K" ]; then
         v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=1280,height=720,pixelformat=0 \
           --set-ctrl power_line_frequency=1
         AUDIO_SAMPLE=32000
@@ -1668,6 +1736,12 @@ fi
       fi
       if [ "$WEBCAM_TYPE" == "C310" ]; then
         ITS_OFFSET="-00:00:1.8"
+      fi
+      if [ "$WEBCAM_TYPE" == "BRIO4K" ]; then
+        AUDIO_SAMPLE=24000
+      fi
+      if [ "$WEBCAM_TYPE" == "ALI4K" ]; then
+        AUDIO_SAMPLE=16000
       fi
       VIDEO_WIDTH="1280"
       VIDEO_HEIGHT="720"
@@ -1682,7 +1756,8 @@ fi
     WEBCAMHDMPEG-2)
       if [ "$WEBCAM_TYPE" == "OldC920" ] || [ "$WEBCAM_TYPE" == "OrbicamC920" ] \
       || [ "$WEBCAM_TYPE" == "NewerC920" ] || [ "$WEBCAM_TYPE" == "C910" ] \
-      || [ "$WEBCAM_TYPE" == "C930e" ] || [ "$WEBCAM_TYPE" == "B910" ]; then
+      || [ "$WEBCAM_TYPE" == "C930e" ] || [ "$WEBCAM_TYPE" == "B910" ] \
+      || [ "$WEBCAM_TYPE" == "BRIO4K" ] || [ "$WEBCAM_TYPE" == "ALI4K" ]; then
         v4l2-ctl --device="$VID_WEBCAM" --set-fmt-video=width=1280,height=720,pixelformat=0 \
           --set-ctrl power_line_frequency=1
         AUDIO_SAMPLE=32000
@@ -1692,6 +1767,12 @@ fi
       fi
       if [ "$WEBCAM_TYPE" == "C310" ]; then
         ITS_OFFSET="-00:00:2.0"
+      fi
+      if [ "$WEBCAM_TYPE" == "BRIO4K" ]; then
+        AUDIO_SAMPLE=24000
+      fi
+      if [ "$WEBCAM_TYPE" == "ALI4K" ]; then
+        AUDIO_SAMPLE=16000
       fi
       VIDEO_WIDTH="1280"
       VIDEO_HEIGHT="720"
@@ -1869,6 +1950,8 @@ exit
           -mpegts_pmt_start_pid $PIDPMT -streamid 0:"$PIDVIDEO" -streamid 1:"$PIDAUDIO" \
           -metadata service_provider=$CHANNEL -metadata service_name=$CALL \
           -muxrate $BITRATE_TS -y $OUTPUT &
+
+#          -f alsa -ac $AUDIO_CHANNELS -ar $AUDIO_SAMPLE \
 
       fi
 
