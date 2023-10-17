@@ -1,3 +1,6 @@
+202310170
+Increase time smoothing in LimeSDR BandViewer
+
 202310110
 Add limited support for the MS2106 EasyCap and Logitech Brio 4K Camera
 

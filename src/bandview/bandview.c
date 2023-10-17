@@ -1951,64 +1951,64 @@ void CalcSpan()    // takes centre frequency and span and calulates startfreq an
   {
     switch (span)
     {
-      case 102:                                             // 100 kHz use 30
-        MAIN_SPECTRUM_TIME_SMOOTH =  0.85;
+      case 102:                                             // 100 kHz
+        MAIN_SPECTRUM_TIME_SMOOTH =  0.88;
         break;
-      case 205:                                             // 200 kHz use 30
-        MAIN_SPECTRUM_TIME_SMOOTH =  0.90;
-        break;
-      case 512:                                             // 500 kHz use 30
+      case 205:                                             // 200 kHz
         MAIN_SPECTRUM_TIME_SMOOTH =  0.92;
         break;
-      case 1024:                                            // 1 MHz use 20
-        MAIN_SPECTRUM_TIME_SMOOTH =  0.95;
+      case 512:                                             // 500 kHz
+        MAIN_SPECTRUM_TIME_SMOOTH =  0.94;
         break;
-      case 2048:                                            // 2 MHz use 10
+      case 1024:                                            // 1 MHz
         MAIN_SPECTRUM_TIME_SMOOTH =  0.96;
         break;
-      case 5120:                                            // 5 MHz use 5
+      case 2048:                                            // 2 MHz
         MAIN_SPECTRUM_TIME_SMOOTH =  0.965;
         break;
-      case 10240:                                           // 10 MHz use 3
-        MAIN_SPECTRUM_TIME_SMOOTH =  0.97;
+      case 5120:                                            // 5 MHz
+        MAIN_SPECTRUM_TIME_SMOOTH =  0.967;
         break;
-      case 20480:                                           // 20 MHz use 3
-        MAIN_SPECTRUM_TIME_SMOOTH =  0.97;
+      case 10240:                                           // 10 MHz
+        MAIN_SPECTRUM_TIME_SMOOTH =  0.977;
+        break;
+      case 20480:                                           // 20 MHz
+        MAIN_SPECTRUM_TIME_SMOOTH =  0.985;
         break;
       default:
-        MAIN_SPECTRUM_TIME_SMOOTH =  0.98;
+        MAIN_SPECTRUM_TIME_SMOOTH =  0.96;
     }
   }
-  else
+  else                                                     // 20dB range
   {
     switch (span)
     {
-      case 102:                                             // 100 kHz use 30
-        MAIN_SPECTRUM_TIME_SMOOTH =  0.85;
+      case 102:                                             // 100 kHz
+        MAIN_SPECTRUM_TIME_SMOOTH =  0.99;
         break;
-      case 205:                                             // 200 kHz use 30
-        MAIN_SPECTRUM_TIME_SMOOTH =  0.90;
+      case 205:                                             // 200 kHz
+        MAIN_SPECTRUM_TIME_SMOOTH =  0.992;
         break;
-      case 512:                                             // 500 kHz use 30
-        MAIN_SPECTRUM_TIME_SMOOTH =  0.92;
+      case 512:                                             // 500 kHz
+        MAIN_SPECTRUM_TIME_SMOOTH =  0.994;
         break;
-      case 1024:                                            // 1 MHz use 20
-        MAIN_SPECTRUM_TIME_SMOOTH =  0.95;
+      case 1024:                                            // 1 MHz
+        MAIN_SPECTRUM_TIME_SMOOTH =  0.9955;
         break;
-      case 2048:                                            // 2 MHz use 10
-        MAIN_SPECTRUM_TIME_SMOOTH =  0.96;
+      case 2048:                                            // 2 MHz
+        MAIN_SPECTRUM_TIME_SMOOTH =  0.9965;
         break;
-      case 5120:                                            // 5 MHz use 5
-        MAIN_SPECTRUM_TIME_SMOOTH =  0.965;
+      case 5120:                                            // 5 MHz
+        MAIN_SPECTRUM_TIME_SMOOTH =  0.997;
         break;
-      case 10240:                                           // 10 MHz use 3
-        MAIN_SPECTRUM_TIME_SMOOTH =  0.97;
+      case 10240:                                           // 10 MHz
+        MAIN_SPECTRUM_TIME_SMOOTH =  0.9981;
         break;
-      case 20480:                                           // 20 MHz use 3
-        MAIN_SPECTRUM_TIME_SMOOTH =  0.97;
+      case 20480:                                           // 20 MHz
+        MAIN_SPECTRUM_TIME_SMOOTH =  0.9985;
         break;
       default:
-        MAIN_SPECTRUM_TIME_SMOOTH =  0.98;
+        MAIN_SPECTRUM_TIME_SMOOTH =  0.997;
     }
   }
 
