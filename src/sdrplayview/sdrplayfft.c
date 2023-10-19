@@ -935,6 +935,9 @@ void *sdrplay_fft_thread(void *arg) {
       pthread_setname_np(fftThread, "FFT Calculation");
       printf("FFT thread running.\n");
 
+      // Trigger setting of correct port on startup
+      NewPort = true;
+
       // Copy fft scaled data to display buffer 
       while ((false == *exit_requested) && (app_exit == false)) 
       {
@@ -1094,6 +1097,65 @@ void *sdrplay_fft_thread(void *arg) {
           {
             sdrplay_api_Uninit(chosenDevice->dev);
 
+            // No check for SDRPLAY_RSP1_ID as no settings to change
+
+            if (chosenDevice->hwVer == SDRPLAY_RSP1A_ID)
+            {
+              if (BiasT_volts)
+              {
+                deviceParams->rxChannelA->rsp1aTunerParams.biasTEnable = 1;
+              }
+              else
+              {
+                deviceParams->rxChannelA->rsp1aTunerParams.biasTEnable = 0;
+              }
+              printf("Port or BiasT change for rsp1a complete\n");
+            }
+
+            if (chosenDevice->hwVer == SDRPLAY_RSP2_ID)
+            {
+              if (BiasT_volts)
+              {
+                deviceParams->rxChannelA->rsp2TunerParams.biasTEnable = 1;
+              }
+              else
+              {
+                deviceParams->rxChannelA->rsp2TunerParams.biasTEnable = 0;
+              }
+              switch (Antenna_port)
+              {
+                case 0:
+                  deviceParams->rxChannelA->rsp2TunerParams.antennaSel = sdrplay_api_Rsp2_ANTENNA_A;
+                  deviceParams->rxChannelA->rsp2TunerParams.amPortSel = sdrplay_api_Rsp2_AMPORT_2;
+                  break;
+                case 1:
+                  deviceParams->rxChannelA->rsp2TunerParams.antennaSel = sdrplay_api_Rsp2_ANTENNA_B;
+                  deviceParams->rxChannelA->rsp2TunerParams.amPortSel = sdrplay_api_Rsp2_AMPORT_2;
+                  break;
+                case 2:
+                  deviceParams->rxChannelA->rsp2TunerParams.amPortSel = sdrplay_api_Rsp2_AMPORT_1;
+                  break;
+              }
+              printf("Port or BiasT change for rsp2 complete\n");
+            }
+
+            if (chosenDevice->hwVer == SDRPLAY_RSPduo_ID)
+            {
+              switch (Antenna_port)
+              {
+                case 0:
+                  deviceParams->rxChannelA->rspDuoTunerParams.tuner1AmPortSel = sdrplay_api_RspDuo_AMPORT_2; // sma
+                  break;
+                case 1:
+                  deviceParams->rxChannelA->rspDuoTunerParams.tuner1AmPortSel = sdrplay_api_RspDuo_AMPORT_1; // Hi-Z
+                  break;
+                case 2:
+                  deviceParams->rxChannelA->rspDuoTunerParams.tuner1AmPortSel = sdrplay_api_RspDuo_AMPORT_1; // Hi-Z
+                  break;
+              }
+              printf("Port change for rspduo complete\n");
+            }
+
             if (chosenDevice->hwVer == SDRPLAY_RSPdx_ID)
             {
               // Set BiasT
@@ -1119,8 +1181,10 @@ void *sdrplay_fft_thread(void *arg) {
                   deviceParams->devParams->rspDxParams.antennaSel = sdrplay_api_RspDx_ANTENNA_C;
                   break;
               }
+              printf("Port or BiasT change for rspDX complete\n");
             }
-            printf("Port or BiasT change for rspDX complete\n");
+
+
             NewPort = false;
 
             // Restart SDR
