@@ -1,3 +1,6 @@
+202310190
+Support for RSP2 in SDRplay BandViewer
+
 202310170
 Increase time smoothing in LimeSDR BandViewer
 
