@@ -564,6 +564,10 @@ void ReadSavedParams()
   strcpy(response, "0");
   GetConfigParam(PATH_CONFIG, "port", response);
   Antenna_port = atoi(response);
+  if (Antenna_port > 2)  // unsigned int, so can't be less than 0
+  {
+    Antenna_port = 0;
+  }
 
   strcpy(response, "off");
   GetConfigParam(PATH_CONFIG, "biast", response);
@@ -2303,19 +2307,43 @@ void SetPort(int button)
   {
     case 2:                                            // Set Input Port
       // Define request string
-      strcpy(RequestText, "Enter 0, 1 or 2 for Antenna port A, B or C ");
+      strcpy(RequestText, "Enter Antenna port A, B or C. Use C for Hi-Z");
 
       // Define initial value
-      snprintf(InitText, 25, "%d", Antenna_port);
+      strcpy(InitText, "A");
+      switch (Antenna_port)
+      {
+        case 0:
+          strcpy(InitText, "A");
+          break;
+        case 1:
+          strcpy(InitText, "B");
+          break;
+        case 2:
+          strcpy(InitText, "C");
+          break;
+      }
 
       // Ask for the new value
       do
       {
         Keyboard(RequestText, InitText, 10);
       }
-      while ((strlen(KeyboardReturn) == 0) || (atoi(KeyboardReturn) < 0) || (atoi(KeyboardReturn) > 9));
+      while ((strcmp(KeyboardReturn, "A") != 0) && (strcmp(KeyboardReturn, "B") != 0) && (strcmp(KeyboardReturn, "C") != 0));
 
-      Antenna_port = atoi(KeyboardReturn);
+      if (strcmp(KeyboardReturn, "B") == 0)
+      {
+        Antenna_port = 1;
+      }
+      else if (strcmp(KeyboardReturn, "C") == 0)
+      {
+        Antenna_port = 2;
+      }
+      else
+      {
+        Antenna_port = 0;
+      }
+
       snprintf(ValueToSave, 63, "%d", Antenna_port);
       SetConfigParam(PATH_CONFIG, "port", ValueToSave);
       printf("Antenna port set to %d\n", Antenna_port);
@@ -4709,7 +4737,18 @@ void Define_Menu14()                                          // Advanced Config
 void Start_Highlights_Menu14()
 {
   char ButtText[31];
-  snprintf(ButtText, 30, "Antenna^port %d", Antenna_port);
+  switch (Antenna_port)
+  {
+    case 0:
+      strcpy(ButtText, "Antenna^Port A");
+      break;
+    case 1:
+      strcpy(ButtText, "Antenna^Port B");
+      break;
+    case 2:
+      strcpy(ButtText, "Antenna^Port C/Hi Z");
+      break;
+  }
   AmendButtonStatus(ButtonNumber(CurrentMenu, 2), 0, ButtText, &Blue);
 
   if (BiasT_volts)
