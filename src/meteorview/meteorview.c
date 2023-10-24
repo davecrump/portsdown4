@@ -2706,7 +2706,7 @@ void CalcSpan()    // takes centre frequency and span and calculates startfreq a
           fft_time_smooth = 0.90;
         break;
         case 10000:                                           // 10 kHz
-          fft_time_smooth = 0.90;
+          fft_time_smooth = 0.8;
         break;
       }
     }
@@ -2721,7 +2721,7 @@ void CalcSpan()    // takes centre frequency and span and calculates startfreq a
           fft_time_smooth = 0.90;
         break;
         case 10000:                                           // 10 kHz
-          fft_time_smooth = 0.96;
+          fft_time_smooth = 0.90;
         break;
       }
     }

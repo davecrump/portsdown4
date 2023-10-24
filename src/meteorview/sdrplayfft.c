@@ -121,6 +121,7 @@ unsigned long long int buf_total = 0; /* for debug */
 //#define FFT_BUFFER_SIZE 1024
 //#define FFT_BUFFER_SIZE 2048  // Size of buffer, not size of fft
 #define DECIMATION 8      /* we need to do a further factor of 8 decimation to get from 80 KSPS to 10 KSPS */
+#define CORRECTION_GAIN 10
 
 long int output_buffer_i[FFT_BUFFER_SIZE];
 long int output_buffer_q[FFT_BUFFER_SIZE];
@@ -256,27 +257,154 @@ void non_filter(short xi, short xq, int reset)
   }
 }
 
+int stream_factor = 3;
+
 /* --------------------------------------------------------------------- */
-void cic_filter(short xi, short xq, int reset) {
+void cic_filter(short xi, short xq, int reset)
+{
+  static int decimation_cnt;
+  static int buf_ptr;
+
+  static long int i_int1_out,     i_int2_out,      i_int3_out;
+  static long int i_comb1_out,    i_comb2_out,     i_comb3_out;
+  static long int i_int3_out_old, i_comb2_out_old, i_comb1_out_old;
+  static long int i_y,            i_w1,            i_w2;
+
+  static long int q_int1_out,     q_int2_out,      q_int3_out;
+  static long int q_comb1_out,    q_comb2_out,     q_comb3_out;
+  static long int q_int3_out_old, q_comb2_out_old, q_comb1_out_old;
+  static long int q_y,            q_w1,            q_w2;
+
+
+  if (false)   // true for new filter code, false for old
+  {
 /* --------------------------------------------------------------------- */
 /* implementing a 3 stage CIC filter with R = D = 8                      */
 /* for 14 bits in, and decimation by 8, we need 14 + 3.log2(8) = 23 bits */
-/* this is a long int on the RPI                                         */
+/* this needs a long int on the RPI                                      */
 /* the CIC looks like:                                                   */
 /*                                                                       */
 /*   int1 -> int2 -> int3 -> R(down) -> comb1 -> comb2 -> comb3          */
 /*                                                                       */
+/* we will use a simple correction filter of the form:                   */
+/*   w(n)  Z-1    z-1                                                    */
+/*    |     |      |                                                     */
+/*    |    x10     |                                                     */
+/*      -       +   =yn                                                  */
+/* w3 = w(n) = i_comb3_out = output of CIC                               */
+/*                                                                       */
+/* note we have 14 bit input data so we only need to shift down by 8     */
+/*  bits for the CIC to have valid output data (15 bits + sign bit)      */
+/* but the correction filter adds another 4 bits so shift by 12 bits.    */
 /* --------------------------------------------------------------------- */
-    static int decimation_cnt;
-    static int buf_ptr;
 
-    static long int i_int1_out,     i_int2_out,      i_int3_out;
-    static long int i_comb1_out,    i_comb2_out,     i_comb3_out;
-    static long int i_int3_out_old, i_comb2_out_old, i_comb1_out_old;
+ 
+   if (reset) {
 
-    static long int q_int1_out,     q_int2_out,      q_int3_out;
-    static long int q_comb1_out,    q_comb2_out,     q_comb3_out;
-    static long int q_int3_out_old, q_comb2_out_old, q_comb1_out_old;
+        printf("Got reset\n"); /* for debugging */
+        /* need to reset all the filter delays and the counters */
+        decimation_cnt = DECIMATION;
+        buf_ptr = 0;
+  
+        i_int1_out  = 0;
+        i_int2_out  = 0;
+        i_int3_out  = 0;
+        i_comb1_out = 0;
+        i_comb2_out = 0;
+        i_comb3_out = 0;
+        i_int3_out_old  = 0;
+        i_comb2_out_old = 0;
+        i_comb1_out_old = 0;
+        i_y  = 0;
+        i_w2 = 0;
+        i_w1 = 0;
+
+        q_int1_out  = 0;
+        q_int2_out  = 0;
+        q_int3_out  = 0;
+        q_comb1_out = 0;
+        q_comb2_out = 0;
+        q_comb3_out = 0;
+        q_int3_out_old  = 0;
+        q_comb2_out_old = 0;
+        q_comb1_out_old = 0;
+        q_y  = 0;
+        q_w2 = 0;
+        q_w1 = 0;
+
+    } else {
+
+        /* for efficiency we do the decimation (by factor R) first */
+        decimation_cnt--;
+        if (decimation_cnt == 0) 
+        {
+            decimation_cnt = DECIMATION;
+
+            /* and then the comb filters (work right to left) */
+            i_comb3_out     = i_comb2_out - i_comb2_out_old;
+            i_comb2_out_old = i_comb2_out;
+            i_comb2_out     = i_comb1_out - i_comb1_out_old;
+            i_comb1_out_old = i_comb1_out;
+            i_comb1_out     = i_int3_out  - i_int3_out_old;
+            i_int3_out_old  = i_int3_out;
+
+            /* now we need a compensation filter       */
+            i_y  = i_comb3_out - (CORRECTION_GAIN*i_w2) + i_w1;
+            i_w1 = i_w2;           /* z-2 */
+            i_w2 = i_comb3_out;    /* z-1 */
+
+            /* finally we have a data point to send out so off it goes */
+            output_buffer_i[buf_ptr]   = (short)(i_y>>12);
+
+            /* and we fill a transmit buffer with interleaved I,Q samples */
+            *(short *)(transmit_buffer + LWS_PRE      + (2 * 2*buf_ptr)+2) = (short)(i_y>>12);
+            *(short *)(server_buffer   + TCP_DATA_PRE + (2 * 2*buf_ptr)+2) = (short)(i_y>>12);
+
+
+            /* since we always do the i and q in sync, no need for separate deimation counts or buffer pointers */
+            q_comb3_out     = q_comb2_out - q_comb2_out_old;
+            q_comb2_out_old = q_comb2_out;
+            q_comb2_out     = q_comb1_out - q_comb1_out_old;
+            q_comb1_out_old = q_comb1_out;
+            q_comb1_out     = q_int3_out  - q_int3_out_old;
+            q_int3_out_old  = q_int3_out;
+            
+            /* now we need a compensation filter       */
+            q_y  = q_comb3_out - (CORRECTION_GAIN*q_w2) + q_w1;
+            q_w1 = q_w2;           /* z-2 */
+            q_w2 = q_comb3_out;    /* z-1 */
+
+            /* finally we have a data point to send out so off it goes */
+            output_buffer_q[buf_ptr]     = (short)(q_y>>12);
+
+            /* and we fill a transmit buffer with interleaved I,Q samples */
+            *(short *)(transmit_buffer + LWS_PRE      + (2 * 2*buf_ptr)) = (short)(q_y>>12);
+            *(short *)(server_buffer   + TCP_DATA_PRE + (2 * 2*buf_ptr)) = (short)(q_y>>12);
+
+
+            /* if we have filled the output buffer, then we can output it to the FFT and the internet */
+            buf_ptr++;
+            if (buf_ptr == FFT_BUFFER_SIZE) {
+                fft();
+                buffer_send();
+                buf_ptr = 0;
+            }
+            if ((q_y>>11) != ((short)(q_y>>11))) printf("Housten we have a q problem %li\n",q_y);
+            if ((i_y>>11) != ((short)(i_y>>11))) printf("Housten we have a i problem %li\n",i_y);
+        }
+
+        /* for efficiency we do the integrators last, again right to left, so that we don't overwrite any values */
+        i_int3_out = i_int2_out   + i_int3_out;
+        i_int2_out = i_int1_out   + i_int2_out;
+        i_int1_out = (long int)xi + i_int1_out;
+
+        q_int3_out = q_int2_out   + q_int3_out;
+        q_int2_out = q_int1_out   + q_int2_out;
+        q_int1_out = (long int)xq + q_int1_out;
+    }
+  }
+  else  // old filter code
+  {
 
     if (reset) {
 
@@ -324,8 +452,8 @@ void cic_filter(short xi, short xq, int reset) {
             output_buffer_i[buf_ptr]   = i_comb3_out;
 
             /* and we fill a transmit buffer with interleaved I,Q samples */
-            *(short *)(transmit_buffer + LWS_PRE      + (2 * 2*buf_ptr)+2) = i_comb3_out;
-            *(short *)(server_buffer   + TCP_DATA_PRE + (2 * 2*buf_ptr)+2) = i_comb3_out;
+            *(short *)(transmit_buffer + LWS_PRE      + (2 * 2*buf_ptr)+2) = i_comb3_out / stream_factor;
+            *(short *)(server_buffer   + TCP_DATA_PRE + (2 * 2*buf_ptr)+2) = i_comb3_out / stream_factor;
 
             /* since we always do the i and q in sync, no need for separate deimation counts or buffer pointers */
             q_comb3_out     = q_comb2_out - q_comb2_out_old;
@@ -336,8 +464,8 @@ void cic_filter(short xi, short xq, int reset) {
             q_int3_out_old  = q_int3_out;
             
             output_buffer_q[buf_ptr]     = q_comb3_out;
-            *(short *)(transmit_buffer + LWS_PRE      + (2 * 2*buf_ptr)) = q_comb3_out;  
-            *(short *)(server_buffer   + TCP_DATA_PRE + (2 * 2*buf_ptr)) = q_comb3_out;
+            *(short *)(transmit_buffer + LWS_PRE      + (2 * 2*buf_ptr)) = q_comb3_out / stream_factor;  
+            *(short *)(server_buffer   + TCP_DATA_PRE + (2 * 2*buf_ptr)) = q_comb3_out / stream_factor;
 
             /* if we have filled the output buffer, then we can output it to the FFT and the internet */
             buf_ptr++;
@@ -351,12 +479,14 @@ void cic_filter(short xi, short xq, int reset) {
         /* for efficiency we do the integrators last, again right to left, so that we don't overwrite any values */
         i_int3_out = i_int2_out   + i_int3_out;
         i_int2_out = i_int1_out   + i_int2_out;
-        i_int1_out = (long int)xi + i_int1_out;
+        i_int1_out = (long int)xi / 1  + i_int1_out;
 
         q_int3_out = q_int2_out   + q_int3_out;
         q_int2_out = q_int1_out   + q_int2_out;
-        q_int1_out = (long int)xq + q_int1_out;
+        q_int1_out = (long int)xq / 1 + q_int1_out;
     }
+
+  }
 }
 
 
@@ -391,6 +521,7 @@ void StreamACallback(short *xi, short *xq, sdrplay_api_StreamCbParamsT *params,
         
         for (count=0; count<numSamples; count++) {
             /* we may need to reset our CIC fiter to provide a good starting point */
+            //non_filter(*p_xi, *p_xq, false);
             cic_filter(*p_xi, *p_xq, false);
             p_xi++; /* pointer maths ... ugggy but efficient */
             p_xq++;
@@ -706,6 +837,7 @@ void fft_to_buffer()
   {
     // Add a constant to position the baseline
     fft_output_data[j] = fft_output_data[j] + 75.0;
+//    fft_output_data[j] = fft_output_data[j] + 185.0;
 
     // Multiply by 5 (pixels per dB on display)
     fft_output_data[j] = fft_output_data[j] * 5;
@@ -1013,7 +1145,8 @@ void *sdrplay_fft_thread(void *arg) {
         if (master_slave == 0)
         {
           // We choose to sample at 256 * 10 KSPS to make decimation to 10 kSPS easier
-          deviceParams->devParams->fsFreq.fsHz = 2560000.0;
+//          deviceParams->devParams->fsFreq.fsHz = 2560000.0;
+          deviceParams->devParams->fsFreq.fsHz = 6000000.0;
         }
         else
         {
@@ -1035,7 +1168,8 @@ void *sdrplay_fft_thread(void *arg) {
         // Change single tuner mode to ZIF
         if (master_slave == 0)
         { 
-          chParams->tunerParams.ifType = sdrplay_api_IF_Zero;
+//          chParams->tunerParams.ifType = sdrplay_api_IF_Zero;
+          chParams->tunerParams.ifType = sdrplay_api_IF_1_620;
         }
 
         // Set the tuner gain
