@@ -235,6 +235,7 @@ void *lime_thread(void *arg)
   {
     // Receive samples
     samplesRead = LMS_RecvStream(&rx_stream, buffer, buffersize, &rx_metadata, 1000);
+    //printf("Sampleas Read = %d", samplesRead);
 
     // Break out of loop if required
     if (*exit_requested) 
