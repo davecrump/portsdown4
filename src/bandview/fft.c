@@ -11,7 +11,7 @@
 #include <pthread.h>
 #include <math.h>
 
-// sudo apt install libfftw3-dev
+// needs sudo apt install libfftw3-dev
 #include <fftw3.h>
 
 #include "timing.h"
@@ -20,20 +20,16 @@
 #include "graphics.h"
 
 #define PI 3.14159265358979323846
-
+#define FFT_SIZE 512
 
 /* Input from lime.c */
 extern lime_fft_buffer_t lime_fft_buffer;
 
-extern bool wfall;
-extern bool NewSettings;
-
 extern bool Range20dB;
 extern int BaseLine20dB;
-
-#define FFT_SIZE    512 //2048
-
-extern float MAIN_SPECTRUM_TIME_SMOOTH; // 0.0 - 1.0
+extern int8_t BaselineShift;
+extern float smoothing_factor; // 0.0 - 1.0
+extern int32_t freqoffset;
 
 static float hanning_window_const[FFT_SIZE];
 static float hamming_window_const[FFT_SIZE];
@@ -44,7 +40,6 @@ static fftwf_plan fft_plan;
 
 static float fft_data_staging[FFT_SIZE];
 static float fft_scaled_data[FFT_SIZE];
-static uint8_t fft_data_output[FFT_SIZE];
 int y[515];
 
 void main_fft_init(void)
@@ -87,7 +82,7 @@ void *fft_thread(void *arg)
 
   struct timespec ts;
 
-  uint64_t last_output = monotonic_ms();
+  //uint64_t last_output = monotonic_ms();
 
   /* Set pthread timer on .signal to use monotonic clock */
   pthread_condattr_t attr;
@@ -117,7 +112,7 @@ void *fft_thread(void *arg)
 
     offset = lime_fft_buffer.index * FFT_SIZE * 2;
 
-    // Set up changing phase and fequency for cal signal (not used for normal operation)
+    // Set up changing phase and frequency for cal signal (not used for normal operation)
     bool cal  = false;
     static float foffset = 2.55;
     static float phaseoffset  = 0;
@@ -130,8 +125,16 @@ void *fft_thread(void *arg)
     {
       if (cal == false)
       {
-        fft_in[i][0] = (((float*)lime_fft_buffer.data)[offset + (2 * i)    ] + 0.00048828125) * hanning_window_const[i];
-        fft_in[i][1] = (((float*)lime_fft_buffer.data)[offset + (2 * i) + 1] + 0.00048828125) * hanning_window_const[i];
+        if (freqoffset >= 0) // Check if spectrum needs to be reversed
+        {
+          fft_in[i][0] = (((float*)lime_fft_buffer.data)[offset + (2 * i)    ] + 0.00048828125) * hanning_window_const[i];
+          fft_in[i][1] = (((float*)lime_fft_buffer.data)[offset + (2 * i) + 1] + 0.00048828125) * hanning_window_const[i];
+        }
+        else                // Reverse Spectrum
+        {
+          fft_in[i][1] = (((float*)lime_fft_buffer.data)[offset + (2 * i)    ] + 0.00048828125) * hanning_window_const[i];
+          fft_in[i][0] = (((float*)lime_fft_buffer.data)[offset + (2 * i) + 1] + 0.00048828125) * hanning_window_const[i];
+        }
       }
       else
       {
@@ -146,11 +149,6 @@ void *fft_thread(void *arg)
 
     // Run FFT
     fftwf_execute(fft_plan);
-
-    if (wfall == true)
-    {
-      MAIN_SPECTRUM_TIME_SMOOTH = 0;
-    }
 
     for (i = 0; i < FFT_SIZE; i++)
     {
@@ -168,10 +166,11 @@ void *fft_thread(void *arg)
       pwr = pwr_scale * ((pt[0] * pt[0]) + (pt[1] * pt[1]));
       lpwr = 10.f * log10(pwr + 1.0e-20);
 
-      fft_data_staging[i] = (lpwr * (1.f - MAIN_SPECTRUM_TIME_SMOOTH)) + (fft_data_staging[i] * MAIN_SPECTRUM_TIME_SMOOTH);
+      fft_data_staging[i] = (lpwr * (1.f - smoothing_factor)) + (fft_data_staging[i] * smoothing_factor);
 
       // Set the scaling and vertical offset
-      fft_scaled_data[i] = 5 * (fft_data_staging[i] + 140);  
+      // 5 pixels per dB.  140 adjusts 0 dBFS to be 0.  baseline shift in dB
+      fft_scaled_data[i] = 5 * ((fft_data_staging[i] + 140 ) + (float)BaselineShift);  
 
       // Correct for the roll-off at the ends of the fft
       if (i < 46)
@@ -207,17 +206,6 @@ void *fft_thread(void *arg)
       }
     }
     //printf("Max: %f, Min %f\n", int_max, int_min);
-
-    //ws_fft_submit((uint8_t *)fft_data_staging, (FFT_SIZE * sizeof(float)));
-
-    if(monotonic_ms() > (last_output + 50))  // so 20 Hz refresh
-    {
-      if (wfall == true)
-      {
-        waterfall_render_fft(fft_data_output);
-      }
-      last_output = monotonic_ms();
-    }
   }
 
   fft_fftw_close();
