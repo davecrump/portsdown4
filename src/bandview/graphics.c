@@ -19,43 +19,6 @@
 
 #define NEON_ALIGNMENT (4*4*2) // From libcsdr
 
-//int64_t lo_frequency = 9750000;
-int64_t center_frequency = 10489850000;
-int64_t span_frequency = 512000;
-
-int64_t selected_span_frequency = 10240;
-int64_t selected_center_frequency = 10489499950;
-
-/** Main Waterfall Display **/
-
-#define MAIN_WATERFALL_WIDTH    512
-#define MAIN_WATERFALL_HEIGHT   230
-screen_pixel_t main_waterfall_buffer[MAIN_WATERFALL_HEIGHT][MAIN_WATERFALL_WIDTH] __attribute__ ((aligned (NEON_ALIGNMENT)));
-
-#define MAIN_WATERFALL_POS_X    100
-#define MAIN_WATERFALL_POS_Y    (SCREEN_HEIGHT - MAIN_WATERFALL_HEIGHT - 70)
-
-/** Main Spectrum Display **/
-
-#define MAIN_SPECTRUM_WIDTH     512
-#define MAIN_SPECTRUM_HEIGHT    170
-//screen_pixel_t main_spectrum_buffer[MAIN_SPECTRUM_HEIGHT][MAIN_SPECTRUM_WIDTH] __attribute__ ((aligned (NEON_ALIGNMENT)));
-#define MAIN_SPECTRUM_TIME_SMOOTH   0.8f
-float main_spectrum_smooth_buffer[MAIN_SPECTRUM_WIDTH] = { 0 };
-
-//#define MAIN_SPECTRUM_POS_X     100
-//#define MAIN_SPECTRUM_POS_Y     (SCREEN_HEIGHT - MAIN_WATERFALL_HEIGHT - MAIN_SPECTRUM_HEIGHT - 70)
-
-/** Frequency Display **/
-
-#define FREQUENCY_WIDTH         256
-#define FREQUENCY_HEIGHT        43
-screen_pixel_t frequency_buffer[FREQUENCY_HEIGHT][FREQUENCY_WIDTH] __attribute__ ((aligned (NEON_ALIGNMENT)));
-
-#define FREQUENCY_POS_X         544
-#define FREQUENCY_POS_Y         8
-
-//////// New bits:
 
 char *fbp = 0;
 int fbfd = 0;
@@ -79,24 +42,265 @@ typedef struct {
   uint8_t Alpha; // 0x80
 } __attribute__((__packed__)) screen_pixel_t2;
 
-
-/** Main Spectrum Display **/
-
-
-screen_pixel_t2 main_spectrum_buffer[MAIN_SPECTRUM_HEIGHT][MAIN_SPECTRUM_WIDTH] __attribute__ ((aligned (NEON_ALIGNMENT)));
-//#define MAIN_SPECTRUM_TIME_SMOOTH   0.8f
-//float main_spectrum_smooth_buffer[MAIN_SPECTRUM_WIDTH] = { 0 };
-
-#define MAIN_SPECTRUM_POS_X     100
-#define MAIN_SPECTRUM_POS_Y     (SCREEN_HEIGHT - MAIN_WATERFALL_HEIGHT - MAIN_SPECTRUM_HEIGHT - 70)
-
-
-
-
-
-
-//////// End new Bits
-
+uint8_t waterfall_newcolour[256][3] = 
+{
+{0,27,32},
+{0,29,37},
+{0,29,39},
+{0,30,40},
+{0,31,41},
+{0,32,42},
+{0,33,43},
+{0,34,46},
+{0,35,48},
+{0,35,49},
+{0,36,52},
+{0,37,53},
+{0,38,55},
+{0,38,57},
+{0,40,59},
+{0,41,61},
+{0,42,64},
+{0,42,65},
+{0,43,68},
+{0,43,70},
+{0,44,72},
+{0,45,74},
+{0,46,76},
+{0,46,79},
+{0,47,81},
+{0,47,84},
+{0,48,86},
+{0,48,88},
+{2,49,91},
+{4,50,91},
+{6,50,95},
+{9,50,98},
+{11,49,100},
+{13,50,102},
+{17,50,104},
+{19,51,107},
+{21,52,109},
+{24,52,112},
+{28,52,116},
+{29,51,118},
+{32,53,120},
+{33,52,121},
+{35,52,124},
+{39,53,126},
+{40,52,131},
+{42,52,132},
+{45,52,133},
+{47,52,134},
+{50,52,137},
+{51,53,139},
+{55,52,142},
+{57,51,144},
+{59,50,146},
+{61,51,148},
+{64,51,150},
+{67,50,153},
+{69,50,155},
+{70,50,155},
+{75,49,157},
+{76,48,159},
+{79,49,160},
+{81,48,161},
+{83,48,164},
+{85,47,166},
+{87,46,166},
+{90,46,167},
+{92,45,168},
+{96,46,171},
+{97,45,172},
+{99,43,172},
+{102,43,172},
+{104,43,173},
+{107,42,175},
+{110,42,177},
+{112,42,177},
+{113,41,177},
+{114,40,177},
+{117,40,178},
+{119,39,178},
+{122,39,179},
+{124,39,179},
+{126,39,178},
+{129,38,178},
+{130,37,178},
+{133,37,179},
+{134,37,178},
+{137,37,179},
+{139,36,179},
+{141,36,180},
+{142,36,178},
+{145,36,179},
+{147,36,177},
+{148,36,178},
+{152,35,177},
+{153,35,176},
+{155,36,176},
+{158,35,175},
+{159,36,173},
+{161,36,172},
+{162,36,171},
+{164,36,171},
+{166,37,169},
+{168,37,167},
+{170,37,167},
+{171,38,166},
+{172,38,166},
+{175,39,164},
+{177,40,162},
+{179,40,161},
+{180,41,159},
+{181,42,157},
+{183,42,156},
+{185,43,156},
+{187,43,155},
+{190,44,153},
+{192,46,152},
+{193,46,150},
+{193,47,147},
+{194,47,146},
+{197,49,145},
+{199,49,143},
+{200,50,141},
+{201,51,140},
+{202,52,138},
+{204,53,136},
+{206,55,136},
+{208,55,134},
+{209,57,132},
+{210,59,130},
+{212,59,129},
+{213,59,128},
+{214,61,126},
+{215,63,124},
+{217,65,122},
+{218,65,121},
+{219,66,120},
+{220,67,117},
+{221,68,112},
+{222,70,111},
+{225,71,111},
+{226,72,110},
+{227,74,108},
+{228,75,106},
+{229,77,104},
+{230,79,102},
+{231,80,99},
+{232,81,98},
+{233,82,95},
+{234,83,94},
+{235,84,93},
+{236,85,90},
+{237,87,89},
+{238,88,89},
+{239,89,88},
+{240,91,84},
+{241,93,82},
+{242,94,81},
+{243,95,80},
+{243,96,78},
+{244,97,77},
+{245,99,74},
+{246,101,72},
+{247,104,70},
+{248,106,69},
+{249,107,67},
+{250,109,66},
+{250,109,64},
+{250,111,62},
+{251,113,60},
+{252,115,58},
+{252,116,56},
+{252,118,55},
+{253,120,53},
+{254,123,51},
+{255,125,50},
+{255,126,49},
+{255,128,47},
+{255,129,46},
+{255,130,44},
+{255,133,42},
+{255,135,41},
+{255,138,40},
+{255,139,36},
+{255,140,36},
+{255,142,36},
+{255,144,36},
+{255,146,35},
+{255,150,35},
+{255,152,34},
+{253,152,34},
+{254,153,35},
+{253,156,35},
+{253,161,36},
+{252,160,37},
+{251,164,38},
+{250,165,39},
+{250,168,40},
+{249,170,42},
+{248,173,44},
+{247,174,46},
+{247,176,50},
+{246,178,53},
+{245,179,56},
+{245,182,58},
+{244,186,60},
+{243,187,64},
+{241,189,67},
+{240,190,69},
+{240,192,73},
+{239,194,75},
+{237,196,78},
+{236,199,82},
+{234,201,85},
+{235,203,92},
+{235,205,93},
+{233,207,97},
+{231,208,92},
+{231,211,106},
+{230,212,112},
+{229,213,115},
+{228,216,120},
+{228,216,124},
+{227,218,127},
+{226,220,132},
+{226,221,137},
+{224,221,140},
+{224,222,145},
+{224,224,150},
+{225,226,156},
+{225,228,159},
+{224,231,164},
+{223,232,167},
+{223,233,171},
+{225,234,177},
+{227,235,183},
+{227,236,186},
+{228,237,190},
+{229,238,195},
+{230,238,197},
+{231,239,203},
+{233,240,207},
+{234,241,210},
+{236,242,216},
+{237,242,220},
+{238,243,223},
+{240,245,225},
+{241,245,230},
+{242,246,232},
+{245,247,236},
+{246,247,239},
+{247,248,243},
+{248,248,245},
+{251,250,248},
+{253,252,252},
+{255,255,255},
+{255,255,255}
+};
 
 const screen_pixel_t graphics_white_pixel =
 {
@@ -122,182 +326,18 @@ const screen_pixel_t graphics_red_pixel =
   .Blue = 0x00
 };
 
-static void waterfall_cm_websdr(screen_pixel_t *pixel_ptr, uint8_t value)
+
+screen_pixel_t waterfall_map(uint8_t value)
 {
-  /* Raspberry Pi Display starts flickering the backlight below a certain intensity, ensure that we don't go below this (~70) */
-  if(value < 64)
-  {
-    pixel_ptr->Red = 0;
-    pixel_ptr->Green = 0;
-    pixel_ptr->Blue = 70 + (1.5 * value);
-  }
-  else if(value < 128)
-  {
-    pixel_ptr->Red = (3 * value) - 192;
-    pixel_ptr->Green = 0;
-    pixel_ptr->Blue = 70 + (1.5 * value);
-  }
-  else if(value < 192)
-  {
-    pixel_ptr->Red = value + 64;
-    pixel_ptr->Green = 256 * sqrt((value - 128) / 64);
-    pixel_ptr->Blue = 512 - (2 * value);
-  }
-  else
-  {
-    pixel_ptr->Red = 255;
-    pixel_ptr->Green = 255;
-    pixel_ptr->Blue = 512 - (2 * value);
-  }
+  screen_pixel_t result;
+
+  result.Alpha = 0x80;
+  result.Red = waterfall_newcolour[value][0];
+  result.Green = waterfall_newcolour[value][1];
+  result.Blue = waterfall_newcolour[value][2];
+
+  return result;
 }
-
-static void waterfall_generate(uint32_t counter, uint8_t *fft_data)
-{
-  screen_pixel_t new_pixel;
-  new_pixel.Alpha = 0x80;
-
-  for(uint32_t i = 0; i < MAIN_WATERFALL_WIDTH; i++)
-  {
-    /* Greyscale */
-    //new_pixel.Red = fft_data[i];
-    //new_pixel.Green = fft_data[i];
-    //new_pixel.Blue = fft_data[i];
-
-    /* websdr colour map */
-    waterfall_cm_websdr(&new_pixel, fft_data[i]);
-
-    memcpy(&(main_waterfall_buffer[counter][i]), &new_pixel, sizeof(screen_pixel_t));
-  }
-}
-
-static void waterfall_render(uint32_t counter)
-{
-  for(uint32_t i = 0; i < MAIN_WATERFALL_HEIGHT; i++)
-  {
-    screen_setPixelLine(MAIN_WATERFALL_POS_X, MAIN_WATERFALL_POS_Y + i, MAIN_WATERFALL_WIDTH, main_waterfall_buffer[(i + counter) % MAIN_WATERFALL_HEIGHT]);
-  }
-}
-
-
-static void spectrum_generate(uint8_t *fft_data)
-{
-//  const screen_pixel_t selected_marker_pixel =
-//  {
-//    .Alpha = 0x80,
-//    .Red = 0x50,
-//    .Green = 0x50,
-//    .Blue = 0x50
-//  };
-
-//  const screen_pixel_t selected_band_pixel =
-//  {
-//    .Alpha = 0x80,
-//    .Red = 0x1A,
-//    .Green = 0x1A,
-//    .Blue = 0x1A
-//  };
-
-  uint32_t value;
-  uint32_t i, j;
-
-  // Make the spectrum buffer all black
-
-  for(i = 0; i < MAIN_SPECTRUM_HEIGHT; i++)
-  {
-    for(j = 0; j < MAIN_SPECTRUM_WIDTH; j++)
-    {
-      memcpy(&(main_spectrum_buffer[i][j]), &graphics_black_pixel, sizeof(screen_pixel_t));
-    }
-  }
-
-
-  // Draw FFT Spectrum whites upward in the spectrum buffer
-  for(i = 0; i < MAIN_SPECTRUM_WIDTH; i++)
-  {
-    main_spectrum_smooth_buffer[i] = (((float)fft_data[i]) * (1.f - MAIN_SPECTRUM_TIME_SMOOTH)) 
-      + (main_spectrum_smooth_buffer[i] * MAIN_SPECTRUM_TIME_SMOOTH);
-    value = ((uint32_t)(main_spectrum_smooth_buffer[i] * MAIN_SPECTRUM_HEIGHT)) / 255;
-
-    for(j = (MAIN_SPECTRUM_HEIGHT-1); j > MAIN_SPECTRUM_HEIGHT-value-1; j--)
-    {
-      memcpy(&(main_spectrum_buffer[j][i]), &graphics_white_pixel, sizeof(screen_pixel_t));
-    }
-  }
-}
-
-static void spectrum_render(void)
-{
-  for(uint32_t i = 0; i < MAIN_SPECTRUM_HEIGHT; i++)
-  {
-    //screen_setPixelLine(MAIN_SPECTRUM_POS_X, MAIN_SPECTRUM_POS_Y + i, MAIN_SPECTRUM_WIDTH, main_spectrum_buffer[i]);
-  }
-}
-
-//static void frequency_render_font_cb(int x, int y, screen_pixel_t *pixel_ptr)
-//{
-//  memcpy(&(frequency_buffer[y][x]), pixel_ptr, sizeof(screen_pixel_t));
-//}
-
-//static void frequency_generate(void)
-//{
-//  uint32_t i, j;
-  /* Clear buffer */
-//  for(i = 0; i < FREQUENCY_HEIGHT; i++)
-//  {
-//    for(j = 0; j <FREQUENCY_WIDTH; j++)
-//    {
-//      memcpy(&(frequency_buffer[i][j]), &graphics_black_pixel, sizeof(screen_pixel_t));
-//    }
-//  }
-
-//  char *freq_string;
-//  asprintf(&freq_string, ".%3lld.%03lld.%03lld", 
-//    (selected_center_frequency / 1000000) % 1000,
-//    (selected_center_frequency / 1000) % 1000,
-//    selected_center_frequency % 1000);
-//  font_render_string_with_callback(0, 0, &font_dejavu_sans_36, freq_string, frequency_render_font_cb);
-//  free(freq_string);
-//}
-
-//static void frequency_render(void)
-//{
-  /* Render Frequency display buffer */
-//  for(uint32_t i = 0; i < FREQUENCY_HEIGHT; i++)
-//  {
-//    screen_setPixelLine(FREQUENCY_POS_X, FREQUENCY_POS_Y + i, FREQUENCY_WIDTH, frequency_buffer[i]);
-//  }
-//}
-
-//void graphics_frequency_newdata(void)
-//{
-//  frequency_generate();
-//  frequency_render();
-//}
-
-static uint32_t main_waterfall_counter = (MAIN_WATERFALL_HEIGHT-1);
-/* Takes 512byte FFT */
-void waterfall_render_fft(uint8_t *fft_data)
-{
-#if 0
-  for(uint32_t i = 0; i < MAIN_SPECTRUM_WIDTH; i++)
-  {
-    printf("%d,", fft_data[i]);
-  }
-  printf("\n");
-#endif
-
-  waterfall_generate(main_waterfall_counter, fft_data);
-  spectrum_generate(fft_data);
-
-  waterfall_render(main_waterfall_counter);
-  spectrum_render();
-
-  if(main_waterfall_counter-- == 0) main_waterfall_counter = (MAIN_WATERFALL_HEIGHT-1);
-}
-
-
-/////////////////// Code from Graphics.h here: //////////////////////////////////
-
 
 uint32_t font_width_string(const font_t *font_ptr, char *string)
 {
@@ -475,7 +515,6 @@ void LargeText2 (int xpos, int ypos, int sizeFactor, char*s, const font_t *font_
   }
   while(s[p] != 0);  // While not end of string
 }
-
 
 
 void rectangle(int xpos, int ypos, int xsize, int ysize, int r, int g, int b)

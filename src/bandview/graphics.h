@@ -1,11 +1,6 @@
 #ifndef __GRAPHICS_H__
 #define __GRAPHICS_H__
 
-void waterfall_render_fft(uint8_t *fft_data);
-
-// void graphics_frequency_newdata(void);
-// void graphics_if_fft_newdata(uint8_t *fft_data);
-
 uint32_t font_width_string(const font_t *font_ptr, char *string);
 void displayChar2(const font_t *font_ptr, char c);
 void displayLargeChar2(int sizeFactor, const font_t *font_ptr, char c);
@@ -27,7 +22,7 @@ void closeScreen(void);
 int initScreen(void);
 void HorizLine(int xpos, int ypos, int xsize, int r, int g, int b);
 void VertLine(int xpos, int ypos, int ysize, int r, int g, int b);
-
+screen_pixel_t waterfall_map(uint8_t value);
 
 
 #endif /* __GRAPHICS_H__ */
