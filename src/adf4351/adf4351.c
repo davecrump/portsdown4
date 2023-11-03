@@ -192,15 +192,21 @@ int32_t adf4350_write(uint32_t data)
 
 	// Send all 32 bits
 
+	printf("%x\n", data);
+
+
 	for (i = 0; i <32; i++)
 	{
 		// Test left-most bit
 
 		if (data & 0x80000000)
+        {
 			digitalWrite(DATA_4351_GPIO, HIGH);
-		else
-			digitalWrite(DATA_4351_GPIO, LOW);
-
+		}
+        else
+		{
+        	digitalWrite(DATA_4351_GPIO, LOW);
+        }
 		// Pulse clock
 		usleep(10);
 		digitalWrite(CLK_4351_GPIO, HIGH);
@@ -212,7 +218,7 @@ int32_t adf4350_write(uint32_t data)
 		data <<= 1;
 	}
 
-	//Set ADF4351 LE high and delay before exit
+	// Set ADF4351 LE high and delay before exit
 
 	digitalWrite(LE_4351_GPIO, HIGH);
         usleep(10);
@@ -318,19 +324,20 @@ int64_t adf4350_set_freq(struct adf4350_state *st, uint64_t freq)
 	if ((freq > ADF4350_MAX_OUT_FREQ) || (freq < ADF4350_MIN_OUT_FREQ))
 		return -1;
 
-	if (freq > ADF4350_MAX_FREQ_45_PRESC) {
-		prescaler = ADF4350_REG1_PRESCALER;
+	if (freq > ADF4350_MAX_FREQ_45_PRESC)           // 3 GHz (Actually 3.6 GHz for an ADF4351, but not relevant)
+    {
+		prescaler = ADF4350_REG1_PRESCALER;         // Prescaler 8/9
 		mdiv = 75;
 	} 
 	else
 	{
-		prescaler = 0;
+		prescaler = 0;                              // Prescaler 4/5
 		mdiv = 23;
 	}
 
 	st->r4_rf_div_sel = 0;
 
-	while (freq < ADF4350_MIN_VCO_FREQ)
+	while (freq < ADF4350_MIN_VCO_FREQ)             // 2.2 GHz
 	{
 		freq <<= 1;
 		st->r4_rf_div_sel++;
@@ -340,8 +347,11 @@ int64_t adf4350_set_freq(struct adf4350_state *st, uint64_t freq)
 	 * Allow a predefined reference division factor
 	 * if not set, compute our own
 	 */
+
 	if (pdata->ref_div_factor)
+    {
 		r_cnt = pdata->ref_div_factor - 1;
+    }
 
 	chspc = st->chspc;
 
@@ -371,6 +381,7 @@ int64_t adf4350_set_freq(struct adf4350_state *st, uint64_t freq)
 		tmp = tmp / st->r1_mod;
 
 		st->r0_int = tmp;
+
 	} while (mdiv > st->r0_int);
 
 	band_sel_div = st->fpfd % ADF4350_MAX_BANDSEL_CLK > ADF4350_MAX_BANDSEL_CLK / 2 ?
@@ -385,7 +396,8 @@ int64_t adf4350_set_freq(struct adf4350_state *st, uint64_t freq)
 	else
 	{
 		st->r0_fract = 0;
-		st->r1_mod = 1;
+		// st->r1_mod = 1;
+		st->r1_mod = 2;  // changed to agree with the AD PC application.  Makes little difference
 	}
 
 	st->regs[ADF4350_REG0] = ADF4350_REG0_INT(st->r0_int) |
@@ -433,6 +445,10 @@ int64_t adf4350_set_freq(struct adf4350_state *st, uint64_t freq)
 
     tmp = (uint64_t)((st->r0_int * st->r1_mod) + st->r0_fract) * (uint64_t)st->fpfd;
     tmp = tmp / ((uint64_t)st->r1_mod * ((uint64_t)1 << st->r4_rf_div_sel));
+
+    //printf("mdiv = %d\n", mdiv);
+    //printf("r0_int = %d  r0_fract = %d  r1_mod =  %d \n", st->r0_int, st->r0_fract, st->r1_mod);
+    //printf("fpfd = %d, rf_div_sel = %d\n", st->fpfd, st->r4_rf_div_sel);
 
 	return tmp;
 }
@@ -505,15 +521,6 @@ int32_t adf4350_setup(uint32_t spi_device_id, uint8_t slave_select,
 	adf4350_out_altvoltage0_refin_frequency(st->pdata->clkin);
 	adf4350_out_altvoltage0_frequency_resolution(st->pdata->channel_spacing);
 	adf4350_out_altvoltage0_frequency(st->pdata->power_up_frequency);
-
-	// printf("ADF4350 successfully initialized.\n");
-
-	/*int i;
-	for(i=0;i<6;i++)
-	printf("RegHw%d %x\n",i,st->regs[i]);
-	printf("Reg2 %x\n",st->pdata->r2_user_settings);
-	printf("Reg3 %x\n",st->pdata->r3_user_settings);
-	printf("Reg4 %x\n",st->pdata->r4_user_settings);*/
 
     return 0;
 }
