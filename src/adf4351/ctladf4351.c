@@ -38,6 +38,7 @@ int main(int argc, char *argv[])
   uint32_t adf4350_requested_ref_freq = 25000000;
   uint16_t adf4350_requested_power = 0;
 
+
   // Check first parameter
   if (argc==1 || strcmp(argv[1], "off") == 0)
   {
@@ -48,24 +49,32 @@ int main(int argc, char *argv[])
     return 0;
   }
 
-  else if ( atof(argv[1])>=35 && atof(argv[1])<=4400 )
+  else if ( atof(argv[1]) >= 34.375 && atof(argv[1]) <= 4400 )
   {
     // Valid freq, so set it
-    adf4350_requested_frequency = 1000000 * atof(argv[1]);
+    adf4350_requested_frequency = (uint64_t)(atof(argv[1]) * 1000000.0);
+    printf("\nO/P Freq = %llu\n", adf4350_requested_frequency);
 
     // Check second parameter
-    if (argc>=3 && atof(argv[2])>=4995000 && atof(argv[2])<=250000000)
+    if (argc>=3 && atoi(argv[2])>=4995000 && atoi(argv[2])<=250000000)
     {
       // valid reference osc freq, so set it
-      adf4350_requested_ref_freq = atof(argv[2]);
+      adf4350_requested_ref_freq = atoi(argv[2]);
+      printf("Ref Freq = %d\n", adf4350_requested_ref_freq);
     }
 
     // Check third parameter
     if (argc>=4 && atof(argv[3])>=0 && atof(argv[3])<=3 )
     {
       // Valid VCO Power level specified, so set it
-      adf4350_requested_power = atof(argv[3]);
+      adf4350_requested_power = atoi(argv[3]);
+      printf("Power level = %d\n\n", adf4350_requested_power);
     }
+
+    // Try powerdown between selections to improve reliability
+    adf4350_out_altvoltage0_powerdown(1);
+    usleep(200000);
+
 
     // Valid input so set parameters
     adf4350_init_param MyAdf=
@@ -82,7 +91,7 @@ int main(int argc, char *argv[])
       .phase_detector_polarity_positive_enable=1,
       .lock_detect_precision_6ns_enable=0,
       .lock_detect_function_integer_n_enable=0,
-      .charge_pump_current=7, // FixMe
+      .charge_pump_current=7,
       .muxout_select=0,
       .low_spur_mode_enable=1,
 
