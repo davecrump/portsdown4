@@ -5204,13 +5204,13 @@ void ImposeBounds()  // Constrain DisplayFreq and level to physical limits
   {
     strcpy(osc_text, "Lime Mini"); 
     SourceUpperFreq = 3500000000;
-    SourceLowerFreq =   50000000;
+    SourceLowerFreq =   30000000;
   }
 
   if (strcmp(osc, "adf4351")==0)
   {
     SourceUpperFreq = 4400000000;
-    SourceLowerFreq =   35000000;
+    SourceLowerFreq =   34375000;
     strcpy(osc_text, "ADF4351");
     if (level > 3)
     {
