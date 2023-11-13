@@ -610,6 +610,7 @@ echo "alias menu='/home/pi/rpidatv/scripts/menu.sh menu'" >> /home/pi/.bash_alia
 echo "alias gui='/home/pi/rpidatv/scripts/utils/guir.sh'"  >> /home/pi/.bash_aliases
 echo "alias ugui='/home/pi/rpidatv/scripts/utils/uguir.sh'"  >> /home/pi/.bash_aliases
 echo "alias udvbt='/home/pi/rpidatv/scripts/utils/udvbt.sh'"  >> /home/pi/.bash_aliases
+echo "alias stop='/home/pi/rpidatv/scripts/utils/stop.sh'"  >> /home/pi/.bash_aliases
 
 # Modify .bashrc to run startup script on ssh logon
 #cd /home/pi

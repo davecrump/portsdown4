@@ -134,7 +134,7 @@ bool ContScan = false;
 int fft_size = 500;                  // Variable based on scan width
 float fft_time_smooth;       // Set for scan width
 
-uint32_t span = 10000;
+uint32_t span = 8000;
 int limegain = 15;
 uint32_t pfreq1 = 49969000;
 uint32_t pfreq2 = 50407500;
@@ -482,6 +482,22 @@ void ReadSavedParams()
   strcpy(response, "10000");
   GetConfigParam(PATH_CONFIG, "span", response);
   span = atoi(response);
+
+  if (span == 10000)
+  {
+    span = 8000;
+    SetConfigParam(PATH_CONFIG, "span", "8000");
+  }
+  if (span == 5000)
+  {
+    span = 4000;
+    SetConfigParam(PATH_CONFIG, "span", "4000");
+  }
+  if (span == 2500)
+  {
+    span = 2000;
+    SetConfigParam(PATH_CONFIG, "span", "2000");
+  }
 
   CalcSpan();
 
@@ -2030,14 +2046,16 @@ void SetSpan(int button)
 
   switch (button)
   {
+    case 2:
+      span = 1000;
     case 3:
-      span = 2500;
+      span = 2000;
     break;
     case 4:
-      span = 5000;
+      span = 4000;
     break;
     case 5:
-      span = 10000;
+      span = 8000;
     break;
   }
 
@@ -2052,14 +2070,6 @@ void SetSpan(int button)
   UpdateWindow();
 
   cleanexit(150);
-
-  // Trigger the span change
-  CalcSpan();
-  DrawSettings();       // New labels
-
-  NewSpan = true;
-
-  freeze = false;
 }
 
 
@@ -2589,9 +2599,9 @@ void SetStream(int button)
       if (strcmp(destination, "local") == 0)  // currently local, so change to remote and set span width to 10 kHz.
       {
         strcpy(destination, "remote");
-        span = 10000;
+        span = 8000;
         // Store the new span
-        SetConfigParam(PATH_CONFIG, "span", "10000");
+        SetConfigParam(PATH_CONFIG, "span", "8000");
         printf("Span set to %d Hz\n", span);
       }
       else                                    // currently remote, so change to local
@@ -2666,17 +2676,21 @@ void CalcSpan()    // takes centre frequency and span and calculates startfreq a
 
   switch (span)
   {
-    case 2500:                                            // 2.5 kHz
+    case 1000:                                            // 1 kHz
       decimation_factor = 32;
-      fft_size = 2000;
+      fft_size = 4096;
     break;
-    case 5000:                                            // 5 kHz
+    case 2000:                                            // 2 kHz
       decimation_factor = 32;
-      fft_size = 1000;
+      fft_size = 2048;
     break;
-    case 10000:                                           // 10 kHz
+    case 4000:                                            // 4 kHz
       decimation_factor = 32;
-      fft_size = 500;
+      fft_size = 1024;
+    break;
+    case 8000:                                            // 8 kHz
+      decimation_factor = 32;
+      fft_size = 512;
     break;
   }
 
@@ -2699,13 +2713,16 @@ void CalcSpan()    // takes centre frequency and span and calculates startfreq a
     {
       switch (span)
       {
-        case 2500:                                            // 2.0 kHz
+        case 1000:                                            // 1.0 kHz
           fft_time_smooth = 0.95;
         break;
-        case 5000:                                            // 5 kHz
+        case 2000:                                            // 2.0 kHz
+          fft_time_smooth = 0.95;
+        break;
+        case 4000:                                            // 4 kHz
           fft_time_smooth = 0.90;
         break;
-        case 10000:                                           // 10 kHz
+        case 8000:                                            // 8 kHz
           fft_time_smooth = 0.8;
         break;
       }
@@ -2714,18 +2731,20 @@ void CalcSpan()    // takes centre frequency and span and calculates startfreq a
     {
       switch (span)
       {
-        case 2500:                                            // 2.0 kHz
+        case 1000:                                            // 1.0 kHz
           fft_time_smooth = 0.96;
         break;
-        case 5000:                                            // 5 kHz
+        case 2000:                                            // 2.0 kHz
+          fft_time_smooth = 0.96;
+        break;
+        case 4000:                                            // 4 kHz
           fft_time_smooth = 0.90;
         break;
-        case 10000:                                           // 10 kHz
+        case 8000:                                            // 8 kHz
           fft_time_smooth = 0.90;
         break;
       }
     }
-    //fft_time_smooth = 0.98;
   }
 }
 
@@ -4173,19 +4192,21 @@ void Define_Menu6()                                           // Span Menu
   AddButtonStatus(button, "Span^Menu", &Black);
   AddButtonStatus(button, " ", &Green);
 
-  button = CreateButton(6, 3);
-  AddButtonStatus(button, "2.5 kHz", &Blue);
-  AddButtonStatus(button, "2.5 kHz", &Green);
-  AddButtonStatus(button, "2.5 kHz", &Grey);
+  //button = CreateButton(6, 2);
+  //AddButtonStatus(button, "1 kHz", &Blue);
+  //AddButtonStatus(button, "1 kHz", &Green);
 
-  button = CreateButton(6, 4);
-  AddButtonStatus(button, "5 kHz", &Blue);
-  AddButtonStatus(button, "5 kHz", &Green);
-  AddButtonStatus(button, "5 kHz", &Grey);
+  //button = CreateButton(6, 3);
+  //AddButtonStatus(button, "2 kHz", &Blue);
+  //AddButtonStatus(button, "2 kHz", &Green);
+
+  //button = CreateButton(6, 4);
+  //AddButtonStatus(button, "4 kHz", &Blue);
+  //AddButtonStatus(button, "4 kHz", &Green);
 
   button = CreateButton(6, 5);
-  AddButtonStatus(button, "10 kHz", &Blue);
-  AddButtonStatus(button, "10 kHz", &Green);
+  AddButtonStatus(button, "8 kHz", &Blue);
+  AddButtonStatus(button, "8 kHz", &Green);
 
   //button = CreateButton(6, 6);
   //AddButtonStatus(button, "10", &Blue);
@@ -4205,7 +4226,15 @@ void Define_Menu6()                                           // Span Menu
 
 void Start_Highlights_Menu6()
 {
-  if (span == 2500)
+  if (span == 1000)
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 2), 1);
+  }
+  else
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 2), 0);
+  }
+  if (span == 2000)
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 3), 1);
   }
@@ -4213,7 +4242,7 @@ void Start_Highlights_Menu6()
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 3), 0);
   }
-  if (span == 5000)
+  if (span == 4000)
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 4), 1);
   }
@@ -4221,18 +4250,13 @@ void Start_Highlights_Menu6()
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 4), 0);
   }
-  if (span == 10000)
+  if (span == 8000)
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 5), 1);
   }
   else
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 5), 0);
-  }
-  if (strcmp(destination, "local") != 0)
-  {
-    SetButtonStatus(ButtonNumber(CurrentMenu, 3), 2);
-    SetButtonStatus(ButtonNumber(CurrentMenu, 4), 2);
   }
 }
 
@@ -5090,17 +5114,15 @@ void DrawEmptyScreen()
 
 void DrawTickMarks()
 {
-    VertLine(100, 64, 5, 255, 255, 255);
-    VertLine(150, 64, 5, 255, 255, 255);
-    VertLine(200, 64, 5, 255, 255, 255);
-    VertLine(250, 64, 5, 255, 255, 255);
-    VertLine(300, 64, 5, 255, 255, 255);
+    VertLine(140, 64, 5, 255, 255, 255);
+    VertLine(192, 64, 5, 255, 255, 255);
+    VertLine(245, 64, 5, 255, 255, 255);
+    VertLine(298, 64, 5, 255, 255, 255);
     VertLine(350, 64, 5, 255, 255, 255);
-    VertLine(400, 64, 5, 255, 255, 255);
-    VertLine(450, 64, 5, 255, 255, 255);
-    VertLine(500, 64, 5, 255, 255, 255);
-    VertLine(550, 64, 5, 255, 255, 255);
-    VertLine(600, 64, 5, 255, 255, 255);
+    VertLine(402, 64, 5, 255, 255, 255);
+    VertLine(455, 64, 5, 255, 255, 255);
+    VertLine(508, 64, 5, 255, 255, 255);
+    VertLine(560, 64, 5, 255, 255, 255);
 }
 
 
@@ -5187,38 +5209,48 @@ void DrawSettings()
   setForeColour(255, 255, 255);                    // White text
   setBackColour(0, 0, 0);                          // on Black
   const font_t *font_ptr = &font_dejavu_sans_18;   // 18pt
+  char LeftText[63];
+  char RightText[63];
   char DisplayText[63];
   float ParamAsFloat;
   int line1y = 40;
-  int line2y = 15;
   int titley = 5;
 
   // Clear the previous text first
   rectangle(100, 0, 505, 64, 0, 0, 0);
- 
-  ParamAsFloat = (float)startfreq / 1000000.0;
-  snprintf(DisplayText, 63, "%.5f", ParamAsFloat);
-  Text2(100, line1y, DisplayText, font_ptr);
+  
+  // Create left and right span text
+  switch (span)
+  {
+    case 1000:                                            // 1.0 kHz
+      strcpy(LeftText, "-400 Hz");
+      strcpy(RightText, "+400 Hz");
+    break;
+    case 2000:                                            // 2.0 kHz
+      strcpy(LeftText, "-800 Hz");
+      strcpy(RightText, "+800 Hz");
+    break;
+    case 4000:                                            // 4 kHz
+      strcpy(LeftText, "-1600 Hz");
+      strcpy(RightText, "+1600 Hz");
+    break;
+    case 8000:                                            // 8 kHz
+      strcpy(LeftText, "-3200 Hz");
+      strcpy(RightText, "+3200 Hz");
+    break;
+  }
+  if (strcmp(destination, "remote") == 0)
+  {
+    strcpy(LeftText, " ");
+    strcpy(RightText, " ");
+  }
+
+  Text2(100, line1y, LeftText, font_ptr);
+  Text2(510, line1y, RightText, font_ptr);
  
   ParamAsFloat = (float)CentreFreq / 1000000.0;
   snprintf(DisplayText, 63, "%.5f MHz", ParamAsFloat);
   Text2(300, line1y, DisplayText, font_ptr);
-
-  ParamAsFloat = (float)stopfreq / 1000000.0;
-  snprintf(DisplayText, 63, "%.5f", ParamAsFloat);
-  Text2(510, line1y, DisplayText, font_ptr);
-
-  if (reflevel != 99)                           // valid
-  {
-    snprintf(DisplayText, 63, "Ref %d dBm", reflevel);
-    Text2(290, line1y, DisplayText, font_ptr);
-  }
-
-  if (rbw != 0)                                 // valid
-  {
-    snprintf(DisplayText, 63, "RBW %d kHz", rbw);
-    Text2(100, line2y, DisplayText, font_ptr);
-  }
 
   if (strcmp(PlotTitle, "-") != 0)
   {
@@ -5247,7 +5279,6 @@ void DrawTrace(int xoffset, int prev2, int prev1, int current)
   {
     trace_baseline = 1;
   }
-
 
   for (ypos = 0; ypos < 401; ypos++)
   {
@@ -5440,7 +5471,6 @@ static void terminate(int sig)
   char Commnd[255];
   sprintf(Commnd,"stty echo");
   system(Commnd);
-
   printf("scans = %d\n", tracecount);
   exit(0);
 }

@@ -27,6 +27,8 @@
 #include "sdrplay_api.h"
 #include "sdrplayfft.h"
 
+#define PI 3.14159265358979323846
+
 int masterInitialised = 0;
 int slaveUninitialised = 0;
 
@@ -34,12 +36,9 @@ int callback_count = 0;
 
 sdrplay_api_DeviceT *chosenDevice = NULL;
 
-// transfer->sample_count is normally 1344
-//#define	SDRPLAY_BUFFER_COPY_SIZE 1344
-#define	SDRPLAY_BUFFER_COPY_SIZE 2048
+#define	SDRPLAY_BUFFER_COPY_SIZE 4096
 #define SHORT_EL_SIZE_BYTE (2)
-/* this is the assigned number for the radio client this code is running on */
-//#define RADIO_CLIENT_NUMBER 3
+//#define FFT_BUFFER_SIZE 4096
 
 
 
@@ -68,14 +67,12 @@ extern uint8_t clientnumber;
 extern uint8_t wfalloverlap;
 extern uint8_t wfallsamplefraction;
 
-//extern pthread_t sdrplay_fft_thread_obj;
-
 extern bool NewData; 
 bool debug = false;    
 
 int fft_offset;
 
-uint16_t y3[2048];               // Histogram values in range 0 - 399
+uint16_t y3[4096];               // Histogram values in range 0 - 399
 
 int force_exit = 0;
 
@@ -83,7 +80,7 @@ pthread_t fftThread;
 
 extern char destination[15];
 
-double hanning_window_const[2048];
+double hanning_window_const[4096];
 
 typedef struct {
 	uint32_t index;
@@ -111,15 +108,11 @@ fftw_plan   fft_plan;
 pthread_mutex_t histogram;
 
 static const char *fftw_wisdom_filename = ".fftw_wisdom";
-static float fft_output_data[2048];
+static float fft_output_data[4096];
 
 unsigned long long int total = 0;     /* for debug */
 unsigned long long int buf_total = 0; /* for debug */
 
-
-//#define FFT_BUFFER_SIZE 512
-//#define FFT_BUFFER_SIZE 1024
-//#define FFT_BUFFER_SIZE 2048  // Size of buffer, not size of fft
 #define DECIMATION 8      /* we need to do a further factor of 8 decimation to get from 80 KSPS to 10 KSPS */
 #define CORRECTION_GAIN 10
 
@@ -186,28 +179,31 @@ void fft() {
     pthread_mutex_lock(&rf_buffer2.mutex);
     rf_buffer2.index = 0;
 
+    // Set cal true to to calibrate dBfs
+    // It generates a sine wave at -40 dB with varying phase
+    bool cal = false;
+    //float amplitude = 3276.70;
+    float amplitude = 327.670;  // -40 dB
+    static float foffset = 2.55;
+    static float phaseoffset  = 0;
+    phaseoffset = phaseoffset + 0.0002;
+    foffset = foffset + 0.000001;
+
     for (i = 0; i < fft_size; i++)
     {
-      rf_buffer2.idata[i]  = (int16_t)(output_buffer_i[i] / 128);
-      rf_buffer2.qdata[i]  = (int16_t)(output_buffer_q[i] / 128);
-
-      //m++;
-      //if (m == 10000)
-      //{
-      //  printf("10000 decimated samples at time %lld\n", monotonic_ms());
-      //  m = 0;
-      //}
-
-
-      //if (i == 250)
-      //{
-      //  printf("i = %d, q = %d\n", rf_buffer2.idata[i], rf_buffer2.qdata[i]);
-      //}
+      if (cal == false)
+      {
+        rf_buffer2.idata[i]  = (int16_t)(output_buffer_i[i]);  // was / 128 then / 256
+        rf_buffer2.qdata[i]  = (int16_t)(output_buffer_q[i]);
+      }
+      else
+      {
+        rf_buffer2.idata[i]  = (int16_t)(amplitude * sin((((float)i / foffset) + phaseoffset) * 2.f * PI));
+        rf_buffer2.qdata[i]  = (int16_t)(amplitude * cos((((float)i / foffset) + phaseoffset) * 2.f * PI));
+      }
     }   
 
-
 //    rf_buffer2.size = SDRPLAY_BUFFER_COPY_SIZE / (fft_size * 2);
-
 
     pthread_cond_signal(&rf_buffer2.signal);
     pthread_mutex_unlock(&rf_buffer2.mutex);
@@ -240,167 +236,190 @@ void buffer_send() {
   }
 }
 
-void non_filter(short xi, short xq, int reset)
-{
-  static int buf_ptr;
 
-  output_buffer_i[buf_ptr] = (long int)xi * 256;
-  output_buffer_q[buf_ptr] = (long int)xq * 256;
-
-  buf_ptr++;
-  if (buf_ptr == fft_size)
-  {
-    //printf("Output buffer full\n");
-    fft();
-    buffer_send();
-    buf_ptr = 0;
-  }
-}
-
-int stream_factor = 3;
+int32_t stream_divisor = 4096;
+int32_t stream_factor = 1;       // only used in old code without filter, so not used
+int32_t ximax;
+int32_t ximin;
+int32_t iymax;
+int32_t iymin;
 
 /* --------------------------------------------------------------------- */
 void cic_filter(short xi, short xq, int reset)
 {
-  static int decimation_cnt;
-  static int buf_ptr;
+  static int32_t decimation_cnt;
+  static int32_t buf_ptr;
 
-  static long int i_int1_out,     i_int2_out,      i_int3_out;
-  static long int i_comb1_out,    i_comb2_out,     i_comb3_out;
-  static long int i_int3_out_old, i_comb2_out_old, i_comb1_out_old;
-  static long int i_y,            i_w1,            i_w2;
+  static int32_t i_int1_out,     i_int2_out,      i_int3_out;
+  static int32_t i_comb1_out,    i_comb2_out,     i_comb3_out;
+  static int32_t i_int3_out_old, i_comb2_out_old, i_comb1_out_old;
+  static int32_t i_y,            i_w1,            i_w2;
 
-  static long int q_int1_out,     q_int2_out,      q_int3_out;
-  static long int q_comb1_out,    q_comb2_out,     q_comb3_out;
-  static long int q_int3_out_old, q_comb2_out_old, q_comb1_out_old;
-  static long int q_y,            q_w1,            q_w2;
+  static int32_t q_int1_out,     q_int2_out,      q_int3_out;
+  static int32_t q_comb1_out,    q_comb2_out,     q_comb3_out;
+  static int32_t q_int3_out_old, q_comb2_out_old, q_comb1_out_old;
+  static int32_t q_y,            q_w1,            q_w2;
 
 
-  if (false)   // true for new filter code, false for old
+  if (true)   // true for new filter code, false for old
   {
-/* --------------------------------------------------------------------- */
-/* implementing a 3 stage CIC filter with R = D = 8                      */
-/* for 14 bits in, and decimation by 8, we need 14 + 3.log2(8) = 23 bits */
-/* this needs a long int on the RPI                                      */
-/* the CIC looks like:                                                   */
-/*                                                                       */
-/*   int1 -> int2 -> int3 -> R(down) -> comb1 -> comb2 -> comb3          */
-/*                                                                       */
-/* we will use a simple correction filter of the form:                   */
-/*   w(n)  Z-1    z-1                                                    */
-/*    |     |      |                                                     */
-/*    |    x10     |                                                     */
-/*      -       +   =yn                                                  */
-/* w3 = w(n) = i_comb3_out = output of CIC                               */
-/*                                                                       */
-/* note we have 14 bit input data so we only need to shift down by 8     */
-/*  bits for the CIC to have valid output data (15 bits + sign bit)      */
-/* but the correction filter adds another 4 bits so shift by 12 bits.    */
-/* --------------------------------------------------------------------- */
+    /* --------------------------------------------------------------------- */
+    /* implementing a 3 stage CIC filter with R = D = 8                      */
+    /* for 14 bits in, and decimation by 8, we need 14 + 3.log2(8) = 23 bits */
+    /* this needs a long int on the RPI                                      */
+    /* the CIC looks like:                                                   */
+    /*                                                                       */
+    /*   int1 -> int2 -> int3 -> R(down) -> comb1 -> comb2 -> comb3          */
+    /*                                                                       */
+    /* we will use a simple correction filter of the form:                   */
+    /*   w(n)  Z-1    z-1                                                    */
+    /*    |     |      |                                                     */
+    /*    |    x10     |                                                     */
+    /*      -       +   =yn                                                  */
+    /* w3 = w(n) = i_comb3_out = output of CIC                               */
+    /*                                                                       */
+    /* note we have 14 bit input data so we only need to shift down by 8     */
+    /*  bits for the CIC to have valid output data (15 bits + sign bit)      */
+    /* but the correction filter adds another 4 bits so shift by 12 bits.    */
+    /* --------------------------------------------------------------------- */
 
+
+    if (reset)               // Called by Callback
+    {
+      printf("Got reset\n"); /* for debugging */
+      /* need to reset all the filter delays and the counters */
+      decimation_cnt = DECIMATION;
+      buf_ptr = 0;
  
-   if (reset) {
+      i_int1_out  = 0;
+      i_int2_out  = 0;
+      i_int3_out  = 0;
+      i_comb1_out = 0;
+      i_comb2_out = 0;
+      i_comb3_out = 0;
+      i_int3_out_old  = 0;
+      i_comb2_out_old = 0;
+      i_comb1_out_old = 0;
+      i_y  = 0;
+      i_w2 = 0;
+      i_w1 = 0;
 
-        printf("Got reset\n"); /* for debugging */
-        /* need to reset all the filter delays and the counters */
+      q_int1_out  = 0;
+      q_int2_out  = 0;
+      q_int3_out  = 0;
+      q_comb1_out = 0;
+      q_comb2_out = 0;
+      q_comb3_out = 0;
+      q_int3_out_old  = 0;
+      q_comb2_out_old = 0;
+      q_comb1_out_old = 0;
+      q_y  = 0;
+      q_w2 = 0;
+      q_w1 = 0;
+    }
+    else                   // Normal operation
+    {
+      // for efficiency we do the decimation (by factor R) first
+      decimation_cnt--;
+      if (decimation_cnt == 0) 
+      {
         decimation_cnt = DECIMATION;
-        buf_ptr = 0;
-  
-        i_int1_out  = 0;
-        i_int2_out  = 0;
-        i_int3_out  = 0;
-        i_comb1_out = 0;
-        i_comb2_out = 0;
-        i_comb3_out = 0;
-        i_int3_out_old  = 0;
-        i_comb2_out_old = 0;
-        i_comb1_out_old = 0;
-        i_y  = 0;
-        i_w2 = 0;
-        i_w1 = 0;
 
-        q_int1_out  = 0;
-        q_int2_out  = 0;
-        q_int3_out  = 0;
-        q_comb1_out = 0;
-        q_comb2_out = 0;
-        q_comb3_out = 0;
-        q_int3_out_old  = 0;
-        q_comb2_out_old = 0;
-        q_comb1_out_old = 0;
-        q_y  = 0;
-        q_w2 = 0;
-        q_w1 = 0;
+        // Decimation for i samples
+        /* and then the comb filters (work right to left) */
+        i_comb3_out     = i_comb2_out - i_comb2_out_old;
+        i_comb2_out_old = i_comb2_out;
+        i_comb2_out     = i_comb1_out - i_comb1_out_old;
+        i_comb1_out_old = i_comb1_out;
+        i_comb1_out     = i_int3_out  - i_int3_out_old;
+        i_int3_out_old  = i_int3_out;
 
-    } else {
+        /* now we need a compensation filter       */
+        i_y  = i_comb3_out - (CORRECTION_GAIN*i_w2) + i_w1;
+        i_w1 = i_w2;           /* z-2 */
+        i_w2 = i_comb3_out;    /* z-1 */
 
-        /* for efficiency we do the decimation (by factor R) first */
-        decimation_cnt--;
-        if (decimation_cnt == 0) 
+        // Decimation for Q samples
+        /* since we always do the i and q in sync, no need for separate decimation counts or buffer pointers */
+        q_comb3_out     = q_comb2_out - q_comb2_out_old;
+        q_comb2_out_old = q_comb2_out;
+        q_comb2_out     = q_comb1_out - q_comb1_out_old;
+        q_comb1_out_old = q_comb1_out;
+        q_comb1_out     = q_int3_out  - q_int3_out_old;
+        q_int3_out_old  = q_int3_out;
+      
+        /* now we need a compensation filter       */
+        q_y  = q_comb3_out - (CORRECTION_GAIN*q_w2) + q_w1;
+        q_w1 = q_w2;           /* z-2 */
+        q_w2 = q_comb3_out;    /* z-1 */
+
+        if (false)  // for debugging set true
         {
-            decimation_cnt = DECIMATION;
+          // Print peak values of xi for debugging
+          if (xi > ximax)
+          {
+            ximax = xi;
+            printf("Xi Min  = %d, Xi Max = %d\n", ximin, ximax);
+          }
+          if (xi < ximin)
+          {
+            ximin = xi;
+            printf("Xi Min  = %d, Xi Max = %d\n", ximin, ximax);
+          }
 
-            /* and then the comb filters (work right to left) */
-            i_comb3_out     = i_comb2_out - i_comb2_out_old;
-            i_comb2_out_old = i_comb2_out;
-            i_comb2_out     = i_comb1_out - i_comb1_out_old;
-            i_comb1_out_old = i_comb1_out;
-            i_comb1_out     = i_int3_out  - i_int3_out_old;
-            i_int3_out_old  = i_int3_out;
+          // Print peak values of I in output buffer for debugging for debugging
+          if ((i_y / stream_divisor) > iymax)
+          {
+            iymax = i_y / stream_divisor;
+            printf("i_y min = %d, i_y max = %d\n", iymin, iymax);
+          }
+          if ((i_y / stream_divisor) < iymin)
+          {
+            iymin = i_y / stream_divisor;
+            printf("i_y min = %d, i_y max = %d\n", iymin, iymax);
+          }
 
-            /* now we need a compensation filter       */
-            i_y  = i_comb3_out - (CORRECTION_GAIN*i_w2) + i_w1;
-            i_w1 = i_w2;           /* z-2 */
-            i_w2 = i_comb3_out;    /* z-1 */
-
-            /* finally we have a data point to send out so off it goes */
-            output_buffer_i[buf_ptr]   = (short)(i_y>>12);
-
-            /* and we fill a transmit buffer with interleaved I,Q samples */
-            *(short *)(transmit_buffer + LWS_PRE      + (2 * 2*buf_ptr)+2) = (short)(i_y>>12);
-            *(short *)(server_buffer   + TCP_DATA_PRE + (2 * 2*buf_ptr)+2) = (short)(i_y>>12);
-
-
-            /* since we always do the i and q in sync, no need for separate deimation counts or buffer pointers */
-            q_comb3_out     = q_comb2_out - q_comb2_out_old;
-            q_comb2_out_old = q_comb2_out;
-            q_comb2_out     = q_comb1_out - q_comb1_out_old;
-            q_comb1_out_old = q_comb1_out;
-            q_comb1_out     = q_int3_out  - q_int3_out_old;
-            q_int3_out_old  = q_int3_out;
-            
-            /* now we need a compensation filter       */
-            q_y  = q_comb3_out - (CORRECTION_GAIN*q_w2) + q_w1;
-            q_w1 = q_w2;           /* z-2 */
-            q_w2 = q_comb3_out;    /* z-1 */
-
-            /* finally we have a data point to send out so off it goes */
-            output_buffer_q[buf_ptr]     = (short)(q_y>>12);
-
-            /* and we fill a transmit buffer with interleaved I,Q samples */
-            *(short *)(transmit_buffer + LWS_PRE      + (2 * 2*buf_ptr)) = (short)(q_y>>12);
-            *(short *)(server_buffer   + TCP_DATA_PRE + (2 * 2*buf_ptr)) = (short)(q_y>>12);
-
-
-            /* if we have filled the output buffer, then we can output it to the FFT and the internet */
-            buf_ptr++;
-            if (buf_ptr == FFT_BUFFER_SIZE) {
-                fft();
-                buffer_send();
-                buf_ptr = 0;
-            }
-            if ((q_y>>11) != ((short)(q_y>>11))) printf("Housten we have a q problem %li\n",q_y);
-            if ((i_y>>11) != ((short)(i_y>>11))) printf("Housten we have a i problem %li\n",i_y);
+          // Shout if there is an overflow in the conversion to short
+          if ((i_y / stream_divisor) != (short)(i_y / stream_divisor))
+          {
+            printf("ERROR i_y = %d, sent = %i\n", i_y, (short)(i_y / stream_divisor));
+          }
+          if ((q_y / stream_divisor) != (short)(q_y / stream_divisor))
+          {
+            printf("ERROR q_y = %d, sent = %i\n", q_y, (short)(q_y / stream_divisor));
+          }
         }
 
-        /* for efficiency we do the integrators last, again right to left, so that we don't overwrite any values */
-        i_int3_out = i_int2_out   + i_int3_out;
-        i_int2_out = i_int1_out   + i_int2_out;
-        i_int1_out = (long int)xi + i_int1_out;
+        // Set the Output Buffer values used by the local display
+        output_buffer_i[buf_ptr] = (short)(i_y / stream_divisor);
+        output_buffer_q[buf_ptr] = (short)(q_y / stream_divisor);
 
-        q_int3_out = q_int2_out   + q_int3_out;
-        q_int2_out = q_int1_out   + q_int2_out;
-        q_int1_out = (long int)xq + q_int1_out;
+        // Set the Server buffer values to be sent to the central server
+        *(short *)(server_buffer + TCP_DATA_PRE + (2 * 2 * buf_ptr) + 2) = (short)(i_y / stream_divisor);
+        *(short *)(server_buffer + TCP_DATA_PRE + (2 * 2 * buf_ptr))     = (short)(q_y / stream_divisor);
+
+        // Set the transmit buffer values that would be used for local streaming
+        //*(short *)(transmit_buffer + LWS_PRE + (2 * 2*buf_ptr) + 2) = (short)(i_y / stream_divisor);
+        //*(short *)(transmit_buffer + LWS_PRE + (2 * 2*buf_ptr))     = (short)(q_y / stream_divisor);
+
+        // if we have filled the output buffer, then we can output it to the local FFT and the internet server
+        buf_ptr++;
+        if (buf_ptr == FFT_BUFFER_SIZE)   // 1024 for server
+        {
+          fft();                      // Send to local display
+          buffer_send();              // Send to server
+          buf_ptr = 0;
+        }
+      }                               // End of decimation loop
+
+      // for efficiency we do the integrators last, again right to left, so that we don't overwrite any values
+      i_int3_out = i_int2_out   + i_int3_out;
+      i_int2_out = i_int1_out   + i_int2_out;
+      i_int1_out = (uint32_t)xi + i_int1_out;
+
+      q_int3_out = q_int2_out   + q_int3_out;
+      q_int2_out = q_int1_out   + q_int2_out;
+      q_int1_out = (uint32_t)xq + q_int1_out;
     }
   }
   else  // old filter code
@@ -618,7 +637,7 @@ rf_buffer_t rf_buffer = {
 
 
 typedef struct {
-	float data[2048];
+	float data[4096];
 	pthread_mutex_t mutex;
 } fft_buffer_t;
 
@@ -637,7 +656,7 @@ void *thread_fft(void *dummy)
   double pwr;
   double lpwr;
   double pwr_scale;
-  float fft_circ[4096][2];
+  float fft_circ[8182][2];
   int circ_write_index = 0;
   int circ_read_pos = 0;
   int window_open;
@@ -805,7 +824,8 @@ void fft_to_buffer()
 
   // Calculate the centre of the fft
   // for 512, 1024 2048 etc = fft_size / 2 - 256
-  // for 500, 1000, 2000 = fft_size / 2 - 250  // 500 -> -7, 1000 -> 250 - 7, 2000 750 - 7
+  // Was for 500, 1000, 2000 = fft_size / 2 - 250  // 500 -> -7, 1000 -> 250 - 7, 2000 750 - 7
+  // Now for 500, 1000, 2000 = fft_size / 2 - 250  // 500 -> -7, 1000 -> 250 - 7, 2000 750 - 7
   if (fft_size == 500)
   {
     fft_offset = -7;
@@ -830,13 +850,18 @@ void fft_to_buffer()
   {
     fft_offset = 768;
   }
+  if (fft_size == 4096)
+  {
+    fft_offset = 1792;
+  }
 
 
   // Scale and limit the samples
   for(j = 0; j < fft_size; j++)
   {
     // Add a constant to position the baseline
-    fft_output_data[j] = fft_output_data[j] + 75.0;
+    fft_output_data[j] = fft_output_data[j] + 70.0;   // for 0 dB  = - 20 dBfs
+//    fft_output_data[j] = fft_output_data[j] + 75.0;
 //    fft_output_data[j] = fft_output_data[j] + 185.0;
 
     // Multiply by 5 (pixels per dB on display)
@@ -1253,7 +1278,7 @@ void *sdrplay_fft_thread(void *arg) {
         fft_offset = (fft_size / 2) - 250;
 
         // zero all the buffers
-        for(i = 0; i < 2048; i++)
+        for(i = 0; i < 4096; i++)
         {
           y3[i] = 1;
           //hanning_window_const[i] = 0;
@@ -1276,152 +1301,121 @@ void *sdrplay_fft_thread(void *arg) {
         {
           if(monotonic_ms() > (last_output + 50))  // so 20 Hz refresh
           {
+             // Reset timer for 20 Hz refresh
+             last_output = monotonic_ms();
 
-      // Reset timer for 20 Hz refresh
-      last_output = monotonic_ms();
+             // Check for parameter changes (loop ends here if none)
 
-      // Check for parameter changes (loop ends here if none)
+             // Change of Frequency
+             if (NewFreq == true)
+             {
+               sdrplay_api_Uninit(chosenDevice->dev);
+               chParams->tunerParams.rfFreq.rfHz = (float)CentreFreq;
 
-      // Change of Frequency
-      if (NewFreq == true)
-      {
-        sdrplay_api_Uninit(chosenDevice->dev);
-        chParams->tunerParams.rfFreq.rfHz = (float)CentreFreq;
+               if ((err = sdrplay_api_Init(chosenDevice->dev, &cbFns, NULL)) != sdrplay_api_Success)
+               {
+                 printf("sdrplay_api_Init failed %s\n", sdrplay_api_GetErrorString(err));
+               }
+               NewFreq = false;
+             }
 
-        if ((err = sdrplay_api_Init(chosenDevice->dev, &cbFns, NULL)) != sdrplay_api_Success)
-        {
-          printf("sdrplay_api_Init failed %s\n", sdrplay_api_GetErrorString(err));
-        }
-        NewFreq = false;
-      }
+             // Change of gain
+             if (NewGain == true)
+             {
+               sdrplay_api_Uninit(chosenDevice->dev);
 
-      // Change of gain
-      if (NewGain == true)
-      {
-        sdrplay_api_Uninit(chosenDevice->dev);
+               // Set AGC
+               if (agc == true)
+               {
+                 chParams->ctrlParams.agc.enable = sdrplay_api_AGC_100HZ;
+               }
+               else
+               {
+                 chParams->ctrlParams.agc.enable = sdrplay_api_AGC_DISABLE;
+               }
 
-        // Set AGC
-        if (agc == true)
-        {
-          chParams->ctrlParams.agc.enable = sdrplay_api_AGC_100HZ;
-        }
-        else
-        {
-          chParams->ctrlParams.agc.enable = sdrplay_api_AGC_DISABLE;
-        }
+               // Set RF Gain
+               chParams->tunerParams.gain.LNAstate = legal_gain(RFgain);
 
-        // Set RF Gain
-        chParams->tunerParams.gain.LNAstate = legal_gain(RFgain);
-
-        // Set IF gain
-        chParams->tunerParams.gain.gRdB = IFgain;          // Set between 20 (max gain) and 59 (least)
+               // Set IF gain
+               chParams->tunerParams.gain.gRdB = IFgain;          // Set between 20 (max gain) and 59 (least)
         
-        if ((err = sdrplay_api_Init(chosenDevice->dev, &cbFns, NULL)) != sdrplay_api_Success)
-        {
-          printf("sdrplay_api_Init failed %s\n", sdrplay_api_GetErrorString(err));
+               if ((err = sdrplay_api_Init(chosenDevice->dev, &cbFns, NULL)) != sdrplay_api_Success)
+               {
+                 printf("sdrplay_api_Init failed %s\n", sdrplay_api_GetErrorString(err));
+               }
+               NewGain = false;
+             }
+
+             // Change of Display Span
+             if (prepnewscanwidth == true)
+             {
+
+              printf("prepnewscanwidth == true\n");
+              // Notify touchscreen that parameters can be changed
+              readyfornewscanwidth = true;
+              printf("readyfornewscanwidth == true\n");
+
+              // Wait for new parameters to be calculated
+              while (NewSpan == false)
+              {
+                usleep(100);
+              }
+              printf("NewSpan == true\n");
+
+              if (fft_size == 500)
+              {
+                fft_offset = -7;
+              }
+              if (fft_size == 512)
+              {
+                fft_offset = 0;
+              }
+              if (fft_size == 1024)
+              {
+                fft_offset = 256;
+              }
+              if (fft_size == 2048)
+              {
+                fft_offset = 768;
+              }
+              if (fft_size == 4096)
+              {
+                fft_offset = 1792;
+              }
+              printf("new fft_size = %d\n", fft_size);
+              printf("new fft_offset = %d\n", fft_offset);
+
+
+              // Reset trigger parameters
+              NewSpan = false;
+              prepnewscanwidth = false;
+              readyfornewscanwidth = false;
+
+              // Initialise fft
+              printf("Initialising FFT (%d bin).. \n", fft_size);
+              setup_fft();
+              for (i = 0; i < fft_size; i++)
+              {
+                hanning_window_const[i] = 0.5 * (1.0 - cos(2*M_PI*(((double)i)/fft_size)));
+              }
+              printf("FFT Intitialised\n");
+              printf("end of change\n");
+            }
+          }  // remote/local
+          else
+          {
+           usleep(100);
+          }
+
+          if (*exit_requested == true)
+          {
+            printf("Exit Requested before delay\n");
+          }
+          sleep_ms(1);
         }
-        NewGain = false;
       }
 
-      // Change of Display Span
-      if (prepnewscanwidth == true)
-      {
-
-  //printf("Waiting for SDR Play FFT Thread to exit..\n");
-  //pthread_join(sdrplay_fft_thread_obj, NULL);
-  //printf("FFT Thread exited\n");
-
-
-
-        printf("prepnewscanwidth == true\n");
-        // Notify touchscreen that parameters can be changed
-        readyfornewscanwidth = true;
-        printf("readyfornewscanwidth == true\n");
-
-        // Wait for new parameters to be calculated
-        while (NewSpan == false)
-        {
-          usleep(100);
-        }
-        printf("NewSpan == true\n");
-
-  if (fft_size == 500)
-  {
-    fft_offset = -7;
-  }
-  if (fft_size == 512)
-  {
-    fft_offset = 0;
-  }
-  if (fft_size == 1000)
-  {
-    fft_offset = 243;
-  }
-  if (fft_size == 1024)
-  {
-    fft_offset = 256;
-  }
-  if (fft_size == 2000)
-  {
-    fft_offset = 743;
-  }
-  if (fft_size == 2048)
-  {
-    fft_offset = 768;
-  }
-        printf("new fft_size = %d\n", fft_size);
-        printf("new fft_offset = %d\n", fft_offset);
-
-
-        // Reset trigger parameters
-        NewSpan = false;
-        prepnewscanwidth = false;
-        readyfornewscanwidth = false;
-
-  // Initialise fft
-  printf("Initialising FFT (%d bin).. \n", fft_size);
-  setup_fft();
-  for (i = 0; i < fft_size; i++)
-  {
-    hanning_window_const[i] = 0.5 * (1.0 - cos(2*M_PI*(((double)i)/fft_size)));
-  }
-  printf("FFT Intitialised\n");
-
-
-
-  //printf("Starting FFT Thread.. \n");
-  //if (pthread_create(&fftThread, NULL, thread_fft, NULL))
-  //{
-  //  printf("Error creating FFT thread\n");
-    //return -1;
-  //}
-  //pthread_setname_np(fftThread, "FFT Calculation");
-  //printf("FFT thread running.\n");
-
-
-        printf("end of change\n");
-
-      }
-    }  // remote/local
-    else
-    {
-     usleep(100);
-    }
-
-    if (*exit_requested == true)
-    {
-      printf("Exit Requested before delay\n");
-    }
-    sleep_ms(1);
-  }
-
-
-
-      }
-
-
-
-                        
       // Finished with device so uninitialise it
       if ((err = sdrplay_api_Uninit(chosenDevice->dev)) != sdrplay_api_Success)
       {
@@ -1448,17 +1442,14 @@ void *sdrplay_fft_thread(void *arg) {
             printf("Waiting for slave to uninitialise\n");
           }
         }
-        //goto CloseApi;
       }
       // Release device (make it available to other applications)
       sdrplay_api_ReleaseDevice(chosenDevice);
     }
- 
-//UnlockDeviceAndCloseApi:
+
     // Unlock API
     sdrplay_api_UnlockDeviceApi();
 
-//CloseApi:
     // Close API
     sdrplay_api_Close();
   }
