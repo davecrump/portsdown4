@@ -283,6 +283,8 @@ if [ ! -d  /home/pi/libwebsockets ]; then
   cd /home/pi
 fi
 
+# Delete any old master files
+rm /home/pi/master.zip >/dev/null 2>/dev/null
 
 # -----------Update LimeSuite if required -------------
 
@@ -884,6 +886,12 @@ fi
 if ! grep -q site1d0numbers= "$PATHSCRIPT"/portsdown_C_codes.txt; then
   # File needs updating
   cp "$PATHSCRIPT"/configs/portsdown_C_codes.txt.factory "$PATHSCRIPT"/portsdown_C_codes.txt
+fi
+
+# Add new stop alias if required  202311xxx
+if ! grep -q rpidatv/scripts/utils/stop.sh /home/pi/.bash_aliases; then
+  # File needs updating
+  echo "alias stop='/home/pi/rpidatv/scripts/utils/stop.sh'"  >> /home/pi/.bash_aliases
 fi
 
 # Configure the nginx web server
