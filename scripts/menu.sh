@@ -3069,7 +3069,7 @@ menuchoice=$(whiptail --title "$StrSystemTitle" --menu "$StrSystemContext" 20 78
       10\ *) do_LimeStatus;;
       11\ *) do_LimeUpdate;;
       12\ *) do_Reboots ;;
-      12\ *) do_Update ;;
+      13\ *) do_Update ;;
     esac
 }
 

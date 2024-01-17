@@ -42,7 +42,7 @@ fi
 
 # Check second entry
 SUBNET_TEXT=$(hostname -I | awk '{print $2}')
-hostname -I | echo $SUBNET_TEXT | grep -E -q "192.168."
+echo $SUBNET_TEXT | grep -E -q "192.168."
 if [ $? == 0 ]; then                    # It's a 192.168.*.* network
   SUBNET_TEXT=$(echo $SUBNET_TEXT | sed 's![^.]*$!!')
   if [ $SUBNET_SERIAL == 1 ]; then      # First hit
@@ -59,7 +59,7 @@ fi
 
 # Check third entry
 SUBNET_TEXT=$(hostname -I | awk '{print $3}')
-hostname -I | echo $SUBNET_TEXT | grep -E -q "192.168."
+echo $SUBNET_TEXT | grep -E -q "192.168."
 if [ $? == 0 ]; then                    # It's a 192.168.*.* network
   SUBNET_TEXT=$(echo $SUBNET_TEXT | sed 's![^.]*$!!')
   if [ $SUBNET_SERIAL == 1 ]; then      # First hit
@@ -81,7 +81,7 @@ fi
 
 # Check fourth entry
 SUBNET_TEXT=$(hostname -I | awk '{print $4}')
-hostname -I | echo $SUBNET_TEXT | grep -E -q "192.168."
+echo $SUBNET_TEXT | grep -E -q "192.168."
 if [ $? == 0 ]; then                    # It's a 192.168.*.* network
   SUBNET_TEXT=$(echo $SUBNET_TEXT | sed 's![^.]*$!!')
   if [ $SUBNET_SERIAL == 1 ]; then      # First hit
@@ -103,7 +103,7 @@ fi
 
 # Check fifth entry
 SUBNET_TEXT=$(hostname -I | awk '{print $5}')
-hostname -I | echo $SUBNET_TEXT | grep -E -q "192.168."
+echo $SUBNET_TEXT | grep -E -q "192.168."
 if [ $? == 0 ]; then                    # It's a 192.168.*.* network
   SUBNET_TEXT=$(echo $SUBNET_TEXT | sed 's![^.]*$!!')
   if [ $SUBNET_SERIAL == 1 ]; then      # First hit
@@ -125,7 +125,7 @@ fi
 
 # Check sixth entry
 SUBNET_TEXT=$(hostname -I | awk '{print $6}')
-hostname -I | echo $SUBNET_TEXT | grep -E -q "192.168."
+echo $SUBNET_TEXT | grep -E -q "192.168."
 if [ $? == 0 ]; then                    # It's a 192.168.*.* network
   SUBNET_TEXT=$(echo $SUBNET_TEXT | sed 's![^.]*$!!')
   if [ $SUBNET_SERIAL == 1 ]; then      # First hit
