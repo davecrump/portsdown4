@@ -1,3 +1,7 @@
+202401170
+Re-introduce boot-to-TX option
+Add LAN device listing facility
+
 202311130
 Adjust MeteorView remote scaling
 
