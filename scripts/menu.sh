@@ -1684,6 +1684,8 @@ do_autostart_setup()
   Radio3=OFF
   Radio4=OFF
   Radio5=OFF
+  Radio6=OFF
+  Radio7=OFF
 
   case "$MODE_STARTUP" in
     Display_boot)
@@ -1701,6 +1703,12 @@ do_autostart_setup()
     Meteorbeacon_boot)
       Radio5=ON
     ;;
+    TX_boot)
+      Radio6=ON
+    ;;
+    Keyed_TX_boot)
+      Radio7=ON
+    ;;
     *)
       Radio1=ON
     ;;
@@ -1713,11 +1721,20 @@ do_autostart_setup()
    "Bandview_boot" "Boot-up to the Band Viewer" $Radio3 \
    "Meteorview_boot" "Boot-up to the Meteor Viewer " $Radio4 \
    "Meteorbeacon_boot" "Boot-up to the Meteor Beacon RX Server " $Radio5 \
+   "TX_boot" "$AutostartSetupTX_boot" $Radio6 \
+   "Keyed_TX_boot" "Boot up to GPIO Keyed Repeater TX" $Radio7 \
    3>&2 2>&1 1>&3)
 
   if [ $? -eq 0 ]; then
      set_config_var startup "$chstartup" $PCONFIGFILE
      MODE_STARTUP=$chstartup
+  fi
+
+  # If keyed or continuous TX selected, set up cron for 12-hourly reboot
+  if [[ "$chstartup" == "Keyed_TX_boot" || "$chstartup" == "TX_boot" ]]; then
+    sudo crontab /home/pi/rpidatv/scripts/configs/rptrcron
+  else
+    sudo crontab /home/pi/rpidatv/scripts/configs/blankcron
   fi
 }
 
@@ -2995,6 +3012,33 @@ do_load_settings()
   fi
 }
 
+
+do_Reboots()
+{
+  sudo crontab -l | grep -E -q '^0 3'
+  if [ $? == 0 ]; then                # 12-hourly reboot enabled
+    Radio1=OFF
+    Radio2=ON
+  else
+    Radio1=ON
+    Radio2=OFF
+  fi
+
+  REBOOTS=$(whiptail --title "SET 12-Hourly Reboots ON OR OFF" --radiolist \
+    "Select one" 20 78 8 \
+    "off" "No 12-hourly reboots scheduled" $Radio1 \
+    "on" "Reboots scheduled for 0300 and 1500 UTC" $Radio2 \
+    3>&2 2>&1 1>&3)
+
+  if [ $? -eq 0 ]; then                     ## If the selection has changed
+    if [[ "$REBOOTS" == "on" ]]; then
+      sudo crontab /home/pi/rpidatv/scripts/configs/rptrcron
+    else
+      sudo crontab /home/pi/rpidatv/scripts/configs/blankcron
+    fi
+  fi
+}
+
 do_system_setup()
 {
 menuchoice=$(whiptail --title "$StrSystemTitle" --menu "$StrSystemContext" 20 78 13 \
@@ -3009,7 +3053,8 @@ menuchoice=$(whiptail --title "$StrSystemTitle" --menu "$StrSystemContext" 20 78
     "9 Attenuator" "Select Output Attenuator Type"  \
     "10 Lime Status" "Check the LimeSDR Firmware Version"  \
     "11 Lime Update" "Update the LimeSDR Firmware Version"  \
-    "12 Update" "Check for Updated Portsdown Software"  \
+    "12 Reboots" "Enable/disable 12-hourly Reboot"  \
+    "13 Update" "Check for Updated Portsdown Software"  \
     3>&2 2>&1 1>&3)
     case "$menuchoice" in
       1\ *) do_autostart_setup ;;
@@ -3023,6 +3068,7 @@ menuchoice=$(whiptail --title "$StrSystemTitle" --menu "$StrSystemContext" 20 78
       9\ *) do_attenuator;;
       10\ *) do_LimeStatus;;
       11\ *) do_LimeUpdate;;
+      12\ *) do_Reboots ;;
       12\ *) do_Update ;;
     esac
 }

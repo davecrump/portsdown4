@@ -489,6 +489,7 @@ void ShowImageFile(char *ImagePath, char *ImageFile);
 void ListText(char *TextPath, char *TextFile);
 void FileOperation(int button);
 void ListUSBDevices();
+void ListNetDevices();
 void DisplayLogo();
 void TransformTouchMap(int x, int y);
 int IsButtonPushed(int NbButton,int x,int y);
@@ -6212,6 +6213,51 @@ void ListUSBDevices()
 
   strcpy(DeviceArray[0], "USB Devices Detected:");   // Title
   SelectFromList(-1, DeviceArray, LineCount - 1);    // Display in list
+}
+
+
+/***************************************************************************//**
+ * @brief Uses the "SelectFromList" dialogue to display a list of 
+ * connected Network devices as shown by the list_rpi.sh script.  Truncates entriess to 63 chars.
+ *        
+ * @param nil
+ *
+ * @return void
+*******************************************************************************/
+
+void ListNetDevices()
+{
+  int i;
+  FILE *fp;
+  char response[255];
+  char NetworkArray[101][63];
+  int LineCount = 1;           // Start at 1, as 0 is the title
+
+  // Clear the NetworkArray
+  for (i = 0; i <= 100; i++)
+  {
+    strcpy(NetworkArray[i], "");
+  }
+
+  fp = popen("/home/pi/rpidatv/scripts/list_rpi.sh", "r");
+  if (fp == NULL)
+  {
+    printf("Failed to run command\n" );
+    exit(1);
+  }
+
+  // Read the output a line at a time - store it
+  while ((fgets(response, 255, fp) != NULL) && (LineCount < 99))
+  {
+    response[strlen(response) - 1] = '\0';  // Strip trailing cr
+    //printf("Line %d %s\n", LineCount, response);
+    strcpyn(NetworkArray[LineCount], response, 63);  // Read response and limit to 63
+    LineCount++;
+  }
+  pclose(fp);
+
+  strcpy(NetworkArray[0], "Network Devices Detected:");   // Title
+  SelectFromList(-1, NetworkArray, LineCount - 1);    // Display in list
 }
 
 
@@ -18070,19 +18116,23 @@ void waituntil(int w,int h)
           Start_Highlights_Menu1();
           UpdateWindow();
           break;
-        case 5:                               // Explorer
-        case 6:                               // New Directory
-        case 7:                               //
+        case 5:                               // Open File Explorer
+        case 6:                               // New Directory (not yet implemented)
+        case 7:                               // (not yet implemented)
           FileOperation(i);
-          Start_Highlights_Menu4();           // Refresh button labels
+          Start_Highlights_Menu4();
           UpdateWindow();
           break;
-        case 8:                               // 
+        case 8:                               // List Network Devices
+          MsgBox4("Please wait", "Scanning Networks", ".....", " ");
+          ListNetDevices();
+          Start_Highlights_Menu4();
+          UpdateWindow();
           break;
-        case 9:                               //
+        case 9:                               // List USB Devices
           ClearMenuMessage(); 
           ListUSBDevices();
-          Start_Highlights_Menu4();           // Refresh button labels
+          Start_Highlights_Menu4();
           UpdateWindow();
           break;
         case 13:                             // 
@@ -21830,10 +21880,9 @@ void Define_Menu4()
   //AddButtonStatus(button, TabVidSource[2], &Green);
   //AddButtonStatus(button, TabVidSource[2], &Grey);
 
-  //button = CreateButton(4, 8);
-  //AddButtonStatus(button, TabVidSource[3], &Blue);
-  //AddButtonStatus(button, TabVidSource[3], &Green);
-  //AddButtonStatus(button, TabVidSource[3], &Grey);
+  button = CreateButton(4, 8);
+  AddButtonStatus(button, "List Network^Devices", &Blue);
+  AddButtonStatus(button, "List Network^Devices", &Green);
 
   button = CreateButton(4, 9);
   AddButtonStatus(button, "List USB^Devices", &Blue);
