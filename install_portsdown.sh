@@ -93,6 +93,7 @@ sudo apt-get -y install expect                                          # For un
 sudo apt-get -y install uhubctl                                         # For SDRPlay USB resets
 sudo apt-get -y install libssl-dev                                      # For websockets
 sudo apt-get -y install libzstd-dev                                     # For libiio 202309040
+sudo apt-get -y install arp-scan                                        # For List Network Devices
 
 # Install WiringPi
 cd /tmp

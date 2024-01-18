@@ -2539,6 +2539,8 @@ void *WaitButtonEvent(void * arg)
           DischargeInProgress = false;
           DischargePaused = false;
           DischargeComplete = false;
+          Cumulative_ma_ms = 0;
+          CumulativeAH = 0;
           ModeChanged = true;
           usleep(100000);
           CurrentMenu = 9;
