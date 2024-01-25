@@ -58,4 +58,5 @@ picam=normal
 vlcvolume=256
 webcontrol=disabled
 langstone=none
+upsample=1
 

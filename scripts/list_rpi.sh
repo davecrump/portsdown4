@@ -149,7 +149,7 @@ fi
 PLUTOIP=$(get_config_var plutoip $PCONFIGFILE)
 ping -c 1 -w 1 $PLUTOIP >/dev/null 2>/dev/null
 if [ $? == 0 ]; then
-  echo $PLUTOIP Pluto SDR
+  echo $PLUTOIP Configured address for Pluto SDR
 fi
 
 # Check the arp entries
