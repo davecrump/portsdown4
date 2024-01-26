@@ -492,6 +492,7 @@ void ListText(char *TextPath, char *TextFile);
 void FileOperation(int button);
 void ListUSBDevices();
 void ListNetDevices();
+void ListNetPis();
 void DisplayLogo();
 void TransformTouchMap(int x, int y);
 int IsButtonPushed(int NbButton,int x,int y);
@@ -6239,7 +6240,7 @@ void ListNetDevices()
     strcpy(NetworkArray[i], "");
   }
 
-  fp = popen("/home/pi/rpidatv/scripts/list_rpi.sh", "r");
+  fp = popen("/home/pi/rpidatv/scripts/list_net_devices.sh", "r");
   if (fp == NULL)
   {
     printf("Failed to run command\n" );
@@ -6257,6 +6258,51 @@ void ListNetDevices()
   pclose(fp);
 
   strcpy(NetworkArray[0], "Network Devices Detected:");   // Title
+  SelectFromList(-1, NetworkArray, LineCount - 1);    // Display in list
+}
+
+
+/***************************************************************************//**
+ * @brief Uses the "SelectFromList" dialogue to display a list of 
+ * connected Raspberry Pis as shown by the list_rpi.sh script.  Truncates entriess to 63 chars.
+ *        
+ * @param nil
+ *
+ * @return void
+*******************************************************************************/
+
+void ListNetPis()
+{
+  int i;
+  FILE *fp;
+  char response[255];
+  char NetworkArray[101][63];
+  int LineCount = 1;           // Start at 1, as 0 is the title
+
+  // Clear the NetworkArray
+  for (i = 0; i <= 100; i++)
+  {
+    strcpy(NetworkArray[i], "");
+  }
+
+  fp = popen("/home/pi/rpidatv/scripts/list_rpi.sh", "r");
+  if (fp == NULL)
+  {
+    printf("Failed to run command\n" );
+    exit(1);
+  }
+
+  // Read the output a line at a time - store it
+  while ((fgets(response, 255, fp) != NULL) && (LineCount < 99))
+  {
+    response[strlen(response) - 1] = '\0';  // Strip trailing cr
+    //printf("Line %d %s\n", LineCount, response);
+    strcpyn(NetworkArray[LineCount], response, 63);  // Read response and limit to 63
+    LineCount++;
+  }
+  pclose(fp);
+
+  strcpy(NetworkArray[0], "Raspberry Pis Detected:");   // Title
   SelectFromList(-1, NetworkArray, LineCount - 1);    // Display in list
 }
 
@@ -18083,8 +18129,13 @@ void waituntil(int w,int h)
           break;
         case 5:                               // Open File Explorer
         case 6:                               // New Directory (not yet implemented)
-        case 7:                               // (not yet implemented)
           FileOperation(i);
+          Start_Highlights_Menu4();
+          UpdateWindow();
+          break;
+        case 7:                               // List Raspberry Pis on network
+          MsgBox4("Please wait", "Scanning Networks", ".....", " ");
+          ListNetPis();
           Start_Highlights_Menu4();
           UpdateWindow();
           break;
@@ -21840,14 +21891,11 @@ void Define_Menu4()
   //AddButtonStatus(button, TabVidSource[5], &Green);
   //AddButtonStatus(button, TabVidSource[5], &Grey);
 
-  //button = CreateButton(4, 7);
-  //AddButtonStatus(button, TabVidSource[2], &Blue);
-  //AddButtonStatus(button, TabVidSource[2], &Green);
-  //AddButtonStatus(button, TabVidSource[2], &Grey);
+  button = CreateButton(4, 7);
+  AddButtonStatus(button, "List Network^Raspberry Pis", &Blue);
 
   button = CreateButton(4, 8);
   AddButtonStatus(button, "List Network^Devices", &Blue);
-  AddButtonStatus(button, "List Network^Devices", &Green);
 
   button = CreateButton(4, 9);
   AddButtonStatus(button, "List USB^Devices", &Blue);
