@@ -1,6 +1,6 @@
 #! /bin/bash
 
-# Script to Raspberry Pi clients on LAN
+# Script to list clients on LAN
 # needs apt-get install arp-scan
 
 ############ FUNCTION TO READ CONFIG FILE #############################
@@ -162,6 +162,8 @@ if [ "$SUBNET_1" != "null" ]; then
       if [ $? == 0 ]; then
         corrected_line=$(echo $line | sed 's/(Unknown)/Raspberry Pi/g')
         echo $corrected_line
+      else
+        echo $line
       fi
     fi
    )
@@ -177,6 +179,8 @@ if [ "$SUBNET_2" != "null" ]; then
       if [ $? == 0 ]; then
         corrected_line=$(echo $line | sed 's/(Unknown)/Raspberry Pi/g')
         echo $corrected_line
+      else
+        echo $line
       fi
     fi
    )
@@ -192,6 +196,8 @@ if [ "$SUBNET_3" != "null" ]; then
       if [ $? == 0 ]; then
         corrected_line=$(echo $line | sed 's/(Unknown)/Raspberry Pi/g')
         echo $corrected_line
+      else
+        echo $line
       fi
     fi
    )
