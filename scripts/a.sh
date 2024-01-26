@@ -497,13 +497,13 @@ case "$MODE_OUTPUT" in
       CUSTOM_FPGA="-F"
     else
       CUSTOM_FPGA=" "
-      if [ "REQ_UPSAMPLE" == "2" ]
+      if [ "$REQ_UPSAMPLE" -eq "2" ] ; then
         UPSAMPLE=2
       fi
-      if [ "REQ_UPSAMPLE" == "4" ]
+      if [ "$REQ_UPSAMPLE" -eq "4" ] ; then
         UPSAMPLE=4
       fi
-      if [ "REQ_UPSAMPLE" == "8" ]
+      if [ "$REQ_UPSAMPLE" -eq "8" ] ; then
         UPSAMPLE=8
       fi
     fi
