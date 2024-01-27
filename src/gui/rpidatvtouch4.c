@@ -2144,6 +2144,7 @@ void ReadModeOutput(char Moutput[256])
 {
   char ModeOutput[255];
   // char LimeCalFreqText[63];
+  char LimeRFEStateText[63];
   char LimeUpsampleText[63];
 
   GetConfigParam(PATH_PCONFIG,"modeoutput", ModeOutput);
@@ -2211,21 +2212,50 @@ void ReadModeOutput(char Moutput[256])
   // Read LimeCal freq
   LimeCalFreq  = -1;  // Always Cal is the only option
 
+  // Read LimeCal freq
+  //GetConfigParam(PATH_LIME_CAL, "limecalfreq", LimeCalFreqText);
+  //LimeCalFreq = atof(LimeCalFreqText);
+  LimeCalFreq  = -1;  // Always Cal is the only option
+
   // And read LimeRFE state
-  LimeRFEState = 0;
+  GetConfigParam(PATH_PCONFIG, "limerfe", LimeRFEStateText);
+  if (strcmp(LimeRFEStateText, "enabled") == 0)
+  {
+    LimeRFEState = 1;
+  }
+  else
+  {
+    LimeRFEState = 0;
+  }
 
   // LimeRFE TX Port
-  LimeRFEPort = 1;
+  GetConfigParam(PATH_PCONFIG, "limerfeport", LimeRFEStateText);
+  if (strcmp(LimeRFEStateText, "txrx") == 0)
+  {
+    LimeRFEPort = 1;
+  }
+  else if (strcmp(LimeRFEStateText, "tx") == 0)
+  {
+    LimeRFEPort = 2;
+  }
+  else
+  {
+    LimeRFEPort = 3;
+  }
 
-  // Lime Upsample
-  GetConfigParam(PATH_PCONFIG, "upsample", LimeUpsampleText);
-  LimeUpsample = atoi(LimeUpsampleText);
+  // LimeRFE RX Attenuator
+  GetConfigParam(PATH_PCONFIG, "limerferxatt", LimeRFEStateText);
+  LimeRFERXAtt = atoi(LimeRFEStateText);
 
   // Read DVB-T Guard Interval and QAM
   GetConfigParam(PATH_PCONFIG, "guard", Guard);
   GetConfigParam(PATH_PCONFIG, "qam", DVBTQAM);
 
+  // Lime Upsample
+  GetConfigParam(PATH_PCONFIG, "upsample", LimeUpsampleText);
+  LimeUpsample = atoi(LimeUpsampleText);
 }
+
 
 /***************************************************************************//**
  * @brief Checks if a file exists
@@ -11043,7 +11073,7 @@ void TransmitStop()
   char bashcmd[255];
   char picamdev1[15];
 
-  printf("Stopping all transmit processes, even if they weren't running\n");
+  printf("\nStopping all transmit processes, even if they weren't running\n");
 
   // If transmit menu is displayed, blue-out the TX button here
   // code to be added
@@ -16840,6 +16870,41 @@ void ToggleLimeRFE()
 }
 
 
+void SetLimeRFERXAtt()
+{
+  char bandtext [15];
+  char Param[31];
+  char Prompt[127];
+  char Value[31];
+  int  RFEAtt;
+   
+  // Get the current band from portsdown_config.txt
+  //GetConfigParam(PATH_PCONFIG, "band", bandtext);
+  //strcat(bandtext, "limerfe");
+
+  // Lime RFE Attenuator Level
+  //strcpy(Param, TabBand[band]);
+  GetConfigParam(PATH_PCONFIG, "band", bandtext);
+  strcpy(Param, bandtext);
+  strcat(Param, "limerferxatt");
+  GetConfigParam(PATH_PPRESETS, Param, Value);
+  RFEAtt=atoi(Value);
+  snprintf(Value, 30, "%d", RFEAtt * 2);
+  RFEAtt= - 1;
+  while ((RFEAtt < 0) || (RFEAtt > 14) || (strlen(KeyboardReturn) < 1))  
+  {
+    snprintf(Prompt, 63, "Set LimeRFE Rx Atten for %s. 0-14 (dB):", TabBandLabel[CurrentBand]);
+    Keyboard(Prompt, Value, 6);
+    RFEAtt = atoi(KeyboardReturn);
+  }
+  LimeRFERXAtt = RFEAtt / 2;
+  snprintf(Value, 30, "%d", RFEAtt / 2);
+  SetConfigParam(PATH_PCONFIG, "limerferxatt", Value);
+  SetConfigParam(PATH_PPRESETS, Param, Value);
+  LimeRFEInit();
+}
+
+
 void LimeRFEInit()
 {
   FILE *fp;
@@ -20216,11 +20281,16 @@ void waituntil(int w,int h)
           Start_Highlights_Menu1();
           UpdateWindow();
           break;
-        case 5:                               // Display LimeSuite Info Page
-          LimeUtilInfo();
-          wait_touch();
-          setBackColour(0, 0, 0);
-          clearScreen();
+        case 5:                               // Set Lime Upsample
+          SetLimeUpsample();
+          Start_Highlights_Menu37();
+
+          //was                               // Display LimeSuite Info Page
+          //LimeUtilInfo();
+          //wait_touch();
+          //setBackColour(0, 0, 0);
+          //clearScreen();
+
           UpdateWindow();
           break;
         case 6:                               // Display Lime FW Info Page
@@ -20252,8 +20322,8 @@ void waituntil(int w,int h)
           Start_Highlights_Menu37();
           UpdateWindow();
           break;
-        case 9:                               // Set Lime Upsample
-          SetLimeUpsample();
+        case 9:                               // Set LimeRFE RX Attenuator
+          SetLimeRFERXAtt();
           Start_Highlights_Menu37();
           UpdateWindow();
           break;
@@ -25397,8 +25467,9 @@ void Define_Menu37()
   // 2nd Row, Menu 37
 
   button = CreateButton(37, 5);
-  AddButtonStatus(button, "LimeUtil^Info", &Blue);
-  AddButtonStatus(button, "LimeUtil^Info", &Green);
+  AddButtonStatus(button, "Upsample^for Lime = ", &Blue);
+  //AddButtonStatus(button, "LimeUtil^Info", &Blue);
+  //AddButtonStatus(button, "LimeUtil^Info", &Green);
 
   button = CreateButton(37, 6);
   AddButtonStatus(button, "Lime^FW Info", &Blue);
@@ -25408,13 +25479,13 @@ void Define_Menu37()
   AddButtonStatus(button, "Lime^Report", &Blue);
   AddButtonStatus(button, "Lime^Report", &Green);
 
-  //button = CreateButton(37, 8);
-  //AddButtonStatus(button, "LimeRFE^Mode RX", &Grey);
-  //AddButtonStatus(button, "LimeRFE^Mode RX", &Blue);
-  //AddButtonStatus(button, "LimeRFE^Mode TX", &Red);
+  button = CreateButton(37, 8);
+  AddButtonStatus(button, "LimeRFE^Mode RX", &Grey);
+  AddButtonStatus(button, "LimeRFE^Mode RX", &Blue);
+  AddButtonStatus(button, "LimeRFE^Mode TX", &Red);
 
   button = CreateButton(37, 9);
-  AddButtonStatus(button, "Upsample^for Lime = ", &Blue);
+  AddButtonStatus(button, "LimeRFE RX^Atten", &Blue);
 }
 
 void Start_Highlights_Menu37()  //  Lime Config Menu
@@ -25443,11 +25514,37 @@ void Start_Highlights_Menu37()  //  Lime Config Menu
     AmendButtonStatus(ButtonNumber(37, 3), 0, "LimeRFE^Disabled", &Blue);
   }
 
-  // Button 8
-
-  // Button 9 LimeUpsample
+  // Button 5 LimeUpsample
   snprintf(caption, 60, "Upsample^for Lime = %d", LimeUpsample);
-  AmendButtonStatus(ButtonNumber(37, 9), 0, caption, &Blue);
+  AmendButtonStatus(ButtonNumber(37, 5), 0, caption, &Blue);
+
+  // Button 8
+  if (LimeRFEState == 1)  // Enabled
+  {
+    if (LimeRFEMode == 1)  // TX
+    {
+      SetButtonStatus(ButtonNumber(37, 8), 2);
+    }
+    else                   // RX
+    {
+      SetButtonStatus(ButtonNumber(37, 8), 1);
+    }
+  }
+  else                    // Disabled
+  {
+    SetButtonStatus(ButtonNumber(37, 8), 0);
+  }
+
+  // Button 9 LimeRFE RX Attenuator
+  if (LimeRFEState == 1)  // Enabled
+  {
+    snprintf(caption, 60, "LimeRFE RX^Atten = %ddB", 2 * LimeRFERXAtt);
+    AmendButtonStatus(ButtonNumber(37, 9), 0, caption, &Blue);
+  }
+  else
+  {
+    AmendButtonStatus(ButtonNumber(37, 9), 0, "LimeRFE RX^Atten", &Grey);
+  }
 }
 
 void Define_Menu38()
