@@ -3235,6 +3235,15 @@ do_lg()
   fi
 }
 
+do_lupsample()
+{
+  UPSAMPLE=$(get-config_var upsample $PCONFIGFILE)
+  UPSAMPLE=$(whiptail --inputbox "Current upsample = "$UPSAMPLE".  Enter 1, 2, 4 or 8" 8 78 $UPSAMPLE --title "SET UPSAMPLE for the LimeSDR" 3>&1 1>&2 2>&3)
+  if [ $? -eq 0 ]; then
+    set_config_var upsample "$UPSAMPLE" $PCONFIGFILE
+  fi
+}
+
 
 do_lime_setup()
 {
@@ -3245,6 +3254,7 @@ do_lime_setup()
     "4 Update to FW 1.30" "Update LimeSDRMini to Firmware 1.30" \
     "5 Update to DVB FW" "Update LimeSDRMini to custom DVB Firmware" \
     "6 Set Lime Gain" "Set the Lime Gain for the current Band" \
+    "7 Set Lime Upsampling" "Set the Lime Upsampling for cleaner TX" \
     3>&2 2>&1 1>&3)
   case "$menuchoice" in
     1\ *) do_lmsver ;;
@@ -3253,6 +3263,7 @@ do_lime_setup()
     4\ *) do_ud130 ;;
     5\ *) do_uddvb ;;
     6\ *) do_lg ;;
+    7\ *) do_lupsample ;;
   esac
 }
 

@@ -1,3 +1,8 @@
+202401251
+Add List of Network Devices
+Add Band GPIOs for Pluto BandViewer
+Add facility to Over-ride Lime Upsample settings
+
 202401170
 Re-introduce boot-to-TX option
 Add LAN device listing facility

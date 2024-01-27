@@ -332,6 +332,7 @@ int LimeNETMicroDet = 0;  // 0 = Not detected, 1 = detected.  Tested on entry to
 int LimeRFEMode = 0;      // 0 is RX , 1 is TX
 rfe_dev_t* rfe = NULL;    // handle for LimeRFE
 int RFEHWVer = -1;        // hardware version
+int LimeUpsample = 1;     // Upsample setting for Lime
 
 // QO-100 Transmit Freqs
 char QOFreq[10][31] = {"2405.25", "2405.75", "2406.25", "2406.75", "2407.25", "2407.75", "2408.25", "2408.75", "2409.25", "2409.75"};
@@ -481,6 +482,7 @@ int LimeFWVer();
 int LimeHWVer();
 void LimeMiniTest();
 void LimeUtilInfo();
+void SetLimeUpsample();
 int CheckSDRPlay();
 void ClearMenuMessage();
 void *WaitButtonFileVLC(void * arg);
@@ -490,6 +492,7 @@ void ListText(char *TextPath, char *TextFile);
 void FileOperation(int button);
 void ListUSBDevices();
 void ListNetDevices();
+void ListNetPis();
 void DisplayLogo();
 void TransformTouchMap(int x, int y);
 int IsButtonPushed(int NbButton,int x,int y);
@@ -641,7 +644,6 @@ void InstallLangstone(int NoButton);
 void ChangeADFRef(int NoButton);
 void ChangePID(int NoButton);
 void ToggleLimeRFE();
-void SetLimeRFERXAtt();
 void LimeRFEInit();
 void LimeRFETX();
 void LimeRFERX();
@@ -2143,6 +2145,7 @@ void ReadModeOutput(char Moutput[256])
   char ModeOutput[255];
   // char LimeCalFreqText[63];
   char LimeRFEStateText[63];
+  char LimeUpsampleText[63];
 
   GetConfigParam(PATH_PCONFIG,"modeoutput", ModeOutput);
   strcpy(CurrentModeOP, ModeOutput);
@@ -2207,6 +2210,9 @@ void ReadModeOutput(char Moutput[256])
   }
 
   // Read LimeCal freq
+  LimeCalFreq  = -1;  // Always Cal is the only option
+
+  // Read LimeCal freq
   //GetConfigParam(PATH_LIME_CAL, "limecalfreq", LimeCalFreqText);
   //LimeCalFreq = atof(LimeCalFreqText);
   LimeCalFreq  = -1;  // Always Cal is the only option
@@ -2245,7 +2251,11 @@ void ReadModeOutput(char Moutput[256])
   GetConfigParam(PATH_PCONFIG, "guard", Guard);
   GetConfigParam(PATH_PCONFIG, "qam", DVBTQAM);
 
+  // Lime Upsample
+  GetConfigParam(PATH_PCONFIG, "upsample", LimeUpsampleText);
+  LimeUpsample = atoi(LimeUpsampleText);
 }
+
 
 /***************************************************************************//**
  * @brief Checks if a file exists
@@ -5683,6 +5693,27 @@ void LimeUtilInfo()
 }
 
 
+void SetLimeUpsample()
+{
+  char Prompt[63];
+  char CurrentValue[63];
+  char Value[63];
+  int EnteredValue = 0;
+
+  snprintf(CurrentValue, 30, "%d", LimeUpsample);
+  snprintf(Prompt, 63, "Set the Lime Upsample to 1, 2, 4 or 8:");
+
+  while ((EnteredValue != 1) && (EnteredValue != 2) && (EnteredValue != 4) && (EnteredValue != 8))
+  {
+    Keyboard(Prompt, CurrentValue, 3);
+    EnteredValue = atoi(KeyboardReturn);
+  }
+  LimeUpsample = EnteredValue;
+  snprintf(Value, 3, "%d", LimeUpsample);
+  SetConfigParam(PATH_PCONFIG, "upsample", Value);
+}
+
+
 /***************************************************************************//**
  * @brief Checks whether an SDRPlay SDR is connected
  *
@@ -6239,7 +6270,7 @@ void ListNetDevices()
     strcpy(NetworkArray[i], "");
   }
 
-  fp = popen("/home/pi/rpidatv/scripts/list_rpi.sh", "r");
+  fp = popen("/home/pi/rpidatv/scripts/list_net_devices.sh", "r");
   if (fp == NULL)
   {
     printf("Failed to run command\n" );
@@ -6257,6 +6288,51 @@ void ListNetDevices()
   pclose(fp);
 
   strcpy(NetworkArray[0], "Network Devices Detected:");   // Title
+  SelectFromList(-1, NetworkArray, LineCount - 1);    // Display in list
+}
+
+
+/***************************************************************************//**
+ * @brief Uses the "SelectFromList" dialogue to display a list of 
+ * connected Raspberry Pis as shown by the list_rpi.sh script.  Truncates entriess to 63 chars.
+ *        
+ * @param nil
+ *
+ * @return void
+*******************************************************************************/
+
+void ListNetPis()
+{
+  int i;
+  FILE *fp;
+  char response[255];
+  char NetworkArray[101][63];
+  int LineCount = 1;           // Start at 1, as 0 is the title
+
+  // Clear the NetworkArray
+  for (i = 0; i <= 100; i++)
+  {
+    strcpy(NetworkArray[i], "");
+  }
+
+  fp = popen("/home/pi/rpidatv/scripts/list_rpi.sh", "r");
+  if (fp == NULL)
+  {
+    printf("Failed to run command\n" );
+    exit(1);
+  }
+
+  // Read the output a line at a time - store it
+  while ((fgets(response, 255, fp) != NULL) && (LineCount < 99))
+  {
+    response[strlen(response) - 1] = '\0';  // Strip trailing cr
+    //printf("Line %d %s\n", LineCount, response);
+    strcpyn(NetworkArray[LineCount], response, 63);  // Read response and limit to 63
+    LineCount++;
+  }
+  pclose(fp);
+
+  strcpy(NetworkArray[0], "Raspberry Pis Detected:");   // Title
   SelectFromList(-1, NetworkArray, LineCount - 1);    // Display in list
 }
 
@@ -10997,7 +11073,7 @@ void TransmitStop()
   char bashcmd[255];
   char picamdev1[15];
 
-  printf("Stopping all transmit processes, even if they weren't running\n");
+  printf("\nStopping all transmit processes, even if they weren't running\n");
 
   // If transmit menu is displayed, blue-out the TX button here
   // code to be added
@@ -18118,8 +18194,13 @@ void waituntil(int w,int h)
           break;
         case 5:                               // Open File Explorer
         case 6:                               // New Directory (not yet implemented)
-        case 7:                               // (not yet implemented)
           FileOperation(i);
+          Start_Highlights_Menu4();
+          UpdateWindow();
+          break;
+        case 7:                               // List Raspberry Pis on network
+          MsgBox4("Please wait", "Scanning Networks", ".....", " ");
+          ListNetPis();
           Start_Highlights_Menu4();
           UpdateWindow();
           break;
@@ -20200,11 +20281,16 @@ void waituntil(int w,int h)
           Start_Highlights_Menu1();
           UpdateWindow();
           break;
-        case 5:                               // Display LimeSuite Info Page
-          LimeUtilInfo();
-          wait_touch();
-          setBackColour(0, 0, 0);
-          clearScreen();
+        case 5:                               // Set Lime Upsample
+          SetLimeUpsample();
+          Start_Highlights_Menu37();
+
+          //was                               // Display LimeSuite Info Page
+          //LimeUtilInfo();
+          //wait_touch();
+          //setBackColour(0, 0, 0);
+          //clearScreen();
+
           UpdateWindow();
           break;
         case 6:                               // Display Lime FW Info Page
@@ -21875,14 +21961,11 @@ void Define_Menu4()
   //AddButtonStatus(button, TabVidSource[5], &Green);
   //AddButtonStatus(button, TabVidSource[5], &Grey);
 
-  //button = CreateButton(4, 7);
-  //AddButtonStatus(button, TabVidSource[2], &Blue);
-  //AddButtonStatus(button, TabVidSource[2], &Green);
-  //AddButtonStatus(button, TabVidSource[2], &Grey);
+  button = CreateButton(4, 7);
+  AddButtonStatus(button, "List Network^Raspberry Pis", &Blue);
 
   button = CreateButton(4, 8);
   AddButtonStatus(button, "List Network^Devices", &Blue);
-  AddButtonStatus(button, "List Network^Devices", &Green);
 
   button = CreateButton(4, 9);
   AddButtonStatus(button, "List USB^Devices", &Blue);
@@ -25384,8 +25467,9 @@ void Define_Menu37()
   // 2nd Row, Menu 37
 
   button = CreateButton(37, 5);
-  AddButtonStatus(button, "LimeUtil^Info", &Blue);
-  AddButtonStatus(button, "LimeUtil^Info", &Green);
+  AddButtonStatus(button, "Upsample^for Lime = ", &Blue);
+  //AddButtonStatus(button, "LimeUtil^Info", &Blue);
+  //AddButtonStatus(button, "LimeUtil^Info", &Green);
 
   button = CreateButton(37, 6);
   AddButtonStatus(button, "Lime^FW Info", &Blue);
@@ -25430,7 +25514,11 @@ void Start_Highlights_Menu37()  //  Lime Config Menu
     AmendButtonStatus(ButtonNumber(37, 3), 0, "LimeRFE^Disabled", &Blue);
   }
 
-  // Button 8 LimeRFE RX/TX
+  // Button 5 LimeUpsample
+  snprintf(caption, 60, "Upsample^for Lime = %d", LimeUpsample);
+  AmendButtonStatus(ButtonNumber(37, 5), 0, caption, &Blue);
+
+  // Button 8
   if (LimeRFEState == 1)  // Enabled
   {
     if (LimeRFEMode == 1)  // TX

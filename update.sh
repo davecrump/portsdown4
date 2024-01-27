@@ -152,6 +152,9 @@ cp -f -r /home/pi/rpidatv/src/rtlsdrview/rtlsdrview_config.txt "$PATHUBACKUP"/rt
 # Make a safe copy of the Pluto Band Viewer config
 cp -f -r /home/pi/rpidatv/src/plutoview/plutoview_config.txt "$PATHUBACKUP"/plutoview_config.txt
 
+# Make a safe copy of the Pluto Band Viewer Bands config
+cp -f -r /home/pi/rpidatv/src/plutoview/plutoview_bands.txt "$PATHUBACKUP"/plutoview_bands.txt
+
 # Make a safe copy of the SDRplay Band Viewer config
 cp -f -r /home/pi/rpidatv/src/sdrplayview/sdrplayview_config.txt "$PATHUBACKUP"/sdrplayview_config.txt
 
@@ -716,6 +719,11 @@ cp -f -r "$PATHUBACKUP"/rtlsdrview_config.txt /home/pi/rpidatv/src/rtlsdrview/rt
 # Restore the user's original Pluto Band Viewer config
 cp -f -r "$PATHUBACKUP"/plutoview_config.txt /home/pi/rpidatv/src/plutoview/plutoview_config.txt
 
+if [ -f  "$PATHUBACKUP"/plutoview_bands.txt ]; then
+  # Restore the user's original Pluto Band Viewer Bands
+  cp -f -r "$PATHUBACKUP"/plutoview_bands.txt /home/pi/rpidatv/src/plutoview/plutoview_bands.txt
+fi
+
 # Restore the user's original SDRplay Band Viewer config
 cp -f -r "$PATHUBACKUP"/sdrplayview_config.txt /home/pi/rpidatv/src/sdrplayview/sdrplayview_config.txt
 
@@ -888,6 +896,16 @@ if ! grep -q site1d0numbers= "$PATHSCRIPT"/portsdown_C_codes.txt; then
   # File needs updating
   cp "$PATHSCRIPT"/configs/portsdown_C_codes.txt.factory "$PATHSCRIPT"/portsdown_C_codes.txt
 fi
+
+# Add Lime upsample setting to config file if not included  202401***
+if ! grep -q upsample= "$PATHSCRIPT"/portsdown_config.txt; then
+  # File needs updating
+  # Delete any blank lines first
+  sed -i -e '/^$/d' "$PATHSCRIPT"/portsdown_config.txt
+  # Add the new entry and a new line
+  echo "upsample=1" >> "$PATHSCRIPT"/portsdown_config.txt
+fi
+
 
 # Add new stop alias if required  202311xxx
 if ! grep -q rpidatv/scripts/utils/stop.sh /home/pi/.bash_aliases; then
