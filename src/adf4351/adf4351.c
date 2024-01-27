@@ -192,7 +192,7 @@ int32_t adf4350_write(uint32_t data)
 
 	// Send all 32 bits
 
-	printf("%x\n", data);
+	// printf("%x\n", data);
 
 
 	for (i = 0; i <32; i++)
