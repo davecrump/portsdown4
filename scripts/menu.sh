@@ -1263,8 +1263,18 @@ do_modulation()
 }
 
 
+do_mic_gain()
+{
+  MICGAIN=$(get_config_var micgain $PCONFIGFILE)
+  MICGAIN=$(whiptail --inputbox "Enter between 1 (min) and 30 (max)" 8 78 $MICGAIN --title "Set USB Dongle Mic Gain" 3>&1 1>&2 2>&3)
+  if [ $? -eq 0 ]; then
+    set_config_var micgain "$MICGAIN" $PCONFIGFILE
+  fi
+}
+
+
 do_output_setup() {
-menuchoice=$(whiptail --title "$StrOutputTitle" --menu "$StrOutputContext" 16 78 9 \
+menuchoice=$(whiptail --title "$StrOutputTitle" --menu "$StrOutputContext" 16 78 10 \
   "1 SymbolRate" "$StrOutputSR"  \
   "2 FEC" "$StrOutputFEC" \
   "3 Output mode" "$StrOutputMode" \
@@ -1274,6 +1284,7 @@ menuchoice=$(whiptail --title "$StrOutputTitle" --menu "$StrOutputContext" 16 78
   "7 Standard" "Output 576PAL or 480NTSC" \
   "8 Format" "4:3, 16:9, 720p or 1080p" \
   "9 Modulation" "DVB-S or DVB-S2 modes" \
+  "10 Mic Gain" "Adjust USB Dongle Mic Gain" \
 	3>&2 2>&1 1>&3)
 	case "$menuchoice" in
       1\ *) do_symbolrate_setup ;;
@@ -1285,6 +1296,7 @@ menuchoice=$(whiptail --title "$StrOutputTitle" --menu "$StrOutputContext" 16 78
 	  7\ *) do_output_standard ;;
 	  8\ *) do_output_format ;;
 	  9\ *) do_modulation ;;
+	  10\ *) do_mic_gain ;;
     esac
 }
 
