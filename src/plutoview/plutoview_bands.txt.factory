@@ -31,4 +31,6 @@ bvband14lo=30.0
 bvband14hi=60.0
 bvband15lo=3000.0
 bvband15hi=6000.0
+premixlolow=0.0
+premixlohi=0.0
 
