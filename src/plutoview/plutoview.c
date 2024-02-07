@@ -2084,7 +2084,7 @@ void CalcSpan()    // takes centre frequency and span and calulates startfreq an
     frequency_actual_rx = 1000.0 * (float)(centrefreq) - premixlo_hi * 1000000.0;
   }
 
-printf("Freq passed to Pluto = %f Hz\n", frequency_actual_rx);
+  printf("Freq passed to Pluto = %f Hz\n", frequency_actual_rx);
 
   bandwidth = (float)(span * 1000);
 
@@ -2151,6 +2151,16 @@ void SetBandGPIOs()
   }
 
   centrefreqMHz = (float)centrefreq / 1000.0;
+
+  // Correct frequency if pre-mixing is used
+  if (((premixlo_low > 0.1) || (premixlo_low < -0.1)) && (centrefreq < 70000))
+  {
+    centrefreqMHz = (float)centrefreq / 1000.0 + premixlo_low;
+  }
+  if (((premixlo_hi > 0.1) || (premixlo_hi < -0.1)) && (centrefreq > 6000000))
+  {
+    centrefreqMHz = (float)centrefreq / 1000.0 - premixlo_hi;
+  }
 
   for (i = 0; i <= 15; i++)
   {
