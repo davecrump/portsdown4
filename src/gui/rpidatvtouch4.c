@@ -644,6 +644,7 @@ void InstallLangstone(int NoButton);
 void ChangeADFRef(int NoButton);
 void ChangePID(int NoButton);
 void ToggleLimeRFE();
+void SetLimeRFERXAtt();
 void LimeRFEInit();
 void LimeRFETX();
 void LimeRFERX();
@@ -26745,6 +26746,15 @@ int main(int argc, char *argv[])
   {
     // Create Touchscreen thread
     pthread_create (&thtouchscreen, NULL, &WaitTouchscreenEvent, NULL);
+
+    // If display previously set to Browser, correct it
+    if(strcmp(DisplayType, "Browser") == 0)  // 
+    {
+      SetConfigParam(PATH_PCONFIG, "webcontrol", "enabled");
+      SetConfigParam(PATH_PCONFIG, "display", "Element14_7");
+      system ("/home/pi/rpidatv/scripts/set_display_config.sh");
+      system ("sudo reboot now");
+    }
   }
   else // No touchscreen detected
   {

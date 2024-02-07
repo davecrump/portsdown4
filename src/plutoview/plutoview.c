@@ -164,6 +164,9 @@ uint8_t BandBit1GPIO = 24;   // BandBit 1 Pin 35 BCM 19
 uint8_t BandBit2GPIO = 7;    // BandBit 2 Pin 7 BCM 4
 uint8_t BandBit3GPIO = 6;    // BandBit 3 Pin 22 BCM 25
 
+// Pre-mix variables
+float  premixlo_low = 0.0;   // MHz
+float  premixlo_hi =  0.0;   // MHz
 
 
 ///////////////////////////////////////////// FUNCTION PROTOTYPES ///////////////////////////////
@@ -432,6 +435,13 @@ void ReadSavedParams()
     GetConfigParam(PATH_BCONFIG, param, response);
     bandhifreq[i] = atof(response);
   }
+
+  strcpy(response, "0.0");
+  GetConfigParam(PATH_BCONFIG, "premixlolow", response);
+  premixlo_low = atof(response);
+  GetConfigParam(PATH_BCONFIG, "premixlohi", response);
+  premixlo_hi = atof(response);
+
 }
 
 
@@ -2034,7 +2044,7 @@ void ShiftFrequency(int button)
   // Store the new frequency
   snprintf(ValueToSave, 63, "%d", centrefreq);
   SetConfigParam(PATH_CONFIG, "centrefreq", ValueToSave);
-  printf("Centre Freq set to %d \n", centrefreq);
+  printf("Centre Freq set to %d kHz\n", centrefreq);
 
   // Calculate the new settings
   CalcSpan();
@@ -2052,8 +2062,10 @@ void CalcSpan()    // takes centre frequency and span and calulates startfreq an
 
   startfreq = centrefreq - (span * 125) / 256;
   stopfreq =  centrefreq + (span * 125) / 256;
+
+  // Calculate frequency to pass to Pluto
   frequency_actual_rx = 1000.0 * (float)(centrefreq);
-  if (frequency_actual_rx > 6000000000)
+  if ((frequency_actual_rx > 6000000000) && (premixlo_hi < 0.1) && (premixlo_hi > -0.1))
   {
     FifthHarmonic = true;
   }
@@ -2061,6 +2073,18 @@ void CalcSpan()    // takes centre frequency and span and calulates startfreq an
   {
     FifthHarmonic = false;
   }
+
+  // Correct frequency to pass to Pluto if pre-mixing is used
+  if (((premixlo_low > 0.1) || (premixlo_low < -0.1)) && (centrefreq < 70000))
+  {
+    frequency_actual_rx = 1000.0 * (float)(centrefreq) + premixlo_low * 1000000.0;
+  }
+  if (((premixlo_hi > 0.1) || (premixlo_hi < -0.1)) && (centrefreq > 6000000))
+  {
+    frequency_actual_rx = 1000.0 * (float)(centrefreq) - premixlo_hi * 1000000.0;
+  }
+
+printf("Freq passed to Pluto = %f Hz\n", frequency_actual_rx);
 
   bandwidth = (float)(span * 1000);
 
@@ -2255,7 +2279,7 @@ void ChangeLabel(int button)
       {
         Keyboard(RequestText, InitText, 10);
         returned_freq = (int)((1000 * atof(KeyboardReturn)) + 0.1);
-        if ((returned_freq < 70000) || (returned_freq > 30000000))
+        if (((returned_freq < 70000) && (premixlo_low < 0.1) && (premixlo_low > -0.1)) || (returned_freq > 30000000))
         {
           freq_valid = false;
         }
@@ -4764,6 +4788,8 @@ int main(void)
     //printf("ENR = %f dB.  Tson = %f degrees K\n", ENR, Tson);
     float NF;
     char NFText[15];
+
+    CalcSpan();  // Make sure that any offset is applied
 
 
     while(true)
