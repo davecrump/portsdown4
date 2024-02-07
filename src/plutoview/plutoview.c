@@ -2152,16 +2152,6 @@ void SetBandGPIOs()
 
   centrefreqMHz = (float)centrefreq / 1000.0;
 
-  // Correct frequency if pre-mixing is used
-  if (((premixlo_low > 0.1) || (premixlo_low < -0.1)) && (centrefreq < 70000))
-  {
-    centrefreqMHz = (float)centrefreq / 1000.0 + premixlo_low;
-  }
-  if (((premixlo_hi > 0.1) || (premixlo_hi < -0.1)) && (centrefreq > 6000000))
-  {
-    centrefreqMHz = (float)centrefreq / 1000.0 - premixlo_hi;
-  }
-
   for (i = 0; i <= 15; i++)
   {
     if ((bandlofreq[i] > 0.001) || (bandhifreq[i] > 0.001))  // only act if one of the frequencies is non-zero
