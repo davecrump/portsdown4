@@ -434,7 +434,7 @@ int CheckLangstonePlutoIP();
 void InitialiseGPIO();
 void ReadPresets();
 int CheckRTL();
-int CheckFTDI();
+int CheckTuner();
 void ChangeMicGain();
 void SaveRTLPreset(int PresetButton);
 void RecallRTLPreset(int PresetButton);
@@ -3503,11 +3503,12 @@ int CheckRTL()
  * @return 0 if present, 1 if not present
 *******************************************************************************/
 
-int CheckFTDI()
+int CheckTuner()
 {
   char FTDIStatus[256];
   FILE *fp;
   int ftdistat = 1;
+  char response_line[255];
 
   /* Open the command for reading. */
   fp = popen("/home/pi/rpidatv/scripts/check_ftdi.sh", "r");
@@ -3531,6 +3532,30 @@ int CheckFTDI()
     }
   }
   pclose(fp);
+
+  // Check for PicoTuner if no MiniTiouner
+
+  if (ftdistat != 0)
+  {
+    fp = popen("lsusb | grep '2e8a:ba2c'", "r");  // RPi Pico interface
+    if (fp == NULL)
+    {
+      printf("Failed to run command\n" );
+      exit(1);
+    }
+
+    /* Read the output a line at a time - output it. */
+    while (fgets(response_line, 250, fp) != NULL)
+    {
+      if (strlen(response_line) > 1)
+      {
+        printf("PicoTuner Detected\n" );
+        ftdistat = 0;
+      }
+    }
+    pclose(fp);
+  }
+
   return(ftdistat);
 }
 
@@ -6218,6 +6243,7 @@ void ListUSBDevices()
   FILE *fp;
   char response[255];
   char DeviceArray[101][63];
+  char DeviceTest[63];
   int LineCount = 1;           // Start at 1, as 0 is the title
 
   // Clear the DeviceArray
@@ -6238,7 +6264,14 @@ void ListUSBDevices()
   {
     response[strlen(response) - 1] = '\0';  // Strip trailing cr
     //printf("Line %d %s\n", LineCount, response);
-    strcpyn(DeviceArray[LineCount], response + 22, 63);  // Read response from 22nd character and limit to 63
+    strcpyn(DeviceArray[LineCount], response + 23, 63);  // Read response from 23rd character and limit to 63
+
+    // Highlight BATC PicoTuner
+    strcpyn(DeviceTest, response + 23, 9);  // Read response from 23rd character and limit to 9
+    if (strcmp(DeviceTest, "2e8a:ba2c") == 0)
+    {
+      strcpy(DeviceArray[LineCount], "2e8a:ba2c BATC PicoTuner");
+    } 
     LineCount++;
   }
   pclose(fp);
@@ -11888,10 +11921,10 @@ void checkTunerSettings()
 {
   int basefreq;
 
-  // First check that an FTDI device is connected
-  if (CheckFTDI() != 0)
+  // First check that an FTDI device or PicoTuner is connected
+  if (CheckTuner() != 0)
   {
-    MsgBox4("No tuner connected", "Please check that you have either", "a MiniTiouner or a Knucker connected", "Touch Screen to Continue");
+    MsgBox4("No tuner connected", "Please check that you have either", "a MiniTiouner, PicoTuner or a Knucker connected", "Touch Screen to Continue");
     wait_touch();
   }
 
@@ -12134,7 +12167,7 @@ void LMRX(int NoButton)
 
           if (TunerPollCount > 15)
           {
-            strcpy(line5, "Waiting for MiniTiouner to Respond");
+            strcpy(line5, "Waiting for Tuner to Respond");
             Text2(wscreen * 6 / 40, hscreen - 1 * linepitch, line5, font_ptr);
             TunerPollCount = 0;
           }
@@ -17702,9 +17735,9 @@ void waituntil(int w,int h)
           }
           break;
         case 21:                       // LongMynd RX
-          if (CheckFTDI() == 1)  // No MiniTiouner
+          if (CheckTuner() == 1)  // No MiniTiouner or PicoTuner
           {
-            MsgBox4("No Tuner Connected", "Connect a MiniTiouner or a Knucker", "for the receiver to use", "Touch Screen to Continue");
+            MsgBox4("No Tuner Connected", "Connect a MiniTiouner, PicoTuner or a Knucker", "for the receiver to use", "Touch Screen to Continue");
             wait_touch();
           }
           printf("MENU 8 \n");  //  LongMynd
