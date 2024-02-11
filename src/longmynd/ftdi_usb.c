@@ -34,6 +34,7 @@
 #include "errors.h"
 #include "ftdi_usb.h"
 #include "ftdi.h"
+#include "stv0910.h"
 
 /* -------------------------------------------------------------------------------------------------- */
 /* ----------------- DEFINES ------------------------------------------------------------------------ */
@@ -243,111 +244,143 @@ uint8_t ftdi_usb_set_mpsse_mode_ts(void){
 }
 
 /* -------------------------------------------------------------------------------------------------- */
-static uint8_t ftdi_usb_init(libusb_context **usb_context_ptr, libusb_device_handle **usb_device_handle_ptr, int interface_num, uint8_t usb_bus, uint8_t usb_addr, uint16_t vid, uint16_t pid) {
-/* -------------------------------------------------------------------------------------------------- */
-/* initialise the usb device of choice (or via vid/pid if no USB selected)                            */
-/* return : error code                                                                                */
-/* -------------------------------------------------------------------------------------------------- */
-    uint8_t err=ERROR_NONE;
-    ssize_t count;
-    libusb_device **usb_device_list;
-    int error_code;
-    struct libusb_device_descriptor usb_descriptor;
-    libusb_device *usb_candidate_device;
-    uint8_t usb_device_count;
+static uint8_t ftdi_usb_init(libusb_context **usb_context_ptr, libusb_device_handle **usb_device_handle_ptr, int interface_num, uint8_t usb_bus, uint8_t usb_addr, uint16_t vid, uint16_t pid, uint16_t altvid, uint16_t altpid) 
+{
+  /* -------------------------------------------------------------------------------------------------- */
+  /* initialise the usb device of choice (or via vid/pid if no USB selected)                            */
+  /* return : error code                                                                                */
+  /* -------------------------------------------------------------------------------------------------- */
+  uint8_t err=ERROR_NONE;
+  ssize_t count;
+  libusb_device **usb_device_list;
+  int error_code;
+  struct libusb_device_descriptor usb_descriptor;
+  libusb_device *usb_candidate_device;
+  uint8_t usb_device_count;
 
-    printf("Flow: FTDI USB init\n");
+  printf("Flow: FTDI USB init\n");
 
-    if (libusb_init(usb_context_ptr)<0) {
-    	printf("ERROR: Unable to initialise LIBUSB\n");
-        err=ERROR_FTDI_USB_INIT_LIBUSB;
+  if (libusb_init(usb_context_ptr)<0)
+  {
+    printf("ERROR: Unable to initialise LIBUSB\n");
+    err=ERROR_FTDI_USB_INIT_LIBUSB;
+  }
+
+  /* turn on debug */
+  #if LIBUSB_API_VERSION >= 0x01000106
+  libusb_set_option(*usb_context_ptr, LIBUSB_OPTION_LOG_LEVEL, LIBUSB_LOG_LEVEL_INFO);
+  #else
+  libusb_set_debug(*usb_context_ptr, LIBUSB_LOG_LEVEL_INFO);
+  #endif
+
+  /* now we need to decide if we are opening by VID and PID or by device number */
+  if ((err==ERROR_NONE) && (usb_bus==0) && (usb_addr==0))
+  {
+    /* if we are using vid and pid it is easy */
+    if ((*usb_device_handle_ptr = libusb_open_device_with_vid_pid(*usb_context_ptr, vid, pid))==NULL)    //try the first vid/pid
+    {
+      if ((*usb_device_handle_ptr = libusb_open_device_with_vid_pid(*usb_context_ptr, altvid, altpid))==NULL)   //then try the alternate vid/piid
+      {
+        printf("ERROR: Unable to open device with VID and PID\n");
+        printf("       Is the USB cable plugged in?\n");
+        err=ERROR_FTDI_USB_VID_PID;
+      }
     }
-
-    /* turn on debug */
-    #if LIBUSB_API_VERSION >= 0x01000106
-    libusb_set_option(*usb_context_ptr, LIBUSB_OPTION_LOG_LEVEL, LIBUSB_LOG_LEVEL_INFO);
-    #else
-    libusb_set_debug(*usb_context_ptr, LIBUSB_LOG_LEVEL_INFO);
-    #endif
-
-    /* now we need to decide if we are opening by VID and PID or by device number */
-    if ((err==ERROR_NONE) && (usb_bus==0) && (usb_addr==0)) {
-        /* if we are using vid and pid it is easy */
-        if ((*usb_device_handle_ptr = libusb_open_device_with_vid_pid(*usb_context_ptr, vid, pid))==NULL) {
-            printf("ERROR: Unable to open device with VID and PID\n");
-            printf("       Is the USB cable plugged in?\n");
-            err=ERROR_FTDI_USB_VID_PID;
-        }
 
     /* if  we are finding by usb device number then we have to take a look at the IDs to check we are */
     /* being asked to open the right one. sTto do this we get a list of all the USB devices on the system */
-    } else if (err==ERROR_NONE) { 
-        printf("Flow: Searching for bus/device=%i,%i\n",usb_bus,usb_addr);
-        count=libusb_get_device_list(*usb_context_ptr, &usb_device_list);
-        if (count<=0) {
-            printf("ERROR: failed to get the list of devices\n");
-            err=ERROR_FTDI_USB_DEVICE_LIST;
-        }
+  }
+  else if (err==ERROR_NONE)
+  { 
+    printf("Flow: Searching for bus/device=%i,%i\n",usb_bus,usb_addr);
+    count=libusb_get_device_list(*usb_context_ptr, &usb_device_list);
+    if (count<=0)
+    {
+      printf("ERROR: failed to get the list of devices\n");
+      err=ERROR_FTDI_USB_DEVICE_LIST;
+    }
 
-        if (err==ERROR_NONE) {
-            /* we need to find the device we have been told to use */
-            for (usb_device_count=0; usb_device_count<count; usb_device_count++) {
-                if ((libusb_get_bus_number(usb_device_list[usb_device_count])==usb_bus) &&
+    if (err==ERROR_NONE)
+    {
+      /* we need to find the device we have been told to use */
+      for (usb_device_count=0; usb_device_count<count; usb_device_count++)
+      {
+      if ((libusb_get_bus_number(usb_device_list[usb_device_count])==usb_bus) &&
                     (libusb_get_device_address(usb_device_list[usb_device_count])==usb_addr)) break;
-            }
+      }
+    }
+    if ((err==ERROR_NONE) && (usb_device_count==count))
+    {
+      printf("ERROR: invalid USB bus/device number\n");
+      err=ERROR_FTDI_USB_BAD_DEVICE_NUM;
+    }
+    else if(err==ERROR_NONE)
+    {
+      /* now we check our one has a valid VID and PID form the main and alt values */
+        usb_candidate_device=usb_device_list[usb_device_count];
+      /* some of it we have to do looking in the device descriptor */
+      error_code=libusb_get_device_descriptor(usb_candidate_device, &usb_descriptor);
+      /* if we have found our one then we can start using it */
+      if (((usb_descriptor.idVendor==vid) && (usb_descriptor.idProduct==pid)) || ((usb_descriptor.idVendor==altvid) && (usb_descriptor.idProduct==altpid)))
+      {
+        /* first we open it */
+        error_code=libusb_open(usb_candidate_device, usb_device_handle_ptr);
+        if (error_code==0) printf("      Status: successfully opened USB Device %i,%i\n", usb_bus, usb_addr);
+        else
+        {
+          printf("ERROR: Unable to open Minitiouner\n");
+          err=ERROR_FTDI_USB_DEVICE_NUM_OPEN;
         }
-        if ((err==ERROR_NONE) && (usb_device_count==count)) {
-            printf("ERROR: invalid USB bus/device number\n");
-            err=ERROR_FTDI_USB_BAD_DEVICE_NUM;
-        } else if(err==ERROR_NONE) {
+      }
+      else
+      {
+        printf("ERROR: This bus/device is not a Minitiouner\n");
+        err=ERROR_FTDI_USB_DEVICE_NUM_OPEN;
+      }
+    }
+    /* importantly, we now free up the list */
+    libusb_free_device_list(usb_device_list, 1);
+  }
 
-            /* now we check our one has the right VID and PID */
-            usb_candidate_device=usb_device_list[usb_device_count];
-            /* some of it we have to do looking in the device descriptor */
-            error_code=libusb_get_device_descriptor(usb_candidate_device, &usb_descriptor);
-            /* if we have found our one then we can start using it */
-            if ((usb_descriptor.idVendor==vid) && (usb_descriptor.idProduct==pid)) {
-                /* first we open it */
-                error_code=libusb_open(usb_candidate_device, usb_device_handle_ptr);
-                if (error_code==0) printf("      Status: successfully opened USB Device %i,%i\n",
-                                                                        usb_bus,usb_addr);
-                else {
-                    printf("ERROR: Unable to open Minitiouner\n");
-                    err=ERROR_FTDI_USB_DEVICE_NUM_OPEN;
-                }
-            } else {
-                printf("ERROR: This bus/device is not a Minitiouner\n");
-                err=ERROR_FTDI_USB_DEVICE_NUM_OPEN;
-            }
-        }
-        /* importantly, we now free up the list */
-        libusb_free_device_list(usb_device_list, 1);
+  if (err==ERROR_NONE) 
+  {
+    /* now we should have the device handle of the device we are going to us */
+    /* we have two interfaces on the ftdi device (0 and 1) */
+    /* so next we make sure we are the only people using this device and this */
+    if (libusb_kernel_driver_active(*usb_device_handle_ptr, interface_num)) libusb_detach_kernel_driver(*usb_device_handle_ptr, interface_num);
+
+    /* finally we claim both interfaces as ours */
+    if (libusb_claim_interface(*usb_device_handle_ptr, interface_num)<0)
+    {
+      libusb_close(*usb_device_handle_ptr);
+      libusb_exit(*usb_context_ptr);
+      printf("ERROR: Unable to claim interface\n");
+      err=ERROR_FTDI_USB_CLAIM;
     }
 
-    if (err==ERROR_NONE) {
-        /* now we should have the device handle of the device we are going to us */
-        /* we have two interfaces on the ftdi device (0 and 1) */
-        /* so next we make sure we are the only people using this device and this */
-        if (libusb_kernel_driver_active(*usb_device_handle_ptr, interface_num)) libusb_detach_kernel_driver(*usb_device_handle_ptr, interface_num);
-
-        /* finally we claim both interfaces as ours */
-        if (libusb_claim_interface(*usb_device_handle_ptr, interface_num)<0) {
-            libusb_close(*usb_device_handle_ptr);
-            libusb_exit(*usb_context_ptr);
-        	printf("ERROR: Unable to claim interface\n");
-            err=ERROR_FTDI_USB_CLAIM;
-        }
+    //check the device to see if it is a BATC Pico and if it needs Serial or Parallel TS
+    err=libusb_get_device_descriptor(libusb_get_device(*usb_device_handle_ptr),&usb_descriptor);
+    if((usb_descriptor.idVendor == altvid) && (usb_descriptor.idProduct == altpid) && (usb_descriptor.bcdDevice == 0x0102))
+    {
+      stv0910_serialTS = 1;
+      printf("Serial TS mode Selected");
     }
+    else
+    {
+      stv0910_serialTS = 0;
+      printf("Parallel TS Mode Selected");
+    }
+  }
 
-    return err;
+  return err;
 }
 
-uint8_t ftdi_usb_init_i2c(uint8_t usb_bus, uint8_t usb_addr, uint16_t vid, uint16_t pid) {
-    return ftdi_usb_init(&usb_context_i2c, &usb_device_handle_i2c, 0, usb_bus, usb_addr, vid, pid);
+uint8_t ftdi_usb_init_i2c(uint8_t usb_bus, uint8_t usb_addr, uint16_t vid, uint16_t pid, uint16_t altvid, uint16_t altpid ) {
+    return ftdi_usb_init(&usb_context_i2c, &usb_device_handle_i2c, 0, usb_bus, usb_addr, vid, pid, altvid, altpid);
 }
 
-uint8_t ftdi_usb_init_ts(uint8_t usb_bus, uint8_t usb_addr, uint16_t vid, uint16_t pid) {
-    return ftdi_usb_init(&usb_context_ts, &usb_device_handle_ts, 1, usb_bus, usb_addr, vid, pid);
+uint8_t ftdi_usb_init_ts(uint8_t usb_bus, uint8_t usb_addr, uint16_t vid, uint16_t pid, uint16_t altvid, uint16_t altpid) {
+    return ftdi_usb_init(&usb_context_ts, &usb_device_handle_ts, 1, usb_bus, usb_addr, vid, pid, altvid, altpid);
 }
 
 /* -------------------------------------------------------------------------------------------------- */
