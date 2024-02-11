@@ -40,6 +40,8 @@
 
 #define FTDI_VID 0x0403
 #define FTDI_PID 0x6010
+#define PICO_VID 0x2E8A
+#define PICO_PID 0xBA2C
 
 #define FTDI_NUM_TRIES 10
 #define FTDI_STOP_START_REPEATS 4
@@ -512,16 +514,16 @@ uint8_t ftdi_init(uint8_t usb_bus, uint8_t usb_addr) {
 /* -------------------------------------------------------------------------------------------------- */
     uint8_t err;
 
-    printf("Flow: FTDI init\n");
+    printf("Flow: FTDI/Pico init\n");
 
-    err=ftdi_usb_init_i2c(usb_bus, usb_addr, FTDI_VID, FTDI_PID);
+    err=ftdi_usb_init_i2c(usb_bus, usb_addr, FTDI_VID, FTDI_PID, PICO_VID, PICO_PID);
     if (err==ERROR_NONE) err=ftdi_usb_set_mpsse_mode_i2c();
-    if (err==ERROR_NONE) err=ftdi_usb_init_ts(usb_bus, usb_addr, FTDI_VID, FTDI_PID);
+    if (err==ERROR_NONE) err=ftdi_usb_init_ts(usb_bus, usb_addr, FTDI_VID, FTDI_PID, PICO_VID, PICO_PID);
     if (err==ERROR_NONE) err=ftdi_usb_set_mpsse_mode_ts();
     if (err==ERROR_NONE) err=ftdi_setup_ftdi_io();
     if (err==ERROR_NONE) err=ftdi_nim_reset();
     
-    if (err!=ERROR_NONE) printf("ERROR: FTDI init\n");
+    if (err!=ERROR_NONE) printf("ERROR: FTDI/Pico init\n");
 
     return err;
 }

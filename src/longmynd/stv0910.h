@@ -66,5 +66,7 @@ uint8_t stv0910_start_scan(uint8_t, uint8_t);
 uint8_t stv0910_setup_search_params(uint8_t);
 uint8_t stv0910_setup_clocks();
 
+extern uint8_t stv0910_serialTS;
+
 #endif
 
