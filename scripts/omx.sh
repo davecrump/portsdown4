@@ -66,6 +66,25 @@ USBOUT_AUDIO_DEV="$(echo $USBOUT_AUDIO_DEV | cut -c1-1)"
 
 echo "The USB Dongle Audio Card number is -"$USBOUT_AUDIO_DEV"-"
 
+############ IDENTIFY HDMI AUDIO CARD NUMBER #############################
+
+# List the audio playback devices, select the line for the HDMI device:
+# card 0: b1 [bcm2835 HDMI 1], device 0: bcm2835 HDMI 1 [bcm2835 HDMI 1]
+# then take the 6th character
+
+HDMI_AUDIO_DEV="$(aplay -l 2> /dev/null | grep 'HDMI' | cut -c6-6)"
+
+if [ "$HDMI_AUDIO_DEV" == '' ]; then
+  printf "HDMI audio device was not found, setting to RPi Jack\n"
+  HDMI_AUDIO_DEV=$RPIJ_AUDIO_DEV
+fi
+
+# Take only the first character
+HDMI_AUDIO_DEV="$(echo $HDMI_AUDIO_DEV | cut -c1-1)"
+
+echo "The HDMI Audio Card number is -"$HDMI_AUDIO_DEV"-"
+
+
 ############ CHOOSE THE AUDIO OUTPUT DEVICE #############################
 
 AUDIO_OUT=$(get_config_var audio $RCONFIGFILE)
@@ -73,8 +92,10 @@ AUDIO_OUT=$(get_config_var audio $RCONFIGFILE)
 # Send audio to the correct port
 if [ "$AUDIO_OUT" == "rpi" ]; then
   AUDIO_OUT_DEV=$RPIJ_AUDIO_DEV
-else
+elif [ "$AUDIO_OUT" == "usb" ]; then
   AUDIO_OUT_DEV=$USBOUT_AUDIO_DEV
+else
+  AUDIO_OUT_DEV=$HDMI_AUDIO_DEV
 fi
 
 echo "The Selected Audio Card number is -"$AUDIO_OUT_DEV"-"
