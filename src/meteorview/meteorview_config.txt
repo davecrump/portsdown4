@@ -1,7 +1,7 @@
 title=Portsdown Meteor Viewer
 centrefreq=50408000
 span=8000
-mode=spectrum
+mode=waterfall
 rfgain=0
 ifgain=20
 agc=off
@@ -15,7 +15,7 @@ pfreq2=50408000
 pfreq3=143049000
 pfreq4=437000000
 pfreq5=1296000000
-clientnumber=6
+clientnumber=0
 serverip=95.154.252.125
 port=7682
 destination=local

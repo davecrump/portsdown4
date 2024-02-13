@@ -2527,7 +2527,7 @@ void SetStream(int button)
         Keyboard(RequestText, InitText, 10);
         newclientnumber = atoi(KeyboardReturn);
       }
-      while ((strlen(KeyboardReturn) == 0) || (newclientnumber < 1) || (newclientnumber > 6));
+      while ((strlen(KeyboardReturn) == 0) || (newclientnumber < 0) || (newclientnumber > 6));
       
       if (clientnumber != newclientnumber)
       {
@@ -5128,14 +5128,20 @@ void DrawTickMarks()
 
 void ShowRemoteCaption()
 {
+  char clientline[255];
+  // Write the client number line
+  snprintf(clientline, 250, "As client %d", clientnumber);
+
   // Clear the background
   rectangle(101, 71, 499, 399, 0, 0, 0);
 
-  // Wite the caption
+  // Write the caption
   setForeColour(255, 255, 255);                    // White text
   setBackColour(0, 0, 0);                          // on Black
-  TextMid2(350, 300, "No local display", &font_dejavu_sans_32);
-  TextMid2(350, 200, "Streaming to Central Server", &font_dejavu_sans_32);
+
+  TextMid2(350, 350, "No local display", &font_dejavu_sans_32);
+  TextMid2(350, 275, "Streaming to Central Server", &font_dejavu_sans_32);
+  TextMid2(350, 200, clientline, &font_dejavu_sans_32);
 }
 
 

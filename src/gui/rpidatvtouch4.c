@@ -271,7 +271,7 @@ char LMRXinput[2];          // Input a or b
 char LMRXudpip[20];         // UDP IP address
 char LMRXudpport[10];       // UDP IP port
 char LMRXmode[10];          // sat or terr
-char LMRXaudio[15];         // rpi or usb
+char LMRXaudio[15];         // rpi or usb or hdmi
 char LMRXvolts[7];          // off, v or h
 char RXmod[7];              // DVB-S or DVB-T
 bool VLCResetRequest = false; // Set on touchsscreen request for VLC to be reset  
@@ -4001,7 +4001,7 @@ void ReadLMRXPresets()
   // UDP output port:
   GetConfigParam(PATH_LMCONFIG, "udpport", LMRXudpport);
 
-  // Audio output port: (rpi or usb)
+  // Audio output port: (rpi or usb or hdmi)
   GetConfigParam(PATH_LMCONFIG, "audio", LMRXaudio);
 
   // QO-100 LNB Offset:
@@ -18121,6 +18121,10 @@ void waituntil(int w,int h)
           {
             strcpy(LMRXaudio, "usb");
           }
+          else if (strcmp(LMRXaudio, "usb") == 0)
+          {
+            strcpy(LMRXaudio, "hdmi");
+          }
           else
           {
             strcpy(LMRXaudio, "rpi");
@@ -18629,10 +18633,6 @@ void waituntil(int w,int h)
         case 14:                                                 // XY Display
           DisplayLogo();
           cleanexit(134);
-          break;
-        case 19:                                                 // SDRPlay Meteor Bcn RX
-          DisplayLogo();
-          cleanexit(149);
           break;
         case 21:                              // Menu 1
           printf("MENU 1 \n");
@@ -21062,6 +21062,10 @@ void waituntil(int w,int h)
           {
             strcpy(LMRXaudio, "usb");
           }
+          else if (strcmp(LMRXaudio, "usb") == 0)
+          {
+            strcpy(LMRXaudio, "hdmi");
+          }
           else
           {
             strcpy(LMRXaudio, "rpi");
@@ -21939,9 +21943,13 @@ void Start_Highlights_Menu3()
   {
     AmendButtonStatus(ButtonNumber(3, 13), 0, "Audio out^RPi Jack", &Blue);
   }
-  else
+  else if (strcmp(LMRXaudio, "usb") == 0)
   {
     AmendButtonStatus(ButtonNumber(3, 13), 0, "Audio out^USB dongle", &Blue);
+  }
+  else
+  {
+    AmendButtonStatus(ButtonNumber(3, 13), 0, "Audio out^HDMI", &Blue);
   }
 }
 
@@ -22321,9 +22329,6 @@ void Define_Menu7()
   AddButtonStatus(button, "XY^Display", &Blue);
 
   // 4th line up Menu 7: 
-
-  button = CreateButton(7, 19);
-  AddButtonStatus(button, "Meteor^Bcn RX", &Blue);
 
   // Top of Menu 7
 
@@ -26262,9 +26267,13 @@ void Start_Highlights_Menu46()
   {
     AmendButtonStatus(ButtonNumber(46, 9), 0, "Audio out^RPi Jack", &Blue);
   }
-  else
+  else if (strcmp(LMRXaudio, "usb") == 0)
   {
     AmendButtonStatus(ButtonNumber(46, 9), 0, "Audio out^USB dongle", &Blue);
+  }
+  else
+  {
+    AmendButtonStatus(ButtonNumber(46, 9), 0, "Audio out^HDMI", &Blue);
   }
 
   if (strcmp(RXmod, "DVB-S") == 0)
@@ -26275,8 +26284,8 @@ void Start_Highlights_Menu46()
   {
     AmendButtonStatus(ButtonNumber(46, 13), 0, "Modulation^DVB-T/T2", &Blue);
   }
-
 }
+
 
 void Define_Menu47()
 {
