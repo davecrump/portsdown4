@@ -26273,7 +26273,7 @@ void Start_Highlights_Menu46()
   }
   else
   {
-    AmendButtonStatus(ButtonNumber(3, 13), 0, "Audio out^HDMI", &Blue);
+    AmendButtonStatus(ButtonNumber(46, 9), 0, "Audio out^HDMI", &Blue);
   }
 
   if (strcmp(RXmod, "DVB-S") == 0)
