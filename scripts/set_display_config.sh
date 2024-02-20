@@ -50,6 +50,10 @@ case "$chdisplay" in              ## Select the correct driver text
   Element14_7)  INSERTFILE=$PATHCONFIGS"/element14_7.txt" ;;
   dfrobot5)  INSERTFILE=$PATHCONFIGS"/dfrobot5.txt" ;;
   Browser)  INSERTFILE=$PATHCONFIGS"/browser.txt" ;;
+  hdmi)  INSERTFILE=$PATHCONFIGS"/hdmi.txt" ;;
+  hdmi480)  INSERTFILE=$PATHCONFIGS"/hdmi480.txt" ;;
+  hdmi720)  INSERTFILE=$PATHCONFIGS"/hdmi720.txt" ;;
+  hdmi1080)  INSERTFILE=$PATHCONFIGS"/hdmi1080.txt" ;;
 esac
 
 ## Replace whatever is between the markers with the driver text
@@ -58,5 +62,11 @@ esac
 
 sudo cp "$TRANSFILE" "$CHANGEFILE"          ## Copy from the transfer file
 rm $TRANSFILE                               ## Delete the transfer file
+
+## Turn off the overscan
+grep -q '^disable_overscan=1' /boot/config.txt                               ## Is the overscan not disabled?
+if [ $? -ne 0 ]; then
+  sudo sed -i 's/#disable_overscan=1/disable_overscan=1/g' /boot/config.txt  ## so disable the overscan
+fi
 
 exit

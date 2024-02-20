@@ -1,0 +1,5 @@
+hdmi_force_hotplug=1
+hdmi_group=1
+hdmi_mode=16
+dtparam=spi=on
+
