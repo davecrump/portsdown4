@@ -1,0 +1,3 @@
+hdmi_force_hotplug=1
+dtparam=spi=on
+

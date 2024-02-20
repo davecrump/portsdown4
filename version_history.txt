@@ -1,3 +1,6 @@
+202402200
+Set HDMI resolution when used without touchscreen
+
 202402130
 Minor Tuner and Audio changes
 
