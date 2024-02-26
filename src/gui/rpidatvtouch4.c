@@ -358,14 +358,17 @@ int TouchTrigger = 0;
 bool touchneedsinitialisation = true;
 
 // Web Control globals
-bool webcontrol = false;           // Enables remote control of touchscreen functions
-char ProgramName[255];             // used to pass rpidatvgui char string to listener
-int *web_x_ptr;                // pointer
-int *web_y_ptr;                // pointer
-int web_x;                     // click x 0 - 799 from left
-int web_y;                     // click y 0 - 480 from top
-bool webclicklistenerrunning = false; // Used to only start thread if required
-char WebClickForAction[7] = "no";  // no/yes
+bool webcontrol = false;               // Enables remote control of touchscreen functions
+char ProgramName[255];                 // used to pass rpidatvgui char string to listener
+int *web_x_ptr;                        // pointer
+int *web_y_ptr;                        // pointer
+int web_x;                             // click x 0 - 799 from left
+int web_y;                             // click y 0 - 480 from top
+bool webclicklistenerrunning = false;  // Used to only start thread if required
+char WebClickForAction[7] = "no";      // no/yes
+bool touchscreen_present = true;       // detected on startup; used to control menu availability
+bool reboot_required = false;          // used after hdmi display change
+
 
 // Threads for Touchscreen monitoring
 
@@ -574,7 +577,6 @@ void SetReceiveLOFreq(int NoButton);
 void SavePreset(int PresetButton);
 void RecallPreset(int PresetButton);
 void SelectVidSource(int NoButton);
-void ChangeVidBand(int NoButton);
 void ReceiveLOStart();
 void CompVidInitialise();
 void CompVidStart();
@@ -6396,7 +6398,7 @@ void TransformTouchMap(int x, int y)
   int shiftX, shiftY;
   double factorX, factorY;
 
-  if (strcmp(DisplayType, "Browser") != 0)      // Touchscreen
+  if (touchscreen_present == true)      // Touchscreen
   {
     // Adjust registration of touchscreen for Waveshare
     shiftX=30; // move touch sensitive position left (-) or right (+).  Screen is 700 wide
@@ -6934,7 +6936,7 @@ int getTouchSampleThread(int *rawX, int *rawY, int *rawPressure)
   /* the events (up to 64 at once) */
   struct input_event ev[64];
 
-  if (((strcmp(DisplayType, "Element14_7") == 0) || (strcmp(DisplayType, "Browser") == 0))
+  if (((strcmp(DisplayType, "Element14_7") == 0) || (touchscreen_present == true))
       && (strcmp(DisplayType, "dfrobot5") != 0))   // Browser or Element14_7, but not dfrobot5
   {
     // Program flow blocks here until there is a touch event
@@ -10712,17 +10714,6 @@ void SelectVidSource(int NoButton)  // Video Source
   CompVidStart();
 }
 
-void ChangeVidBand(int NoButton)
-{
-  if (NoButton < 4) // Bottom row
-  {
-    CompVidBand = NoButton + 5;
-  }
-  else // second row
-  {
-    CompVidBand = NoButton - 5;
-  }
-}
 
 void ReceiveLOStart()
 {
@@ -19994,47 +19985,69 @@ void waituntil(int w,int h)
         continue;   // Completed Menu 29 action, go and wait for touch
       }
 
-      if (CurrentMenu == 30)  // Menu 30 Comp Vid Band
+      if (CurrentMenu == 30)  // Menu 30 HDMI Screen Type
       {
         printf("Button Event %d, Entering Menu 30 Case Statement\n",i);
         switch (i)
         {
-        case 4:                               // Cancel
+        case 3:
+          if (reboot_required == true)
+          {
+            cleanexit(192);    // Commands scheduler to initiate reboot
+          }
+          break;
+        case 4:                                         // Cancel so return to System Config Menu
           SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 1);
-          printf("Set Band Details Cancel\n");
+          printf("Screen Type Cancel\n");
           UpdateWindow();
           usleep(500000);
           SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 0); // Reset cancel (even if not selected)
-          printf("Returning to MENU 4 from Menu 30\n");
-          CurrentMenu=4;
-          setBackColour(127, 127, 127);
-          clearScreen();
+          printf("Returning to MENU 43 from Menu 30\n");
+          CurrentMenu = 43;
           setBackColour(0, 0, 0);
-          Start_Highlights_Menu4();
+          clearScreen();
+          Start_Highlights_Menu43();
           UpdateWindow();
           break;
-        case 0:
-        case 1:
-        case 2:
-        case 3:
         case 5:
+          SetConfigParam(PATH_PCONFIG, "display", "hdmi480");
+          system("/home/pi/rpidatv/scripts/set_display_config.sh");
+          reboot_required = true;
+          Start_Highlights_Menu30();
+          UpdateWindow();
+          break;
         case 6:
+          SetConfigParam(PATH_PCONFIG, "display", "hdmi720");
+          system("/home/pi/rpidatv/scripts/set_display_config.sh");
+          reboot_required = true;
+          Start_Highlights_Menu30();
+          UpdateWindow();
+          break;
         case 7:
+          SetConfigParam(PATH_PCONFIG, "display", "hdmi1080");
+          system("/home/pi/rpidatv/scripts/set_display_config.sh");
+          reboot_required = true;
+          Start_Highlights_Menu30();
+          UpdateWindow();
+          break;
         case 8:
+          SetConfigParam(PATH_PCONFIG, "display", "hdmi");
+          system("/home/pi/rpidatv/scripts/set_display_config.sh");
+          reboot_required = true;
+          Start_Highlights_Menu30();
+          UpdateWindow();
+          break;
         case 9:
-          printf("Changing Vid Band to Button %d\n", i);
-          ChangeVidBand(i);
-          CurrentMenu=4;
-          setBackColour(127, 127, 127);
-          clearScreen();
-          setBackColour(0, 0, 0);
-          Start_Highlights_Menu4();
+          SetConfigParam(PATH_PCONFIG, "display", "Browser");
+          system("/home/pi/rpidatv/scripts/set_display_config.sh");
+          reboot_required = true;
+          Start_Highlights_Menu30();
           UpdateWindow();
           break;
         default:
           printf("Menu 30 Error\n");
         }
-        // stay in Menu 30 to set another band
+        // stay in Menu 30 
         continue;
       }
 
@@ -20772,18 +20785,26 @@ void waituntil(int w,int h)
           break;
         case 11:                               // Select Start-up App
           printf("MENU 34 \n"); 
-          CurrentMenu=34;
+          CurrentMenu = 34;
           setBackColour(0, 0, 0);
           clearScreen();
           Start_Highlights_Menu34();
           UpdateWindow();
           break;
-        case 12:                               // Screen 5 inch or 7 inch
-          if (strcmp(DisplayType, "Browser") != 0)
+        case 12:                               // Screen Type
+          if (touchscreen_present == true)     // 5 inch or 7 inch touchscreen
           {
             togglescreentype();
+            Start_Highlights_Menu43();
           }
-          Start_Highlights_Menu43();
+          else                                 // Web control with/without hdmi
+          {
+            printf("MENU 30 \n");              // Call hdmi display menu
+            CurrentMenu = 30;
+            setBackColour(0, 0, 0);
+            clearScreen();
+            Start_Highlights_Menu30();
+          }
           UpdateWindow();
           break;
         case 13:                               // Invert Pi Cam
@@ -20801,7 +20822,7 @@ void waituntil(int w,int h)
           UpdateWindow();
           break;
         case 14:                               // Invert 7 Inch
-          if (strcmp(DisplayType, "Browser") != 0)
+          if (touchscreen_present == false)
           {
             CallingMenu = 4314;
             CurrentMenu = 38;
@@ -25002,29 +25023,14 @@ void Start_Highlights_Menu29()
 void Define_Menu30()
 {
   int button;
-  char BandLabel[31];
 
-  strcpy(MenuTitle[30], "Comp Video Band Selection Menu (30)"); 
+  strcpy(MenuTitle[30], "HDMI Display Selection Menu (30)"); 
 
   // Bottom Row, Menu 30
 
-  button = CreateButton(30, 0);
-  AddButtonStatus(button, TabBandLabel[5], &Blue);
-  AddButtonStatus(button, TabBandLabel[5], &Green);
-
-  button = CreateButton(30, 1);
-  AddButtonStatus(button, TabBandLabel[6], &Blue);
-  AddButtonStatus(button, TabBandLabel[6], &Green);
-
-  button = CreateButton(30, 2);
-  AddButtonStatus(button, TabBandLabel[7], &Blue);
-  AddButtonStatus(button, TabBandLabel[7], &Green);
-
   button = CreateButton(30, 3);
-  strcpy(BandLabel, "Transvtr^");
-  strcat(BandLabel, TabBandLabel[8]);
-  AddButtonStatus(button, TabBandLabel[8], &Blue);
-  AddButtonStatus(button, TabBandLabel[8], &Green);
+  AddButtonStatus(button, "Reboot^to Apply", &Grey);
+  AddButtonStatus(button, "Reboot^to Apply", &Red);
 
   button = CreateButton(30, 4);
   AddButtonStatus(button, "Exit", &Blue);
@@ -25033,38 +25039,63 @@ void Define_Menu30()
   // 2nd Row, Menu 30
 
   button = CreateButton(30, 5);
-  AddButtonStatus(button, TabBandLabel[0], &Blue);
-  AddButtonStatus(button, TabBandLabel[0], &Green);
+  AddButtonStatus(button, "HDMI^480p60", &Blue);
+  AddButtonStatus(button, "HDMI^480p60", &Green);
 
   button = CreateButton(30, 6);
-  AddButtonStatus(button, TabBandLabel[1], &Blue);
-  AddButtonStatus(button, TabBandLabel[1], &Green);
+  AddButtonStatus(button, "HDMI^720p60", &Blue);
+  AddButtonStatus(button, "HDMI^720p60", &Green);
 
   button = CreateButton(30, 7);
-  AddButtonStatus(button, TabBandLabel[2], &Blue);
-  AddButtonStatus(button, TabBandLabel[2], &Green);
+  AddButtonStatus(button, "HDMI^1080p60", &Blue);
+  AddButtonStatus(button, "HDMI^1080p60", &Green);
 
   button = CreateButton(30, 8);
-  AddButtonStatus(button, TabBandLabel[3], &Blue);
-  AddButtonStatus(button, TabBandLabel[3], &Green);
+  AddButtonStatus(button, "HDMI^from EDID", &Blue);
+  AddButtonStatus(button, "HDMI^from EDID", &Green);
 
   button = CreateButton(30, 9);
-  AddButtonStatus(button, TabBandLabel[4], &Blue);
-  AddButtonStatus(button, TabBandLabel[4], &Green);
+  AddButtonStatus(button, "Browser", &Blue);
+  AddButtonStatus(button, "Browser", &Green);
 }
 
 void Start_Highlights_Menu30()
 {
-  // Set Band for Comp Vid out Contest Captions
+  char current_display[63] = " ";
 
   printf("Entering Start Highlights Menu30\n");
 
-  SelectInGroupOnMenu(CurrentMenu, 5, 9, CompVidBand + 5, 1);
-  SelectInGroupOnMenu(CurrentMenu, 0, 3, CompVidBand + 5, 1);
-  if (CompVidBand > 4) // Bottom row selected
+  // Highlight existing display type
+  GetConfigParam(PATH_PCONFIG, "display", current_display);
+
+  if (strcmp(current_display, "hdmi480") == 0)
   {
-    SelectInGroupOnMenu(CurrentMenu, 0, 3, CompVidBand - 5, 1);
-    SelectInGroupOnMenu(CurrentMenu, 5, 9, CompVidBand - 5, 1);
+    SelectInGroupOnMenu(CurrentMenu, 5, 9, 5, 1);
+  }
+  if (strcmp(current_display, "hdmi720") == 0)
+  {
+    SelectInGroupOnMenu(CurrentMenu, 5, 9, 6, 1);
+  }
+  if (strcmp(current_display, "hdmi1080") == 0)
+  {
+    SelectInGroupOnMenu(CurrentMenu, 5, 9, 7, 1);
+  }
+  if (strcmp(current_display, "hdmi") == 0)
+  {
+    SelectInGroupOnMenu(CurrentMenu, 5, 9, 8, 1);
+  }
+  if (strcmp(current_display, "Browser") == 0)
+  {
+    SelectInGroupOnMenu(CurrentMenu, 5, 9, 9, 1);
+  }
+ 
+  if (reboot_required == true)
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 3), 1);
+  }
+  else
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 3), 0);
   }
 }
 
@@ -25918,7 +25949,6 @@ void Define_Menu43()
   button = CreateButton(43, 12);
   AddButtonStatus(button, "Screen Type^7 inch", &Blue);
   AddButtonStatus(button, "Screen Type^5 inch", &Blue);
-  AddButtonStatus(button, "Screen Type^Browser", &Grey);
 
   button = CreateButton(43, 13);
   AddButtonStatus(button, "Invert^Pi Cam", &Blue);
@@ -25951,6 +25981,8 @@ void Start_Highlights_Menu43()
     SetButtonStatus(ButtonNumber(CurrentMenu, 10), 1);
   }
 
+  AmendButtonStatus(ButtonNumber(CurrentMenu, 12), 0, YesButtonCaption, &Blue);
+
   if (strcmp(DisplayType, "Element14_7") == 0)
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 12), 0);
@@ -25963,9 +25995,30 @@ void Start_Highlights_Menu43()
   }
   if (strcmp(DisplayType, "Browser") == 0)
   {
-    SetButtonStatus(ButtonNumber(CurrentMenu, 12), 2);
+    AmendButtonStatus(ButtonNumber(CurrentMenu, 12), 0, "Browser", &Blue);
     SetButtonStatus(ButtonNumber(CurrentMenu, 14), 2);
   }
+  if (strcmp(DisplayType, "hdmi") == 0)
+  {
+    AmendButtonStatus(ButtonNumber(CurrentMenu, 12), 0, "HDMI", &Blue);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 14), 2);
+  }
+  if (strcmp(DisplayType, "hdmi480") == 0)
+  {
+    AmendButtonStatus(ButtonNumber(CurrentMenu, 12), 0, "HDMI^480p60", &Blue);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 14), 2);
+  }
+  if (strcmp(DisplayType, "hdmi720") == 0)
+  {
+    AmendButtonStatus(ButtonNumber(CurrentMenu, 12), 0, "HDMI^720p60", &Blue);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 14), 2);
+  }
+  if (strcmp(DisplayType, "hdmi1080") == 0)
+  {
+    AmendButtonStatus(ButtonNumber(CurrentMenu, 12), 0, "HDMI^1080p60", &Blue);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 14), 2);
+  }
+
 
   if (strcmp(CurrentPiCamOrientation, "normal") != 0)
   {
@@ -26786,11 +26839,15 @@ int main(int argc, char *argv[])
 
   if(NoDeviceEvent != 7)  // Touchscreen detected
   {
+    touchscreen_present = true;
+
     // Create Touchscreen thread
     pthread_create (&thtouchscreen, NULL, &WaitTouchscreenEvent, NULL);
 
-    // If display previously set to Browser, correct it
-    if(strcmp(DisplayType, "Browser") == 0)  // 
+    // If display previously set to Browser or hdmi, correct it
+    if ((strcmp(DisplayType, "Browser") == 0) || (strcmp(DisplayType, "hdmi") == 0)
+     || (strcmp(DisplayType, "hdmi480") == 0) || (strcmp(DisplayType, "hdmi720") == 0)
+     || (strcmp(DisplayType, "hdmi1080") == 0))
     {
       SetConfigParam(PATH_PCONFIG, "webcontrol", "enabled");
       SetConfigParam(PATH_PCONFIG, "display", "Element14_7");
@@ -26798,9 +26855,13 @@ int main(int argc, char *argv[])
       system ("sudo reboot now");
     }
   }
-  else // No touchscreen detected
+  else // No touchscreen detected, so enable webcontrol, change display type and reboot if required
   {
-    if(strcmp(DisplayType, "Browser") != 0)  // Web control not enabled, so set it up and reboot
+    touchscreen_present = false;
+
+    if ((strcmp(DisplayType, "Browser") != 0) && (strcmp(DisplayType, "hdmi") != 0)
+     && (strcmp(DisplayType, "hdmi480") != 0) && (strcmp(DisplayType, "hdmi720") != 0)
+     && (strcmp(DisplayType, "hdmi1080") != 0))
     {
       SetConfigParam(PATH_PCONFIG, "webcontrol", "enabled");
       SetConfigParam(PATH_PCONFIG, "display", "Browser");

@@ -1025,7 +1025,8 @@ void *sdrplay_fft_thread(void *arg) {
   else
   {
     // Enable debug logging output
-    if ((err = sdrplay_api_DebugEnable(NULL, 1)) != sdrplay_api_Success)
+    //if ((err = sdrplay_api_DebugEnable(NULL, 1)) != sdrplay_api_Success)
+    if ((err = sdrplay_api_DebugEnable(NULL, 0)) != sdrplay_api_Success)    // Disable to prevent logs filling
     {
       printf("sdrplay_api_DebugEnable failed %s\n", sdrplay_api_GetErrorString(err));
     }
