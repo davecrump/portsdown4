@@ -6398,7 +6398,7 @@ void TransformTouchMap(int x, int y)
   int shiftX, shiftY;
   double factorX, factorY;
 
-  if (strcmp(DisplayType, "Browser") != 0)      // Touchscreen
+  if (touchscreen_present == true)      // Touchscreen
   {
     // Adjust registration of touchscreen for Waveshare
     shiftX=30; // move touch sensitive position left (-) or right (+).  Screen is 700 wide
@@ -6936,7 +6936,7 @@ int getTouchSampleThread(int *rawX, int *rawY, int *rawPressure)
   /* the events (up to 64 at once) */
   struct input_event ev[64];
 
-  if (((strcmp(DisplayType, "Element14_7") == 0) || (strcmp(DisplayType, "Browser") == 0))
+  if (((strcmp(DisplayType, "Element14_7") == 0) || (touchscreen_present == true))
       && (strcmp(DisplayType, "dfrobot5") != 0))   // Browser or Element14_7, but not dfrobot5
   {
     // Program flow blocks here until there is a touch event
@@ -20011,30 +20011,35 @@ void waituntil(int w,int h)
           break;
         case 5:
           SetConfigParam(PATH_PCONFIG, "display", "hdmi480");
+          system("/home/pi/rpidatv/scripts/set_display_config.sh");
           reboot_required = true;
           Start_Highlights_Menu30();
           UpdateWindow();
           break;
         case 6:
           SetConfigParam(PATH_PCONFIG, "display", "hdmi720");
+          system("/home/pi/rpidatv/scripts/set_display_config.sh");
           reboot_required = true;
           Start_Highlights_Menu30();
           UpdateWindow();
           break;
         case 7:
           SetConfigParam(PATH_PCONFIG, "display", "hdmi1080");
+          system("/home/pi/rpidatv/scripts/set_display_config.sh");
           reboot_required = true;
           Start_Highlights_Menu30();
           UpdateWindow();
           break;
         case 8:
           SetConfigParam(PATH_PCONFIG, "display", "hdmi");
+          system("/home/pi/rpidatv/scripts/set_display_config.sh");
           reboot_required = true;
           Start_Highlights_Menu30();
           UpdateWindow();
           break;
         case 9:
           SetConfigParam(PATH_PCONFIG, "display", "Browser");
+          system("/home/pi/rpidatv/scripts/set_display_config.sh");
           reboot_required = true;
           Start_Highlights_Menu30();
           UpdateWindow();
@@ -20817,7 +20822,7 @@ void waituntil(int w,int h)
           UpdateWindow();
           break;
         case 14:                               // Invert 7 Inch
-          if (strcmp(DisplayType, "Browser") != 0)
+          if (touchscreen_present == false)
           {
             CallingMenu = 4314;
             CurrentMenu = 38;
@@ -25944,7 +25949,6 @@ void Define_Menu43()
   button = CreateButton(43, 12);
   AddButtonStatus(button, "Screen Type^7 inch", &Blue);
   AddButtonStatus(button, "Screen Type^5 inch", &Blue);
-  AddButtonStatus(button, "Screen Type^Browser", &Grey);
 
   button = CreateButton(43, 13);
   AddButtonStatus(button, "Invert^Pi Cam", &Blue);
@@ -25977,6 +25981,8 @@ void Start_Highlights_Menu43()
     SetButtonStatus(ButtonNumber(CurrentMenu, 10), 1);
   }
 
+  AmendButtonStatus(ButtonNumber(CurrentMenu, 12), 0, YesButtonCaption, &Blue);
+
   if (strcmp(DisplayType, "Element14_7") == 0)
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 12), 0);
@@ -25989,9 +25995,30 @@ void Start_Highlights_Menu43()
   }
   if (strcmp(DisplayType, "Browser") == 0)
   {
-    SetButtonStatus(ButtonNumber(CurrentMenu, 12), 2);
+    AmendButtonStatus(ButtonNumber(CurrentMenu, 12), 0, "Browser", &Blue);
     SetButtonStatus(ButtonNumber(CurrentMenu, 14), 2);
   }
+  if (strcmp(DisplayType, "hdmi") == 0)
+  {
+    AmendButtonStatus(ButtonNumber(CurrentMenu, 12), 0, "HDMI", &Blue);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 14), 2);
+  }
+  if (strcmp(DisplayType, "hdmi480") == 0)
+  {
+    AmendButtonStatus(ButtonNumber(CurrentMenu, 12), 0, "HDMI^480p60", &Blue);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 14), 2);
+  }
+  if (strcmp(DisplayType, "hdmi720") == 0)
+  {
+    AmendButtonStatus(ButtonNumber(CurrentMenu, 12), 0, "HDMI^720p60", &Blue);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 14), 2);
+  }
+  if (strcmp(DisplayType, "hdmi1080") == 0)
+  {
+    AmendButtonStatus(ButtonNumber(CurrentMenu, 12), 0, "HDMI^1080p60", &Blue);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 14), 2);
+  }
+
 
   if (strcmp(CurrentPiCamOrientation, "normal") != 0)
   {
