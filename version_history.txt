@@ -1,3 +1,6 @@
+202402250
+Stop Meteorviewer logging to prevent logs filling
+
 202402200
 Set HDMI resolution when used without touchscreen
 
