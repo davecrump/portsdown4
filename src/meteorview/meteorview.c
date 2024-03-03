@@ -755,6 +755,7 @@ void do_snapcheck()
       strcat(fbicmd, SnapIndex);
       strcat(fbicmd, ".jpg >/dev/null 2>/dev/null");
       system(fbicmd);
+      UpdateWeb();
       LastDisplayedSnap = Snap;
     }
 
@@ -5533,7 +5534,9 @@ int main(int argc, char **argv)
   }
   else // No touchscreen detected
   {
-    if(strcmp(DisplayType, "Browser") != 0)  // Web control not enabled, so set it up and reboot
+    if ((strcmp(DisplayType, "Browser") != 0) && (strcmp(DisplayType, "hdmi") != 0)
+     && (strcmp(DisplayType, "hdmi480") != 0) && (strcmp(DisplayType, "hdmi720") != 0)
+     && (strcmp(DisplayType, "hdmi1080") != 0))
     {
       SetConfigParam(PATH_PCONFIG, "webcontrol", "enabled");
       SetConfigParam(PATH_PCONFIG, "display", "Browser");

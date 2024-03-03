@@ -389,6 +389,7 @@ void strcpyn(char *outstring, char *instring, int n);
 void DisplayHere(char *DisplayCaption);
 void GetPiAudioCard(char card[15]);
 void GetMicAudioCard(char mic[15]);
+void GetHDMIAudioCard(char hdmi[15]);
 void GetPiCamDev(char picamdev[15]);
 void togglescreentype();
 int GetLinuxVer();
@@ -1011,6 +1012,37 @@ void GetMicAudioCard(char mic[15])
   /* close */
   pclose(fp);
 }
+
+
+/***************************************************************************//**
+ * @brief Looks up the card number for the first HDMI audio output
+ *
+ * @param hdmi (str) as a single character string with no <CR>
+ *
+ * @return void
+*******************************************************************************/
+
+void GetHDMIAudioCard(char hdmi[15])
+{
+  FILE *fp;
+
+  /* Open the command for reading. */
+  fp = popen("cat /proc/asound/modules | grep \"snd_bcm2835\" | head -c 2 | tail -c 1", "r");
+  if (fp == NULL) {
+    printf("Failed to run command\n" );
+    exit(1);
+  }
+
+  /* Read the output a line at a time - output it. */
+  while (fgets(hdmi, 7, fp) != NULL)
+  {
+    sprintf(hdmi, "%d", atoi(hdmi));
+  }
+
+  /* close */
+  pclose(fp);
+}
+
 
 /***************************************************************************//**
  * @brief Looks up the Pi Cam device name
@@ -3755,6 +3787,7 @@ void ChangeRTLSquelch()
  * @param none
  *
  * @return void.  Sets global int RTLgain[0] in range 0 - 50
+ *                or if gain set to auto returns -1
 *******************************************************************************/
 
 void ChangeRTLGain()
@@ -3763,18 +3796,33 @@ void ChangeRTLGain()
   char InitText[64];
 
   //Define request string 
-  strcpy(RequestText, "Enter new gain setting 0 (min) to 50 (max):");
-  snprintf(InitText, 3, "%d", RTLgain[0]);
+  strcpy(RequestText, "Enter new gain setting 0 (min) to 50 (max) or auto:");
+
+  if (RTLgain[0] < 0)
+  {
+    strcpy(InitText, "auto");
+  }
+  else
+  {
+    snprintf(InitText, 3, "%d", RTLgain[0]);
+  }
 
   // Ask for response and check validity
   strcpy(KeyboardReturn, "60");
-  while ((atoi(KeyboardReturn) < 0) || (atoi(KeyboardReturn) > 50))
+  while ((atoi(KeyboardReturn) < 0) || (atoi(KeyboardReturn) > 50))  // 0 to 50 or alpha text
   {
-    Keyboard(RequestText, InitText, 3);
+    Keyboard(RequestText, InitText, 4);
   }
 
   // Store Response
-  RTLgain[0] = atoi(KeyboardReturn);
+  if ((KeyboardReturn[0] == 'a') || (KeyboardReturn[0] == 'A')) // auto
+  {
+    RTLgain[0] = -1;
+  }
+  else
+  {
+    RTLgain[0] = atoi(KeyboardReturn);
+  }
 }
 
 /***************************************************************************//**
@@ -4415,17 +4463,23 @@ void RTLstart()
     char rtlcall[255];
     char card[15];
     char mic[15];
+    char hdmi[15];
 
-    GetMicAudioCard(mic);
-    if (strlen(mic) == 1)   // Use USB audio output if present
-    {
-      strcpy(card, mic);
-    }
-    else                    // Use RPi audio if no USB
+    if (strcmp(LMRXaudio, "rpi") == 0)
     {
       GetPiAudioCard(card);
-      IQAvailable = 0;     // Set flag to say transmit unavailable
     }
+    else if (strcmp(LMRXaudio, "usb") == 0)
+    {
+      GetMicAudioCard(mic);
+      strcpy(card, mic);
+    }
+    else  // hdmi 0
+    {
+      GetHDMIAudioCard(hdmi);
+      strcpy(card, hdmi);
+    }
+
     strcpy(rtlcall, "(rtl_fm");
     snprintf(fragment, 12, " -M %s", RTLmode[0]);  // -M mode
     strcat(rtlcall, fragment);
@@ -4440,8 +4494,11 @@ void RTLstart()
     {
       strcat(rtlcall, " -s 12k");
     }
-    snprintf(fragment, 12, " -g %d", RTLgain[0]); // -g gain
-    strcat(rtlcall, fragment);
+    if (RTLgain[0] >= 0)                           // default is auto (-1) so only set gain if positive
+    {
+      snprintf(fragment, 12, " -g %d", RTLgain[0]); // -g gain
+      strcat(rtlcall, fragment);
+    }
     if (RTLsquelchoveride == 1)
     {
       snprintf(fragment, 12, " -l %d", RTLsquelch[0]); // -l squelch
@@ -22222,7 +22279,14 @@ void Start_Highlights_Menu6()
   }
 
   // Display the Gain
-  snprintf(RTLBtext, 20, "Gain^%d", RTLgain[0]);
+  if (RTLgain[0] >= 0)
+  {
+    snprintf(RTLBtext, 20, "Gain^%d", RTLgain[0]);
+  }
+  else        // gain auto
+  {
+    strcpy(RTLBtext, "Gain^Auto");
+  }
   AmendButtonStatus(ButtonNumber(6, 19), 0, RTLBtext, &Blue);
   AmendButtonStatus(ButtonNumber(6, 19), 1, RTLBtext, &Green);
 
