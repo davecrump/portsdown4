@@ -17952,7 +17952,7 @@ void waituntil(int w,int h)
           DisplayLogo();
           cleanexit(130);
           break;
-        case 17:                              //  Band Viewer.  Check for Airspy, SDRPlay, LimeSDR, Pluto then RTL-SDR
+        case 17:                              //  Band Viewer.  Check for Airspy, SDRPlay, LimeSDR, RTL-SDR then Pluto
           if (CheckAirspyConnect() == 0)
           {
             DisplayLogo();
@@ -17974,17 +17974,17 @@ void waituntil(int w,int h)
               }
               else
               { 
-                if(CheckPlutoIPConnect() == 0)
+                if(CheckRTL() == 0)
                 {
                   DisplayLogo();
-                  cleanexit(143);
+                  cleanexit(141);
                 }
                 else
                 {
-                  if(CheckRTL() == 0)
+                  if(CheckPlutoIPConnect() == 0)
                   {
                     DisplayLogo();
-                    cleanexit(141);
+                    cleanexit(143);
                   }
                   else
                   {
@@ -18757,21 +18757,21 @@ void waituntil(int w,int h)
                 }
                 else
                 { 
-                  if(CheckPlutoIPConnect() == 0)
+                  if(CheckRTL() == 0)
                   {
                     snprintf(ValueToSave, 63, "%d", LMRXfreq[0]);
-                    SetConfigParam(PATH_PB_CONFIG, "centrefreq", ValueToSave);
+                    SetConfigParam(PATH_RS_CONFIG, "centrefreq", ValueToSave);
                     DisplayLogo();
-                    cleanexit(143);
+                    cleanexit(141);
                   }
                   else
                   {
-                    if(CheckRTL() == 0)
+                    if(CheckPlutoIPConnect() == 0)
                     {
                       snprintf(ValueToSave, 63, "%d", LMRXfreq[0]);
-                      SetConfigParam(PATH_RS_CONFIG, "centrefreq", ValueToSave);
+                      SetConfigParam(PATH_PB_CONFIG, "centrefreq", ValueToSave);
                       DisplayLogo();
-                      cleanexit(141);
+                      cleanexit(143);
                     }
                     else
                     {
@@ -26012,7 +26012,6 @@ void Define_Menu43()
 
   button = CreateButton(43, 12);
   AddButtonStatus(button, "Screen Type^7 inch", &Blue);
-  AddButtonStatus(button, "Screen Type^5 inch", &Blue);
 
   button = CreateButton(43, 13);
   AddButtonStatus(button, "Invert^Pi Cam", &Blue);
@@ -26045,16 +26044,14 @@ void Start_Highlights_Menu43()
     SetButtonStatus(ButtonNumber(CurrentMenu, 10), 1);
   }
 
-  AmendButtonStatus(ButtonNumber(CurrentMenu, 12), 0, YesButtonCaption, &Blue);
-
   if (strcmp(DisplayType, "Element14_7") == 0)
   {
-    SetButtonStatus(ButtonNumber(CurrentMenu, 12), 0);
+    AmendButtonStatus(ButtonNumber(CurrentMenu, 12), 0, "Screen Type^7 inch", &Blue);
     SetButtonStatus(ButtonNumber(CurrentMenu, 14), 0);
   }
   if (strcmp(DisplayType, "dfrobot5") == 0)
   {
-    SetButtonStatus(ButtonNumber(CurrentMenu, 12), 1);
+    AmendButtonStatus(ButtonNumber(CurrentMenu, 12), 0, "Screen Type^5 inch", &Blue);
     SetButtonStatus(ButtonNumber(CurrentMenu, 14), 2);
   }
   if (strcmp(DisplayType, "Browser") == 0)
@@ -26064,22 +26061,22 @@ void Start_Highlights_Menu43()
   }
   if (strcmp(DisplayType, "hdmi") == 0)
   {
-    AmendButtonStatus(ButtonNumber(CurrentMenu, 12), 0, "HDMI", &Blue);
+    AmendButtonStatus(ButtonNumber(CurrentMenu, 12), 0, "Browser^and HDMI", &Blue);
     SetButtonStatus(ButtonNumber(CurrentMenu, 14), 2);
   }
   if (strcmp(DisplayType, "hdmi480") == 0)
   {
-    AmendButtonStatus(ButtonNumber(CurrentMenu, 12), 0, "HDMI^480p60", &Blue);
+    AmendButtonStatus(ButtonNumber(CurrentMenu, 12), 0, "Browser^HDMI 480p60", &Blue);
     SetButtonStatus(ButtonNumber(CurrentMenu, 14), 2);
   }
   if (strcmp(DisplayType, "hdmi720") == 0)
   {
-    AmendButtonStatus(ButtonNumber(CurrentMenu, 12), 0, "HDMI^720p60", &Blue);
+    AmendButtonStatus(ButtonNumber(CurrentMenu, 12), 0, "Browser^HDMI 720p60", &Blue);
     SetButtonStatus(ButtonNumber(CurrentMenu, 14), 2);
   }
   if (strcmp(DisplayType, "hdmi1080") == 0)
   {
-    AmendButtonStatus(ButtonNumber(CurrentMenu, 12), 0, "HDMI^1080p60", &Blue);
+    AmendButtonStatus(ButtonNumber(CurrentMenu, 12), 0, "Browser^HDMI 1080p60", &Blue);
     SetButtonStatus(ButtonNumber(CurrentMenu, 14), 2);
   }
 
