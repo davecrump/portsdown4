@@ -161,6 +161,16 @@ sleep 1
 # Set the start-up volume
 printf "volume "$VLCVOLUME"\nlogout\n" | nc 127.0.0.1 1111 >/dev/null 2>/dev/null
 
+# Stop VLC playing and move it to the next track.  This is required for PicoTuner
+# as it sends the TS data in 64 byte bursts, not 510 byte bursts like MiniTiouner
+# The -i 1 parameter to put a second between commands is required to ensure reset at low SRs
+nc -i 1 127.0.0.1 1111 >/dev/null 2>/dev/null << EOF
+stop
+next
+logout
+EOF
+
+
 exit
 
 
