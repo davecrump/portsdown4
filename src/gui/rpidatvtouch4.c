@@ -20879,7 +20879,7 @@ void waituntil(int w,int h)
           UpdateWindow();
           break;
         case 14:                               // Invert 7 Inch
-          if (touchscreen_present == false)
+          if (touchscreen_present == true)
           {
             CallingMenu = 4314;
             CurrentMenu = 38;
