@@ -1,3 +1,9 @@
+202403130
+Bugfix 7 inch screen invert selection
+
+202403110
+Move VLC to next track at start of RX for PicoTuner
+
 202403040
 Fix port forwarding browser access
 
