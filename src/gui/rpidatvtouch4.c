@@ -11380,8 +11380,6 @@ void *WaitButtonLMRX(void * arg)
 
     TransformTouchMap(rawX, rawY);  // Sorts out orientation and approx scaling of the touch map
 
-    //if((scaledX <= 5 * wscreen / 40)  && (scaledY <= hscreen) && (scaledY <= 2 * hscreen / 12)) // Bottom left
-
     if((scaledX <= 5 * wscreen / 40)  &&  (scaledY <= 2 * hscreen / 12)) // Bottom left
     {
       printf("In snap zone, so take snap.\n");
@@ -11392,7 +11390,6 @@ void *WaitButtonLMRX(void * arg)
       printf("In restart VLC zone, so set for reset.\n");
       VLCResetRequest = true;
     }
-    //else if((scaledX <= 15 * wscreen / 40) && (scaledX >= wscreen / 40) && (scaledY <= hscreen) && (scaledY >= 2 * hscreen / 12))
     else if ((scaledX <= 15 * wscreen / 40) && (scaledY <= 10 * hscreen / 12) && (scaledY >= 2 * hscreen / 12))
     {
       printf("In parameter zone, so toggle parameter view.\n");
@@ -11417,21 +11414,26 @@ void *WaitButtonLMRX(void * arg)
     }
     else
     {
-      printf("Out of zone.  End receive requested.\n");
-      FinishedButton = 0;  // Not in the zone, so exit receive
+      // Close VLC to reduce processor load first
+      system("/home/pi/rpidatv/scripts/lmvlcclose.sh");
+
+      // kill the receive processes
+      system("sudo killall longmynd > /dev/null 2>/dev/null");
+      system("sudo killall CombiTunerExpress > /dev/null 2>/dev/null");
+      system("sudo killall /usr/bin/omxplayer.bin > /dev/null 2>/dev/null");  // killed last otherwise fifo will block
+
+      printf("Receive processes stopped.\n");
+      FinishedButton = 0;  // Exit receive
       touch_response = 1;
       count_time_ms = 0;
 
       // wait here to make sure that touch_response is set back to 0
       // If not, restart GUI
-      printf("Entering Delay\n");
       while ((touch_response == 1) && (count_time_ms < 500))
       {
         usleep(1000);
         count_time_ms = count_time_ms + 1;
       }
-      //printf("Shutting Down VLC\n");
-      system("/home/pi/rpidatv/scripts/lmvlcsd.sh &");
       count_time_ms = 0;
       while ((touch_response == 1) && (count_time_ms < 2500))
       {
@@ -11441,8 +11443,6 @@ void *WaitButtonLMRX(void * arg)
 
       if (touch_response == 1) // count_time has elapsed and still no reponse
       {
-
-        system("/home/pi/rpidatv/scripts/lmvlcsd.sh &");
         setBackColour(0, 0, 0);
         clearScreen();
         exit(129);                 // Restart the GUI
@@ -12070,6 +12070,9 @@ void LMRX(int NoButton)
   float previousMER = 0;
   int FirstLock = 0;  // set to 1 on first lock, and 2 after parameter fade
   clock_t LockTime;
+  bool webupdate_this_time = true;   // Only update web on alternate MER changes
+  char LastServiceProvidertext[255] = " ";
+  bool FirstReceive = true;
 
   // DVB-T parameters
 
@@ -12086,7 +12089,7 @@ void LMRX(int NoButton)
   char line13[31] = "";
   char line14[31] = "";
   char linex[127] = "";
-  int TunerPollCount = 0;
+  uint16_t TunerPollCount = 0;
   bool TunerFound = FALSE;
 
   char ExtraText[63];
@@ -12112,6 +12115,7 @@ void LMRX(int NoButton)
     system(LinuxCommand);
     strcpy(LinuxCommand, "(sleep 1; sudo killall -9 fbi >/dev/null 2>/dev/null) &");
     system(LinuxCommand);
+    UpdateWeb();
   }
   else // MER display modes
   {
@@ -12181,7 +12185,6 @@ void LMRX(int NoButton)
     printf("STARTING VLC with FFMPEG RX\n");
 
     /* Open status FIFO for read only  */
-    //mkfifo("longmynd_status_fifo", 0666);
     ret = mkfifo("longmynd_status_fifo", 0666);
     fd_status_fifo = open("longmynd_status_fifo", O_RDONLY); 
 
@@ -12213,11 +12216,19 @@ void LMRX(int NoButton)
         {
           TunerPollCount = TunerPollCount + 1;
 
-          if (TunerPollCount > 15)
+          if (TunerPollCount == 15)  // Tuner not responding
           {
             strcpy(line5, "Waiting for Tuner to Respond");
             Text2(wscreen * 6 / 40, hscreen - 1 * linepitch, line5, font_ptr);
-            TunerPollCount = 0;
+          }       
+          // printf("TPC = %d\n", TunerPollCount);
+          if (TunerPollCount > 2500)  // Maybe PicoTuner has locked up so reset USB bus power
+          {
+            strcpy(line5, "Resetting USB Bus                            ");
+            Text2(wscreen * 6 / 40, hscreen - 1 * linepitch, line5, font_ptr);
+            system("sudo killall vlc");
+            system("sudo uhubctl -R -a 2");
+            MsgBox("Touch Centre of Screen to Return to Receiver");
           }
         }
       }
@@ -12267,6 +12278,23 @@ void LMRX(int NoButton)
           {
             strcpy(ServiceProvidertext, stat_string);
             chopN(ServiceProvidertext, 3);
+
+            // Force VLC reset if service provider has changed
+            if ((strlen(ServiceProvidertext) > 1) && (strlen(LastServiceProvidertext) > 1))
+            {
+              if (strcmp(ServiceProvidertext, LastServiceProvidertext) != 0)  // Service provider has changed
+              {
+                system("/home/pi/rpidatv/scripts/lmvlcreset.sh &");           // so reset VLC
+                strcpy(LastServiceProvidertext, ServiceProvidertext);
+              }
+            }
+
+            // deal with first receive case (no reset required)
+            if ((FirstReceive == true) && (strlen(ServiceProvidertext) > 1))
+            {
+              strcpy(LastServiceProvidertext, ServiceProvidertext);
+              FirstReceive = false;
+            }
           }
 
           if ((stat_string[0] == '1') && (stat_string[1] == '4'))  // Service
@@ -12422,6 +12450,7 @@ void LMRX(int NoButton)
 
               Text2(wscreen * 1 / 40, hscreen - 11 * linepitch, "Touch Centre to exit", font_ptr);
               Text2(wscreen * 1 / 40, hscreen - 12 * linepitch, "Touch Lower left for image capture", font_ptr);
+            
             }
             else
             {
@@ -12439,6 +12468,16 @@ void LMRX(int NoButton)
                 fclose(fw);
               }
             }
+            // Update web on alternate MER changes (to reduce processor workload)
+            if (webupdate_this_time == true)
+            {
+              UpdateWeb();
+              webupdate_this_time = false;
+            }
+            else
+            {
+              webupdate_this_time = true;
+            }
           }
           stat_string[0] = '\0';
         }
@@ -12448,17 +12487,11 @@ void LMRX(int NoButton)
         }
       }
     }
-    // Shutdown VLC if it has not stolen the graphics
-    system("/home/pi/rpidatv/scripts/lmvlcsd.sh &");
 
     close(fd_status_fifo); 
     usleep(1000);
-
-    printf("Stopping receive process\n");
     pclose(fp);
-    system("sudo killall lmvlcffudp.sh >/dev/null 2>/dev/null");
     touch_response = 0; 
-    printf("VLC has shut down\n");
     break;
 
   case 6:
@@ -18302,6 +18335,10 @@ void waituntil(int w,int h)
           Start_Highlights_Menu4();
           UpdateWindow();
           break;
+        case 10:                             // IQ Sample Rate
+          break;
+        case 11:                             // IQ Replay Loop/once
+          break;
         case 13:                             // 
           break;
         case 20:                             // 
@@ -22094,9 +22131,17 @@ void Define_Menu4()
 
   // 3rd Row, Menu 4
 
-  //button = CreateButton(4, 13);
-  //AddButtonStatus(button, "Band^", &Blue);
-  //AddButtonStatus(button, "Band^", &Green);
+  button = CreateButton(4, 10);
+  AddButtonStatus(button, "IQ Sample^", &Blue);
+
+  button = CreateButton(4, 11);
+  AddButtonStatus(button, "IQ Replay^Single", &Blue);
+
+  button = CreateButton(4, 12);
+  AddButtonStatus(button, "Select^IQ File", &Blue);
+
+  button = CreateButton(4, 13);
+  AddButtonStatus(button, "Play^IQ File", &Blue);
 
   // Top of Menu 4
 

@@ -233,6 +233,12 @@ fi
 
 sudo apt-get -y dist-upgrade # Upgrade all the installed packages to their latest version
 
+echo
+echo "Checking for EEPROM Update"
+echo
+
+sudo rpi-eeprom-update -a                            # Update will be installed on reboot if required
+
 # --------- Install new packages as Required ---------
 
 DisplayUpdateMsg "Step 5 of 10\nUpdating Software Packages\n\nXXXX------"
@@ -473,6 +479,13 @@ rm -rf longmynd
 cp -r /home/pi/rpidatv/src/longmynd/ /home/pi/
 cd longmynd
 make
+
+# Check the minitiouner.rules file and update if required
+grep -q "ba2c" /etc/udev/rules.d/minitiouner.rules
+if [ $? -ne 0 ]; then  #  file is not there or has the wrong entry for PicoTuner
+  sudo cp minitiouner.rules /etc/udev/rules.d/
+fi
+
 cd /home/pi
 
 DisplayUpdateMsg "Step 7 of 10\nCompiling Portsdown SW\nSignal Generator\nXXXXXX----"
