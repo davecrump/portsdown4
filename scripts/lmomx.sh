@@ -151,7 +151,7 @@ sudo killall omxplayer.bin >/dev/null 2>/dev/null
 sudo rm longmynd_main_ts
 mkfifo longmynd_main_ts
 
-sudo /home/pi/longmynd/longmynd -s longmynd_status_fifo \
+/home/pi/longmynd/longmynd -s longmynd_status_fifo \
   $VOLTS_CMD $TIMEOUT_CMD $INPUT_CMD $FREQ_KHZ $SYMBOLRATEK >/dev/null 2>/dev/null &
 
 omxplayer --vol 600 --adev alsa:plughw:"$AUDIO_OUT_DEV",0 \

@@ -144,8 +144,8 @@ mkfifo longmynd_main_ts
 UDPIP=127.0.0.1
 UDPPORT=1234
 
-# Start LongMynd
-sudo /home/pi/longmynd/longmynd -i $UDPIP $UDPPORT -s longmynd_status_fifo \
+# Start LongMynd (-A 11 gives DVB-S2 no scan for fast lock)
+/home/pi/longmynd/longmynd -i $UDPIP $UDPPORT -s longmynd_status_fifo \
   $VOLTS_CMD $TIMEOUT_CMD -A 11 $SCAN_CMD $INPUT_CMD $FREQ_KHZ $SYMBOLRATEK >/dev/null 2>/dev/null &
 
 # Start VLC

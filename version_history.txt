@@ -1,3 +1,7 @@
+202403250
+VLC Receive Improvements
+PicoTuner Reliability Improvements
+
 202403130
 Bugfix 7 inch screen invert selection
 

@@ -146,7 +146,7 @@ UDPIP=127.0.0.1
 UDPPORT=1234
 
 # Start LongMynd
-sudo /home/pi/longmynd/longmynd -i $UDPIP $UDPPORT -s longmynd_status_fifo \
+/home/pi/longmynd/longmynd -i $UDPIP $UDPPORT -s longmynd_status_fifo \
   $VOLTS_CMD $TIMEOUT_CMD $SCAN_CMD $INPUT_CMD $FREQ_KHZ $SYMBOLRATEK >/dev/null 2>/dev/null &
 
 # Start VLC
