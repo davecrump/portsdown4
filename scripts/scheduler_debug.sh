@@ -186,6 +186,7 @@ while [ "$GUI_RETURN_CODE" -gt 127 ] || [ "$GUI_RETURN_CODE" -eq 0 ];  do
     0)
       /home/pi/rpidatv/bin/rpidatvgui
       GUI_RETURN_CODE="$?"
+      sudo killall vlc >/dev/null 2>/dev/null
     ;;
     128)
       # Jump out of the loop
@@ -194,6 +195,7 @@ while [ "$GUI_RETURN_CODE" -gt 127 ] || [ "$GUI_RETURN_CODE" -eq 0 ];  do
     129)
       /home/pi/rpidatv/bin/rpidatvgui
       GUI_RETURN_CODE="$?"
+      sudo killall vlc >/dev/null 2>/dev/null
     ;;
     130)
       /home/pi/rpidatv/bin/siggen
@@ -435,6 +437,7 @@ while [ "$GUI_RETURN_CODE" -gt 127 ] || [ "$GUI_RETURN_CODE" -eq 0 ];  do
     *)
       /home/pi/rpidatv/bin/rpidatvgui
       GUI_RETURN_CODE="$?"
+      sudo killall vlc >/dev/null 2>/dev/null
     ;;
   esac
 done
