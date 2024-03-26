@@ -494,6 +494,7 @@ void ShowVideoFile(char *VideoPath, char *VideoFile);
 void ShowImageFile(char *ImagePath, char *ImageFile);
 void ListText(char *TextPath, char *TextFile);
 void FileOperation(int button);
+void IQFileOperation(int button);
 void ListUSBDevices();
 void ListNetDevices();
 void ListNetPis();
@@ -6283,6 +6284,91 @@ void FileOperation(int NoButton)
       }
 
       break;
+  }
+}
+
+/***************************************************************************//**
+ * @brief Handles button presses from the IQ file menu 
+ *        and acts on buttons 10 (sample rate), 11 (sing/loop) and 12 (Select file) and 13 (play)
+ * @param int NoButton
+ *
+ * @return void
+*******************************************************************************/
+
+void IQFileOperation(int NoButton)
+{
+  int response = 0;
+  char NewPathSelection[255] = "/home/pi/iqfiles";
+  char NewFileSelection[255] = "";
+  char FileCommand[1279];
+  char MangleText[1023];
+  char DummyFileSelection[255] = "";
+  char FilePathShort[255];
+  char FileExtension[15];
+  char RequestText[64];
+  char InitText[64];
+  bool IsValid = false;
+
+  switch (NoButton)
+  {
+    case 12:                                                    // Select File
+
+      // Clear the message lines
+      ClearMenuMessage();
+
+      response = SelectFileUsingList(CurrentPathSelection, CurrentFileSelection, NewPathSelection, NewFileSelection, 0);
+      if (response == 1)    // File has been changed
+      {
+        strcpy(CurrentPathSelection, NewPathSelection);
+        strcpy(CurrentFileSelection, NewFileSelection);
+      }
+
+      if (strlen(NewFileSelection) > 0)                // filename has been selected
+      {
+        strcpy(MenuText[0], "Selected File:");
+      }
+      else                                             // Only directory selected
+      {
+        strcpy(MenuText[0], "Current Directory:");
+      }
+
+      if (strlen(CurrentPathSelection) + strlen(CurrentFileSelection) < 63)  // all on one line
+      {
+        strcpy(MenuText[1], CurrentPathSelection);
+        strcat(MenuText[1], CurrentFileSelection);
+      }
+      else if (strlen(CurrentPathSelection) < 63 )                           // path on one line
+      {
+        strcpy(MenuText[1], CurrentPathSelection);
+        strcpy(MenuText[2], CurrentFileSelection);
+      }
+      else if ((strlen(CurrentPathSelection) >= 63 ) && (strlen(CurrentPathSelection) < 127 ))  // path on 2 lines                                                              
+      {
+        strcpyn(MenuText[1], CurrentPathSelection, 63);
+        strcpy(MenuText[2], CurrentPathSelection + 63);
+        strcpy(MenuText[3], CurrentFileSelection);
+      }
+      else                                                                                // Use all available space for path
+      {
+        strcpyn(MenuText[1], CurrentPathSelection, strlen(CurrentPathSelection) - 126);
+        strcpyn(MenuText[2], CurrentPathSelection + strlen(CurrentPathSelection) - 126, 63);
+        strcpyn(MenuText[3], CurrentPathSelection + strlen(CurrentPathSelection) - 63, 63);
+        strcpy(MenuText[4], CurrentFileSelection);
+      }
+      break;
+
+    case 10:                                                                               // Sample Rate
+
+      break;
+
+    case 11:                                                                           // single/loop
+
+      // Clear the message lines
+      break;
+
+    case 13:                                                                            // Play file
+      break;
+
   }
 }
 
@@ -18335,11 +18421,24 @@ void waituntil(int w,int h)
           Start_Highlights_Menu4();
           UpdateWindow();
           break;
-        case 10:                             // IQ Sample Rate
+        case 10:                               // Set IQ sample rate
+        case 11:                               // simgle or loop
+        case 12:                               // Select File
+        case 13:                               // Play
+          IQFileOperation(i);
+          Start_Highlights_Menu4();           // Refresh button labels
+          UpdateWindow();
           break;
-        case 11:                             // IQ Replay Loop/once
-          break;
-        case 13:                             // 
+        case 14:                             // Download HamTV file
+          if (file_exist("/home/pi/iqfiles/SDRSharp_20160423_121611Z_731000000Hz_IQ.wav") == 1)
+          {
+             MsgBox4("Downloading a 1.5 GB file", "This may take some time", "At least 3 minutes", " ");
+            system("wget https://live.ariss.org/media/HAMTV%20Recordings/IQ%20Files/SDRSharp_20160423_121611Z_731000000Hz_IQ.wav.gz -O /home/pi/iqfiles/SDRSharp_20160423_121611Z_731000000Hz_IQ.wav.gz");
+            MsgBox4("Completed Download", "Unzipping File", "This will take 5 minutes or so", " ");
+            system("gzip -d /home/pi/iqfiles/SDRSharp_20160423_121611Z_731000000Hz_IQ.wav.gz");
+            Start_Highlights_Menu4();
+            UpdateWindow();
+          }
           break;
         case 20:                             // 
           break;
@@ -22143,6 +22242,10 @@ void Define_Menu4()
   button = CreateButton(4, 13);
   AddButtonStatus(button, "Play^IQ File", &Blue);
 
+  button = CreateButton(4, 14);
+  AddButtonStatus(button, "Download^HamTV IQ File", &Blue);
+  AddButtonStatus(button, " ", &Black);
+
   // Top of Menu 4
 
   //button = CreateButton(4, 20);
@@ -22163,6 +22266,15 @@ void Start_Highlights_Menu4()
   else
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 1), 2);
+  }
+
+  if (file_exist("/home/pi/iqfiles/SDRSharp_20160423_121611Z_731000000Hz_IQ.wav") == 0)
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 14), 1);
+  }
+  else
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 14), 0);
   }
 }
 

@@ -648,6 +648,9 @@ fi
 cp -r /home/pi/rpidatv/scripts/configs/webroot /home/pi/webroot
 sudo cp /home/pi/rpidatv/scripts/configs/nginx.conf /etc/nginx/nginx.conf
 
+# Create a directory for IQ files 202403250
+mkdir /home/pi/iqfiles
+
 # Record Version Number
 cd /home/pi/rpidatv/scripts/
 cp latest_version.txt installed_version.txt
