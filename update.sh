@@ -942,6 +942,11 @@ cp -r /home/pi/rpidatv/scripts/configs/webroot /home/pi/webroot
 sudo cp /home/pi/rpidatv/scripts/configs/nginx.conf /etc/nginx/nginx.conf
 sudo systemctl start nginx
 
+# Create a directory for IQ files if required
+if  [ ! -d /home/pi/iqfiles ]; then
+  mkdir /home/pi/iqfiles
+fi
+
 sleep 1
 
 DisplayUpdateMsg "Step 9 of 10\nFinishing Off\n\nXXXXXXXXX-"
