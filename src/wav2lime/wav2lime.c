@@ -204,6 +204,11 @@ int main(int argc, char *const argv[])
     if(lmsReset){
         printf("lmsReset %d(%s)" "\n", lmsReset, LMS_GetLastErrorMessage());
     }
+
+    // Query the device details
+    const lms_dev_info_t *device_info;
+    device_info = LMS_GetDeviceInfo(device);
+
     int lmsInit = LMS_Init(device);
     if(lmsInit){
         printf("lmsInit %d(%s)" "\n", lmsInit, LMS_GetLastErrorMessage());
@@ -231,6 +236,30 @@ int main(int argc, char *const argv[])
     int setLOFrequency = LMS_SetLOFrequency(device, LMS_CH_TX, channel, frequency);
     if(setLOFrequency){
         printf("setLOFrequency(%lf)=%d(%s)" "\n", frequency, setLOFrequency, LMS_GetLastErrorMessage());
+    }
+
+    // Set the correct antenna
+    if (strcmp(device_info->deviceName, "LimeSDR-USB") == 0)
+    {
+      if (frequency < 2000000000)
+      {
+        LMS_SetAntenna(device, LMS_CH_TX, channel, 1);
+      }
+      else
+      {
+        LMS_SetAntenna(device, LMS_CH_TX, channel, 2);
+      }
+    }
+    else                                                 // LimeSDR Mini
+    {
+      if (frequency > 2000000000)
+      {
+        LMS_SetAntenna(device, LMS_CH_TX, channel, 1);
+      }
+      else
+      {
+        LMS_SetAntenna(device, LMS_CH_TX, channel, 2);
+      }
     }
 
     lms_range_t sampleRateRange;
@@ -323,8 +352,10 @@ int main(int argc, char *const argv[])
             // Copy samples
             for(int i = 0; i < nSamples; i++)
             {
-                sdrSamples[i].i = (((struct s16iq_sample_s*)fileSamples)[i].i);
-                sdrSamples[i].q = (((struct s16iq_sample_s*)fileSamples)[i].q);
+                //sdrSamples[i].i = (((struct s16iq_sample_s*)fileSamples)[i].i);
+                //sdrSamples[i].q = (((struct s16iq_sample_s*)fileSamples)[i].q);
+                sdrSamples[i].i = (((struct s16iq_sample_s*)fileSamples)[i].i << 2);
+                sdrSamples[i].q = (((struct s16iq_sample_s*)fileSamples)[i].q << 2);
             }
         }
         else if(input_format == WAVFORMAT_F32)

@@ -627,6 +627,18 @@ int main(int argc, char *const argv[])
   double sampleRate = (double)wav_header_ptr->sample_rate;
   double rfBandwidth = (double)wav_header_ptr->sample_rate * 1.5;
 
+  // Determine correct Antenna first
+  char const *antenna = "BAND1";  // correct for < 2 GHz LimeSDR USB, or > 2 GHz LimeSDR Mini or LMN
+
+  //if ((LimeSDR_USB == true) && (freq > 2000000000))
+  //{
+  //  antenna = "BAND2";
+  //}
+  //if ((LimeSDR_USB == false) && (freq < 2000000000))
+  //{
+  //  antenna = "BAND2";
+  //}
+
 
   int device_count = LMS_GetDeviceList(NULL);
   if(device_count < 1){
