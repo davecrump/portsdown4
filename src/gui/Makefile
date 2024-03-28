@@ -19,6 +19,7 @@ rpidatvtouch4: rpidatvtouch4.c
 		font/dejavu_sans_30.c \
 		font/dejavu_sans_32.c \
 		font/dejavu_sans_72.c \
+		timing.c \
 		lmrx_utils.c \
 		ffunc.c \
 		ffunc.h \
