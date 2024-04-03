@@ -24,6 +24,7 @@ typedef struct {
 #include "dejavu_sans_30.h"
 #include "dejavu_sans_32.h"
 #include "dejavu_sans_36.h"
+#include "dejavu_sans_72.h"
 
 
 #ifndef __SCREEN_H__
