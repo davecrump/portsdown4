@@ -25,12 +25,15 @@
 #include "lime.h"
 #include "fft.h"
 #include "buffer/buffer_circular.h"
+#include "ffunc.h"
 
 #define PI 3.14159265358979323846
 
 pthread_t thbutton;
 pthread_t thMeter_Movement;
 pthread_mutex_t text_lock;
+pthread_t thwebclick;     //  Listens for mouse clicks from web interface
+pthread_t thtouchscreen;  //  listens to the touchscreen   
 
 int fd = 0;
 int wscreen, hscreen;
@@ -148,6 +151,9 @@ float ActiveFSD = 30.0;
 
 bool webcontrol = false;   // Enables webcontrol on a Portsdown 4
 
+bool LargeNumbers = false;  // Enables large numbers instead of parameters
+bool LargeNumbersDisplayed = false;  // Used to clear screen area when large numbers are toggled off
+
 int tracecount = 0;  // Used for speed testing
 int exit_code;
 
@@ -158,23 +164,44 @@ int yshift    = 5;        // Vertical shift (pixels) for Y
 int xscalenum = 25;       // Numerator for X scaling fraction
 int xscaleden = 20;       // Denominator for X scaling fraction
 
+bool webclicklistenerrunning = false; // Used to only start thread if required
+char WebClickForAction[7] = "no";  // no/yes
+char ProgramName[255];             // used to pass prog name char string to listener
+int *web_x_ptr;                // pointer
+int *web_y_ptr;                // pointer
+int web_x;                     // click x 0 - 799 from left
+int web_y;                     // click y 0 - 480 from top
+int TouchX;
+int TouchY;
+int TouchPressure;
+int TouchTrigger = 0;
+bool touchneedsinitialisation = true;
+
+char DisplayType[31];
+bool touchscreen_present = false;
+
 ///////////////////////////////////////////// FUNCTION PROTOTYPES ///////////////////////////////
 
 void GetConfigParam(char *, char *, char *);
 void SetConfigParam(char *, char *, char *);
 int CheckWebCtlExists();
 void ReadSavedParams();
+void *WaitTouchscreenEvent(void * arg);
+void *WebClickListener(void * arg);
+void parseClickQuerystring(char *query_string, int *x_ptr, int *y_ptr);
+FFUNC touchscreenClick(ffunc_session_t * session);
 void do_snapcheck();
 int IsImageToBeChanged(int, int);
 void MsgBox4(char *, char *, char *, char *);
+void UpdateWeb();
 void Keyboard(char *, char *, int);
 int openTouchScreen(int);
-void UpdateWeb();
 int getTouchScreenDetails(int*, int* ,int* ,int*);
 void TransformTouchMap(int, int);
 int IsButtonPushed(int, int, int);
 int IsMenuButtonPushed(int, int);
 void ChangeSmallMeterScale(int);
+void ToggleLargeNumbers();
 int InitialiseButtons();
 int AddButton(int, int, int, int);
 int ButtonNumber(int, int);
@@ -183,7 +210,8 @@ int AddButtonStatus(int, char *, color_t *);
 void AmendButtonStatus(int, int, char *, color_t *);
 void DrawButton(int);
 void SetButtonStatus(int ,int);
-int getTouchSample(int*, int*, int*);
+int getTouchSampleThread(int *rawX, int *rawY, int *rawPressure);
+int getTouchSample(int *rawX, int *rawY, int *rawPressure);
 void UpdateWindow();
 void wait_touch();
 void SetSpanWidth(int);
@@ -198,25 +226,24 @@ void ShiftFrequency(int);
 void CalcSpan();
 void ChangeLabel(int);
 void RedrawDisplay();
-
+void *WaitButtonEvent(void * arg);
 void Define_Menu1();
+void Start_Highlights_Menu1();
 void Define_Menu2();
+void Start_Highlights_Menu2();
 void Define_Menu3();
 void Define_Menu4();
 void Define_Menu5();
+void Start_Highlights_Menu5();
 void Define_Menu6();
+void Start_Highlights_Menu6();
 void Define_Menu7();
+void Start_Highlights_Menu7();
 void Define_Menu8();
 void Define_Menu9();
 void Define_Menu10();
-void Define_Menu41();
-void Start_Highlights_Menu1();
-void Start_Highlights_Menu2();
-void Start_Highlights_Menu5();
-void Start_Highlights_Menu6();
-void Start_Highlights_Menu7();
 void Start_Highlights_Menu10();
-
+void Define_Menu41();
 void DrawEmptyScreen();  
 void DrawYaxisLabels();  
 void DrawSettings();
@@ -225,9 +252,10 @@ void DrawHistTrace(int, int, int, int);
 void DrawMeterArc();
 void DrawMeterTicks(int, int);
 void Draw5MeterLabels();
+void *MeterMovement(void * arg);
 void CalibrateSystem();
 static void cleanexit(int);
-
+static void terminate(int sig);
 
 
 //////////////////////////////////////////// SA bits /////////////////////////////////////////
@@ -451,7 +479,108 @@ void ReadSavedParams()
     if (strcmp(response, "enabled") == 0)
     {
       webcontrol = true;
-    } 
+      pthread_create (&thwebclick, NULL, &WebClickListener, NULL);
+      webclicklistenerrunning = true;
+    }
+    else
+    {
+      webcontrol = false;
+      system("cp /home/pi/rpidatv/scripts/images/web_not_enabled.png /home/pi/tmp/screen.png");
+    }
+  }
+}
+
+
+void *WaitTouchscreenEvent(void * arg)
+{
+  int TouchTriggerTemp;
+  int rawX;
+  int rawY;
+  int rawPressure;
+  while (true)
+  {
+    TouchTriggerTemp = getTouchSampleThread(&rawX, &rawY, &rawPressure);
+    TouchX = rawX;
+    TouchY = rawY;
+    TouchPressure = rawPressure;
+    TouchTrigger = TouchTriggerTemp;
+  }
+  return NULL;
+}
+
+
+void *WebClickListener(void * arg)
+{
+  while (webcontrol)
+  {
+    //(void)argc;
+	//return ffunc_run(ProgramName);
+	ffunc_run(ProgramName);
+  }
+  webclicklistenerrunning = false;
+  return NULL;
+}
+
+
+void parseClickQuerystring(char *query_string, int *x_ptr, int *y_ptr)
+{
+  char *query_ptr = strdup(query_string),
+  *tokens = query_ptr,
+  *p = query_ptr;
+
+  while ((p = strsep (&tokens, "&\n")))
+  {
+    char *var = strtok (p, "="),
+         *val = NULL;
+    if (var && (val = strtok (NULL, "=")))
+    {
+      if(strcmp("x", var) == 0)
+      {
+        *x_ptr = atoi(val);
+      }
+      else if(strcmp("y", var) == 0)
+      {
+        *y_ptr = atoi(val);
+      }
+    }
+  }
+}
+
+
+FFUNC touchscreenClick(ffunc_session_t * session)
+{
+  ffunc_str_t payload;
+
+  if( (webcontrol == false) || ffunc_read_body(session, &payload) )
+  {
+    if( webcontrol == false)
+    {
+      return;
+    }
+
+    ffunc_write_out(session, "Status: 200 OK\r\n");
+    ffunc_write_out(session, "Content-Type: text/plain\r\n\r\n");
+    ffunc_write_out(session, "%s\n", "click received.");
+    fprintf(stderr, "Received click POST: %s (%d)\n", payload.data?payload.data:"", payload.len);
+
+    int x = -1;
+    int y = -1;
+    parseClickQuerystring(payload.data, &x, &y);
+    printf("After Parse: x: %d, y: %d\n", x, y);
+
+    if((x >= 0) && (y >= 0))
+    {
+      web_x = x;                 // web_x is a global int
+      web_y = y;                 // web_y is a global int
+      strcpy(WebClickForAction, "yes");
+      printf("Web Click Event x: %d, y: %d\n", web_x, web_y);
+    }
+  }
+  else
+  {
+    ffunc_write_out(session, "Status: 400 Bad Request\r\n");
+    ffunc_write_out(session, "Content-Type: text/plain\r\n\r\n");
+    ffunc_write_out(session, "%s\n", "payload not found.");
   }
 }
 
@@ -495,6 +624,7 @@ void do_snapcheck()
       strcat(fbicmd, SnapIndex);
       strcat(fbicmd, ".jpg >/dev/null 2>/dev/null");
       system(fbicmd);
+      UpdateWeb();
       LastDisplayedSnap = Snap;
     }
 
@@ -521,6 +651,7 @@ void do_snapcheck()
   system("sudo killall fbi >/dev/null 2>/dev/null");  // kill any instance of fbi
 }
 
+
 int IsImageToBeChanged(int x,int y)
 {
   // Returns -1 for LHS touch, 0 for centre and 1 for RHS
@@ -544,6 +675,7 @@ int IsImageToBeChanged(int x,int y)
     return 0;
   }
 }
+
 
 void MsgBox4(char *message1, char *message2, char *message3, char *message4)
 {
@@ -670,6 +802,7 @@ void Keyboard(char RequestText[64], char InitText[64], int MaxLength)
 
       refreshed = true;
     }
+    UpdateWeb();
 
     // Wait for key press
     if (getTouchSample(&rawX, &rawY, &rawPressure)==0) continue;
@@ -914,7 +1047,6 @@ void Keyboard(char RequestText[64], char InitText[64], int MaxLength)
 }
 
 
-
 int openTouchScreen(int NoDevice)
 {
   char sDevice[255];
@@ -930,6 +1062,7 @@ int openTouchScreen(int NoDevice)
     return 0;
   }
 }
+
 
 int getTouchScreenDetails(int *screenXmin, int *screenXmax,int *screenYmin,int *screenYmax)
 {
@@ -987,6 +1120,7 @@ int getTouchScreenDetails(int *screenXmin, int *screenXmax,int *screenYmin,int *
   return IsAtouchDevice;
 }
 
+
 void TransformTouchMap(int x, int y)
 {
   // This function takes the raw (0 - 4095 on each axis) touch data x and y
@@ -1018,6 +1152,7 @@ int IsButtonPushed(int NbButton,int x,int y)
   }
 }
 
+
 int IsMenuButtonPushed(int x, int y)
 {
   int  i, NbButton, cmo, cmsize;
@@ -1038,6 +1173,13 @@ int IsMenuButtonPushed(int x, int y)
    && (scaledY <= 470) && (scaledY >= 270))
   {
     ChangeSmallMeterScale(scaledX);
+  }
+
+  // Check for Large Number select/deselct
+  if ((scaledX <= 300) && (scaledX >= 100)
+   && (scaledY <= 270) && (scaledY >= 70))
+  {
+    ToggleLargeNumbers();
   } 
 
   for (i = 0; i <cmsize; i++)
@@ -1116,6 +1258,19 @@ void ChangeSmallMeterScale(int scaledX)
 } 
 
 
+void ToggleLargeNumbers()
+{
+  if (LargeNumbers == true)
+  {
+    LargeNumbers = false;
+  }
+  else
+  {
+    LargeNumbers = true;
+  }
+}
+
+
 int InitialiseButtons()
 {
   // Writes 0 to IndexStatus of each button to signify that it should not
@@ -1127,6 +1282,7 @@ int InitialiseButtons()
   }
   return 1;
 }
+
 
 int AddButton(int x,int y,int w,int h)
 {
@@ -1377,12 +1533,14 @@ int AddButtonStatus(int ButtonIndex,char *Text,color_t *Color)
   return Button->IndexStatus++;
 }
 
+
 void AmendButtonStatus(int ButtonIndex, int ButtonStatusIndex, char *Text, color_t *Color)
 {
   button_t *Button=&(ButtonArray[ButtonIndex]);
   strcpy(Button->Status[ButtonStatusIndex].Text, Text);
   Button->Status[ButtonStatusIndex].Color=*Color;
 }
+
 
 void DrawButton(int ButtonIndex)
 {
@@ -1405,8 +1563,6 @@ void DrawButton(int ButtonIndex)
   setBackColour(Button->Status[Button->NoStatus].Color.r,
                 Button->Status[Button->NoStatus].Color.g,
                 Button->Status[Button->NoStatus].Color.b);
-
-
 
   // Separate button text into 2 lines if required  
   char find = '^';                                  // Line separator is ^
@@ -1439,11 +1595,13 @@ void DrawButton(int ButtonIndex)
   }
 }
 
+
 void SetButtonStatus(int ButtonIndex,int Status)
 {
   button_t *Button=&(ButtonArray[ButtonIndex]);
   Button->NoStatus=Status;
 }
+
 
 int GetButtonStatus(int ButtonIndex)
 {
@@ -1452,9 +1610,18 @@ int GetButtonStatus(int ButtonIndex)
 }
 
 
-int getTouchSample(int *rawX, int *rawY, int *rawPressure)
+int getTouchSampleThread(int *rawX, int *rawY, int *rawPressure)
 {
   int i;
+  static bool awaitingtouchstart;
+  static bool touchfinished;
+
+  if (touchneedsinitialisation == true)
+  {
+    awaitingtouchstart = true;
+    touchfinished = true;
+    touchneedsinitialisation = false;
+  }
 
   /* how many bytes were read */
   size_t rb;
@@ -1462,42 +1629,171 @@ int getTouchSample(int *rawX, int *rawY, int *rawPressure)
   /* the events (up to 64 at once) */
   struct input_event ev[64];
 
-  rb = read(fd, ev, sizeof(struct input_event) * 64);
-  *rawX=-1;*rawY=-1;
-  int StartTouch=0;
-
-  for (i = 0;  i < (rb / sizeof(struct input_event)); i++)
+  if (((strcmp(DisplayType, "Element14_7") == 0) || (strcmp(DisplayType, "Browser") == 0))
+      && (strcmp(DisplayType, "dfrobot5") != 0))   // Browser or Element14_7, but not dfrobot5
   {
-    if (ev[i].type ==  EV_SYN)
-    {
+    // Thread flow blocks here until there is a touch event
+    rb = read(fd, ev, sizeof(struct input_event) * 64);
 
-    }
-    else if (ev[i].type == EV_KEY && ev[i].code == 330 && ev[i].value == 1)
+    *rawX = -1;
+    *rawY = -1;
+    int StartTouch = 0;
+
+    for (i = 0;  i <  (rb / sizeof(struct input_event)); i++)
     {
-      StartTouch=1;
-    }
+      if (ev[i].type ==  EV_SYN)
+      {
+        //printf("Event type is %s%s%s = Start of New Event\n",
+        //        KYEL, events[ev[i].type], KWHT);
+      }
+
+      else if (ev[i].type == EV_KEY && ev[i].code == 330 && ev[i].value == 1)
+      {
+        StartTouch = 1;
+        //printf("Event type is %s%s%s & Event code is %sTOUCH(330)%s & Event value is %s1%s = Touch Starting\n",
+        //        KYEL,events[ev[i].type],KWHT,KYEL,KWHT,KYEL,KWHT);
+      }
+
       else if (ev[i].type == EV_KEY && ev[i].code == 330 && ev[i].value == 0)
-    {
+      {
+        //StartTouch=0;
+        //printf("Event type is %s%s%s & Event code is %sTOUCH(330)%s & Event value is %s0%s = Touch Finished\n",
+        //        KYEL,events[ev[i].type],KWHT,KYEL,KWHT,KYEL,KWHT);
+      }
 
-    }
-    else if (ev[i].type == EV_ABS && ev[i].code == 0 && ev[i].value > 0)
-    {
-      *rawX = ev[i].value;
-    }
+      else if (ev[i].type == EV_ABS && ev[i].code == 0 && ev[i].value > 0)
+      {
+        //printf("Event type is %s%s%s & Event code is %sX(0)%s & Event value is %s%d%s\n",
+        //        KYEL, events[ev[i].type], KWHT, KYEL, KWHT, KYEL, ev[i].value, KWHT);
+	    *rawX = ev[i].value;
+      }
+
       else if (ev[i].type == EV_ABS  && ev[i].code == 1 && ev[i].value > 0)
-    {
-      *rawY = ev[i].value;
-    }
+      {
+        //printf("Event type is %s%s%s & Event code is %sY(1)%s & Event value is %s%d%s\n",
+        //        KYEL, events[ev[i].type], KWHT, KYEL, KWHT, KYEL, ev[i].value, KWHT);
+        *rawY = ev[i].value;
+      }
+
       else if (ev[i].type == EV_ABS  && ev[i].code == 24 && ev[i].value > 0)
-    {
-      *rawPressure = ev[i].value;
-    }
-    if((*rawX!=-1)&&(*rawY!=-1)&&(StartTouch==1))
-    {
-      return 1;
+      {
+        //printf("Event type is %s%s%s & Event code is %sPressure(24)%s & Event value is %s%d%s\n",
+        //        KYEL, events[ev[i].type], KWHT, KYEL, KWHT, KYEL, ev[i].value,KWHT);
+        *rawPressure = ev[i].value;
+      }
+
+      if((*rawX != -1) && (*rawY != -1) && (StartTouch == 1))  // 1a
+      {
+        printf("7 inch Touchscreen Touch Event: rawX = %d, rawY = %d, rawPressure = %d\n", 
+                *rawX, *rawY, *rawPressure);
+        return 1;
+      }
     }
   }
-	return 0;
+
+  if (strcmp(DisplayType, "dfrobot5") == 0)
+  {
+    // Program flow blocks here until there is a touch event
+    rb = read(fd, ev, sizeof(struct input_event) * 64);
+
+    if (awaitingtouchstart == true)
+    {    
+      *rawX = -1;
+      *rawY = -1;
+      touchfinished = false;
+    }
+
+    for (i = 0;  i <  (rb / sizeof(struct input_event)); i++)
+    {
+      //printf("rawX = %d, rawY = %d, rawPressure = %d, \n\n", *rawX, *rawY, *rawPressure);
+
+      if (ev[i].type ==  EV_SYN)
+      {
+        //printf("Event type is %s%s%s = Start of New Event\n",
+        //        KYEL, events[ev[i].type], KWHT);
+      }
+
+      else if (ev[i].type == EV_KEY && ev[i].code == 330 && ev[i].value == 1)
+      {
+        awaitingtouchstart = false;
+        touchfinished = false;
+
+        //printf("Event type is %s%s%s & Event code is %sTOUCH(330)%s & Event value is %s1%s = Touch Starting\n",
+        //        KYEL,events[ev[i].type],KWHT,KYEL,KWHT,KYEL,KWHT);
+      }
+
+      else if (ev[i].type == EV_KEY && ev[i].code == 330 && ev[i].value == 0)
+      {
+        awaitingtouchstart = false;
+        touchfinished = true;
+
+        //printf("Event type is %s%s%s & Event code is %sTOUCH(330)%s & Event value is %s0%s = Touch Finished\n",
+        //        KYEL,events[ev[i].type],KWHT,KYEL,KWHT,KYEL,KWHT);
+      }
+
+      else if (ev[i].type == EV_ABS && ev[i].code == 0 && ev[i].value > 0)
+      {
+        //printf("Event type is %s%s%s & Event code is %sX(0)%s & Event value is %s%d%s\n",
+        //        KYEL, events[ev[i].type], KWHT, KYEL, KWHT, KYEL, ev[i].value, KWHT);
+        *rawX = ev[i].value;
+      }
+
+      else if (ev[i].type == EV_ABS  && ev[i].code == 1 && ev[i].value > 0)
+      {
+        //printf("Event type is %s%s%s & Event code is %sY(1)%s & Event value is %s%d%s\n",
+        //        KYEL, events[ev[i].type], KWHT, KYEL, KWHT, KYEL, ev[i].value, KWHT);
+        *rawY = ev[i].value;
+      }
+
+      else if (ev[i].type == EV_ABS  && ev[i].code == 24 && ev[i].value > 0)
+      {
+        //printf("Event type is %s%s%s & Event code is %sPressure(24)%s & Event value is %s%d%s\n",
+        //        KYEL, events[ev[i].type], KWHT, KYEL, KWHT, KYEL, ev[i].value,KWHT);
+        *rawPressure = ev[i].value;
+      }
+
+      if((*rawX != -1) && (*rawY != -1) && (touchfinished == true))  // 1a
+      {
+        printf("DFRobot Touch Event: rawX = %d, rawY = %d, rawPressure = %d\n", 
+                *rawX, *rawY, *rawPressure);
+        awaitingtouchstart = true;
+        touchfinished = false;
+        return 1;
+      }
+    }
+  }
+  return 0;
+}
+
+
+int getTouchSample(int *rawX, int *rawY, int *rawPressure)
+{
+  while (true)
+  {
+    if (TouchTrigger == 1)
+    {
+      *rawX = TouchX;
+      *rawY = TouchY;
+      *rawPressure = TouchPressure;
+      printf("Touchtrigger was 1\n");
+      TouchTrigger = 0;
+      return 1;
+    }
+    else if ((webcontrol == true) && (strcmp(WebClickForAction, "yes") == 0))
+    {
+      *rawX = web_x;
+      *rawY = web_y;
+      *rawPressure = 0;
+      strcpy(WebClickForAction, "no");
+      printf("Web rawX = %d, rawY = %d, rawPressure = %d\n", *rawX, *rawY, *rawPressure);
+      return 1;
+    }
+    else
+    {
+      usleep(1000);
+    }
+  }
+  return 0;
 }
 
 
@@ -1520,7 +1816,9 @@ void UpdateWindow()    // Paint each defined button
       DrawButton(i);                     // Draw the button
     }
   }
+  UpdateWeb();
 }
+
 
 void wait_touch()
 // Wait for Screen touch, ignore position, but then move on
@@ -1629,6 +1927,7 @@ void SetLimeGain(int button)
   freeze = false;
 }
 
+
 void AdjustLimeGain(int button)
 {  
   char ValueToSave[63];
@@ -1725,7 +2024,6 @@ void SetBaseline()
   DrawSettings();     // Start, Stop RBW, Ref level and Title
   ModeChanged = true; // Redraw the meter scale
   freeze = false;
-
 }
 
 
@@ -2156,6 +2454,7 @@ void ShiftFrequency(int button)
   ModeChanged = true;
 }
 
+
 void CalcSpan()    // takes centre frequency and span and calulates startfreq and stopfreq
 {
   startfreq = centrefreq - (span * 125) / 256;
@@ -2199,6 +2498,7 @@ void CalcSpan()    // takes centre frequency and span and calulates startfreq an
       ScansforLevel = 10;
   }
 }
+
 
 void ChangeLabel(int button)
 {
@@ -2303,11 +2603,11 @@ void ChangeLabel(int button)
   freeze = false;
 }
 
+
 void RedrawDisplay()
 {
   // Redraw the Y Axis
   DrawYaxisLabels();
-
 }
 
 
@@ -2384,6 +2684,7 @@ void *WaitButtonEvent(void * arg)
             usleep(100000);
             setBackColour(0, 0, 0);
             clearScreen();
+            UpdateWeb();
             usleep(1000000);
             closeScreen();
             cleanexit(129);
@@ -2583,6 +2884,9 @@ void *WaitButtonEvent(void * arg)
           DrawYaxisLabels();        // dB calibration on LHS
           DrawSettings();           // Start, Stop RBW, Ref level and Title
           UpdateWindow();           // Draw the buttons
+          DrawMeterArc();
+          DrawMeterTicks(5, 1);
+          Draw5MeterLabels();
           freeze = false;           // Restart the scan
           break;
         case 3:                                            // Restart Noise Meter
@@ -2967,9 +3271,6 @@ void *WaitButtonEvent(void * arg)
   return NULL;
 }
 
-
-
-
 /////////////////////////////////////////////// DEFINE THE BUTTONS ///////////////////////////////
 
 void Define_Menu1()                                  // Main Menu
@@ -3018,6 +3319,7 @@ void Define_Menu1()                                  // Main Menu
   AddButtonStatus(button, "Unfreeze", &Green);
 }
 
+
 void Start_Highlights_Menu1()
 {
   if (PortsdownExitRequested)
@@ -3029,6 +3331,7 @@ void Start_Highlights_Menu1()
     SetButtonStatus(ButtonNumber(1, 8), 0);
   }
 }
+
 
 void Define_Menu2()                                         // Set-up Menu
 {
@@ -3070,6 +3373,7 @@ void Define_Menu2()                                         // Set-up Menu
   AddButtonStatus(button, "Freeze", &Blue);
   AddButtonStatus(button, "Unfreeze", &Green);
 }
+
 
 void Start_Highlights_Menu2()
 {
@@ -3168,6 +3472,7 @@ void Define_Menu3()                                           // Settings Menu
   AddButtonStatus(button, "Unfreeze", &Green);
 }
 
+
 void Define_Menu4()                                         // System Menu
 {
   int button = 0;
@@ -3207,6 +3512,7 @@ void Define_Menu4()                                         // System Menu
   AddButtonStatus(button, "Freeze", &Blue);
   AddButtonStatus(button, "Unfreeze", &Green);
 }
+
 
 void Define_Menu5()                                          // Mode Menu
 {
@@ -3325,6 +3631,7 @@ void Define_Menu6()                                           // Span Menu
   AddButtonStatus(button, "Unfreeze", &Green);
 }
 
+
 void Start_Highlights_Menu6()
 {
   if (span == 512)
@@ -3377,6 +3684,7 @@ void Start_Highlights_Menu6()
   }
 }
 
+
 void Define_Menu7()                                            //Presets Menu
 {
   int button = 0;
@@ -3416,6 +3724,7 @@ void Define_Menu7()                                            //Presets Menu
   AddButtonStatus(button, "Freeze", &Blue);
   AddButtonStatus(button, "Unfreeze", &Green);
 }
+
 
 void Start_Highlights_Menu7()
 {
@@ -3518,6 +3827,8 @@ void Define_Menu8()                                          // 2nd Config Menu
   AddButtonStatus(button, "Freeze", &Blue);
   AddButtonStatus(button, "Unfreeze", &Green);
 }
+
+
 void Define_Menu9()                                          // Config Menu
 {
   int button = 0;
@@ -3552,6 +3863,7 @@ void Define_Menu9()                                          // Config Menu
   AddButtonStatus(button, "Unfreeze", &Green);
 }
 
+
 void Define_Menu10()                                          // Set Freq Presets Menu
 {
   int button = 0;
@@ -3585,6 +3897,7 @@ void Define_Menu10()                                          // Set Freq Preset
   AddButtonStatus(button, "Freeze", &Blue);
   AddButtonStatus(button, "Unfreeze", &Green);
 }
+
 
 void Start_Highlights_Menu10()
 {
@@ -3859,11 +4172,7 @@ void Define_Menu41()
   AddButtonStatus(button, "0", &LBlue);
 }
 
-
-
-
 /////////////////////////////////////////// APPLICATION DRAWING //////////////////////////////////
-
 
 void DrawEmptyScreen()
 {
@@ -3902,6 +4211,7 @@ void DrawEmptyScreen()
   VertLine(550, 41, 199, 63, 63, 63);
 }
 
+
 void DrawYaxisLabels()
 {
   setForeColour(255, 255, 255);                    // White text
@@ -3937,6 +4247,7 @@ void DrawYaxisLabels()
   pthread_mutex_unlock(&text_lock);
 }
 
+
 void DrawSettings()
 {
   setForeColour(255, 255, 255);                    // White text
@@ -3948,40 +4259,51 @@ void DrawSettings()
   int line2y = 215;
   int titley = 5;
 
-  // Clear the previous text first
-  rectangle(100, 0, 505, 30, 0, 0, 0);
-  rectangle(100, line1y - 5, 250, 25, 0, 0, 0);
-  rectangle(100, line2y - 5, 250, 25, 0, 0, 0);
-
-  ParamAsFloat = (float)centrefreq / 1000.0;
-  snprintf(DisplayText, 63, "Centre Freq %5.2f MHz", ParamAsFloat);
-  pthread_mutex_lock(&text_lock);
-  Text2(100, line1y, DisplayText, font_ptr);
-  pthread_mutex_unlock(&text_lock);
-
-  //nf_bandwidth
-
-  if ((nf_bandwidth > 0) && (nf_bandwidth < 1000))  // valid and less than 1000 kHz
-  {
-    ParamAsFloat = (float)nf_bandwidth;
-    snprintf(DisplayText, 63, "Bandwidth %5.1f kHz", ParamAsFloat);
-    pthread_mutex_lock(&text_lock);
-    Text2(100, line2y, DisplayText, font_ptr);
-    pthread_mutex_unlock(&text_lock);
-  }
-  else if (nf_bandwidth >= 1000)                  // valid and greater 1000 kHz
-  {
-    ParamAsFloat = (float)nf_bandwidth / 1000.0;
-    snprintf(DisplayText, 63, "Bandwidth %5.1f MHz", ParamAsFloat);
-    pthread_mutex_lock(&text_lock);
-    Text2(100, line2y, DisplayText, font_ptr);
-    pthread_mutex_unlock(&text_lock);
-  }
-
+  // Title at bottom of screen
+  rectangle(100, 0, 505, 30, 0, 0, 0);                                // Clear previous text
   if (strcmp(PlotTitle, "-") != 0)
   {
     pthread_mutex_lock(&text_lock);
     TextMid2(350, titley, PlotTitle, &font_dejavu_sans_22);
+    pthread_mutex_unlock(&text_lock);
+  }
+
+  // Centre Freq beneath specturum
+  ParamAsFloat = (float)centrefreq / 1000.0;
+  snprintf(DisplayText, 63, "Centre Freq %5.2f MHz", ParamAsFloat);
+  rectangle(100, line1y - 5, 250, 25, 0, 0, 0);                        // Clear previous text
+  pthread_mutex_lock(&text_lock);
+  Text2(100, line1y, DisplayText, font_ptr);
+  pthread_mutex_unlock(&text_lock);
+
+  // Bandwidth and History Span in bottom left quadrant - only display if Large Numbers not displayed
+  if (LargeNumbers == false)
+  {
+    // Display bandwidth
+    rectangle(100, line2y - 5, 250, 25, 0, 0, 0);     // Clear previous text
+    if ((nf_bandwidth > 0) && (nf_bandwidth < 1000))  // valid and less than 1000 kHz
+    {
+      ParamAsFloat = (float)nf_bandwidth;
+      snprintf(DisplayText, 63, "Bandwidth %5.1f kHz", ParamAsFloat);
+      pthread_mutex_lock(&text_lock);
+      Text2(100, line2y, DisplayText, font_ptr);
+      pthread_mutex_unlock(&text_lock);
+    }
+    else if (nf_bandwidth >= 1000)                  // valid and greater 1000 kHz
+    {
+      ParamAsFloat = (float)nf_bandwidth / 1000.0;
+      snprintf(DisplayText, 63, "Bandwidth %5.1f MHz", ParamAsFloat);
+      pthread_mutex_lock(&text_lock);
+      Text2(100, line2y, DisplayText, font_ptr);
+      pthread_mutex_unlock(&text_lock);
+    }
+
+    // Display History scan width
+    rectangle(100, 55, 200, 22, 0, 0, 0);  // Blank area
+    snprintf(DisplayText, 30, "History span %d sec", historyspan);
+    setBackColour(0, 0, 0);
+    pthread_mutex_lock(&text_lock);
+    Text2(100, 60, DisplayText, &font_dejavu_sans_18);
     pthread_mutex_unlock(&text_lock);
   }
 }
@@ -4277,6 +4599,7 @@ void DrawHistTrace(int xoffset, int prev2, int prev1, int current)
   }
 }
 
+
 void DrawMeterArc()
 {
   // Draws an anti-aliased meter arc
@@ -4317,6 +4640,7 @@ void DrawMeterArc()
     }
   }
 }
+
 
 void DrawMeterTicks(int major_ticks, int minor_ticks)
 {
@@ -4379,12 +4703,27 @@ void DrawMeterTicks(int major_ticks, int minor_ticks)
   }
 }
 
+
 void Draw5MeterLabels()
 {
-  char labeltext[15];
+  char labeltext1[15];
+  char labeltext2[15];
+  char labeltext3[15];
+  char labeltext4[15];
+  char labeltext5[15];
+  char labeltext6[15];
   const font_t *font_ptr = &font_dejavu_sans_18;   // 18pt
   setBackColour(0, 0, 0);
 
+  // Define the labels
+  snprintf(labeltext1, 14, "%d", (int)ActiveZero);
+  snprintf(labeltext2, 14, "%d", (int)(ActiveZero + (ActiveFSD - ActiveZero) / 5));
+  snprintf(labeltext3, 14, "%d", (int)(ActiveZero + 2 * (ActiveFSD - ActiveZero) / 5));
+  snprintf(labeltext4, 14, "%d", (int)(ActiveZero + 3 * (ActiveFSD - ActiveZero) / 5));
+  snprintf(labeltext5, 14, "%d", (int)(ActiveZero + 4 * (ActiveFSD - ActiveZero) / 5));
+  snprintf(labeltext6, 14, "%d", (int)ActiveFSD);
+
+  // Clear the old labels
   rectangle(351, 432, 40, 30, 0, 0, 0);
   rectangle(378, 454, 40, 25, 0, 0, 0);
   rectangle(430, 465, 40, 15, 0, 0, 0);
@@ -4392,34 +4731,14 @@ void Draw5MeterLabels()
   rectangle(532, 454, 40, 25, 0, 0, 0);
   rectangle(575, 432, 40, 30, 0, 0, 0);
 
-  snprintf(labeltext, 14, "%d", (int)ActiveZero);
+  // Write the new labels
   pthread_mutex_lock(&text_lock);
-  TextMid2(366, 432, labeltext, font_ptr);
-  pthread_mutex_unlock(&text_lock);
-
-  snprintf(labeltext, 14, "%d", (int)(ActiveZero + (ActiveFSD - ActiveZero) / 5));
-  pthread_mutex_lock(&text_lock);
-  TextMid2(398, 454, labeltext, font_ptr);
-  pthread_mutex_unlock(&text_lock);
-
-  snprintf(labeltext, 14, "%d", (int)(ActiveZero + 2 * (ActiveFSD - ActiveZero) / 5));
-  pthread_mutex_lock(&text_lock);
-  TextMid2(448, 465, labeltext, font_ptr);
-  pthread_mutex_unlock(&text_lock);
-
-  snprintf(labeltext, 14, "%d", (int)(ActiveZero + 3 * (ActiveFSD - ActiveZero) / 5));
-  pthread_mutex_lock(&text_lock);
-  TextMid2(500, 465, labeltext, font_ptr);
-  pthread_mutex_unlock(&text_lock);
-
-  snprintf(labeltext, 14, "%d", (int)(ActiveZero + 4 * (ActiveFSD - ActiveZero) / 5));
-  pthread_mutex_lock(&text_lock);
-  TextMid2(550, 454, labeltext, font_ptr);
-  pthread_mutex_unlock(&text_lock);
-
-  snprintf(labeltext, 14, "%d", (int)ActiveFSD);
-  pthread_mutex_lock(&text_lock);
-  TextMid2(593, 432, labeltext, font_ptr);
+  TextMid2(366, 432, labeltext1, font_ptr);
+  TextMid2(398, 454, labeltext2, font_ptr);
+  TextMid2(448, 463, labeltext3, font_ptr);  // y was 465
+  TextMid2(500, 463, labeltext4, font_ptr);  // y was 465
+  TextMid2(550, 454, labeltext5, font_ptr);
+  TextMid2(593, 432, labeltext6, font_ptr);
   pthread_mutex_unlock(&text_lock);
 }
 
@@ -4542,6 +4861,7 @@ int main(void)
   int i;
   int pixel;
   int nextwebupdate = 10;
+  char response[63];
 
   int ScanCountforRefresh = 0;
 
@@ -4587,6 +4907,11 @@ int main(void)
     sigaction(i, &sa, NULL);
   }
 
+  // Check the display type in the config file
+  strcpy(response, "Element14_7");
+  GetConfigParam(PATH_PCONFIG, "display", response);
+  strcpy(DisplayType, response);
+
   // Check for presence of touchscreen
   for(NoDeviceEvent = 0; NoDeviceEvent < 7; NoDeviceEvent++)
   {
@@ -4595,15 +4920,47 @@ int main(void)
       if(getTouchScreenDetails(&screenXmin, &screenXmax, &screenYmin, &screenYmax) == 1) break;
     }
   }
-  if(NoDeviceEvent == 7) 
+
+
+  if(NoDeviceEvent != 7)  // Touchscreen detected
   {
-    perror("No Touchscreen found");
-    exit(1);
+    // Create Touchscreen thread
+    pthread_create (&thtouchscreen, NULL, &WaitTouchscreenEvent, NULL);
+  }
+  else // No touchscreen detected
+  {
+    touchscreen_present = false;
+
+    if ((strcmp(DisplayType, "Browser") != 0) && (strcmp(DisplayType, "hdmi") != 0)
+     && (strcmp(DisplayType, "hdmi480") != 0) && (strcmp(DisplayType, "hdmi720") != 0)
+     && (strcmp(DisplayType, "hdmi1080") != 0))
+    {  
+      SetConfigParam(PATH_PCONFIG, "webcontrol", "enabled");
+      SetConfigParam(PATH_PCONFIG, "display", "Browser");
+      system ("/home/pi/rpidatv/scripts/set_display_config.sh");
+      system ("sudo reboot now");
+    }
+
+    // Set Screen parameters
+    screenXmax = 799;
+    screenXmin = 0;
+    wscreen = 800;
+    screenYmax = 479;
+    screenYmin = 0;
+    hscreen = 480;
   }
 
   // Calculate screen parameters
-  scaleXvalue = ((float)screenXmax-screenXmin) / wscreen;
-  scaleYvalue = ((float)screenYmax-screenYmin) / hscreen;
+  scaleXvalue = ((float)(screenXmax-screenXmin)) / wscreen;
+  printf ("X Scale Factor = %f\n", scaleXvalue);
+  printf ("wscreen = %d\n", wscreen);
+  printf ("screenXmax = %d\n", screenXmax);
+  printf ("screenXmim = %d\n", screenXmin);
+  scaleYvalue = ((float)(screenYmax-screenYmin)) / hscreen;
+  printf ("Y Scale Factor = %f\n", scaleYvalue);
+  printf ("hscreen = %d\n", hscreen);
+  printf ("screenYmax = %d\n", screenYmax);
+  printf ("screenYmin = %d\n", screenYmin);
 
   Define_Menu1();
   Define_Menu2();
@@ -4773,80 +5130,92 @@ int main(void)
         ModeChanged = false;
       }
 
-      // Display Higher Power Level
-      rectangle(100, 160, 200, 22, 0, 0, 0);  // Blank area
-      if (strcmp(mode, "absolute") == 0)
-      {
-        snprintf(dBText, 20, "Noise now %0.1f dB", smoothedPassbandNoise);
-      }
-      else if (strcmp(mode, "differential") == 0)
-      {
-        snprintf(dBText, 20, "Signal %0.1f dB", smoothedSignalNoise);
-      }
-      else if ((strcmp(mode, "carrier") == 0) || (strcmp(mode, "abscarrier") == 0))
-      {
-        snprintf(dBText, 20, "Carrier %0.1f dB", smoothedSignalNoise);
-      }
-      setBackColour(0, 0, 0);
-      pthread_mutex_lock(&text_lock);
-      Text2(100, 165, dBText, &font_dejavu_sans_18);
-      pthread_mutex_unlock(&text_lock);
-
-      // Display Lower Power Level
-      rectangle(100, 130, 200, 22, 0, 0, 0);  // Blank area
-      if ((strcmp(mode, "absolute") == 0) || (strcmp(mode, "abscarrier") == 0))
-      {
-        snprintf(dBText, 20, "Baseline %0.1f dB", baseline);
-      }
-      else if ((strcmp(mode, "differential") == 0) || (strcmp(mode, "carrier") == 0))
-      {
-        snprintf(dBText, 20, "Background %0.1f dB", smoothedBaseNoise);
-      }
-      pthread_mutex_lock(&text_lock);
-      setBackColour(0, 0, 0);
-      if ((smoothedBaseNoise < -65.0) && (strcmp(mode, "abscarrier") != 0))           // Warn if outside linear region
-      {
-        setForeColour(255, 127, 127);
-      }
-      Text2(100, 135, dBText, &font_dejavu_sans_18);
-      setForeColour(255, 255, 255);
-      pthread_mutex_unlock(&text_lock);
-
-      // Warn if Lime Gain too low
-      rectangle(100, 80, 200, 47, 0, 0, 0);  // Blank area
-      if (strcmp(mode, "absolute") == 0)
-      {
-        if (baseline < -65.0)
-        {
-          pthread_mutex_lock(&text_lock);
-          setForeColour(255, 127, 127);
-          Text2(100, 110, "Increase Lime Gain", &font_dejavu_sans_18);
-          Text2(100,  85, "and reset Baseline", &font_dejavu_sans_18);
-          setForeColour(255, 255, 255);
-          pthread_mutex_unlock(&text_lock);
-        }
-      }
-      else if ((strcmp(mode, "differential") == 0) || (strcmp(mode, "carrier") == 0))
-      {
-        if (smoothedBaseNoise < -65.0)
-        {
-          pthread_mutex_lock(&text_lock);
-          Text2(100, 110, "Increase Lime Gain", &font_dejavu_sans_18);
-          pthread_mutex_unlock(&text_lock);
-        }
-      }
-
-      // Display History scan width
-      rectangle(100, 55, 200, 22, 0, 0, 0);  // Blank area
-      snprintf(dBText, 30, "History span %d sec", historyspan);
-      setBackColour(0, 0, 0);
-      pthread_mutex_lock(&text_lock);
-      Text2(100, 60, dBText, &font_dejavu_sans_18);
-      pthread_mutex_unlock(&text_lock);
-
       if (meterdB != meterdB)                    // Make sure that meterdB is not NaN
       {
         meterdB = 30.0;
+      }
+
+      // Display Lower left quadrant (detailed parameters or large numbers)
+      if (LargeNumbers == false)   // display detailed parameters
+      {
+        // Clear the screen area if required
+        if (LargeNumbersDisplayed == true)
+        {
+          rectangle(100, 55, 200, 185, 0, 0, 0);  // Blank area
+          DrawSettings();                         // Redraw Bandwidth
+          LargeNumbersDisplayed = false;
+        }
+        // Display Higher Power Level
+        if (strcmp(mode, "absolute") == 0)
+        {
+          snprintf(dBText, 20, "Noise now %0.1f dB", smoothedPassbandNoise);
+        }
+        else if (strcmp(mode, "differential") == 0)
+        {
+          snprintf(dBText, 20, "Signal %0.1f dB", smoothedSignalNoise);
+        }
+        else if ((strcmp(mode, "carrier") == 0) || (strcmp(mode, "abscarrier") == 0))
+        {
+          snprintf(dBText, 20, "Carrier %0.1f dB", smoothedSignalNoise);
+        }
+        rectangle(100, 160, 200, 22, 0, 0, 0);  // Blank area
+        pthread_mutex_lock(&text_lock);
+        setBackColour(0, 0, 0);
+        Text2(100, 165, dBText, &font_dejavu_sans_18);
+        pthread_mutex_unlock(&text_lock);
+
+        // Display Lower Power Level
+        if ((strcmp(mode, "absolute") == 0) || (strcmp(mode, "abscarrier") == 0))
+        {
+          snprintf(dBText, 20, "Baseline %0.1f dB", baseline);
+        }
+        else if ((strcmp(mode, "differential") == 0) || (strcmp(mode, "carrier") == 0))
+        {
+          snprintf(dBText, 20, "Background %0.1f dB", smoothedBaseNoise);
+        }
+        rectangle(100, 130, 200, 22, 0, 0, 0);  // Blank area
+        pthread_mutex_lock(&text_lock);
+        setBackColour(0, 0, 0);
+        if ((smoothedBaseNoise < -65.0) && (strcmp(mode, "abscarrier") != 0))           // Warn if outside linear region
+        {
+          setForeColour(255, 127, 127);
+        }
+        Text2(100, 135, dBText, &font_dejavu_sans_18);
+        setForeColour(255, 255, 255);
+        pthread_mutex_unlock(&text_lock);
+
+        // Warn if Lime Gain too low
+        rectangle(100, 80, 200, 47, 0, 0, 0);  // Blank area
+        if (strcmp(mode, "absolute") == 0)
+        {
+          if (baseline < -65.0)
+          {
+            pthread_mutex_lock(&text_lock);
+            setForeColour(255, 127, 127);
+            Text2(100, 110, "Increase Lime Gain", &font_dejavu_sans_18);
+            Text2(100,  85, "and reset Baseline", &font_dejavu_sans_18);
+            setForeColour(255, 255, 255);
+            pthread_mutex_unlock(&text_lock);
+          }
+        }
+        else if ((strcmp(mode, "differential") == 0) || (strcmp(mode, "carrier") == 0))
+        {
+          if (smoothedBaseNoise < -65.0)
+          {
+            pthread_mutex_lock(&text_lock);
+            Text2(100, 110, "Increase Lime Gain", &font_dejavu_sans_18);
+              pthread_mutex_unlock(&text_lock);
+          }
+        }
+      }
+      else                                       // Clear quadrant and Display large numbers
+      {
+        snprintf(dBText, 20, "%0.1f", meterdB);
+        rectangle(100, 55, 200, 185, 0, 0, 0);  // Blank area
+        pthread_mutex_lock(&text_lock);
+        Text2(100, 110, dBText, &font_dejavu_sans_72);
+        pthread_mutex_unlock(&text_lock);
+        LargeNumbersDisplayed = true;
       }
 
       switch (MeterScale)
