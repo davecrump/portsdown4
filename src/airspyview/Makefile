@@ -8,7 +8,7 @@
 ifneq (, $(shell which gcc-8))
   CC = gcc-8
 else
-  CC = gcc-8
+  CC = gcc
 endif
 
 COPT = -O3 -march=native -mtune=native
