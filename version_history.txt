@@ -1,3 +1,12 @@
+202404070
+Add Web Control to all versions of BandViewer
+
+202404050
+Add Web Control to NF Meter
+
+202404030
+Add Web Control to Noise Meter
+
 202403280
 Add IQ File Replay
 

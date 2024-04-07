@@ -341,7 +341,7 @@ void displayChar2(const font_t *font_ptr, char c)
       thisPixelG = backColourG + ((green_contrast * (int32_t)font_ptr->characters[(uint8_t)c].map[col+(row*font_ptr->characters[(uint8_t)c].width)]) / 0xFF);
       thisPixelB = backColourB + ((blue_contrast * (int32_t)font_ptr->characters[(uint8_t)c].map[col+(row*font_ptr->characters[(uint8_t)c].width)]) / 0xFF);
 
-      if ((currentX + col < 800) && (currentY + row - y_offset < 480))
+      if ((currentX + col < 800) && (currentY + row - y_offset < 480) && (currentX + col >= 0) && (currentY + row - y_offset >= 0))
       {
          setPixel(currentX + col, currentY + row - y_offset, thisPixelR, thisPixelG, thisPixelB);
       }
@@ -397,7 +397,7 @@ void displayLargeChar2(int sizeFactor, const font_t *font_ptr, char c)
         {
           pixelX = currentX + (col * sizeFactor) + extracol;
           pixelY = currentY + (row * sizeFactor) - y_offset + extrarow;
-          if ((pixelX < 800) && (pixelY < 480))
+          if ((pixelX < 800) && (pixelY < 480) && (pixelX >= 0) && (pixelY >= 0))
           {
              setPixel(pixelX, pixelY, thisPixelR, thisPixelG, thisPixelB);
           }
