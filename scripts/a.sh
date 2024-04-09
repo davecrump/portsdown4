@@ -1585,7 +1585,7 @@ fi
 
 # *********************************** TRANSPORT STREAM INPUT THROUGH IP ******************************************
 
-  "IPTSIN")
+  "IPTSIN" | "IPTSIN264" | "IPTSIN265")
 
     # Turn off the viewfinder (which would show Pi Cam)
     v4l2-ctl --overlay=0
@@ -1617,8 +1617,29 @@ fi
       esac
 
       # Now generate the stream
+      if [ "$MODE_INPUT" == "IPTSIN" ]; then                        # TS with service info
+        netcat -u -4 -l $UDPINPORT > videots &
 
-      netcat -u -4 -l $UDPINPORT > videots &
+      elif [ "$MODE_INPUT" == "IPTSIN264" ]; then                   # Generate H264 service info for raw TS
+        rpidatv/bin/ffmpeg -probesize 500000 -analyzeduration 500000 -fflags nobuffer -flags low_delay -thread_queue_size 1024 \
+          -i udp:\\\\@:"$UDPINPORT" -ss 2 \
+          -c:v copy -muxrate $BITRATE_TS \
+          -c:a copy -f mpegts \
+          -metadata service_provider="$CHANNEL" -metadata service_name="$CALL" \
+          -mpegts_pmt_start_pid $PIDPMT -streamid 0:"$PIDVIDEO" -streamid 1:"$PIDAUDIO" \
+          -mpegts_service_type "0x19" -mpegts_flags system_b \
+          -muxrate $BITRATE_TS -y $OUTPUT &
+
+      elif [ "$MODE_INPUT" == "IPTSIN265" ]; then                   # Generate H265service info for raw TS
+        rpidatv/bin/ffmpeg -probesize 500000 -analyzeduration 500000 -fflags nobuffer -flags low_delay -thread_queue_size 1024 \
+          -i udp:\\\\@:"$UDPINPORT" -ss 2 \
+          -c:v copy -muxrate $BITRATE_TS \
+          -c:a copy -f mpegts \
+          -metadata service_provider="$CHANNEL" -metadata service_name="$CALL" \
+          -mpegts_pmt_start_pid $PIDPMT -streamid 0:"$PIDVIDEO" -streamid 1:"$PIDAUDIO" \
+          -mpegts_service_type "0x1f" -mpegts_flags system_b \
+          -muxrate $BITRATE_TS -y $OUTPUT &
+      fi
     else  # DVB-T
       case "$MODE_OUTPUT" in
         "PLUTO")
