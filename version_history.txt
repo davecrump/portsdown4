@@ -1,3 +1,6 @@
+202404090
+Add Raw TS Input Modes (for LinkPi encoder)
+
 202404070
 Add Web Control to all versions of BandViewer
 
