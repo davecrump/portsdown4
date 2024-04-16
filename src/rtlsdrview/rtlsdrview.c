@@ -179,6 +179,7 @@ bool touchscreen_present = false;
 void GetConfigParam(char *, char *, char *);
 void SetConfigParam(char *, char *, char *);
 int CheckRTL();
+void CheckConfigFile();
 void ReadSavedParams();
 void *WaitTouchscreenEvent(void * arg);
 void *WebClickListener(void * arg);
@@ -419,6 +420,43 @@ int CheckWebCtlExists()
 }
 
 
+/***************************************************************************//**
+ * @brief Checks the Config file and adds new entries if required
+ *
+ * @param None
+ *
+ * @return void
+ * 
+*******************************************************************************/
+
+void CheckConfigFile()
+{
+  char shell_command[255];
+  FILE *fp;
+  int r;
+
+  sprintf(shell_command, "grep -q 'mode=' %s", PATH_CONFIG);
+  fp = popen(shell_command, "r");
+  r = pclose(fp);
+  if (WEXITSTATUS(r) != 0)
+  {
+    printf("Updating Config File\n");
+    sprintf(shell_command, "echo mode=spectrum >> %s", PATH_CONFIG);
+    system(shell_command); 
+  }
+
+  sprintf(shell_command, "grep -q 'baseline20db=' %s", PATH_CONFIG);
+  fp = popen(shell_command, "r");
+  r = pclose(fp);
+  if (WEXITSTATUS(r) != 0)
+  {
+    printf("Updating Config File\n");
+    sprintf(shell_command, "echo baseline20db=-80 >> %s", PATH_CONFIG);
+    system(shell_command); 
+  } 
+}
+
+
 void ReadSavedParams()
 {
   char response[63]="0";
@@ -434,6 +472,30 @@ void ReadSavedParams()
   GetConfigParam(PATH_CONFIG, "limegain", response);
   limegain = atoi(response);
   gain = limegain;
+
+  strcpy(response, "spectrum");
+  GetConfigParam(PATH_CONFIG, "mode", response);
+  if (strcmp(response, "spectrum") == 0)
+  {
+    //spectrum = true;
+    //waterfall = false;
+  }
+  if (strcmp(response, "20dB") == 0)
+  {
+    //spectrum = true;
+    Range20dB = true;
+    //waterfall = false;
+  }
+  //if (strcmp(response, "waterfall") == 0)
+  //{
+  //  spectrum = false;
+  //  waterfall = true;
+  //}
+  //if (strcmp(response, "mix") == 0)
+  //{
+  //  spectrum = true;
+  //  waterfall = true;
+  //}
 
   strcpy(response, "146500");
   GetConfigParam(PATH_CONFIG, "pfreq1", response);
@@ -456,6 +518,10 @@ void ReadSavedParams()
 
   strcpy(PlotTitle, "-");  // this is the "do not display" response
   GetConfigParam(PATH_CONFIG, "title", PlotTitle);
+
+  strcpy(response, "-80");
+  GetConfigParam(PATH_CONFIG, "baseline20db", response);
+  BaseLine20dB = atoi(response);
 
   if (CheckWebCtlExists() == 0)  // Stops the GetConfig thowing an error on Portsdown 2020
   {
@@ -2408,6 +2474,7 @@ void RedrawDisplay()
 void *WaitButtonEvent(void * arg)
 {
   int  rawPressure;
+  char ValueToSave[63];
 
   for (;;)
   {
@@ -2829,36 +2896,28 @@ void *WaitButtonEvent(void * arg)
         case 2:                                            // Classic SA Mode
           NFMeter = false;
           Range20dB = false;
+          SetConfigParam(PATH_CONFIG, "mode", "spectrum");
           CalcSpan();
           RedrawDisplay();
           break;
         case 3:                                            // Show 20 dB range
           NFMeter = false;
           Range20dB = true;
+          SetConfigParam(PATH_CONFIG, "mode", "20dB");
           CalcSpan();
           RedrawDisplay();
           printf("20dB Menu 11 Requested\n");
           CurrentMenu = 11;
           UpdateWindow();
           break;
-        case 4:                                            // 
+        case 4:                                            // Will be Waterfall
+          Range20dB = false;
+          SetConfigParam(PATH_CONFIG, "mode", "waterfall");
           break;
-        //case 5:                                            // NF Meter
-        //  Range20dB = false;
-        //  RedrawDisplay();
-        //  NFMeter = true;
-        //  if (NFCalibrated == false)
-        //  {
-        //    CurrentMenu=12;
-        //    //Start_Highlights_Menu12();
-        //  }
-        //  else
-        //  {
-        //    CurrentMenu=13;
-        //    //Start_Highlights_Menu13();
-        //  }
-        //  UpdateWindow();
-        //  break;
+        case 5:                                            // Will be Mix
+          Range20dB = false;
+          SetConfigParam(PATH_CONFIG, "mode", "mix");
+          break;
         case 6:                                            // 
           printf("Config Menu 9 Requested\n");
           CurrentMenu = 9;
@@ -3165,6 +3224,7 @@ void *WaitButtonEvent(void * arg)
           Range20dB = false;
           CalcSpan();
           RedrawDisplay();
+          SetConfigParam(PATH_CONFIG, "mode", "spectrum");
           CurrentMenu=1;
           UpdateWindow();
           break;
@@ -3173,6 +3233,8 @@ void *WaitButtonEvent(void * arg)
           {
             BaseLine20dB = BaseLine20dB + 5;
             RedrawDisplay();
+            snprintf(ValueToSave, 8, "%d", BaseLine20dB);
+            SetConfigParam(PATH_CONFIG, "baseline20db", ValueToSave);
           }
           UpdateWindow();
           break;
@@ -3181,6 +3243,8 @@ void *WaitButtonEvent(void * arg)
           {
             BaseLine20dB = BaseLine20dB - 5;
             RedrawDisplay();
+            snprintf(ValueToSave, 8, "%d", BaseLine20dB);
+            SetConfigParam(PATH_CONFIG, "baseline20db", ValueToSave);
           }
           UpdateWindow();
           break;
@@ -4765,7 +4829,6 @@ int main(void)
   Define_Menu13();
   Define_Menu41();
 
-
   // Set up wiringPi module
   if (wiringPiSetup() < 0)
   {
@@ -4780,6 +4843,7 @@ int main(void)
   // Set idle conditions
   digitalWrite(NoiseSourceGPIO, LOW);
 
+  CheckConfigFile();
   ReadSavedParams();
 
   // Create Wait Button thread
@@ -4841,7 +4905,6 @@ int main(void)
     //printf("ENR = %f dB.  Tson = %f degrees K\n", ENR, Tson);
     float NF;
     char NFText[15];
-
 
     while(true)
     {
