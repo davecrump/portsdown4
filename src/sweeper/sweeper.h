@@ -17,7 +17,12 @@ typedef struct
 
 void GetConfigParam(char *, char *, char *);
 void SetConfigParam(char *, char *, char *);
+int CheckWebCtlExists();
 void ReadSavedParams();
+void *WaitTouchscreenEvent(void * arg);
+void *WebClickListener(void * arg);
+void parseClickQuerystring(char *query_string, int *x_ptr, int *y_ptr);
+FFUNC touchscreenClick(ffunc_session_t * session);
 void initSource(int64_t);
 void CalibrateSource();
 void setOutput(int64_t);
@@ -25,6 +30,7 @@ void *LimeStream(void * arg);
 void LimeOff();
 void do_snapcheck();
 int IsImageToBeChanged(int x,int y);
+void UpdateWeb();
 void Keyboard(char *, char *, int);
 int openTouchScreen(int);
 int getTouchScreenDetails(int*, int* ,int* ,int*);
@@ -40,7 +46,8 @@ void AmendButtonStatus(int ButtonIndex, int ButtonStatusIndex, char *Text, color
 void DrawButton(int ButtonIndex);
 void SetButtonStatus(int ,int);
 int GetButtonStatus(int ButtonIndex);
-int getTouchSample(int*, int*, int*);
+int getTouchSampleThread(int *rawX, int *rawY, int *rawPressure);
+int getTouchSample(int *rawX, int *rawY, int *rawPressure);
 void UpdateWindow();
 void wait_touch();
 void MsgBox4(char *message1, char *message2, char *message3, char *message4);
