@@ -797,6 +797,7 @@ void MsgBox4(char *message1, char *message2, char *message3, char *message4)
   TextMid2(wscreen / 2, hscreen - 2 * (linepitch * 2), message2, font_ptr);
   TextMid2(wscreen / 2, hscreen - 3 * (linepitch * 2), message3, font_ptr);
   TextMid2(wscreen / 2, hscreen - 4 * (linepitch * 2), message4, font_ptr);
+  UpdateWeb();
 
   // printf("MsgBox4 called\n");
 }

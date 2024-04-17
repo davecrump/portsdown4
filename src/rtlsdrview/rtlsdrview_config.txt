@@ -8,4 +8,5 @@ pfreq3=745000
 pfreq4=1255000
 pfreq5=1296000
 enr=15.00
-
+mode=spectrum
+baseline20db=-80
