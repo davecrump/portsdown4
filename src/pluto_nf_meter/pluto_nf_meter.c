@@ -1239,19 +1239,22 @@ int IsMenuButtonPushed(int x, int y)
   // If it has been pushed, return the button number.  If nothing valid has been pushed return -1
   // If it has been pushed, do something with the last event time
 
-  // Check for small meter scale "buttons"
-  if ((scaledX <= 600) && (scaledX >= 350)
-   && (scaledY <= 470) && (scaledY >= 270))
+  // Check for small meter scale "buttons" if normal screen displayed (not keyboard)
+  if (CurrentMenu != 41)
   {
-    ChangeSmallMeterScale(scaledX);
-  } 
+    if ((scaledX <= 600) && (scaledX >= 350)
+     && (scaledY <= 470) && (scaledY >= 270))
+    {
+      ChangeSmallMeterScale(scaledX);
+    } 
 
-  // Check for Large Number select/deselct
-  if ((scaledX <= 300) && (scaledX >= 100)
-   && (scaledY <= 270) && (scaledY >= 70))
-  {
-    ToggleLargeNumbers();
-  } 
+    // Check for Large Number select/deselct
+    if ((scaledX <= 300) && (scaledX >= 100)
+     && (scaledY <= 270) && (scaledY >= 70))
+    {
+      ToggleLargeNumbers();
+    } 
+  }
 
   for (i = 0; i <cmsize; i++)
   {

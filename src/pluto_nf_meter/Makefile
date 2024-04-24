@@ -28,5 +28,3 @@ pluto_nf_meter: pluto_nf_meter.c
 
 install:
 	cp pluto_nf_meter ../../bin/
-
-# 		lime.c \
