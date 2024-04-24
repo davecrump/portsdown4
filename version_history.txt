@@ -1,3 +1,6 @@
+202404240
+Add Pluto Version of NF Meter
+
 202404230
 Add Waterfall to Pluto BandViewer
 
