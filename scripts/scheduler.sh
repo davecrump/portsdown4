@@ -128,6 +128,8 @@ ChooseBandViewerSDR()
 # 145  Run the Langstone TRX V2 Lime
 # 146  Run the Langstone TRX V2 Pluto
 # 147  Exit from rpidatvgui requesting start of Noise Meter
+# 148  Exit from rpidatvgui requesting start of Pluto NF Meter
+# 149  Exit from rpidatvgui requesting start of Pluto Noise Meter
 # 150  Run the Meteor Viewer
 # 160  Shutdown from GUI
 # 192  Reboot from GUI
@@ -333,6 +335,14 @@ while [ "$GUI_RETURN_CODE" -gt 127 ] || [ "$GUI_RETURN_CODE" -eq 0 ];  do
     ;;
     147)
       /home/pi/rpidatv/bin/noise_meter
+      GUI_RETURN_CODE="$?"
+    ;;
+    148)
+      /home/pi/rpidatv/bin/pluto_nf_meter
+      GUI_RETURN_CODE="$?"
+    ;;
+    149)
+      /home/pi/rpidatv/bin/pluto_noise_meter
       GUI_RETURN_CODE="$?"
     ;;
     150)                              # SDRPlay Meteor Viewer

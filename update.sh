@@ -619,14 +619,24 @@ make
 cp power_meter ../../bin/
 cd /home/pi
 
-# Compile NF Meter
+# Compile Lime NF Meter
 echo
-echo "----------------------------------------"
-echo "----- Compiling Noise Figure Meter -----"
-echo "----------------------------------------"
+echo "---------------------------------------------"
+echo "----- Compiling Lime Noise Figure Meter -----"
+echo "---------------------------------------------"
 cd /home/pi/rpidatv/src/nf_meter
 make
 cp nf_meter ../../bin/
+cd /home/pi
+
+# Compile Pluto NF Meter
+echo
+echo "----------------------------------------------"
+echo "----- Compiling Pluto Noise Figure Meter -----"
+echo "----------------------------------------------"
+cd /home/pi/rpidatv/src/pluto_nf_meter
+make
+cp pluto_nf_meter ../../bin/
 cd /home/pi
 
 # Compile Sweeper

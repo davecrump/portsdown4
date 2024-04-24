@@ -18950,6 +18950,19 @@ void waituntil(int w,int h)
           DisplayLogo();
           cleanexit(134);
           break;
+        case 18:                                                 // Pluto NF Meter
+          if(CheckPlutoIPConnect() == 0)
+          {
+            DisplayLogo();
+            cleanexit(148);
+          }
+          else
+          {
+            MsgBox("No Pluto Connected");
+            wait_touch();
+          }
+          UpdateWindow();
+          break;
         case 21:                              // Menu 1
           printf("MENU 1 \n");
           CurrentMenu=1;
@@ -22715,12 +22728,15 @@ void Define_Menu7()
   AddButtonStatus(button, "Power^Meter", &Blue);
 
   button = CreateButton(7, 13);
-  AddButtonStatus(button, "Noise Figure^Meter", &Blue);
+  AddButtonStatus(button, "Noise Figure^Meter (Lime)", &Blue);
 
   button = CreateButton(7, 14);
   AddButtonStatus(button, "XY^Display", &Blue);
 
   // 4th line up Menu 7: 
+
+  button = CreateButton(7, 18);
+  AddButtonStatus(button, "Noise Figure^Meter (Pluto)", &Blue);
 
   // Top of Menu 7
 
