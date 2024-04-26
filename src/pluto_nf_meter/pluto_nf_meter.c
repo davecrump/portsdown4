@@ -2518,7 +2518,7 @@ void *WaitButtonEvent(void * arg)
             UpdateWeb();
             usleep(1000000);
             closeScreen();
-            cleanexit(129);
+            cleanexit(207);
           }
           else
           {

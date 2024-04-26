@@ -565,6 +565,16 @@ make
 cp noise_meter ../../bin/
 cd /home/pi
 
+# Compile Touchscreen Listener
+echo
+echo "------------------------------------------"
+echo "----- Compiling Touchscreen Listener -----"
+echo "------------------------------------------"
+cd /home/pi/rpidatv/src/rydemon
+make
+cp rydemon ../../bin/
+cd /home/pi
+
 #echo
 #echo "-----------------------------------------"
 #echo "----- Compiling Ancilliary programs -----"

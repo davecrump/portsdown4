@@ -360,7 +360,8 @@ int TouchPressure;
 int TouchTrigger = 0;
 bool touchneedsinitialisation = true;
 bool FalseTouch = false;     // used to simulate a screen touch if a monitored event finishes
-
+bool boot_to_tx = false;
+bool boot_to_rx = false;
 
 // Web Control globals
 bool webcontrol = false;               // Enables remote control of touchscreen functions
@@ -373,7 +374,6 @@ bool webclicklistenerrunning = false;  // Used to only start thread if required
 char WebClickForAction[7] = "no";      // no/yes
 bool touchscreen_present = true;       // detected on startup; used to control menu availability
 bool reboot_required = false;          // used after hdmi display change
-
 
 // Threads for Touchscreen monitoring
 
@@ -16566,6 +16566,22 @@ void ChangeStartApp(int NoButton)
 {
   switch(NoButton)
   {
+  case 0:                          
+    SetConfigParam(PATH_PCONFIG, "startup", "Testmenu_boot");
+    strcpy(StartApp, "Testmenu_boot");
+    break;
+  case 1:                          
+    SetConfigParam(PATH_PCONFIG, "startup", "Transmit_boot");
+    strcpy(StartApp, "Transmit_boot");
+    break;
+  case 2:                          
+    SetConfigParam(PATH_PCONFIG, "startup", "Receive_boot");
+    strcpy(StartApp, "Receive_boot");
+    break;
+  case 3:                          
+    SetConfigParam(PATH_PCONFIG, "startup", "Ryde_boot");
+    strcpy(StartApp, "Ryde_boot");
+    break;
   case 5:                          
     SetConfigParam(PATH_PCONFIG, "startup", "Display_boot");
     strcpy(StartApp, "Display_boot");
@@ -17693,13 +17709,14 @@ void waituntil(int w,int h)
   // Start the main loop for the Touchscreen
   for (;;)
   {
-    if ((strcmp(ScreenState, "RXwithImage") != 0) && (strcmp(ScreenState, "VideoOut") != 0)) // Don't wait for touch if returning from recieve
+    if ((strcmp(ScreenState, "RXwithImage") != 0) && (strcmp(ScreenState, "VideoOut") != 0)
+     && (boot_to_tx == false) && (boot_to_rx == false))  // Don't wait for touch if returning from recieve or booting to TX or rx
     {
       // Wait here until screen touched
       if (getTouchSample(&rawX, &rawY, &rawPressure)==0) continue;
     }
 
-    // Screen has been touched or returning from recieve
+    // Screen has been touched or returning from recieve or booting to tx or rx
     // printf("Actioning Event in waituntil x=%d y=%d\n", rawX, rawY);
 
     // React differently depending on context: char ScreenState[255]
@@ -17805,6 +17822,20 @@ void waituntil(int w,int h)
       // For Menu (normal), check which button has been pressed (Returns 0 - 23)
 
       i = IsMenuButtonPushed(rawX, rawY);
+
+      // Deal with boot to tx or boot to rx
+      if (boot_to_tx == true)
+      {
+        CurrentMenu = 1;
+        i = 20;
+        boot_to_tx = false;
+      }
+      if (boot_to_rx == true)
+      {
+        CurrentMenu = 8;
+        i = 0;
+        boot_to_rx = false;
+      }
 
       if (i == -1)
       {
@@ -18251,19 +18282,27 @@ void waituntil(int w,int h)
           }
           UpdateWindow();
           break;
-        case 18:                               // Start RTL-TCP server
-          if(CheckRTL()==0)
+        case 18:                               // Start RTL-TCP server or Ryde if installed
+          if (file_exist("/home/pi/ryde/config.yaml") == 1)       // No Ryde
           {
-            rtl_tcp();
+            if(CheckRTL()==0)
+            {
+              rtl_tcp();
+            }
+            else
+            {
+              MsgBox("No RTL-SDR Connected");
+              wait_touch();
+            }
+            setBackColour(0, 0, 0);
+            clearScreen();
+            UpdateWindow();
           }
           else
           {
-            MsgBox("No RTL-SDR Connected");
-            wait_touch();
+            MsgBox2("Starting the Ryde Receiver on HDMI", "Touch Screen to return to Portsdown");
+            cleanexit(197);
           }
-          setBackColour(0, 0, 0);
-          clearScreen();
-          UpdateWindow();
           break;
         case 19:                              // RTL-FM Receiver
           if(CheckRTL()==0)
@@ -18533,8 +18572,17 @@ void waituntil(int w,int h)
           UpdateWindow();
           break;
         case 5:                               // Open File Explorer
-        case 6:                               // New Directory (not yet implemented)
-          FileOperation(i);
+        case 6:                               // Install or update Ryde
+          if (file_exist("/home/pi/ryde/config.yaml") == 1)       // Ryde Install or Update
+          {
+            MsgBox4("Installing Ryde", "Portsdown will reboot", "when complete", " ");
+            system("/home/pi/rpidatv/add_ryde.sh");
+          }
+          else
+          {
+            MsgBox4("Updating Ryde", "Portsdown will reboot", "when complete", " ");
+            system("/home/pi/rpidatv/update_ryde.sh");
+          }
           Start_Highlights_Menu4();
           UpdateWindow();
           break;
@@ -20515,7 +20563,11 @@ void waituntil(int w,int h)
           Start_Highlights_Menu1();
           UpdateWindow();
           break;
-        case 5:                               // Boot to Portsdown
+        case 0:                               // Boot to Portsdown Test Equip Menu (7)
+        case 1:                               // Boot to Transmit Menu 1, button 20
+        case 2:                               // Boot to Portsdown Receive Menu 8, button 0
+        case 3:                               // Boot to Ryde
+        case 5:                               // Boot to Portsdown Menu 1
         case 6:                               // Boot to Langstone
         case 7:                               // Boot to Band Viewer
         case 8:                               // Boot to Meteor Viewer
@@ -22184,6 +22236,7 @@ void Define_Menu2()
 
   button = CreateButton(2, 18);
   AddButtonStatus(button, "RTL-TCP^Server", &Blue);
+  AddButtonStatus(button, "Ryde^Receiver", &Blue);
 
   button = CreateButton(2, 19);
   AddButtonStatus(button, "RTL-FM^Receiver", &Blue);
@@ -22213,6 +22266,15 @@ void Start_Highlights_Menu2()
   {
     AmendButtonStatus(ButtonNumber(2, 15), 0, "Langstone^Menu", &Blue);
     AmendButtonStatus(ButtonNumber(2, 15), 1, "Langstone^Menu", &Green);
+  }
+
+  if (file_exist("/home/pi/ryde/config.yaml") == 1)       // TCP Server or Ryde
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 18), 0);
+  }
+  else
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 18), 1);
   }
 }
 
@@ -22359,16 +22421,9 @@ void Define_Menu4()
   AddButtonStatus(button, "File^Explorer", &Green);
   AddButtonStatus(button, "File^Explorer", &Grey);
 
-  //button = CreateButton(4, 6);
-  //AddButtonStatus(button, TabVidSource[1], &Blue);
-  //AddButtonStatus(button, TabVidSource[1], &Green);
-  //AddButtonStatus(button, TabVidSource[1], &Grey);
-
-  // Temporary entry to put buttons in a line
-  //button = CreateButton(4, 6);
-  //AddButtonStatus(button, TabVidSource[5], &Blue);
-  //AddButtonStatus(button, TabVidSource[5], &Green);
-  //AddButtonStatus(button, TabVidSource[5], &Grey);
+  button = CreateButton(4, 6);
+  AddButtonStatus(button, "Install^Ryde RX", &Blue);
+  AddButtonStatus(button, "Update^Ryde RX", &Blue);
 
   button = CreateButton(4, 7);
   AddButtonStatus(button, "List Network^Raspberry Pis", &Blue);
@@ -22418,6 +22473,15 @@ void Start_Highlights_Menu4()
   else
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 1), 2);
+  }
+
+  if (file_exist("/home/pi/ryde/config.yaml") == 1)       // Ryde Install or Update
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 6), 0);
+  }
+  else
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 6), 1);
   }
 
   if (ValidIQFileSelected == true)
@@ -25703,6 +25767,23 @@ void Define_Menu34()
 
   // Bottom Row, Menu 34
 
+  button = CreateButton(34, 0);
+  AddButtonStatus(button, "Boot to^Test Menu", &Blue);
+  AddButtonStatus(button, "Boot to^Test Menu", &Green);
+
+  button = CreateButton(34, 1);
+  AddButtonStatus(button, "Boot to^Transmit", &Blue);
+  AddButtonStatus(button, "Boot to^Transmit", &Green);
+
+  button = CreateButton(34, 2);
+  AddButtonStatus(button, "Boot to^Receive", &Blue);
+  AddButtonStatus(button, "Boot to^Receive", &Green);
+
+  button = CreateButton(34, 3);
+  AddButtonStatus(button, "Boot to^Ryde RX", &Blue);
+  AddButtonStatus(button, "Boot to^Ryde RX", &Green);
+  AddButtonStatus(button, "Boot to^Ryde RX", &Grey);
+
   button = CreateButton(34, 4);
   AddButtonStatus(button, "Exit", &DBlue);
   AddButtonStatus(button, "Exit", &LBlue);
@@ -25734,8 +25815,60 @@ void Define_Menu34()
 
 void Start_Highlights_Menu34()         // Start-up App
 {
-  if (strcmp(StartApp, "Display_boot") == 0)
+  if (strcmp(StartApp, "Testmenu_boot") == 0)
   {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 0), 1);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 1), 0);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 2), 0);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 3), 0);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 5), 0);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 6), 0);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 7), 0);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 8), 0);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 9), 0);
+  }
+  else if (strcmp(StartApp, "Transmit_boot") == 0)
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 0), 0);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 1), 1);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 2), 0);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 3), 0);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 5), 0);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 6), 0);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 7), 0);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 8), 0);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 9), 0);
+  }
+  else if (strcmp(StartApp, "Receive_boot") == 0)
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 0), 0);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 1), 0);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 2), 1);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 3), 0);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 5), 0);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 6), 0);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 7), 0);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 8), 0);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 9), 0);
+  }
+  else if (strcmp(StartApp, "Ryde_boot") == 0)
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 0), 0);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 1), 0);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 2), 0);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 3), 1);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 5), 0);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 6), 0);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 7), 0);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 8), 0);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 9), 0);
+  }
+  else if (strcmp(StartApp, "Display_boot") == 0)
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 0), 0);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 1), 0);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 2), 0);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 3), 0);
     SetButtonStatus(ButtonNumber(CurrentMenu, 5), 1);
     SetButtonStatus(ButtonNumber(CurrentMenu, 6), 0);
     SetButtonStatus(ButtonNumber(CurrentMenu, 7), 0);
@@ -25744,6 +25877,10 @@ void Start_Highlights_Menu34()         // Start-up App
   }
   else if (strcmp(StartApp, "Langstone_boot") == 0)
   {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 0), 0);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 1), 0);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 2), 0);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 3), 0);
     SetButtonStatus(ButtonNumber(CurrentMenu, 5), 0);
     SetButtonStatus(ButtonNumber(CurrentMenu, 6), 1);
     SetButtonStatus(ButtonNumber(CurrentMenu, 7), 0);
@@ -25752,6 +25889,10 @@ void Start_Highlights_Menu34()         // Start-up App
   }
   else if (strcmp(StartApp, "Bandview_boot") == 0)
   {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 0), 0);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 1), 0);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 2), 0);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 3), 0);
     SetButtonStatus(ButtonNumber(CurrentMenu, 5), 0);
     SetButtonStatus(ButtonNumber(CurrentMenu, 6), 0);
     SetButtonStatus(ButtonNumber(CurrentMenu, 7), 1);
@@ -25760,6 +25901,10 @@ void Start_Highlights_Menu34()         // Start-up App
   }
   else if (strcmp(StartApp, "Meteorview_boot") == 0)
   {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 0), 0);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 1), 0);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 2), 0);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 3), 0);
     SetButtonStatus(ButtonNumber(CurrentMenu, 5), 0);
     SetButtonStatus(ButtonNumber(CurrentMenu, 6), 0);
     SetButtonStatus(ButtonNumber(CurrentMenu, 7), 0);
@@ -25768,6 +25913,10 @@ void Start_Highlights_Menu34()         // Start-up App
   }
   else
   {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 0), 0);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 1), 0);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 2), 0);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 3), 0);
     SetButtonStatus(ButtonNumber(CurrentMenu, 5), 0);
     SetButtonStatus(ButtonNumber(CurrentMenu, 6), 0);
     SetButtonStatus(ButtonNumber(CurrentMenu, 7), 0);
@@ -25780,6 +25929,12 @@ void Start_Highlights_Menu34()         // Start-up App
    && (strcmp(langstone_version, "v2pluto") != 0))
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 6), 2);
+  }
+
+  // Over-ride if Reyde not installed (set to Grey
+  if (file_exist("/home/pi/ryde/config.yaml") == 1)       // Ryde not installed
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 3), 2);
   }
 }
 
@@ -26404,7 +26559,7 @@ void Start_Highlights_Menu43()
   }
   if (strcmp(DisplayType, "Browser") == 0)
   {
-    AmendButtonStatus(ButtonNumber(CurrentMenu, 12), 0, "Browser", &Blue);
+    AmendButtonStatus(ButtonNumber(CurrentMenu, 12), 0, "Browser^HDMI 480p60", &Blue);
     SetButtonStatus(ButtonNumber(CurrentMenu, 14), 2);
   }
   if (strcmp(DisplayType, "hdmi") == 0)
@@ -27183,8 +27338,7 @@ terminate(int dummy)
 
 // main initializes the system and starts Menu 1 
 
-//int main(int argc, char **argv)
-int main(int argc, char *argv[])
+int main(int argc, char **argv)
 {
   int NoDeviceEvent=0;
   wscreen = 800;
@@ -27192,6 +27346,7 @@ int main(int argc, char *argv[])
   int screenXmax, screenXmin;
   int screenYmax, screenYmin;
   int i;
+  int startupmenu = 1;
   char Param[255];
   char Value[255];
   char USBVidDevice[255];
@@ -27214,6 +27369,29 @@ int main(int argc, char *argv[])
   if (wiringPiSetup() < 0)
   {
     return 0;
+  }
+
+  // Check startup request
+  if (argc > 2 )
+  {
+	for ( i = 1; i < argc - 1; i += 2 )
+    {
+      if (strcmp(argv[i], "-b") == 0)
+      {
+        if (strcmp(argv[i + 1], "tx") == 0)
+        {
+          boot_to_tx = true;
+        }
+        else if (strcmp(argv[i + 1], "rx") == 0)
+        {
+          boot_to_rx = true;
+        }
+        else
+        {
+          startupmenu = atoi(argv[i + 1] );
+        }
+      }
+    }
   }
 
   // Initialise all the spi GPIO ports to the correct state
@@ -27397,9 +27575,6 @@ int main(int argc, char *argv[])
   // Initialise the LimeRFE if required
   LimeRFEInit();
 
-  // Clear the screen ready for Menu 1
-  setBackColour(255, 255, 255);          // White background
-  clearScreen();
 
   // Initialise web access
 
@@ -27408,8 +27583,19 @@ int main(int argc, char *argv[])
   web_x_ptr = &web_x;
   web_y_ptr = &web_y;
 
-  // Display Menu 1
-  Start_Highlights_Menu1();
+  if (startupmenu == 1)
+  {
+    setBackColour(255, 255, 255);          // White background
+    clearScreen();
+    Start_Highlights_Menu1();
+  }
+  else
+  {
+    setBackColour(0, 0, 0);          // Black background
+    clearScreen();
+    CurrentMenu = startupmenu;
+    // Note no highlights
+  }
   UpdateWindow();
 
   // Go and wait for the screen to be touched
