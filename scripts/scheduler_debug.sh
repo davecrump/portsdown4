@@ -134,6 +134,10 @@ ChooseBandViewerSDR()
 # 160  Shutdown from GUI
 # 192  Reboot from GUI
 # 193  Rotate 7 inch and reboot
+# 197  Start Ryde RX
+# 198  Boot to Portsdown RX
+# 199  Boot to Portsdown TX
+# 207  Exit from any app requesting restart of main rpidatvgui on Menu 7 (test equipment)
 
 MODE_STARTUP=$(get_config_var startup $PCONFIGFILE)
 
@@ -142,6 +146,22 @@ MODE_STARTUP=$(get_config_var startup $PCONFIGFILE)
 cp /home/pi/rpidatv/scripts/images/web_not_enabled.png /home/pi/tmp/screen.png
 
 case "$MODE_STARTUP" in
+  Testmenu_boot)
+    # Start the Portsdown in the test equipment menu
+    GUI_RETURN_CODE=207
+  ;;
+  Transmit_boot)
+    # Start the Portsdown in Transmit Mode
+    GUI_RETURN_CODE=199
+  ;;
+  Receive_boot)
+    # Start the Portsdown in Receive Mode
+    GUI_RETURN_CODE=198
+  ;;
+  Ryde_boot)
+    # Start the Ryde Receiver
+    GUI_RETURN_CODE=197
+  ;;
   Display_boot)
     # Start the Portsdown Touchscreen
     GUI_RETURN_CODE=129
@@ -443,6 +463,30 @@ while [ "$GUI_RETURN_CODE" -gt 127 ] || [ "$GUI_RETURN_CODE" -eq 0 ];  do
       sudo swapoff -a
       sudo reboot now
       break
+    ;;
+    197)
+      /home/pi/ryde-build/configs/ryde_rx.sh  # Starts Ryde in a new process
+      /home/pi/rpidatv/bin/rydemon            # Blocks here until screen is touched
+      GUI_RETURN_CODE="$?"
+      sleep 1
+      sudo killall -9 python3 >/dev/null 2>/dev/null
+      sudo killall -9 longmynd >/dev/null 2>/dev/null
+      sudo killall vlc >/dev/null 2>/dev/null
+    ;;
+    198)
+      /home/pi/rpidatv/bin/rpidatvgui -b rx   # Start Portsdown in RX mode
+      GUI_RETURN_CODE="$?"
+      sudo killall vlc >/dev/null 2>/dev/null
+    ;;
+    199)
+      /home/pi/rpidatv/bin/rpidatvgui -b tx   # Start Portsdown in TX mode
+      GUI_RETURN_CODE="$?"
+      sudo killall vlc >/dev/null 2>/dev/null
+    ;;
+    207)
+      /home/pi/rpidatv/bin/rpidatvgui -b 7
+      GUI_RETURN_CODE="$?"
+      sudo killall vlc >/dev/null 2>/dev/null
     ;;
     *)
       /home/pi/rpidatv/bin/rpidatvgui
