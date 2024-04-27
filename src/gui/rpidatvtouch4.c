@@ -18471,6 +18471,10 @@ void waituntil(int w,int h)
             strcpy(LMRXaudio, "rpi");
           }
           SetConfigParam(PATH_LMCONFIG, "audio", LMRXaudio);
+          if (file_exist("/home/pi/ryde/config.yaml") == 0)       // Ryde installed
+          {
+            system("/home/pi/rpidatv/scripts/set_ryde_audio.sh");  // So synchronise Ryde audio
+          }
           Start_Highlights_Menu3();
           UpdateWindow();
           break;
@@ -18928,44 +18932,7 @@ void waituntil(int w,int h)
           }
           UpdateWindow();
           break;
-        case 5:                                                 // Button Script 1
-          SelectInGroupOnMenu(CurrentMenu, 5, 9, 5, 1);
-          system("/home/pi/rpidatv/scripts/user_button1.sh &");
-          UpdateWindow();
-          usleep(500000);
-          break;
-        case 6:                                                 // Button Script 2
-          SelectInGroupOnMenu(CurrentMenu, 5, 9, 6, 1);
-          system("/home/pi/rpidatv/scripts/user_button2.sh &");
-          UpdateWindow();
-          usleep(500000);
-          break;
-        case 7:                                                 // SDRPlay MeteorViewer
-          DisplayLogo();
-          cleanexit(150);
-          break;
-        case 8:                                                 // Noise Meter
-          if((CheckLimeMiniConnect() == 0) || (CheckLimeUSBConnect() == 0))
-          {
-            DisplayLogo();
-            cleanexit(147);
-          }
-          else
-          {
-            MsgBox("No LimeSDR Connected");
-            wait_touch();
-          }
-          UpdateWindow();
-          break;
-        case 9:                                                 // DMM Display
-          DisplayLogo();
-          cleanexit(142);
-          break;
-        case 10:                                                 // Signal Generator
-          DisplayLogo();
-          cleanexit(130);
-          break;
-        case 11:                                                 // Frequency Sweeper
+        case 5:                                                 // Frequency Sweeper
           if((CheckLimeMiniConnect() == 0) || (CheckLimeUSBConnect() == 0))
           {
             DisplayLogo();
@@ -18978,11 +18945,7 @@ void waituntil(int w,int h)
           }
           UpdateWindow();
           break;
-        case 12:                                                 // Power Meter
-          DisplayLogo();
-          cleanexit(137);
-          break;
-        case 13:                                                 // NF Meter
+        case 6:                                                 // Lime Noise Figure Meter
           if((CheckLimeMiniConnect() == 0) || (CheckLimeUSBConnect() == 0))
           {
             DisplayLogo();
@@ -18994,11 +18957,7 @@ void waituntil(int w,int h)
             wait_touch();
           }
           break;
-        case 14:                                                 // XY Display
-          DisplayLogo();
-          cleanexit(134);
-          break;
-        case 18:                                                 // Pluto NF Meter
+        case 7:                                                 // Pluto Noise Figure Meter
           if(CheckPlutoIPConnect() == 0)
           {
             DisplayLogo();
@@ -19010,6 +18969,52 @@ void waituntil(int w,int h)
             wait_touch();
           }
           UpdateWindow();
+          break;
+        case 8:                                                 // DMM Display
+          DisplayLogo();
+          cleanexit(142);
+          break;
+        case 9:                                                 // SDRPlay MeteorViewer
+          DisplayLogo();
+          cleanexit(150);
+          break;
+        case 10:                                                 // Signal Generator
+          DisplayLogo();
+          cleanexit(130);
+          break;
+        case 11:                                                 // Lime Noise Meter
+          if((CheckLimeMiniConnect() == 0) || (CheckLimeUSBConnect() == 0))
+          {
+            DisplayLogo();
+            cleanexit(147);
+          }
+          else
+          {
+            MsgBox("No LimeSDR Connected");
+            wait_touch();
+          }
+          UpdateWindow();
+          break;
+        case 12:                                                 // Pluto Noise Meter
+          if(CheckPlutoIPConnect() == 0)
+          {
+            DisplayLogo();
+            cleanexit(149);
+          }
+          else
+          {
+            MsgBox("No Pluto Connected");
+            wait_touch();
+          }
+          UpdateWindow();
+          break;
+        case 13:                                                 // Power Meter
+          DisplayLogo();
+          cleanexit(137);
+          break;
+        case 14:                                                 // XY Display
+          DisplayLogo();
+          cleanexit(134);
           break;
         case 21:                              // Menu 1
           printf("MENU 1 \n");
@@ -21490,6 +21495,10 @@ void waituntil(int w,int h)
             strcpy(LMRXaudio, "rpi");
           }
           SetConfigParam(PATH_LMCONFIG, "audio", LMRXaudio);
+          if (file_exist("/home/pi/ryde/config.yaml") == 0)       // Ryde installed
+          {
+            system("/home/pi/rpidatv/scripts/set_ryde_audio.sh");  // So synchronise Ryde audio
+          }
           Start_Highlights_Menu46();
           UpdateWindow();
           break;
@@ -22764,21 +22773,19 @@ void Define_Menu7()
   // 2nd line up Menu 7:  
 
   button = CreateButton(7, 5);
-  AddButtonStatus(button, "Button 1", &Blue);
-  AddButtonStatus(button, "Button 1", &Green);
+  AddButtonStatus(button, "Frequency^Sweeper", &Blue);
 
   button = CreateButton(7, 6);
-  AddButtonStatus(button, "Button 2", &Blue);
-  AddButtonStatus(button, "Button 2", &Green);
+  AddButtonStatus(button, "Noise Figure^Meter (Lime)", &Blue);
 
   button = CreateButton(7, 7);
-  AddButtonStatus(button, "Meteor^Viewer", &Blue);
+  AddButtonStatus(button, "Noise Figure^Meter (Pluto)", &Blue);
 
   button = CreateButton(7, 8);
-  AddButtonStatus(button, "Noise^Meter", &Blue);
+  AddButtonStatus(button, "DMM^Display", &Blue);
 
   button = CreateButton(7, 9);
-  AddButtonStatus(button, "DMM^Display", &Blue);
+  AddButtonStatus(button, "Meteor^Viewer", &Blue);
 
   // 3rd line up Menu 7:
 
@@ -22786,21 +22793,21 @@ void Define_Menu7()
   AddButtonStatus(button, "Signal^Generator", &Blue);
 
   button = CreateButton(7, 11);
-  AddButtonStatus(button, "Frequency^Sweeper", &Blue);
+  AddButtonStatus(button, "Noise^Meter (Lime)", &Blue);
 
   button = CreateButton(7, 12);
-  AddButtonStatus(button, "Power^Meter", &Blue);
+  AddButtonStatus(button, "Noise^Meter (Pluto)", &Blue);
 
   button = CreateButton(7, 13);
-  AddButtonStatus(button, "Noise Figure^Meter (Lime)", &Blue);
+  AddButtonStatus(button, "Power^Meter", &Blue);
 
   button = CreateButton(7, 14);
   AddButtonStatus(button, "XY^Display", &Blue);
 
   // 4th line up Menu 7: 
 
-  button = CreateButton(7, 18);
-  AddButtonStatus(button, "Noise Figure^Meter (Pluto)", &Blue);
+  //button = CreateButton(7, 18);
+  //AddButtonStatus(button, "Noise Figure^Meter (Pluto)", &Blue);
 
   // Top of Menu 7
 
