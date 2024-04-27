@@ -385,6 +385,8 @@ cp -f -r portsdown4-master/video rpidatv
 cp -f -r portsdown4-master/version_history.txt rpidatv/version_history.txt
 cp -f portsdown4-master/add_langstone.sh rpidatv/add_langstone.sh
 cp -f portsdown4-master/add_langstone2.sh rpidatv/add_langstone2.sh
+cp -f portsdown4-master/add_ryde.sh rpidatv/add_ryde.sh
+cp -f portsdown4-master/update_ryde.sh rpidatv/update_ryde.sh
 
 # Copy the recently added images into the user's back-up image folder
 cp portsdown4-master/scripts/images/web_not_enabled.png "$PATHUBACKUP"/images/web_not_enabled.png
