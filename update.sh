@@ -660,14 +660,24 @@ make
 cp dmm ../../bin/
 cd /home/pi
 
-# Compile Noise Meter
+# Compile LimeSDR Noise Meter
 echo
-echo "---------------------------------"
-echo "----- Compiling Noise Meter -----"
-echo "---------------------------------"
+echo "--------------------------------------"
+echo "----- Compiling Lime Noise Meter -----"
+echo "--------------------------------------"
 cd /home/pi/rpidatv/src/noise_meter
 make
 cp noise_meter ../../bin/
+cd /home/pi
+
+# Compile Pluto SDR Noise Meter
+echo
+echo "---------------------------------------"
+echo "----- Compiling Pluto Noise Meter -----"
+echo "---------------------------------------"
+cd /home/pi/rpidatv/src/pluto_noise_meter
+make
+cp pluto_noise_meter ../../bin/
 cd /home/pi
 
 # Compile Touchscreen Listener
