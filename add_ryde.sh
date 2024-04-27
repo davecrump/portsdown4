@@ -242,17 +242,20 @@ unzip -o master.zip
 mv ryde-utils-master ryde-utils
 rm master.zip
 
-#echo
-#echo "--------------------------------------"
-#echo "----- Configure the Menu Aliases -----"
-#echo "--------------------------------------"
-#echo
+echo
+echo "--------------------------------------"
+echo "----- Configure the Menu Aliases -----"
+echo "--------------------------------------"
+echo
 
 # Install the menu aliases
-#echo "alias ryde='/home/pi/ryde-build/rx.sh'" >> /home/pi/.bash_aliases
-#echo "alias dryde='/home/pi/ryde-build/debug_rx.sh'" >> /home/pi/.bash_aliases
-#echo "alias menu='/home/pi/ryde-build/menu.sh'"  >> /home/pi/.bash_aliases
-#echo "alias stop='/home/pi/ryde-build/stop.sh'"  >> /home/pi/.bash_aliases
+echo "alias ryde='/home/pi/ryde-build/rx.sh'" >> /home/pi/.bash_aliases
+echo "alias dryde='/home/pi/ryde-build/debug_rx.sh'" >> /home/pi/.bash_aliases
+echo "alias menuryde='/home/pi/ryde-build/menu.sh'"  >> /home/pi/.bash_aliases
+echo "alias stopryde='/home/pi/ryde-build/stop.sh'"  >> /home/pi/.bash_aliases
+
+# Synchronise the audio aoutput with Portsdown Longmynd
+/home/pi/rpidatv/scripts/set_ryde_audio.sh
 
 # Record Version Number
 cd /home/pi/ryde-build/

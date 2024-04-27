@@ -2137,7 +2137,7 @@ void *WaitButtonEvent(void * arg)
             UpdateWeb();
             usleep(1000000);
             closeScreen();
-            cleanexit(129);
+            cleanexit(207);
           }
           else
           {
@@ -4789,7 +4789,7 @@ static void terminate(int dummy)
   sprintf(Commnd,"reset");
   system(Commnd);
   printf("scans = %d\n", tracecount);
-  exit(129);
+  exit(207);
 }
 
 

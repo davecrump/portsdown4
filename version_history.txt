@@ -1,3 +1,6 @@
+202404270
+Add Pluto Version of Noise Meter
+
 202405260
 Add boot options and Ryde co-install
 

@@ -2963,7 +2963,7 @@ void *WaitButtonEvent(void * arg)
             wipeScreen(0, 0, 0);
             usleep(1000000);
             closeScreen();
-            cleanexit(129);
+            cleanexit(207);
           }
           else
           {
@@ -3219,7 +3219,7 @@ void *WaitButtonEvent(void * arg)
           UpdateWeb();
           usleep(1000000);
           closeScreen();
-          cleanexit(129);
+          cleanexit(207);
           break;
         case 6:                                            // Restart this App
           freeze = true;
@@ -3412,7 +3412,7 @@ void *WaitButtonEvent(void * arg)
             wipeScreen(0, 0, 0);
             usleep(1000000);
             closeScreen();
-            cleanexit(129);
+            cleanexit(207);
           }
           else
           {
@@ -5253,7 +5253,7 @@ static void terminate(int dummy)
   sprintf(Commnd,"reset");
   system(Commnd);
   printf("scans = %d\n", tracecount);
-  exit(129);
+  exit(207);
 }
 
 

@@ -47,6 +47,7 @@ src/dmm/dmm
 src/wav2lime/wav2lime
 src/meteorview/meteorview
 src/noise_meter/noise_meter
+src/pluto_noise_meter/pluto_noise_meter
 src/meteorbeacon/beacon
 src/meteorbeacon/server
 src/sdrplayview/sdrplayview
@@ -81,6 +82,7 @@ bin/dmm
 bin/wav2lime
 bin/meteorview
 bin/noise_meter
+/bin/pluto_noise_meter
 bin/beacon
 bin/server
 bin/sdrplayview
