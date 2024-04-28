@@ -27458,7 +27458,7 @@ int main(int argc, char **argv)
      && (strcmp(DisplayType, "hdmi1080") != 0))
     {
       SetConfigParam(PATH_PCONFIG, "webcontrol", "enabled");
-      SetConfigParam(PATH_PCONFIG, "display", "Browser");
+      SetConfigParam(PATH_PCONFIG, "display", "hdmi720");         // Set 720p60 for maximum compatibility
       system ("/home/pi/rpidatv/scripts/set_display_config.sh");
       system ("sudo reboot now");
     }
