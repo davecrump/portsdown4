@@ -385,6 +385,8 @@ cp -f -r portsdown4-master/video rpidatv
 cp -f -r portsdown4-master/version_history.txt rpidatv/version_history.txt
 cp -f portsdown4-master/add_langstone.sh rpidatv/add_langstone.sh
 cp -f portsdown4-master/add_langstone2.sh rpidatv/add_langstone2.sh
+cp -f portsdown4-master/add_ryde.sh rpidatv/add_ryde.sh
+cp -f portsdown4-master/update_ryde.sh rpidatv/update_ryde.sh
 
 # Copy the recently added images into the user's back-up image folder
 cp portsdown4-master/scripts/images/web_not_enabled.png "$PATHUBACKUP"/images/web_not_enabled.png
@@ -619,14 +621,24 @@ make
 cp power_meter ../../bin/
 cd /home/pi
 
-# Compile NF Meter
+# Compile Lime NF Meter
 echo
-echo "----------------------------------------"
-echo "----- Compiling Noise Figure Meter -----"
-echo "----------------------------------------"
+echo "---------------------------------------------"
+echo "----- Compiling Lime Noise Figure Meter -----"
+echo "---------------------------------------------"
 cd /home/pi/rpidatv/src/nf_meter
 make
 cp nf_meter ../../bin/
+cd /home/pi
+
+# Compile Pluto NF Meter
+echo
+echo "----------------------------------------------"
+echo "----- Compiling Pluto Noise Figure Meter -----"
+echo "----------------------------------------------"
+cd /home/pi/rpidatv/src/pluto_nf_meter
+make
+cp pluto_nf_meter ../../bin/
 cd /home/pi
 
 # Compile Sweeper
@@ -650,14 +662,34 @@ make
 cp dmm ../../bin/
 cd /home/pi
 
-# Compile Noise Meter
+# Compile LimeSDR Noise Meter
 echo
-echo "---------------------------------"
-echo "----- Compiling Noise Meter -----"
-echo "---------------------------------"
+echo "--------------------------------------"
+echo "----- Compiling Lime Noise Meter -----"
+echo "--------------------------------------"
 cd /home/pi/rpidatv/src/noise_meter
 make
 cp noise_meter ../../bin/
+cd /home/pi
+
+# Compile Pluto SDR Noise Meter
+echo
+echo "---------------------------------------"
+echo "----- Compiling Pluto Noise Meter -----"
+echo "---------------------------------------"
+cd /home/pi/rpidatv/src/pluto_noise_meter
+make
+cp pluto_noise_meter ../../bin/
+cd /home/pi
+
+# Compile Touchscreen Listener
+echo
+echo "------------------------------------------"
+echo "----- Compiling Touchscreen Listener -----"
+echo "------------------------------------------"
+cd /home/pi/rpidatv/src/rydemon
+make
+cp rydemon ../../bin/
 cd /home/pi
 
 # Compile and install the executable for GPIO-switched transmission (201710080)

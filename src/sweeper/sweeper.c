@@ -2505,7 +2505,7 @@ void *WaitButtonEvent(void * arg)
           CurrentMenu=4;
           UpdateWindow();
           break;
-        case 7:                                            // Exit to Portsdown
+        case 7:                                            // Exit to Portsdown Test Equip Menu
           if(PortsdownExitRequested)
           {
             freeze = true;
@@ -2515,7 +2515,7 @@ void *WaitButtonEvent(void * arg)
             usleep(1000000);
             UpdateWeb();
             closeScreen();
-            cleanexit(129);
+            cleanexit(207);
           }
           else
           {
@@ -2769,13 +2769,13 @@ void *WaitButtonEvent(void * arg)
         case 4:                                            // Shutdown
           system("sudo shutdown now");
           break;
-        case 5:                                            // Exit to Portsdown
+        case 5:                                            // Exit to Portsdown Test Equip Menu
           freeze = true;
           usleep(100000);
           wipeScreen(0, 0, 0);
           usleep(1000000);
           closeScreen();
-          cleanexit(129);
+          cleanexit(207);
           break;
         case 6:                                            // Restart this App
           freeze = true;
@@ -4485,7 +4485,7 @@ static void terminate(int dummy)
   sprintf(Commnd,"reset");
   system(Commnd);
   printf("scans = %d\n", tracecount);
-  exit(129);
+  exit(207);
 }
 
 

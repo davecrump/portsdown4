@@ -515,14 +515,24 @@ make
 cp power_meter ../../bin/
 cd /home/pi
 
-# Compile NF Meter
+# Compile Lime NF Meter
 echo
-echo "----------------------------------------"
-echo "----- Compiling Noise Figure Meter -----"
-echo "----------------------------------------"
+echo "---------------------------------------------"
+echo "----- Compiling Lime Noise Figure Meter -----"
+echo "---------------------------------------------"
 cd /home/pi/rpidatv/src/nf_meter
 make
 cp nf_meter ../../bin/
+cd /home/pi
+
+# Compile Pluto NF Meter
+echo
+echo "----------------------------------------------"
+echo "----- Compiling Pluto Noise Figure Meter -----"
+echo "----------------------------------------------"
+cd /home/pi/rpidatv/src/pluto_nf_meter
+make
+cp pluto_nf_meter ../../bin/
 cd /home/pi
 
 # Compile Sweeper
@@ -545,14 +555,34 @@ make
 cp dmm ../../bin/
 cd /home/pi
 
-# Compile Noise Meter
+# Compile LimeSDR Noise Meter
 echo
-echo "---------------------------------"
-echo "----- Compiling Noise Meter -----"
-echo "---------------------------------"
+echo "--------------------------------------"
+echo "----- Compiling Lime Noise Meter -----"
+echo "--------------------------------------"
 cd /home/pi/rpidatv/src/noise_meter
 make
 cp noise_meter ../../bin/
+cd /home/pi
+
+# Compile Pluto SDR Noise Meter
+echo
+echo "---------------------------------------"
+echo "----- Compiling Pluto Noise Meter -----"
+echo "---------------------------------------"
+cd /home/pi/rpidatv/src/pluto_noise_meter
+make
+cp pluto_noise_meter ../../bin/
+cd /home/pi
+
+# Compile Touchscreen Listener
+echo
+echo "------------------------------------------"
+echo "----- Compiling Touchscreen Listener -----"
+echo "------------------------------------------"
+cd /home/pi/rpidatv/src/rydemon
+make
+cp rydemon ../../bin/
 cd /home/pi
 
 #echo

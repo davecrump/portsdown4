@@ -2439,7 +2439,7 @@ void *WaitButtonEvent(void * arg)
             UpdateWeb();
             usleep(1000000);
             closeScreen();
-            cleanexit(129);
+            cleanexit(207);
           }
           else
           {
@@ -2667,7 +2667,7 @@ void *WaitButtonEvent(void * arg)
           clearScreen();
           usleep(1000000);
           closeScreen();
-          cleanexit(129);
+          cleanexit(207);
           break;
         case 5:                                            // Shutdown
           system("sudo shutdown now");
@@ -4249,7 +4249,7 @@ static void terminate(int sig)
   // Turn off Noise Source
   digitalWrite(NoiseSourceGPIO, LOW);
   printf("scans = %d\n", tracecount);
-  exit(0);
+  exit(207);
 }
 
 
