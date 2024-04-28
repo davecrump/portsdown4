@@ -94,6 +94,7 @@ ChooseBandViewerSDR()
   # Check for the presence of a Pluto (can false positive on 192.168.2.* LANs)
   # Look up Pluto IP
   PLUTOIP=$(get_config_var plutoip $PCONFIGFILE)
+  sleep 10 # Give the Pluto time to boot!
   # Ping Pluto
   timeout 0.2 ping "$PLUTOIP" -c1 | head -n 5 | tail -n 1 | grep -o "1 received,"
   if [ $? == 0 ]; then   ## Present
