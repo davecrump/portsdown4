@@ -28,6 +28,7 @@
 #include "meteorview.h"
 #include "ffunc.h"
 #include "websocket_server.h"
+#include "transport.h"
 
 pthread_t thbutton;
 pthread_t thwebclick;     //  Listens for mouse clicks from web interface
@@ -168,7 +169,7 @@ static pthread_t screen_thread_obj;
 static pthread_t sdrplay_fft_thread_obj;
 
 uint8_t clientnumber = 6;
-char serverip[20] = "95.154.252.125";
+char serverip[20] = "185.83.169.27";
 uint16_t port = 7682;
 char destination[15] = "local";
 
@@ -441,9 +442,9 @@ void CheckConfigFile()
     printf("clientnumber parameter not detected\n");
     printf("Adding 4 parameters to config file\n");
 
-    sprintf(shell_command, "echo clientnumber=6 >> %s", PATH_CONFIG);
+    sprintf(shell_command, "echo clientnumber=0 >> %s", PATH_CONFIG);
     system(shell_command);
-    sprintf(shell_command, "echo serverip=95.154.252.125 >> %s", PATH_CONFIG);
+    sprintf(shell_command, "echo serverip=185.83.169.27 >> %s", PATH_CONFIG);
     system(shell_command);
     sprintf(shell_command, "echo port=7682 >> %s", PATH_CONFIG);
     system(shell_command);
@@ -598,11 +599,11 @@ void ReadSavedParams()
 
   CheckConfigFile();           // check and amend config file to latest version
 
-  strcpy(response, "6");
+  strcpy(response, "0");
   GetConfigParam(PATH_CONFIG, "clientnumber", response);
   clientnumber = atoi(response);
 
-  strcpy(response, "95.154.252.125");
+  strcpy(response, "185.83.169.27");
   GetConfigParam(PATH_CONFIG, "serverip", serverip);
 
   strcpy(response, "7682");
