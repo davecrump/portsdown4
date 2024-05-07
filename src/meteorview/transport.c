@@ -17,6 +17,7 @@
 static int sockfd = 0;
 bool connection_made;
 extern bool app_exit;
+extern char serverip[20];     // Read in from config file in main
 
 void transport_init()
 {
@@ -37,7 +38,7 @@ void transport_init()
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_port = htons(7680); 
 
-    if(inet_pton(AF_INET, "95.154.252.125", &serv_addr.sin_addr)<=0)
+    if(inet_pton(AF_INET, serverip, &serv_addr.sin_addr)<=0)
     {
         printf("\n inet_pton error occured\n");
         //return;
