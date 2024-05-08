@@ -374,17 +374,25 @@ bool webclicklistenerrunning = false;  // Used to only start thread if required
 char WebClickForAction[7] = "no";      // no/yes
 bool touchscreen_present = true;       // detected on startup; used to control menu availability
 bool reboot_required = false;          // used after hdmi display change
+bool mouse_active = false;             // set true after first movement of mouse
+bool MouseClickForAction = false;      // set true on left click of mouse
+int mouse_x;                           // click x 0 - 799 from left
+int mouse_y;                           // click y 0 - 479 from top
+bool image_complete = true;            // prevents mouse image buffer from being copied until image is complete
+bool mouse_connected = false;          // Set true if mouse detected at startup
+
 
 // Threads for Touchscreen monitoring
 
 pthread_t thbutton;         //
 pthread_t thview;           //
 pthread_t thwait3;          //  Used to count 3 seconds for WebCam reset after transmit
-pthread_t thwebclick;       //  Listens for mouse clicks from web interface
+pthread_t thwebclick;       //  Listens for clicks from web interface
 pthread_t thtouchscreen;    //  listens to the touchscreen   
 pthread_t thrfe15;          //  Turns LimeRFE on after 15 seconds
 pthread_t thbuttonFileVLC;  //  Handles touches during VLC play from file
 pthread_t thbuttonIQPlay;   //  Handles touches to stop IQ player
+pthread_t thmouse;          //  Listens to the mouse
 
 // ************** Function Prototypes **********************************//
 
@@ -411,6 +419,7 @@ void DisplayUpdateMsg(char* Version, char* Step);
 void PrepSWUpdate();
 void ExecuteUpdate(int NoButton);
 void LimeFWUpdate(int button);
+int CheckMouse();
 void GetGPUTemp(char GPUTemp[256]);
 void GetCPUTemp(char CPUTemp[256]);
 void GetThrottled(char Throttled[256]);
@@ -522,6 +531,8 @@ int getTouchScreenDetails(int *screenXmin,int *screenXmax,int *screenYmin,int *s
 int getTouchSampleThread(int *rawX, int *rawY, int *rawPressure);
 int getTouchSample(int *rawX, int *rawY, int *rawPressure);
 void *WaitTouchscreenEvent(void * arg);
+void *WaitMouseEvent(void * arg);
+void handle_mouse();
 void *WebClickListener(void * arg);
 void parseClickQuerystring(char *query_string, int *x_ptr, int *y_ptr);
 FFUNC touchscreenClick(ffunc_session_t * session);
@@ -958,6 +969,8 @@ void DisplayHere(char *DisplayCaption)
   system(ConvertCommand);
 
   system("sudo fbi -T 1 -noverbose -a /home/pi/tmp/streamcaption.png  >/dev/null 2>/dev/null");  // Add logo image
+  refreshMouseBackground();
+  draw_cursor_foreground(mouse_x, mouse_y);
   UpdateWeb();
 }
 
@@ -1587,6 +1600,8 @@ void ExecuteUpdate(int NoButton)
       // Display the updating message
       strcpy(Step, "Step 1 of 10\\nDownloading Update\\n\\nX---------");
       DisplayUpdateMsg("Latest" , Step);
+      refreshMouseBackground();
+      draw_cursor_foreground(mouse_x, mouse_y);
       UpdateWeb();
 
       // Delete any old update
@@ -1646,6 +1661,46 @@ void ExecuteUpdate(int NoButton)
     break;
   }
 }
+
+
+/***************************************************************************//**
+ * @brief Detects if a mouse is currently connected
+ *
+ * @param nil
+ *
+ * @return 0 if connected, 1 if not connected
+*******************************************************************************/
+
+int CheckMouse()
+{
+  FILE *fp;
+  char response_line[255];
+
+  // Read the Webcam address if it is present
+
+  fp = popen("ls -l /dev/input | grep 'mouse'", "r");
+  if (fp == NULL)
+  {
+    printf("Failed to run command\n" );
+    exit(1);
+  }
+
+  // Response is "crw-rw---- 1 root input 13, 32 Apr 29 17:02 mouse0" if present, null if not
+  // So, if there is a response, return 0.
+
+  /* Read the output a line at a time - output it. */
+  while (fgets(response_line, 250, fp) != NULL)
+  {
+    if (strlen(response_line) > 1)
+    {
+      pclose(fp);
+      return 0;
+    }
+  }
+  pclose(fp);
+  return 1;
+}
+
 
 /***************************************************************************//**
  * @brief Performs Lime firmware update and checks GW revision
@@ -5317,6 +5372,8 @@ void LimeInfo()
   /* close */
   pclose(fp);
   Text2(wscreen/12, 1.2 * linepitch, "Touch Screen to Continue", font_ptr);
+  refreshMouseBackground();
+  draw_cursor_foreground(mouse_x, mouse_y);
   UpdateWeb();
 }
 
@@ -5745,6 +5802,8 @@ void LimeMiniTest()
   }
   setForeColour(255, 255, 255);    // White text
   Text2(wscreen*5/12, 1, "Touch Screen to Continue", font_ptr);
+  refreshMouseBackground();
+  draw_cursor_foreground(mouse_x, mouse_y);
   UpdateWeb();
 }
 
@@ -5793,6 +5852,8 @@ void LimeUtilInfo()
   /* close */
   pclose(fp);
   Text2(wscreen/12, 1.2 * th, "Touch Screen to Continue", font_ptr);
+  refreshMouseBackground();
+  draw_cursor_foreground(mouse_x, mouse_y);
   UpdateWeb();
 }
 
@@ -5965,6 +6026,8 @@ void ShowImageFile(char *ImagePath, char *ImageFile)
 
   usleep(100000);  // Delay to allow fbi to finish
 
+  refreshMouseBackground();
+  draw_cursor_foreground(mouse_x, mouse_y);
   UpdateWeb();
 
   while(NotWaitingforTouchYet)
@@ -6594,6 +6657,8 @@ void DisplayLogo()
 {
   system("sudo fbi -T 1 -noverbose -a \"/home/pi/rpidatv/scripts/images/BATC_Black.png\" >/dev/null 2>/dev/null");
   UpdateWeb();
+  refreshMouseBackground();
+  draw_cursor_foreground(mouse_x, mouse_y);
   system("(sleep 1; sudo killall -9 fbi >/dev/null 2>/dev/null) &");
 }
 
@@ -7289,6 +7354,7 @@ int getTouchSample(int *rawX, int *rawY, int *rawPressure)
       *rawY = TouchY;
       *rawPressure = TouchPressure;
       TouchTrigger = 0;
+      printf("Touch rawX = %d, rawY = %d, rawPressure = %d\n", *rawX, *rawY, *rawPressure);
       return 1;
     }
     else if ((webcontrol == true) && (strcmp(WebClickForAction, "yes") == 0))
@@ -7298,6 +7364,15 @@ int getTouchSample(int *rawX, int *rawY, int *rawPressure)
       *rawPressure = 0;
       strcpy(WebClickForAction, "no");
       printf("Web rawX = %d, rawY = %d, rawPressure = %d\n", *rawX, *rawY, *rawPressure);
+      return 1;
+    }
+    else if (MouseClickForAction == true)
+    {
+      *rawX = mouse_x;
+      *rawY = mouse_y;
+      *rawPressure = 0;
+      MouseClickForAction = false;
+      printf("Mouse rawX = %d, rawY = %d, rawPressure = %d\n", *rawX, *rawY, *rawPressure);
       return 1;
     }
     else if (FalseTouch == true)
@@ -7317,6 +7392,7 @@ int getTouchSample(int *rawX, int *rawY, int *rawPressure)
   return 0;
 }
 
+
 void *WaitTouchscreenEvent(void * arg)
 {
   int TouchTriggerTemp;
@@ -7332,6 +7408,124 @@ void *WaitTouchscreenEvent(void * arg)
     TouchTrigger = TouchTriggerTemp;
   }
   return NULL;
+}
+
+
+void *WaitMouseEvent(void * arg)
+{
+  int x = 0;
+  int y = 0;
+  int scroll = 0;
+  int fd;
+
+  bool left_button_action = false;
+
+  if ((fd = open("/dev/input/event0", O_RDONLY)) < 0)
+  {
+    perror("evdev open");
+    exit(1);
+  }
+  struct input_event ev;
+
+  while(1)
+  {
+    read(fd, &ev, sizeof(struct input_event));
+
+    if (ev.type == 2)  // EV_REL
+    {
+      if (ev.code == 0) // x
+      {
+        x = x + ev.value;
+        if (x < 0)
+        {
+          x = 0;
+        }
+        if (x > 799)
+        {
+          x = 799;
+        }
+        //printf("value %d, type %d, code %d, x_pos %d, y_pos %d\n",ev.value,ev.type,ev.code, x, y);
+        //printf("x_pos %d, y_pos %d\n", x, y);
+        mouse_active = true;
+        draw_cursor2(x, y);
+      }
+      else if (ev.code == 1) // y
+      {
+        y = y - ev.value;
+        if (y < 0)
+        {
+          y = 0;
+        }
+        if (y > 479)
+        {
+          y = 479;
+        }
+        //printf("value %d, type %d, code %d, x_pos %d, y_pos %d\n",ev.value,ev.type,ev.code, x, y);
+        //printf("x_pos %d, y_pos %d\n", x, y);
+        mouse_active = true;
+        while (image_complete == false)  // Wait for menu to be drawn
+        {
+          usleep(1000);
+        }
+        draw_cursor2(x, y);
+      }
+      else if (ev.code == 8) // scroll wheel
+      {
+        scroll = scroll + ev.value;
+        //printf("value %d, type %d, code %d, scroll %d\n",ev.value,ev.type,ev.code, scroll);
+      }
+      else
+      {
+        //printf("value %d, type %d, code %d\n", ev.value, ev.type, ev.code);
+      }
+    }
+
+    else if (ev.type == 4)  // EV_MSC
+    {
+      if (ev.code == 4) // ?
+      {
+        if (ev.value == 589825)
+        { 
+          //printf("value %d, type %d, code %d, left mouse click \n", ev.value, ev.type, ev.code);
+          //printf("Waiting for up or down signal\n");
+          left_button_action = true;
+        }
+        if (ev.value == 589826)
+        { 
+          printf("value %d, type %d, code %d, right mouse click \n", ev.value, ev.type, ev.code);
+        }
+      }
+    }
+    else if (ev.type == 1)
+    {
+      //printf("value %d, type %d, code %d\n", ev.value, ev.type, ev.code);
+
+      if ((left_button_action == true) && (ev.code == 272) && (ev.value == 1) && (mouse_active == true))
+      {
+        mouse_x = x;
+        mouse_y = 479 - y;
+        MouseClickForAction = true;
+      }
+      left_button_action = false;
+    }
+    else
+    { 
+      //printf("value %d, type %d, code %d\n", ev.value, ev.type, ev.code);
+    }
+  }
+}
+
+
+void handle_mouse()
+{
+  // First check if mouse is connected
+  if (CheckMouse() != 0)    // Mouse not connected
+  {
+    return;
+  }
+  mouse_connected = true;
+  printf("Starting Mouse Thread\n");
+  pthread_create (&thmouse, NULL, &WaitMouseEvent, NULL);
 }
 
 void *WebClickListener(void * arg)
@@ -7506,6 +7700,8 @@ void UpdateWindow()
   int first;
   int last;
 
+  image_complete = false;
+
   // Set the background colour
   if (CurrentMenu == 1)           // Main Menu White
   {
@@ -7550,7 +7746,10 @@ void UpdateWindow()
   {
     ShowMenuText();
   }
+  refreshMouseBackground();
+  draw_cursor_foreground(mouse_x, mouse_y);
   UpdateWeb();
+  image_complete = true;
 }
 
 void ApplyTXConfig()
@@ -8651,6 +8850,8 @@ int SelectFromList(int CurrentSelection, char ListEntry[101][63], int ListLength
     TextMid2(Button4X + ButtonWidth / 2, ButtonY + ButtonHeight / 2, Button4Caption, &font_dejavu_sans_20);
 
     printf("List displayed and waiting for touch\n");
+    refreshMouseBackground();
+    draw_cursor_foreground(mouse_x, mouse_y);
     UpdateWeb();
 
     // Wait for key press
@@ -12313,6 +12514,8 @@ void LMRX(int NoButton)
     system(LinuxCommand);
     strcpy(LinuxCommand, "(sleep 1; sudo killall -9 fbi >/dev/null 2>/dev/null) &");
     system(LinuxCommand);
+    refreshMouseBackground();
+    draw_cursor_foreground(mouse_x, mouse_y);
     UpdateWeb();
   }
   else // MER display modes
@@ -12669,6 +12872,8 @@ void LMRX(int NoButton)
             // Update web on alternate MER changes (to reduce processor workload)
             if (webupdate_this_time == true)
             {
+              refreshMouseBackground();
+              draw_cursor_foreground(mouse_x, mouse_y);
               UpdateWeb();
               webupdate_this_time = false;
             }
@@ -13642,6 +13847,8 @@ void LMRX(int NoButton)
 
             // Display large MER number
             LargeText2(wscreen * 18 / 40, hscreen * 19 / 48, 5, MERNtext, &font_dejavu_sans_32);
+            refreshMouseBackground();
+            draw_cursor_foreground(mouse_x, mouse_y);
             UpdateWeb();
           }
           stat_string[0] = '\0';
@@ -13786,6 +13993,8 @@ void LMRX(int NoButton)
                 rectangle(ls, bar_centre, wdth, hscreen - bar_centre, 0, 0, 0); // Black above centre
               }
             }
+            refreshMouseBackground();
+            draw_cursor_foreground(mouse_x, mouse_y);
             UpdateWeb();
           }
           stat_string[0] = '\0';
@@ -13912,6 +14121,8 @@ void LMRX(int NoButton)
               Text2(wscreen * 1.0 / 40.0, hscreen - 8.0 * linepitch, FREQtext, font_ptr);
             }
             Text2(wscreen * 1.0 / 40.0, hscreen - 11.5 * linepitch, "Touch Centre of screen to exit", font_ptr);
+            refreshMouseBackground();
+            draw_cursor_foreground(mouse_x, mouse_y);
             UpdateWeb();
           }
           stat_string[0] = '\0';
@@ -13994,6 +14205,8 @@ void MsgBox(char *message)
   clearScreen();
   TextMid2(wscreen / 2, hscreen /2, message, font_ptr);
   TextMid2(wscreen / 2, 20, "Touch Screen to Continue", font_ptr);
+  refreshMouseBackground();
+  draw_cursor_foreground(mouse_x, mouse_y);
   UpdateWeb();
 
   printf("MsgBox called and waiting for touch\n");
@@ -14013,6 +14226,8 @@ void MsgBox2(char *message1, char *message2)
   TextMid2(wscreen / 2, hscreen / 2 + linepitch, message1, font_ptr);
   TextMid2(wscreen / 2, hscreen / 2 - linepitch, message2, font_ptr);
   TextMid2(wscreen / 2, 20, "Touch Screen to Continue", font_ptr);
+  refreshMouseBackground();
+  draw_cursor_foreground(mouse_x, mouse_y);
   UpdateWeb();
 
   printf("MsgBox2 called and waiting for touch\n");
@@ -14033,6 +14248,8 @@ void MsgBox4(char *message1, char *message2, char *message3, char *message4)
   TextMid2(wscreen / 2, hscreen - 2 * (linepitch * 2), message2, font_ptr);
   TextMid2(wscreen / 2, hscreen - 3 * (linepitch * 2), message3, font_ptr);
   TextMid2(wscreen / 2, hscreen - 4 * (linepitch * 2), message4, font_ptr);
+  refreshMouseBackground();
+  draw_cursor_foreground(mouse_x, mouse_y);
   UpdateWeb();
 
   // printf("MsgBox4 called\n");
@@ -14400,6 +14617,8 @@ void InfoScreen()
   TextMid2(wscreen / 2, hscreen - linenumber * linepitch, "Touch Screen to Continue", font_ptr);
 
   printf("Info Screen called and waiting for touch\n");
+  refreshMouseBackground();
+  draw_cursor_foreground(mouse_x, mouse_y);
   UpdateWeb();
   wait_touch();
 }
@@ -14532,6 +14751,8 @@ void RangeBearing()
   TextMid2(wscreen/2, 20, "Touch Screen to Continue",  font_ptr);
 
   printf("Locator Bearing called and waiting for touch\n");
+  refreshMouseBackground();
+  draw_cursor_foreground(mouse_x, mouse_y);
   UpdateWeb();
 
   wait_touch();
@@ -14609,6 +14830,8 @@ void BeaconBearing()
   }
 
   TextMid2(wscreen/2, 20, "Touch Screen to Continue",  font_ptr);
+  refreshMouseBackground();
+  draw_cursor_foreground(mouse_x, mouse_y);
   UpdateWeb();
 
   printf("Beacon Bearing called and waiting for touch\n");
@@ -14999,6 +15222,8 @@ void do_snapcheck()
       strcat(fbicmd, ".jpg >/dev/null 2>/dev/null");
       system(fbicmd);
       LastDisplayedSnap = Snap;
+      refreshMouseBackground();
+      draw_cursor_foreground(mouse_x, mouse_y);
       UpdateWeb();
     }
 
@@ -18576,6 +18801,10 @@ void waituntil(int w,int h)
           UpdateWindow();
           break;
         case 5:                               // Open File Explorer
+          FileOperation(i);
+          Start_Highlights_Menu4();
+          UpdateWindow();
+          break;
         case 6:                               // Install or update Ryde
           if (file_exist("/home/pi/ryde/config.yaml") == 1)       // Ryde Install or Update
           {
@@ -27462,6 +27691,7 @@ int main(int argc, char **argv)
       system ("/home/pi/rpidatv/scripts/set_display_config.sh");
       system ("sudo reboot now");
     }
+    handle_mouse();
   }
 
   // Show Portsdown Logo
