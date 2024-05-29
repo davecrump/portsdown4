@@ -1,3 +1,6 @@
+202405290
+Fix "Save settings to USB"
+
 202405080
 Experimental mouse control with HDMI Display
 

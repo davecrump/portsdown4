@@ -511,15 +511,15 @@ void FileOperation(int button);
 void *WaitButtonIQPlay(void * arg);
 void IQFileOperation(int button);
 void ListUSBDevices();
+int USBmounted();
 void ListNetDevices();
 void ListNetPis();
 void DisplayLogo();
 void TransformTouchMap(int x, int y);
-int IsButtonPushed(int NbButton,int x,int y);
 int IsMenuButtonPushed(int x,int y);
 int IsImageToBeChanged(int x,int y);
 int InitialiseButtons();
-int AddButton(int x,int y,int w,int h);
+//int AddButton(int x,int y,int w,int h);
 int ButtonNumber(int MenuIndex, int Button);
 int CreateButton(int MenuIndex, int ButtonPosition);
 int AddButtonStatus(int ButtonIndex,char *Text,color_t *Color);
@@ -6365,7 +6365,67 @@ void FileOperation(int NoButton)
       }
 
       break;
+    case 13:                                                                                // Mount/unmount USB
+      if (USBmounted() == 0) // mounted, so unmount
+      {
+        system("sudo umount /dev/sdb1");
+      }
+      else                  // not mounted, so mount and display file explorer
+      {
+        system("sudo mount /dev/sdb1 /mnt");
+        if (USBmounted() == 0)
+        {
+          strcpy(CurrentPathSelection, "/mnt/");
+          strcpy(CurrentFileSelection, "");
+          FileOperation(5);
+        }
+        else
+        {
+          MsgBox4("Failed to mount USB Drive", "Check Connections", "", "Touch screen to continue");
+          wait_touch();
+        }
+      }
+      break;
   }
+}
+
+
+/***************************************************************************//**
+ * @brief Detects if a USB Drive is currently mounted at /mnt
+ *
+ * @param nil
+ *
+ * @return 0 if mounted, 1 if not mounted
+*******************************************************************************/
+
+int USBmounted()
+{
+  FILE *fp;
+  char response_line[255];
+
+  // Check the mountpoint
+
+  fp = popen("mountpoint -d /mnt | grep 'not a mountpoint'", "r");
+  if (fp == NULL)
+  {
+    printf("Failed to run command\n" );
+    exit(1);
+  }
+
+  // Response is "not a mountpoint" if not mounted
+  // So, if there is a response, return 1.
+
+  /* Read the output a line at a time - output it. */
+  while (fgets(response_line, 250, fp) != NULL)
+  {
+    if (strlen(response_line) > 1)
+    {
+      pclose(fp);
+      return 1;
+    }
+  }
+  pclose(fp);
+  return 0;
 }
 
 
@@ -6709,25 +6769,6 @@ void TransformTouchMap(int x, int y)
 }
 
 
-int IsButtonPushed(int NbButton,int x,int y)
-{
-  TransformTouchMap(x,y);  // Sorts out orientation and approx scaling of the touch map
-
-  //printf("x=%d y=%d scaledx %d scaledy %d sxv %f syv %f Button %d\n",x,y,scaledX,scaledY,scaleXvalue,scaleYvalue, NbButton);
-
-  int margin=10;  // was 20
-
-  if((scaledX<=(ButtonArray[NbButton].x+ButtonArray[NbButton].w-margin))&&(scaledX>=ButtonArray[NbButton].x+margin) &&
-    (scaledY<=(ButtonArray[NbButton].y+ButtonArray[NbButton].h-margin))&&(scaledY>=ButtonArray[NbButton].y+margin))
-  {
-    return 1;
-  }
-  else
-  {
-    return 0;
-  }
-}
-
 int IsMenuButtonPushed(int x,int y)
 {
   int  i, NbButton, cmo, cmsize;
@@ -6798,17 +6839,17 @@ int InitialiseButtons()
   return 1;
 }
 
-int AddButton(int x,int y,int w,int h)
-{
-  button_t *NewButton=&(ButtonArray[IndexButtonInArray]);
-  NewButton->x=x;
-  NewButton->y=y;
-  NewButton->w=w;
-  NewButton->h=h;
-  NewButton->NoStatus=0;
-  NewButton->IndexStatus=0;
-  return IndexButtonInArray++;
-}
+//int AddButton(int x,int y,int w,int h)
+//{
+//  button_t *NewButton=&(ButtonArray[IndexButtonInArray]);
+//  NewButton->x=x;
+//  NewButton->y=y;
+//  NewButton->w=w;
+//  NewButton->h=h;
+//  NewButton->NoStatus=0;
+//  NewButton->IndexStatus=0;
+//  return IndexButtonInArray++;
+//}
 
 int ButtonNumber(int MenuIndex, int Button)
 {
@@ -18844,6 +18885,11 @@ void waituntil(int w,int h)
           Start_Highlights_Menu4();           // Refresh button labels
           UpdateWindow();
           break;
+        case 13:                              // mount/unmount USB drive
+          FileOperation(i);
+          Start_Highlights_Menu4();           // Refresh button labels
+          UpdateWindow();
+          break;
         case 14:                             // Download HamTV file
           if (file_exist("/home/pi/iqfiles/SDRSharp_20160423_121611Z_731000000Hz_IQ.wav") == 1)  // so file not present
           {
@@ -21313,15 +21359,17 @@ void waituntil(int w,int h)
           UpdateWindow();
           break;
         case 1:                               // Restore Settings from USB
-          if (file_exist("/media/usb/portsdown_settings/portsdown_config.txt") == 1) // no file found
+          // mount the USB drive to check drive and files exist first
+          system("sudo mount /dev/sdb1 /mnt");
+          if (file_exist("/mnt/portsdown_settings/portsdown_config.txt") == 1) // no file found
           {
             MsgBox4("Portsdown configuration files", "not found on USB drive.", "Please check the USB drive and", "try reconnecting it");
-            setBackColour(0, 0, 0);
-            clearScreen();
+            system("sudo umount /dev/sdb1");
             wait_touch();
           }
           else  // file exists
           {
+            system("sudo umount /dev/sdb1");  // unmount because script remounts
             CallingMenu = 431;
             CurrentMenu = 38;
             MsgBox4("Are you sure that you want to", "overwrite all the current settings", "with the settings from USB?", " ");
@@ -21331,9 +21379,7 @@ void waituntil(int w,int h)
         case 2:                               // Restore Settings from /boot
           if (file_exist("/boot/portsdown_settings/portsdown_config.txt") == 1) // no file found
           {
-            MsgBox4("Portsdown configuration files", "not found in /boot folder.", " ", " ");
-            setBackColour(0, 0, 0);
-            clearScreen();
+            MsgBox4("Portsdown configuration files", "not found in /boot folder.", " ", "Touch screen to exit");
             wait_touch();
           }
           else  // file exists
@@ -22687,6 +22733,10 @@ void Define_Menu4()
   AddButtonStatus(button, "Play IQ^File in loop", &Blue);
   AddButtonStatus(button, "Play IQ^File in loop", &Grey);
 
+  button = CreateButton(4, 13);
+  AddButtonStatus(button, "Mount USB^Drive", &Blue);
+  AddButtonStatus(button, "Unmount USB^Drive", &Blue);
+
   button = CreateButton(4, 14);
   AddButtonStatus(button, "Download^HamTV IQ File", &Blue);
   AddButtonStatus(button, " ", &Black);
@@ -22731,6 +22781,15 @@ void Start_Highlights_Menu4()
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 11), 1);
     SetButtonStatus(ButtonNumber(CurrentMenu, 12), 1);
+  }
+
+  if (USBmounted() == 1)       // USB Drive not mounted
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 13), 0);
+  }
+  else  // mounted
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 13), 1);
   }
 
   if (file_exist("/home/pi/iqfiles/SDRSharp_20160423_121611Z_731000000Hz_IQ.wav") == 0)

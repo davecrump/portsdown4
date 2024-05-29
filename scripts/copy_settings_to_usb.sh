@@ -1,43 +1,59 @@
 #!/bin/bash
 
-# Version 20190606
+# Version 202405290
 
 # set -x
 
 ############ Set Environment Variables ###############
 
 PATHSCRIPT=/home/pi/rpidatv/scripts
+RETURN_CODE=1
+MOUNT_POINT=/mnt
+
+# Check USB drive detected
+
+sudo bash -c ' fdisk -l | grep -q /dev/sdb1'
+RETURN_CODE=$?
+
+if [ $RETURN_CODE != 0 ]; then
+  echo USB Drive not found
+  exit
+fi
+
+sudo mount /dev/sdb1 /mnt
 
 # Remove any old settings
 
-sudo rm -rf /media/usb/portsdown_settings
-sudo mkdir /media/usb/portsdown_settings
+sudo rm -rf "$MOUNT_POINT"/portsdown_settings
+sudo mkdir "$MOUNT_POINT"/portsdown_settings
 
 # portsdown_config.txt
-sudo cp -f $PATHSCRIPT"/portsdown_config.txt" /media/usb/portsdown_settings/portsdown_config.txt
+sudo cp -f $PATHSCRIPT"/portsdown_config.txt" "$MOUNT_POINT"/portsdown_settings/portsdown_config.txt
 
 # portsdown_presets.txt
-sudo cp -f $PATHSCRIPT"/portsdown_presets.txt" /media/usb/portsdown_settings/portsdown_presets.txt
+sudo cp -f $PATHSCRIPT"/portsdown_presets.txt" "$MOUNT_POINT"/portsdown_settings/portsdown_presets.txt
 
 # siggencal.txt
-sudo cp -f /home/pi/rpidatv/src/siggen/siggencal.txt /media/usb/portsdown_settings/siggencal.txt
+sudo cp -f /home/pi/rpidatv/src/siggen/siggencal.txt "$MOUNT_POINT"/portsdown_settings/siggencal.txt
 
 # siggenconfig.txt
-sudo cp -f /home/pi/rpidatv/src/siggen/siggenconfig.txt /media/usb/portsdown_settings/siggenconfig.txt
+sudo cp -f /home/pi/rpidatv/src/siggen/siggenconfig.txt "$MOUNT_POINT"/portsdown_settings/siggenconfig.txt
 
 # rtl-fm_presets.txt
-sudo cp -f $PATHSCRIPT"/rtl-fm_presets.txt" /media/usb/portsdown_settings/rtl-fm_presets.txt
+sudo cp -f $PATHSCRIPT"/rtl-fm_presets.txt" "$MOUNT_POINT"/portsdown_settings/rtl-fm_presets.txt
 
 # portsdown_locators.txt
-sudo cp -f $PATHSCRIPT"/portsdown_locators.txt" /media/usb/portsdown_settings/portsdown_locators.txt
+sudo cp -f $PATHSCRIPT"/portsdown_locators.txt" "$MOUNT_POINT"/portsdown_settings/portsdown_locators.txt
 
 # rx_presets.txt
-sudo cp -f $PATHSCRIPT"/rx_presets.txt" /media/usb/portsdown_settings/rx_presets.txt
+sudo cp -f $PATHSCRIPT"/rx_presets.txt" "$MOUNT_POINT"/portsdown_settings/rx_presets.txt
 
 # Stream Presets
-sudo cp -f $PATHSCRIPT"/stream_presets.txt" /media/usb/portsdown_settings/stream_presets.txt
+sudo cp -f $PATHSCRIPT"/stream_presets.txt" "$MOUNT_POINT"/portsdown_settings/stream_presets.txt
 
 # Jetson Config
-sudo cp -f $PATHSCRIPT"/jetson_config.txt" /media/usb/portsdown_settings/jetson_config.txt
+sudo cp -f $PATHSCRIPT"/jetson_config.txt" "$MOUNT_POINT"/portsdown_settings/jetson_config.txt
 
 # 9 files
+
+sudo umount /dev/sdb1
