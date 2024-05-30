@@ -18022,6 +18022,8 @@ void waituntil(int w,int h)
   rawX = 0;
   rawY = 0;
   char ValueToSave[63];
+  char device_name[63];
+  char linux_cmd[127];
 
   // Start the main loop for the Touchscreen
   for (;;)
@@ -21410,17 +21412,29 @@ void waituntil(int w,int h)
           UpdateWindow();
           break;
         case 1:                               // Restore Settings from USB
+          if (USBDriveDevice() == 1)
+          {
+            strcpy(device_name, "/dev/sda1");
+          }
+          else
+          {
+            strcpy(device_name, "/dev/sdb1");
+          }
+          sprintf(linux_cmd, "sudo mount %s /mnt", device_name);
+
           // mount the USB drive to check drive and files exist first
-          system("sudo mount /dev/sdb1 /mnt");
+          system(linux_cmd);
           if (file_exist("/mnt/portsdown_settings/portsdown_config.txt") == 1) // no file found
           {
             MsgBox4("Portsdown configuration files", "not found on USB drive.", "Please check the USB drive and", "try reconnecting it");
+            sprintf(linux_cmd, "sudo umount %s", device_name);
             system("sudo umount /dev/sdb1");
             wait_touch();
           }
           else  // file exists
           {
-            system("sudo umount /dev/sdb1");  // unmount because script remounts
+            sprintf(linux_cmd, "sudo umount %s", device_name);
+            system("sudo umount /dev/sdb1");
             CallingMenu = 431;
             CurrentMenu = 38;
             MsgBox4("Are you sure that you want to", "overwrite all the current settings", "with the settings from USB?", " ");
