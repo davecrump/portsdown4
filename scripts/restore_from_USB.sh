@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Version 202405290
+# Version 202405291
 
 # set -x
 
@@ -15,12 +15,44 @@ MOUNT_POINT=/mnt
 sudo bash -c ' fdisk -l | grep -q /dev/sdb1'
 RETURN_CODE=$?
 
-if [ $RETURN_CODE != 0 ]; then
-  echo USB Drive not found
-  exit
+if [ $RETURN_CODE == 0 ]; then                       # Second drive present
+  echo Drive USB or Pluto found at sdb1
+  sudo bash -c ' fdisk -l | grep -q File-Stor'
+  RETURN_CODE=$?
+  if [ $RETURN_CODE == 0 ]; then                     # Pluto detected
+    sudo bash -c ' fdisk -l | grep -q "/dev/sdb: 50 MiB"'
+    RETURN_CODE=$?
+    if [ $RETURN_CODE == 0 ]; then                   # Pluto on sdb1
+      echo Pluto at sdb1, USB drive at sda1
+      DEVICE=/dev/sda1
+      sudo mount /dev/sda1 /mnt                      # So mount on sda1
+    else                                               # Pluto on sda1
+      echo Pluto at sda1, USB drive at sdb1
+      DEVICE=/dev/sdb1
+      sudo mount /dev/sdb1 /mnt                        # USB drive at sdb1, so mount it
+    fi
+  fi
+else                                                 # Only Pluto, Single drive or no drive
+  sudo bash -c ' fdisk -l | grep -q File-Stor'
+  RETURN_CODE=$?
+  if [ $RETURN_CODE == 0 ]; then                     # This is a Pluto, not a USB Drive
+    echo USB Drive not found, but Pluto connected
+    exit                                             # So do not write to it
+  else
+    sudo bash -c ' fdisk -l | grep -q /dev/sda1'
+    RETURN_CODE=$?
+    if [ $RETURN_CODE == 0 ]; then                   # USB drive at sda1, so mount it
+      echo USB Drive found at sda1
+      DEVICE=/dev/sda1
+      sudo mount /dev/sda1 /mnt
+    else
+      echo USB Drive not found
+      exit                                           # No USB drive, so exit
+    fi
+  fi
 fi
 
-sudo mount /dev/sdb1 /mnt
+echo Reading from $DEVICE
 
 if [ ! -d "$MOUNT_POINT"/portsdown_settings/ ]; then
   echo "$DIRECTORY does not exist."
@@ -62,5 +94,5 @@ cp -f "$MOUNT_POINT"/portsdown_settings/stream_presets.txt $PATHSCRIPT"/stream_p
 cp -f $PATHSCRIPT"/jetson_config.txt" $PATHSCRIPT"/jetson_config.txt.bak"
 cp -f "$MOUNT_POINT"/portsdown_settings/jetson_config.txt $PATHSCRIPT"/jetson_config.txt"
 
-sudo umount /dev/sdb1
+sudo umount $DEVICE
 
