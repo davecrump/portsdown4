@@ -512,6 +512,7 @@ void *WaitButtonIQPlay(void * arg);
 void IQFileOperation(int button);
 void ListUSBDevices();
 int USBmounted();
+int USBDriveDevice();
 void ListNetDevices();
 void ListNetPis();
 void DisplayLogo();
@@ -519,7 +520,6 @@ void TransformTouchMap(int x, int y);
 int IsMenuButtonPushed(int x,int y);
 int IsImageToBeChanged(int x,int y);
 int InitialiseButtons();
-//int AddButton(int x,int y,int w,int h);
 int ButtonNumber(int MenuIndex, int Button);
 int CreateButton(int MenuIndex, int ButtonPosition);
 int AddButtonStatus(int ButtonIndex,char *Text,color_t *Color);
@@ -6366,13 +6366,36 @@ void FileOperation(int NoButton)
 
       break;
     case 13:                                                                                // Mount/unmount USB
+      // Check drive device name
+      
       if (USBmounted() == 0) // mounted, so unmount
       {
-        system("sudo umount /dev/sdb1");
+        if (USBDriveDevice() == 1)
+        {
+          system("sudo umount /dev/sda1");
+        }
+        else
+        {
+          system("sudo umount /dev/sdb1");
+        }
       }
       else                  // not mounted, so mount and display file explorer
       {
-        system("sudo mount /dev/sdb1 /mnt");
+        if (USBDriveDevice() == 1)
+        {
+          system("sudo mount /dev/sda1 /mnt");
+        }
+        else if (USBDriveDevice() == 2)
+        {
+          system("sudo mount /dev/sdb1 /mnt");
+        }
+        else
+        {
+          MsgBox4("Failed to mount USB Drive", "Check Connections", "", "Touch screen to continue");
+          wait_touch();
+          return;
+        }
+
         if (USBmounted() == 0)
         {
           strcpy(CurrentPathSelection, "/mnt/");
@@ -6426,6 +6449,45 @@ int USBmounted()
   }
   pclose(fp);
   return 0;
+}
+
+
+/***************************************************************************//**
+ * @brief Checks the device name for a USB drive
+ *
+ * @param nil
+ *
+ * @return 0 if none, 1 if sda1, 2 if sdb1
+*******************************************************************************/
+
+int USBDriveDevice()
+{
+  FILE *fp;
+  char response_line[255];
+  int return_value = 0;
+
+  // Check the mountpoint
+
+  fp = popen("/home/pi/rpidatv/scripts/check_usb_storage.sh", "r");
+  if (fp == NULL)
+  {
+    printf("Failed to run command\n" );
+    exit(1);
+  }
+
+  // Response is 0, 1 or 2
+
+  /* Read the output a line at a time - output it. */
+  while (fgets(response_line, 250, fp) != NULL)
+  {
+    if (strlen(response_line) >= 1)
+    {
+      return_value = atoi(response_line);
+    }
+  }
+  pclose(fp);
+  //printf("Driver return value = %d\n", return_value);
+  return return_value;
 }
 
 
@@ -6839,17 +6901,6 @@ int InitialiseButtons()
   return 1;
 }
 
-//int AddButton(int x,int y,int w,int h)
-//{
-//  button_t *NewButton=&(ButtonArray[IndexButtonInArray]);
-//  NewButton->x=x;
-//  NewButton->y=y;
-//  NewButton->w=w;
-//  NewButton->h=h;
-//  NewButton->NoStatus=0;
-//  NewButton->IndexStatus=0;
-//  return IndexButtonInArray++;
-//}
 
 int ButtonNumber(int MenuIndex, int Button)
 {
