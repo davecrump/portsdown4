@@ -23,7 +23,7 @@ int initScreen(void);
 void HorizLine(int xpos, int ypos, int xsize, int r, int g, int b);
 void VertLine(int xpos, int ypos, int ysize, int r, int g, int b);
 screen_pixel_t waterfall_map(uint8_t value);
-
+void MarkerGrn(int markerx, int x, int y);
 
 #endif /* __GRAPHICS_H__ */
 
