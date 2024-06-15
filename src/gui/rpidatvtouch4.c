@@ -16732,6 +16732,9 @@ void ManageContestCodes(int NoButton)
 
       TextMid2(wscreen / 2, hscreen - linenumber * linepitch, "Touch Screen to Continue", font_ptr);
 
+      draw_cursor_foreground(mouse_x, mouse_y);
+      UpdateWeb();
+
       printf("Contest number Screen called and waiting for touch\n");
       wait_touch();
       AwaitingContestNumberViewSeln = false;
