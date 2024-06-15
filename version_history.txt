@@ -1,3 +1,6 @@
+202406150
+Fix stored contest codes corruption
+
 202405300
 Fix "Save settings to USB"
 
