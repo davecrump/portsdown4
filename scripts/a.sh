@@ -1409,7 +1409,8 @@ fi
 
       # Create the numbers image in the tempfs folder
       convert -font "FreeSans" -size "${CNGEOMETRY}" xc:white \
-        -gravity North -pointsize 125 -annotate 0,0,0,20 "$CALL" \
+        -gravity NorthWest -pointsize 125 -annotate 0,0,20,20 "$CALL" \
+        -gravity NorthEast -pointsize 30 -annotate 0,0,20,35 "$NUMBERS" \
         -gravity Center -pointsize 225 -annotate 0,0,0,20 "$NUMBERS" \
         -gravity South -pointsize 75 -annotate 0,0,0,20 "$LOCATOR   ""$BAND_LABEL" \
         /home/pi/tmp/contest.jpg
@@ -1485,7 +1486,8 @@ fi
 
       # Create the numbers image in the tempfs folder
       convert -font "FreeSans" -size "${CNGEOMETRY}" xc:white \
-        -gravity North -pointsize 125 -annotate 0,0,0,20 "$CALL" \
+        -gravity NorthWest -pointsize 125 -annotate 0,0,20,20 "$CALL" \
+        -gravity NorthEast -pointsize 30 -annotate 0,0,20,35 "$NUMBERS" \
         -gravity Center -pointsize 225 -annotate 0,0,0,20 "$NUMBERS" \
         -gravity South -pointsize 75 -annotate 0,0,0,20 "$LOCATOR   ""$BAND_LABEL" \
         /home/pi/tmp/contest.jpg
@@ -2021,7 +2023,8 @@ exit
 
       # Create the numbers image in the tempfs folder
       convert -font "FreeSans" -size "${CNGEOMETRY}" xc:white \
-        -gravity North -pointsize 125 -annotate 0,0,0,20 "$CALL" \
+        -gravity NorthWest -pointsize 125 -annotate 0,0,20,20 "$CALL" \
+        -gravity NorthEast -pointsize 30 -annotate 0,0,20,35 "$NUMBERS" \
         -gravity Center -pointsize 225 -annotate 0,0,0,20 "$NUMBERS" \
         -gravity South -pointsize 75 -annotate 0,0,0,20 "$LOCATOR   ""$BAND_LABEL" \
         /home/pi/tmp/contest.jpg
