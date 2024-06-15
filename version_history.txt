@@ -1,3 +1,6 @@
+202406151
+Amend contest card layout
+
 202406150
 Fix stored contest codes corruption
 
