@@ -224,6 +224,7 @@ void UpdateWindow();
 void wait_touch();
 void CalculateMarkers();
 void SetSpanWidth(int button);
+void CheckForGainChange(int rawX, int rawY);
 void SetPlutoGain(int button);
 void SetMode(int button);
 void SetFreqPreset(int button);
@@ -2192,6 +2193,81 @@ void SetSpanWidth(int button)
 }
 
 
+void CheckForGainChange(int x, int y)
+{
+  char ValueToSave[63];
+
+  if (x > 100)                         // out of zone
+  {
+    return;
+  }
+  if ((y > 310) && (y < 360))          // Decrement gain
+  {
+    freeze = true;
+    while(! frozen)
+    {
+      usleep(10);                      // wait till the end of the scan
+    }
+    printf ("Decrement gain\n");
+    switch (plutogain)
+    {
+      case 100:
+        plutogain = 80;
+        break;
+      case 80:
+        plutogain = 60;
+        break;
+      case 60:
+        plutogain = 40;
+        break;
+      case 40:
+        plutogain = 20;
+        break;
+    }
+  }
+  else if ((y > 60) && (y < 110))      // Increment gain
+  {
+    freeze = true;
+    while(! frozen)
+    {
+      usleep(10);                      // wait till the end of the scan
+    }
+    printf ("Increment gain\n");
+    switch (plutogain)
+    {
+      case 60:
+        plutogain = 80;
+        break;
+      case 40:
+        plutogain = 60;
+        break;
+      case 20:
+        plutogain = 40;
+        break;
+    }
+  }
+  else                                 // Out of zone
+  {
+    return;
+  }
+
+  // Store the new gain
+  snprintf(ValueToSave, 63, "%d", plutogain);
+  SetConfigParam(PATH_CONFIG, "plutogain", ValueToSave);
+  printf("pluto gain set to %d \n", plutogain);
+
+  // Trigger the gain change
+  NewGain = true;
+
+  if (CurrentMenu == 8)               // Refresh gain buttons if in gain menu
+  {
+    Start_Highlights_Menu8();
+    UpdateWindow();
+  }
+  freeze = false;
+}
+
+
 void SetPlutoGain(int button)
 {  
   char ValueToSave[63];
@@ -2856,6 +2932,9 @@ void *WaitButtonEvent(void * arg)
     }
 
     printf("x=%d y=%d\n", rawX, rawY);
+
+    CheckForGainChange(rawX, rawY);
+
     FinishedButton = 1;
     i = IsMenuButtonPushed(rawX, rawY);
     if (i == -1)
@@ -4934,6 +5013,12 @@ void DrawYaxisLabels()
       HorizLine(610, 471 + (5 * WaterfallBase) / 4 + (WaterfallRange * 5) /4, 5, 0, 0, 0);  // Black bar at top of gradient line
     }
   }
+
+  // Draw the gain increment and decrement buttons
+  setForeColour(255, 255, 255);				   // White text
+  setBackColour(0, 0, 0);                      // on black
+  TextMid2(10, 391, "+", &font_dejavu_sans_20);
+  TextMid2(10, 141, "-", &font_dejavu_sans_20);
 }
 
 
