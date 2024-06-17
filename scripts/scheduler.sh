@@ -136,9 +136,10 @@ ChooseBandViewerSDR()
 # 192  Reboot from GUI
 # 193  Rotate 7 inch and reboot
 # 197  Start Ryde RX
-# 198  Boot to Portsdown RX
+# 198  Boot to Portsdown RX Receive
 # 199  Boot to Portsdown TX
 # 207  Exit from any app requesting restart of main rpidatvgui on Menu 7 (test equipment)
+# 208  Exit from any app requesting start of main rpidatvgui on Menu 8 (Receive)
 
 MODE_STARTUP=$(get_config_var startup $PCONFIGFILE)
 
@@ -203,7 +204,8 @@ case "$MODE_STARTUP" in
   ;;
 esac
 
-while [ "$GUI_RETURN_CODE" -gt 127 ] || [ "$GUI_RETURN_CODE" -eq 0 ];  do
+# while [ "$GUI_RETURN_CODE" -gt 127 ] || [ "$GUI_RETURN_CODE" -eq 0 ];  do
+while true; do
   case "$GUI_RETURN_CODE" in
     0)
       /home/pi/rpidatv/bin/rpidatvgui > /tmp/PortsdownGUI.log 2>&1
@@ -484,6 +486,11 @@ while [ "$GUI_RETURN_CODE" -gt 127 ] || [ "$GUI_RETURN_CODE" -eq 0 ];  do
     ;;
     207)
       /home/pi/rpidatv/bin/rpidatvgui -b 7
+      GUI_RETURN_CODE="$?"
+      sudo killall vlc >/dev/null 2>/dev/null
+    ;;
+    208)
+      /home/pi/rpidatv/bin/rpidatvgui -b 8
       GUI_RETURN_CODE="$?"
       sudo killall vlc >/dev/null 2>/dev/null
     ;;

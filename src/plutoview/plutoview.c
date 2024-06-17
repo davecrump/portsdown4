@@ -2924,7 +2924,7 @@ void *WaitButtonEvent(void * arg)
             setBackColour(0, 0, 0);
             clearScreen();
             UpdateWeb();
-            usleep(1000000);
+            usleep(200000);
             closeScreen();
             cleanexit(129);
           }
@@ -2935,18 +2935,32 @@ void *WaitButtonEvent(void * arg)
             UpdateWindow();
           }
           break;
-        case 9:
-          if (freeze)
+        case 9:                                            // Freeze or Exit to Portsdown RX
+          if(PortsdownExitRequested)
           {
-            SetButtonStatus(ButtonNumber(CurrentMenu, 8), 0);
-            freeze = false;
+            freeze = true;
+            usleep(100000);
+            setBackColour(0, 0, 0);
+            clearScreen();
+            UpdateWeb();
+            usleep(200000);
+            closeScreen();
+            cleanexit(208);
           }
           else
           {
-            SetButtonStatus(ButtonNumber(CurrentMenu, 8), 1);
-            freeze = true;
+            if (freeze)
+            {
+              SetButtonStatus(ButtonNumber(CurrentMenu, 8), 0);
+              freeze = false;
+            }
+            else
+            {
+              SetButtonStatus(ButtonNumber(CurrentMenu, 8), 1);
+              freeze = true;
+            }
+            UpdateWindow();
           }
-          UpdateWindow();
           break;
         default:
           printf("Menu 1 Error\n");
@@ -3769,6 +3783,7 @@ void Define_Menu1()                                  // Main Menu
   button = CreateButton(1, 9);
   AddButtonStatus(button, "Freeze", &Blue);
   AddButtonStatus(button, "Unfreeze", &Green);
+  AddButtonStatus(button, "Portsdown^Receive", &Blue);
 }
 
 
@@ -3777,10 +3792,19 @@ void Start_Highlights_Menu1()
   if (PortsdownExitRequested)
   {
     SetButtonStatus(ButtonNumber(1, 8), 1);
+    SetButtonStatus(ButtonNumber(1, 9), 2);
   }
   else
   {
     SetButtonStatus(ButtonNumber(1, 8), 0);
+    if (freeze == false)
+    {
+      SetButtonStatus(ButtonNumber(1, 9), 0);
+    }
+    else
+    {
+      SetButtonStatus(ButtonNumber(1, 9), 1);
+    }
   }
 }
 
