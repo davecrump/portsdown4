@@ -973,7 +973,7 @@ if ! grep -q premixlolow= /home/pi/rpidatv/src/plutoview/plutoview_bands.txt; th
   echo "premixlohi=0.0" >> /home/pi/rpidatv/src/plutoview/plutoview_bands.txt
 fi
 
-# Add time overal setting to config file if not included  202406160
+# Add time overlay setting to config file if not included  202406160
 if ! grep -q timeoverlay= "$PATHSCRIPT"/portsdown_config.txt; then
   # File needs updating
   # Delete any blank lines first

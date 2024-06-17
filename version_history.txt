@@ -1,3 +1,6 @@
+202406171
+Refresh beacon/site names in menu after change
+
 202406170
 Add Portsdown Receive Button to Lime and Pluto BandViewer
 Reduce possibility of crash to blank screen
