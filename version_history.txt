@@ -1,3 +1,6 @@
+202406172
+Add front panel gain controls to Pluto BandViewer
+
 202406171
 Refresh beacon/site names in menu after change
 
