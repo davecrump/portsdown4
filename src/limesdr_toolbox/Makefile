@@ -7,5 +7,5 @@ all:
 	gcc -o limesdr_forward limesdr_forward.c limesdr_util.c $(FLAGS)
 
 dvb:
-	g++ -o limesdr_dvb limesdr_dvb.cpp limesdr_util.c $(FLAGS) -lm -lrt -lfftw3 -lpthread ./libdvbmod/libdvbmod/lib/libdvbmod.a 
+	g++ -o limesdr_dvb limesdr_dvb.cpp limesdr_util.c $(FLAGS) -lm -lrt -lfftw3 -lpthread -lwiringPi ./libdvbmod/libdvbmod/lib/libdvbmod.a 
 
