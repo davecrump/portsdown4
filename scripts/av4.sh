@@ -78,12 +78,13 @@ fi
 #####################################################################
 
 
-############ IF NO CAMLINK, CHECK FOR ATEM DEVICE STRING ###################################
+############ IF NO CAMLINK, CHECK FOR ATEM V9 DEVICE STRING ###################################
 
 if [ "$VID_USB" == '' ]; then
 
   # List the video devices, select the 2 lines for the ATEM device, then
   # select the line with the device details and delete the leading tab
+  # Blackmagic Design: Blackmagic D (usb-0000:01:00.0-1.3):
 
   VID_USB="$(v4l2-ctl --list-devices 2> /dev/null | \
     sed -n '/Blackmagic/,/dev/p' | grep 'dev' | tr -d '\t')"
@@ -100,7 +101,33 @@ if [ "$VID_USB" == '' ]; then
     printf "ATEM audio device was not found, setting to 1\n"
     AUDIO_IN_CARD="1"
   fi
-  echo "The ATEM Audio Card number is "$AUDIO_IN_CARD":0"
+  echo "The ATEM V9 Audio Card number is "$AUDIO_IN_CARD":0"
+
+fi
+############ IF NO CAMLINK or ATEM V9, CHECK FOR ATEM V9.5 DEVICE STRING ####
+
+if [ "$VID_USB" == '' ]; then
+
+  # List the video devices, select the 2 lines for the ATEM device, then
+  # select the line with the device details and delete the leading tab
+  # ATEM Mini Extreme ISO: Blackmag (usb-0000:01:00.0-1.1):
+
+  VID_USB="$(v4l2-ctl --list-devices 2> /dev/null | \
+    sed -n '/ATEM/,/dev/p' | grep 'dev' | tr -d '\t')"
+
+  ############ IDENTIFY ATEM AUDIO CARD NUMBER #############################
+
+  # List the audio capture devices, select the line for the Cam Link 4K device:
+  # card 1: ISO [ATEM Mini Extreme ISO], device 0: USB Audio [USB Audio]
+  # then take the 6th character
+
+  AUDIO_IN_CARD="$(arecord -l 2> /dev/null | grep 'ATEM' | cut -c6-6)"
+
+  if [ "$AUDIO_IN_CARD" == '' ]; then
+    printf "ATEM audio device was not found, setting to 1\n"
+    AUDIO_IN_CARD="1"
+  fi
+  echo "The ATEM V9.5 Audio Card number is "$AUDIO_IN_CARD":0"
 
 fi
 #####################################################################

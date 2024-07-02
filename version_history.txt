@@ -1,3 +1,6 @@
+202407020
+Update to allow for ATEM 0.9 or 0.95 versions
+
 202406190
 Operate Lime PTT immediately when transmission starts, rather than waiting for preset delay
 
