@@ -116,8 +116,12 @@ EOM
         lsusb | grep -q "Blackmagic"
         if [ \$? == 0 ]; then                            # It's an ATEM but could be V9.0 or V9.5
           HDMI_SRC="ATEM"
-          v4l2-ctl --list-devices | grep -q "Blackmagic"
-          if [ \$? == 0 ]; then                          # V9.0   
+
+          # ATEM pre 9.5:  v4l2-ctl --list-devices returns: "Blackmagic ............"
+          # ATEM post 9.5: v4l2-ctl --list-devices returns: "ATEM .........:"
+
+          v4l2-ctl --list-devices | grep -q "^Blackmagic"
+          if [ \$? == 0 ]; then                          #################### V9.0   
 
             VID_DEVICE="\$(v4l2-ctl --list-devices 2> /dev/null | \
               sed -n '/Blackmagic/,/dev/p' | grep 'dev' | tr -d '\t')"
@@ -129,7 +133,7 @@ EOM
                 | head -c 6 | tail -c 1)"
               AUDIO_CHAN=2
             fi
-          else                                            # Try V9.5
+          else                                            ######################## Try V9.5
             VID_DEVICE="\$(v4l2-ctl --list-devices 2> /dev/null | \
               sed -n '/ATEM/,/dev/p' | grep 'dev' | tr -d '\t')"
 
