@@ -39,6 +39,8 @@ sudo killall meteorview        >/dev/null 2>/dev/null
 sudo killall nf_meter          >/dev/null 2>/dev/null
 sudo killall noise_meter       >/dev/null 2>/dev/null
 sudo killall plutoview         >/dev/null 2>/dev/null
+sudo killall pluto_nf_meter    >/dev/null 2>/dev/null
+sudo killall pluto_noise_meter >/dev/null 2>/dev/null
 sudo killall power_meter       >/dev/null 2>/dev/null
 sudo killall rtlsdrview        >/dev/null 2>/dev/null
 sudo killall sdrplayview       >/dev/null 2>/dev/null
