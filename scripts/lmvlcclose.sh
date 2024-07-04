@@ -4,7 +4,7 @@
 # Only works for a UDP stream otherwise longmynd's output fifo gets blocked
 
 # Display logo to indicate receive has stopped
-sudo fbi -T 1 -noverbose -a /home/pi/rpidatv/scripts/images/BATC_Black.png >/dev/null 2>/dev/null
+sudo fbi -T 1 -noverbose -a /home/pi/rpidatv/scripts/images/RX_Black.png >/dev/null 2>/dev/null
 (sleep 1; sudo killall -9 fbi >/dev/null 2>/dev/null) &  ## kill fbi once it has done its work
 
 # The -i 1 parameter to put a second between commands is required to ensure reset at low SRs
