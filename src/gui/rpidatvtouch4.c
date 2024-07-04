@@ -11021,19 +11021,39 @@ void SetDeviceLevel()
 void AdjustVLCVolume(int adjustment)
 {
   int VLCVolumePerCent;
+  static int premuteVLCVolume;
+  static bool muted;
   char VLCVolumeText[63];
   char VolumeMessageText[63];
   char VLCVolumeCommand[255];
 
-  CurrentVLCVolume = CurrentVLCVolume + adjustment;
-  if (CurrentVLCVolume < 0)
+  if (adjustment == -512) // toggle mute
   {
-    CurrentVLCVolume = 0;
+    if (muted  == true)
+    {
+      CurrentVLCVolume = premuteVLCVolume;
+      muted = false;
+    }
+    else
+    {
+      premuteVLCVolume = CurrentVLCVolume;
+      CurrentVLCVolume = 0;
+      muted = true;
+    }
   }
-  if (CurrentVLCVolume > 512)
+  else                    // normal up or down
   {
-    CurrentVLCVolume = 512;
+    CurrentVLCVolume = CurrentVLCVolume + adjustment;
+    if (CurrentVLCVolume < 0)
+    {
+      CurrentVLCVolume = 0;
+    }
+    if (CurrentVLCVolume > 512)
+    {
+      CurrentVLCVolume = 512;
+    }
   }
+
   snprintf(VLCVolumeText, 62, "%d", CurrentVLCVolume);
   SetConfigParam(PATH_PCONFIG, "vlcvolume", VLCVolumeText);
 
@@ -11907,12 +11927,17 @@ void *WaitButtonLMRX(void * arg)
         FinishedButton = 2; // graphics off
       }
     }
-    else if((scaledX >= 35 * wscreen / 40)  && (scaledY >= 6 * hscreen / 12))  // Top Right
+    else if((scaledX >= 35 * wscreen / 40) && (scaledY >= 7 * hscreen / 12))  // Top Right
     {
       //printf("Volume Up.\n");
       AdjustVLCVolume(51);
     }
-    else if((scaledX >= 35 * wscreen / 40)  && (scaledY < 6 * hscreen / 12))  // Top Right
+    else if((scaledX >= 35 * wscreen / 40) && (scaledY >= 5 * hscreen / 12) && (scaledY < 7 * hscreen / 12))  // mid Right
+    {
+      //printf("Volume Mute.\n");
+      AdjustVLCVolume(-512);
+    }
+    else if((scaledX >= 35 * wscreen / 40) && (scaledY < 5 * hscreen / 12))  // Bottom Right
     {
       //printf("Volume Down.\n");
       AdjustVLCVolume(-51);

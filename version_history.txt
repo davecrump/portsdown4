@@ -1,3 +1,6 @@
+202407040
+Check and wait for busy port in scheduler
+
 202407030
 Correct Update to allow for ATEM 0.9 or 0.95 versions
 
