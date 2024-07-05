@@ -1,3 +1,36 @@
+202407040
+Check and wait for busy port in scheduler
+
+202407030
+Correct Update to allow for ATEM 0.9 or 0.95 versions
+
+202407020
+Update to allow for ATEM 0.9 or 0.95 versions
+
+202406190
+Operate Lime PTT immediately when transmission starts, rather than waiting for preset delay
+
+202406173
+Add front panel gain controls to Lime BandViewer
+
+202406172
+Add front panel gain controls to Pluto BandViewer
+
+202406171
+Refresh beacon/site names in menu after change
+
+202406170
+Add Portsdown Receive Button to Lime and Pluto BandViewer
+Reduce possibility of crash to blank screen
+Add optional timestamp to Receive Params and snaps
+Add band to Receive Params
+
+202406151
+Amend contest card layout
+
+202406150
+Fix stored contest codes corruption
+
 202405300
 Fix "Save settings to USB"
 

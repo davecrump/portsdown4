@@ -280,6 +280,8 @@ bool VLCResetRequest = false; // Set on touchsscreen request for VLC to be reset
 int  CurrentVLCVolume = 256;  // Read from config file                   
 
 // LongMynd RX Received Parameters for display
+bool timeOverlay = false;    // Display time overlay on received metadata and snaps
+time_t t;                    // current time
 
 // Stream Display Parameters. [0] is current
 char StreamAddress[9][127];  // Full rtmp address of stream
@@ -4196,6 +4198,18 @@ void ReadLMRXPresets()
   else
   {
     strcpy(RXmod, "DVB-S");
+  }
+
+  // Time Overlay
+  strcpy(Value, "off");
+  GetConfigParam(PATH_PCONFIG, "timeoverlay", Value);
+  if (strcmp(Value, "off") == 0)
+  {
+    timeOverlay = false;
+  }
+  else
+  {
+    timeOverlay = true;
   }
 }
 
@@ -11007,19 +11021,39 @@ void SetDeviceLevel()
 void AdjustVLCVolume(int adjustment)
 {
   int VLCVolumePerCent;
+  static int premuteVLCVolume;
+  static bool muted;
   char VLCVolumeText[63];
   char VolumeMessageText[63];
   char VLCVolumeCommand[255];
 
-  CurrentVLCVolume = CurrentVLCVolume + adjustment;
-  if (CurrentVLCVolume < 0)
+  if (adjustment == -512) // toggle mute
   {
-    CurrentVLCVolume = 0;
+    if (muted  == true)
+    {
+      CurrentVLCVolume = premuteVLCVolume;
+      muted = false;
+    }
+    else
+    {
+      premuteVLCVolume = CurrentVLCVolume;
+      CurrentVLCVolume = 0;
+      muted = true;
+    }
   }
-  if (CurrentVLCVolume > 512)
+  else                    // normal up or down
   {
-    CurrentVLCVolume = 512;
+    CurrentVLCVolume = CurrentVLCVolume + adjustment;
+    if (CurrentVLCVolume < 0)
+    {
+      CurrentVLCVolume = 0;
+    }
+    if (CurrentVLCVolume > 512)
+    {
+      CurrentVLCVolume = 512;
+    }
   }
+
   snprintf(VLCVolumeText, 62, "%d", CurrentVLCVolume);
   SetConfigParam(PATH_PCONFIG, "vlcvolume", VLCVolumeText);
 
@@ -11893,12 +11927,17 @@ void *WaitButtonLMRX(void * arg)
         FinishedButton = 2; // graphics off
       }
     }
-    else if((scaledX >= 35 * wscreen / 40)  && (scaledY >= 6 * hscreen / 12))  // Top Right
+    else if((scaledX >= 35 * wscreen / 40) && (scaledY >= 7 * hscreen / 12))  // Top Right
     {
       //printf("Volume Up.\n");
       AdjustVLCVolume(51);
     }
-    else if((scaledX >= 35 * wscreen / 40)  && (scaledY < 6 * hscreen / 12))  // Top Right
+    else if((scaledX >= 35 * wscreen / 40) && (scaledY >= 5 * hscreen / 12) && (scaledY < 7 * hscreen / 12))  // mid Right
+    {
+      //printf("Volume Mute.\n");
+      AdjustVLCVolume(-512);
+    }
+    else if((scaledX >= 35 * wscreen / 40) && (scaledY < 5 * hscreen / 12))  // Bottom Right
     {
       //printf("Volume Down.\n");
       AdjustVLCVolume(-51);
@@ -12564,6 +12603,7 @@ void LMRX(int NoButton)
   bool webupdate_this_time = true;   // Only update web on alternate MER changes
   char LastServiceProvidertext[255] = " ";
   bool FirstReceive = true;
+  char TIMEtext[63];
 
   // DVB-T parameters
 
@@ -12757,6 +12797,11 @@ void LMRX(int NoButton)
             }
             FREQ = FREQ / 1000;
             snprintf(FREQtext, 15, "%.3f MHz", FREQ);
+            if ((TabBandLO[CurrentBand] < -0.5) || (TabBandLO[CurrentBand] > 0.5))      // band not direct
+            {
+              strcat(FREQtext, " ");
+              strcat(FREQtext, TabBandLabel[CurrentBand]);                             // so add band label
+            }
           }
 
           if ((stat_string[0] == '9') && (stat_string[1] == ','))  // SR in S
@@ -12925,8 +12970,19 @@ void LMRX(int NoButton)
                 strcat(vlctext, MERtext);
                 strcat(vlctext, "%n");
                 strcat(vlctext, AGCtext);
-
-                strcat(vlctext, "%n.%nTouch Left to Hide Overlay%nTouch Centre to Exit");
+                strcat(vlctext, "%n");
+                if (timeOverlay == true)
+                {
+                  // Retrieve the current time
+                  t = time(NULL);
+                  strftime(TIMEtext, sizeof(TIMEtext), "%H:%M %d %b %Y", gmtime(&t));
+                  strcat(vlctext, TIMEtext);
+                }
+                else
+                {
+                  strcat(vlctext, ".");
+                }
+                strcat(vlctext, "%nTouch Left to Hide Overlay%nTouch Centre to Exit");
 
                 FILE *fw=fopen("/home/pi/tmp/vlc_temp_overlay.txt","w+");
                 if(fw!=0)
@@ -15335,6 +15391,7 @@ void do_snapcheck()
       {
         Snap = SnapNumber - 1;
       }
+      printf("Displaying snap %d\n", Snap);
     }
   }
 
@@ -16731,6 +16788,9 @@ void ManageContestCodes(int NoButton)
       linenumber = linenumber + 1;
 
       TextMid2(wscreen / 2, hscreen - linenumber * linepitch, "Touch Screen to Continue", font_ptr);
+
+      draw_cursor_foreground(mouse_x, mouse_y);
+      UpdateWeb();
 
       printf("Contest number Screen called and waiting for touch\n");
       wait_touch();
@@ -21503,7 +21563,19 @@ void waituntil(int w,int h)
           MsgBox4("Are you sure that you want to overwrite", "any stored settings on the boot drive", "with the current settings?", " ");
           UpdateWindow();
           break;
-        case 8:
+        case 8:                               // Time overlay on/off
+          if (timeOverlay == false)
+          {
+            timeOverlay = true;
+            SetConfigParam(PATH_PCONFIG, "timeoverlay", "on");
+          }
+          else
+          {
+            timeOverlay = false;
+            SetConfigParam(PATH_PCONFIG, "timeoverlay", "off");
+          }
+          Start_Highlights_Menu43();
+          UpdateWindow();
           break;
         case 9:                               // Toggle enable of hardware shutdown button
           if (file_exist ("/home/pi/.pi-sdn") == 0)  // If enabled
@@ -25949,7 +26021,7 @@ void Define_Menu31()
   {
     sprintf(Param, "bcallsign%d", i);
     GetConfigParam(PATH_LOCATORS, Param, DispName[i]);
-    DispName[i][8] = '\0';
+    DispName[i][10] = '\0';
     j = i + 5;
     if (i > 4)
     {
@@ -25960,10 +26032,28 @@ void Define_Menu31()
   }
 }
 
+
 void Start_Highlights_Menu31()
 {
-  //
+  int i;
+  int j;
+  char Param[15];
+  char DispName[10][20];
+
+  for(i = 0; i < 10 ;i++)
+  {
+    sprintf(Param, "bcallsign%d", i);
+    GetConfigParam(PATH_LOCATORS, Param, DispName[i]);
+    DispName[i][10] = '\0';
+    j = i + 5;
+    if (i > 4)
+    {
+      j = i - 5;
+    }
+    AmendButtonStatus(ButtonNumber(31, j), 0, DispName[i], &Blue);
+  }
 }
+
 
 void Define_Menu32()
 {
@@ -26854,10 +26944,9 @@ void Define_Menu43()
   AddButtonStatus(button, "Back-up^to /boot", &Blue);
   AddButtonStatus(button, "Back-up^to /boot", &Green);
 
-  //button = CreateButton(43, 8);
-  //AddButtonStatus(button, "7 inch vid^Disabled", &Grey);
-  //AddButtonStatus(button, "7 inch vid^Enabled", &Blue);
-  //AddButtonStatus(button, "7 inch vid^Disabled", &Blue);
+  button = CreateButton(43, 8);
+  AddButtonStatus(button, "Time^Overlay OFF", &Blue);
+  AddButtonStatus(button, "Time^Overlay ON", &Blue);
 
   button = CreateButton(43, 9);
   AddButtonStatus(button, "SD Button^Enabled", &Blue);
@@ -26889,6 +26978,15 @@ void Define_Menu43()
 
 void Start_Highlights_Menu43()
 {
+  if (timeOverlay == false)
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 8), 0);
+  }
+  else
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 8), 1);
+  }
+
   if (file_exist ("/home/pi/.pi-sdn") == 0)  // Hardware Shutdown Enabled
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 9), 0);
@@ -27944,11 +28042,18 @@ int main(int argc, char **argv)
   web_x_ptr = &web_x;
   web_y_ptr = &web_y;
 
-  if (startupmenu == 1)
+  if (startupmenu == 1)                    // Main Menu
   {
     setBackColour(255, 255, 255);          // White background
     clearScreen();
     Start_Highlights_Menu1();
+  }
+  else if (startupmenu == 8)               // Receive Menu      
+  {
+    setBackColour(0, 0, 0); 
+    clearScreen();
+    CurrentMenu = startupmenu;
+    Start_Highlights_Menu8();
   }
   else
   {

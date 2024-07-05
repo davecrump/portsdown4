@@ -114,18 +114,36 @@ EOM
         fi
       else
         lsusb | grep -q "Blackmagic"
-        if [ \$? == 0 ]; then
+        if [ \$? == 0 ]; then                            # It's an ATEM but could be V9.0 or V9.5
           HDMI_SRC="ATEM"
 
-          VID_DEVICE="\$(v4l2-ctl --list-devices 2> /dev/null | \
-            sed -n '/Blackmagic/,/dev/p' | grep 'dev' | tr -d '\t')"
+          # ATEM pre 9.5:  v4l2-ctl --list-devices returns: "Blackmagic ............"
+          # ATEM post 9.5: v4l2-ctl --list-devices returns: "ATEM .........:"
 
-          if [ "\$AUDIO_PREF" == "auto" ]; then
-            # Look for the dedicated USB Audio Device, select the line and take
-            # the 6th character.  Max card number = 8 !!
-            AUDIO_CARD="\$(arecord -l | grep -E "Blackmagic" \
-              | head -c 6 | tail -c 1)"
-            AUDIO_CHAN=2
+          v4l2-ctl --list-devices | grep -q "^Blackmagic"
+          if [ \$? == 0 ]; then                          #################### V9.0   
+
+            VID_DEVICE="\$(v4l2-ctl --list-devices 2> /dev/null | \
+              sed -n '/Blackmagic/,/dev/p' | grep 'dev' | tr -d '\t')"
+
+            if [ "\$AUDIO_PREF" == "auto" ]; then
+              # Look for the dedicated USB Audio Device, select the line and take
+              # the 6th character.  Max card number = 8 !!
+              AUDIO_CARD="\$(arecord -l | grep -E "Blackmagic" \
+                | head -c 6 | tail -c 1)"
+              AUDIO_CHAN=2
+            fi
+          else                                            ######################## Try V9.5
+            VID_DEVICE="\$(v4l2-ctl --list-devices 2> /dev/null | \
+              sed -n '/ATEM/,/dev/p' | grep 'dev' | tr -d '\t')"
+
+            if [ "\$AUDIO_PREF" == "auto" ]; then
+              # Look for the dedicated USB Audio Device, select the line and take
+              # the 6th character.  Max card number = 8 !!
+              AUDIO_CARD="\$(arecord -l | grep -E "ATEM" \
+                | head -c 6 | tail -c 1)"
+              AUDIO_CHAN=2
+            fi
           fi
         else
           HDMI_SRC="LKV"

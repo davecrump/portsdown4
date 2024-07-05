@@ -46,6 +46,8 @@
 htonl() */
 #include <arpa/inet.h>  /* inet_addr() */
 #include <netdb.h>
+#include <wiringPi.h>
+
 #else
 
 /* Windows-specific includes */
@@ -399,7 +401,16 @@ int main(int argc, char **argv)
 	bool WithCalibration = false;
 	bool FPGAMapping = false;
         uint8_t gpio_band = 0;
-	bool LimeSDR_USB = false;        
+	bool LimeSDR_USB = false;
+
+  int GPIO_PTT = 29;
+
+  // Set up wiringPi module
+  if (wiringPiSetup() < 0)
+  {
+    return 0;
+  }
+    
 
 	while (1)
 	{
@@ -592,7 +603,10 @@ int main(int argc, char **argv)
 	else
 		fprintf(stderr, "Using file mode\n");
 
-	// Init LimeSDR
+  pinMode(GPIO_PTT, OUTPUT);
+  digitalWrite(GPIO_PTT, LOW);
+
+  // Init LimeSDR
 
   // Determine correct Antenna first
   char const *antenna = "BAND1";  // correct for < 2 GHz LimeSDR USB, or > 2 GHz LimeSDR Mini or LMN
@@ -750,6 +764,8 @@ int main(int argc, char **argv)
    	LMS_WriteFPGAReg(device, 0xCC, 0x01);  // Enable manual fan control
         LMS_WriteFPGAReg(device, 0xCD, 0x01);  // Turn fan on
 
+  digitalWrite(GPIO_PTT, HIGH);  // Set Raspberry Pi PTT
+
 	while (!want_quit)
 	{
 
@@ -777,6 +793,7 @@ int main(int argc, char **argv)
 	// Set PTT off
 	gpio_band = gpio_band - 128;
 	LMS_GPIOWrite(device, &gpio_band, 1);
+  digitalWrite(GPIO_PTT, LOW);  // Set Raspberry Pi PTT
 
 	// Set  Fan auto
    	LMS_WriteFPGAReg(device, 0xCC, 0x00);  // Enable auto fan control

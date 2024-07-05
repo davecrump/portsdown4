@@ -212,6 +212,7 @@ void UpdateWindow();
 void wait_touch();
 void CalculateMarkers();
 void SetSpanWidth(int button);
+void CheckForGainChange(int rawX, int rawY);
 void SetLimeGain(int button);
 void SetMode(int button);
 void SetFreqPreset(int button);
@@ -2146,6 +2147,85 @@ void SetSpanWidth(int button)
 }
 
 
+void CheckForGainChange(int x, int y)
+{
+  char ValueToSave[63];
+
+  if (x > 100)                         // out of zone
+  {
+    return;
+  }
+  if ((y > 310) && (y < 360))          // Decrement gain
+  {
+    freeze = true;
+    while(! frozen)
+    {
+      usleep(10);                      // wait till the end of the scan
+    }
+    printf ("Decrement gain\n");
+    switch (limegain)
+    {
+      case 100:
+        limegain = 90;
+        break;
+      case 90:
+        limegain = 70;
+        break;
+      case 70:
+        limegain = 50;
+        break;
+      case 50:
+        limegain = 30;
+        break;
+    }
+  }
+  else if ((y > 60) && (y < 110))      // Increment gain
+  {
+    freeze = true;
+    while(! frozen)
+    {
+      usleep(10);                      // wait till the end of the scan
+    }
+    printf ("Increment gain\n");
+    switch (limegain)
+    {
+      case 90:
+        limegain = 100;
+        break;
+      case 70:
+        limegain = 90;
+        break;
+      case 50:
+        limegain = 70;
+        break;
+      case 30:
+        limegain = 50;
+        break;
+    }
+  }
+  else                                 // Out of zone
+  {
+    return;
+  }
+
+  // Store the new gain
+  snprintf(ValueToSave, 63, "%d", limegain);
+  SetConfigParam(PATH_CONFIG, "limegain", ValueToSave);
+  printf("limegain set to %d \n", limegain);
+
+  // Trigger the gain change
+  gain = ((float)limegain) / 100.0;
+  NewGain = true;
+
+  if (CurrentMenu == 8)               // Refresh gain buttons if in gain menu
+  {
+    Start_Highlights_Menu8();
+    UpdateWindow();
+  }
+  freeze = false;
+}
+
+
 void SetLimeGain(int button)
 {  
   char ValueToSave[63];
@@ -2844,6 +2924,9 @@ void *WaitButtonEvent(void * arg)
     }
 
     printf("x=%d y=%d\n", rawX, rawY);
+
+    CheckForGainChange(rawX, rawY);
+
     FinishedButton = 1;
     i = IsMenuButtonPushed(rawX, rawY);
     if (i == -1)
@@ -2912,7 +2995,7 @@ void *WaitButtonEvent(void * arg)
             setBackColour(0, 0, 0);
             clearScreen();
             UpdateWeb();
-            usleep(1000000);
+            usleep(200000);
             closeScreen();
             cleanexit(129);
           }
@@ -2923,18 +3006,32 @@ void *WaitButtonEvent(void * arg)
             UpdateWindow();
           }
           break;
-        case 9:
-          if (freeze)
+        case 9:                                            // Freeze or Exit to Portsdown RX
+          if(PortsdownExitRequested)
           {
-            SetButtonStatus(ButtonNumber(CurrentMenu, 8), 0);
-            freeze = false;
+            freeze = true;
+            usleep(100000);
+            setBackColour(0, 0, 0);
+            clearScreen();
+            UpdateWeb();
+            usleep(200000);
+            closeScreen();
+            cleanexit(208);
           }
           else
           {
-            SetButtonStatus(ButtonNumber(CurrentMenu, 8), 1);
-            freeze = true;
+            if (freeze)
+            {
+              SetButtonStatus(ButtonNumber(CurrentMenu, 8), 0);
+              freeze = false;
+            }
+            else
+            {
+              SetButtonStatus(ButtonNumber(CurrentMenu, 8), 1);
+              freeze = true;
+            }
+            UpdateWindow();
           }
-          UpdateWindow();
           break;
         default:
           printf("Menu 1 Error\n");
@@ -3759,6 +3856,7 @@ void Define_Menu1()                                  // Main Menu
   button = CreateButton(1, 9);
   AddButtonStatus(button, "Freeze", &Blue);
   AddButtonStatus(button, "Unfreeze", &Green);
+  AddButtonStatus(button, "Portsdown^Receive", &Blue);
 }
 
 void Start_Highlights_Menu1()
@@ -3766,10 +3864,19 @@ void Start_Highlights_Menu1()
   if (PortsdownExitRequested)
   {
     SetButtonStatus(ButtonNumber(1, 8), 1);
+    SetButtonStatus(ButtonNumber(1, 9), 2);
   }
   else
   {
     SetButtonStatus(ButtonNumber(1, 8), 0);
+    if (freeze == false)
+    {
+      SetButtonStatus(ButtonNumber(1, 9), 0);
+    }
+    else
+    {
+      SetButtonStatus(ButtonNumber(1, 9), 1);
+    }
   }
 }
 
@@ -4924,6 +5031,11 @@ void DrawYaxisLabels()
       HorizLine(610, 471 + (5 * WaterfallBase) / 4 + (WaterfallRange * 5) /4, 5, 0, 0, 0);  // Black bar at top of gradient line
     }
   }
+  // Draw the gain increment and decrement buttons
+  setForeColour(255, 255, 255);				   // White text
+  setBackColour(0, 0, 0);                      // on black
+  TextMid2(10, 391, "+", &font_dejavu_sans_20);
+  TextMid2(10, 141, "-", &font_dejavu_sans_20);
 }
 
 void DrawSettings()
