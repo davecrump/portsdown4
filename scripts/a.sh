@@ -1385,8 +1385,8 @@ fi
 
       # Turn the viewfinder off
       v4l2-ctl --overlay=0
-      # Capture for web view
-      /home/pi/rpidatv/scripts/single_screen_grab_for_web.sh
+      # Capture for web view after a delay
+      (sleep 1; /home/pi/rpidatv/scripts/single_screen_grab_for_web.sh) &
 
       $PATHRPI"/ffmpeg" -loglevel $MODE_DEBUG -thread_queue_size 2048 \
         -re -loop 1 \
@@ -1536,8 +1536,8 @@ fi
       sudo modprobe -r bcm2835_v4l2
     fi
 
-    # Capture for web view
-    /home/pi/rpidatv/scripts/single_screen_grab_for_web.sh
+    # Capture for web view after a delay
+    (sleep 1; /home/pi/rpidatv/scripts/single_screen_grab_for_web.sh) &
 
     # Set up means to transport of stream out of unit
 
