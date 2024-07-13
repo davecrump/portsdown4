@@ -1,3 +1,6 @@
+202407130
+Display current system time on info screen
+
 202407050
 Display test card in web view
 

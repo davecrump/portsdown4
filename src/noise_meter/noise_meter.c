@@ -4427,9 +4427,19 @@ void DrawTrace(int xoffset, int prev2, int prev1, int current)
       }
       else
       {
-        if (((strcmp(mode, "differential") == 0) || (strcmp(mode, "carrier") == 0) || (strcmp(mode, "abscarrier") == 0)) && 
+        if (((strcmp(mode, "differential") == 0) || (strcmp(mode, "carrier") == 0)) && 
             (((xpos > 97 + refstartpixel ) && (xpos < 97 + refendpixel)) ||
-            ((xpos > 97 + sigstartpixel) && (xpos < 97 + sigendpixel)))) // Show measurement frquencies
+            ((xpos > 97 + sigstartpixel) && (xpos < 97 + sigendpixel)))) // Show measurement frequencies
+        {
+          setPixelNoAGra(xpos, ypospix);
+
+          if (((strcmp(mode, "carrier") == 0) || (strcmp(mode, "abscarrier") == 0)) && (xpos == peakLine + 98))  // Draw carrier marker line
+          {
+            setPixelNoA(xpos, ypospix, 0, 255, 0);
+          }
+        }
+        else if ((strcmp(mode, "abscarrier") == 0) &&
+                ((xpos > 97 + sigstartpixel) && (xpos < 97 + sigendpixel))) // Show measurement frequencies
         {
           setPixelNoAGra(xpos, ypospix);
 
