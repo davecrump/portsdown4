@@ -6885,10 +6885,10 @@ int IsImageToBeChanged(int x,int y)
 
   TransformTouchMap(x,y);       // Sorts out orientation and approx scaling of the touch map
 
-  if (scaledY >= hscreen/2)
-  {
-    return 0;
-  }
+  //if (scaledY >= hscreen/2)
+  //{
+  //  return 0;
+  //}
   if (scaledX <= wscreen/8)
   {
     return -1;
@@ -14586,24 +14586,18 @@ void InfoScreen()
   char result2[255] = " ";
   int fec = 0;
   char FECtext[127];
+  char TIMEtext[63];
 
   // Look up and format all the parameters to be displayed
 
-  char swversion[255] = "Software Version: ";
-  if (GetLinuxVer() == 8)
-  {
-    strcat(swversion, "Jessie ");
-  }
-  else if (GetLinuxVer() == 9)
-  {
-    strcat(swversion, "Stretch ");
-  }
-  else if (GetLinuxVer() == 10)
-  {
-    strcat(swversion, "Buster ");
-  }
+  char swversion[255] = "Software Version: P4 ";
   GetSWVers(result);
   strcat(swversion, result);
+
+  char dateTime[255];
+  t = time(NULL);
+  strftime(TIMEtext, sizeof(TIMEtext), "%H:%M:%S UTC %d %b %Y", gmtime(&t));
+  strcpy(dateTime, TIMEtext);
 
   char ipaddress[255] = "IP: ";
   strcpy(result, "Not connected");
@@ -14727,6 +14721,8 @@ void InfoScreen()
   linenumber = linenumber + 2;
 
   Text2(wscreen/25, hscreen - linenumber * linepitch, swversion, font_ptr);
+
+  Text2(15 * wscreen/25, hscreen - linenumber * linepitch, dateTime, font_ptr);
   linenumber = linenumber + 1;
 
   Text2(wscreen/25, hscreen - linenumber * linepitch, ipaddress, font_ptr);
@@ -14768,7 +14764,40 @@ void InfoScreen()
   refreshMouseBackground();
   draw_cursor_foreground(mouse_x, mouse_y);
   UpdateWeb();
-  wait_touch();
+
+  // Create Wait Button thread
+  pthread_create (&thbutton, NULL, &WaitButtonEvent, NULL);    // Show changing time while waiting for touch
+
+  struct tm *tm;
+  int seconds;
+  tm =  gmtime(&t);
+  seconds = tm->tm_sec;
+
+  while (FinishedButton == 0)
+  {
+    //This loop is executed at about 100 Hz
+
+    usleep(10000);
+    t = time(NULL);                           // Look up current time
+    tm =  gmtime(&t);                         // Convert to UTC
+
+    if (seconds != tm->tm_sec)                // Seconds have clicked over
+    {
+
+      strftime(TIMEtext, sizeof(TIMEtext), "%H:%M:%S UTC %d %b %Y", gmtime(&t));   // so form new time string
+      strcpy(dateTime, TIMEtext);
+
+      Text2(15 * wscreen/25, hscreen - 3 * linepitch, dateTime, font_ptr);         // and display it       
+
+      seconds = tm->tm_sec;                                                        // reset check time
+
+      refreshMouseBackground();
+      draw_cursor_foreground(mouse_x, mouse_y);
+      UpdateWeb();
+    }
+  }
+  FinishedButton = 0;
+  pthread_join(thbutton, NULL);
 }
 
 void RangeBearing()
@@ -15333,14 +15362,14 @@ void do_snap()
 void do_snapcheck()
 {
   FILE *fp;
-  char SnapIndex[256];
+  char SnapIndex[255];
   int SnapNumber;
   int Snap;
   int LastDisplayedSnap = -1;
   int rawX, rawY, rawPressure;
   int TCDisplay = -1;
 
-  char fbicmd[256];
+  char fbicmd[511];
 
   // Fetch the Next Snap serial number
   fp = popen("cat /home/pi/snaps/snap_index.txt", "r");
@@ -15364,10 +15393,9 @@ void do_snapcheck()
   {
     if(LastDisplayedSnap != Snap)  // only redraw if not already there
     {
-      sprintf(SnapIndex, "%d", Snap);
-      strcpy(fbicmd, "sudo fbi -T 1 -noverbose -a /home/pi/snaps/snap");
-      strcat(fbicmd, SnapIndex);
-      strcat(fbicmd, ".jpg >/dev/null 2>/dev/null");
+      sprintf(fbicmd, "convert /home/pi/snaps/snap%d.jpg -font \"FreeSans\" -size 800x480 -gravity South -pointsize 15 -fill grey80 -annotate 0,0,0,25 snap%d /home/pi/tmp/nsnap.jpg", Snap, Snap);
+      system(fbicmd);
+      strcpy(fbicmd, "sudo fbi -T 1 -noverbose -a /home/pi/tmp/nsnap.jpg >/dev/null 2>/dev/null");
       system(fbicmd);
       LastDisplayedSnap = Snap;
       refreshMouseBackground();
