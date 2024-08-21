@@ -1,0 +1,10 @@
+centrefreq=435000
+freqspan=100000
+points=50
+normlevel=-10
+title=Portsdown Sweeper Display
+sensor=ad8318-3
+source=lime
+limegain=88
+plutopwr=10
+
