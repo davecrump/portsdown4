@@ -1,3 +1,6 @@
+202410150
+Correct LimeSDR Mini V2 gateware download
+
 202409090
 Update receive touch overlay map
 
