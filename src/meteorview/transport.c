@@ -13,13 +13,16 @@
 #include <stdbool.h>
 #include "transport.h"
 #include "meteorview.h"
+#include "font/font.h"
+#include "graphics.h"
 
 static int sockfd = 0;
 bool connection_made;
 extern bool app_exit;
 extern char serverip[20];     // Read in from config file in main
 
-void transport_init()
+
+int transport_init()
 {
   int err = 0;
   connection_made = false;
@@ -63,15 +66,23 @@ void transport_init()
   }
   
   // Restart app if no connection and not already exiting
-  if ((connection_made == false) && (app_exit == false))
+  //if ((connection_made == false) && (app_exit == false))
+  //{
+  //  usleep(1000000);
+  //  cleanexit(150);
+  //}
+  if (connection_made == true)
   {
-    usleep(1000000);
-    cleanexit(150);
+    return 0;
+  }
+  else
+  {
+    return 1;
   }
 }
 
 
-void transport_send(unsigned char *data)
+int transport_send(unsigned char *data)
 {
   int err = 0;
   int error_count = 0;
@@ -98,8 +109,10 @@ void transport_send(unsigned char *data)
 
     if ((error_count > 10) && (app_exit == false))  // errors and not already exiting
     {
-      usleep(1000000);
-      cleanexit(150);                  // Restart MeteorViewer after 10 attempts
+      //usleep(1000000);
+
+      return 1;
+      //cleanexit(150);                  // Restart MeteorViewer after 10 attempts
     }
   }
   while ((err < 0) && (errno == 11));
@@ -110,4 +123,5 @@ void transport_send(unsigned char *data)
     printf("Reconnecting \n");
     transport_init();
   }
+  return 0;
 }

@@ -1,3 +1,6 @@
+202410290
+Improve handling of Meteor server outages
+
 202410150
 Correct LimeSDR Mini V2 gateware download
 

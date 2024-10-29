@@ -48,6 +48,11 @@ extern bool NewSpan;                 // Set to true to indicate that span needs 
 extern bool prepnewscanwidth;
 extern bool readyfornewscanwidth;
 extern bool app_exit;
+extern bool app_exit;
+extern void ShowRemoteCaption();
+extern void ShowConnectFail();
+extern void ShowStartFail();
+extern void UpdateWeb();
 
 extern bool NewGain;                 // Set to true to indicate that gain needs changing
 //extern float gain;                   // Gain (0 - 21) from main
@@ -79,6 +84,8 @@ int force_exit = 0;
 pthread_t fftThread;
 
 extern char destination[15];
+extern char rxName[32];
+extern char rxLatLong[32];
 
 double hanning_window_const[4096];
 
@@ -216,6 +223,9 @@ void buffer_send() {
 /* --------------------------------------------------------------------- */
 /* send the buffer over the internet to the central server               */
 /* --------------------------------------------------------------------- */
+
+  int send_check = 1;
+  int fail_count = 0;
   if (strcmp(destination, "remote") == 0)
   {
     //printf("TX\n");
@@ -228,11 +238,36 @@ void buffer_send() {
     //                              transmit_buffer[LWS_PRE+4092], transmit_buffer[LWS_PRE+4093],
     //                              transmit_buffer[LWS_PRE+4094], transmit_buffer[LWS_PRE+4095]);
 
-    transport_send(server_buffer);
+    
+    while(send_check != 0)
+    {
+      send_check = transport_send(server_buffer);
 
-    /* now we tell all our clients that we have data ready for them. That way when they  */
-    /* come back and say they are writeable, we will be able to send them the new buffer */
-    lws_callback_on_writable_all_protocol(context, protocol);
+      if (send_check != 0)
+      {
+        fail_count++;
+        if (fail_count == 1)                      // First error
+        {
+          ShowConnectFail();
+          UpdateWeb();
+        }
+        usleep(1000000);
+      }
+      if ((fail_count > 1) && (send_check == 0))  // recovered from error
+      {
+        ShowRemoteCaption();
+        UpdateWeb();
+      }
+
+      if ((fail_count > 20) && (send_check != 0))     // Restart app if still not working after 20 attempts
+      {
+        cleanexit(150);
+      }
+
+      /* now we tell all our clients that we have data ready for them. That way when they  */
+      /* come back and say they are writeable, we will be able to send them the new buffer */
+      lws_callback_on_writable_all_protocol(context, protocol);
+    }
   }
 }
 
@@ -999,10 +1034,39 @@ void *sdrplay_fft_thread(void *arg) {
   unsigned int chosenIdx = 0;
   uint64_t last_output;
   bool *exit_requested = (bool *)arg;
+  int transport_started = 1;
+  int transport_start_attempts = 0;
 
   server_buffer[8] = clientnumber;
 
-  transport_init();
+  while (transport_started != 0)
+  {
+    transport_started =  transport_init();
+
+    if (transport_started != 0)  // failed to start
+    {
+      transport_start_attempts++;
+      if (transport_start_attempts == 1)
+      {
+        ShowStartFail();  // show message
+        UpdateWeb();
+      }
+      usleep(1000000);
+      if (transport_start_attempts > 10)
+      {
+        cleanexit(150);  // restart the app
+      }
+    }
+    else                          // Started OK
+    {
+      if (transport_start_attempts > 0)  // Had previously failed
+      {
+        ShowRemoteCaption();
+        UpdateWeb();
+      }
+      transport_start_attempts = 0;
+    }
+  }
 
   // Initialise fft
   printf("Initialising FFT (%d bin).. \n", fft_size);

@@ -172,6 +172,8 @@ uint8_t clientnumber = 6;
 char serverip[20] = "185.83.169.27";
 uint16_t port = 7682;
 char destination[15] = "local";
+char rxName[32] = "Not Defined";
+char rxLatLong[32] = "Not Defined";
 
 int markerx = 250;
 int markery = 15;
@@ -208,6 +210,7 @@ int xscaleden = 20;       // Denominator for X scaling fraction
 
 void GetConfigParam(char *PathConfigFile, char *Param, char *Value);
 void SetConfigParam(char *PathConfigFile, char *Param, char *Value);
+void strcpyn(char *outstring, char *instring, int n);
 int CheckWebCtlExists();
 void CheckConfigFile();
 void ReadSavedParams();
@@ -279,6 +282,8 @@ void Define_Menu41();
 void DrawEmptyScreen();
 void DrawTickMarks();
 void ShowRemoteCaption();
+void ShowConnectFail();
+void ShowStartFail();
 void DrawYaxisLabels();
 void DrawSettings();
 void DrawTrace(int xoffset, int prev2, int prev1, int current);
@@ -386,6 +391,41 @@ void SetConfigParam(char *PathConfigFile, char *Param, char *Value)
 
 
 /***************************************************************************//**
+ * @brief safely copies n characters of instring to outstring without overflow
+ *
+ * @param *outstring
+ * @param *instring
+ * @param n int number of characters to copy.  Max value is the outstring array size -1
+ *
+ * @return void
+*******************************************************************************/
+void strcpyn(char *outstring, char *instring, int n)
+{
+  //printf("\ninstring= -%s-, instring length = %d, desired length = %d\n", instring, strlen(instring), strnlen(instring, n));
+  
+  n = strnlen(instring, n);
+  int i;
+  for (i = 0; i < n; i = i + 1)
+  {
+    //printf("i = %d input character = %c\n", i, instring[i]);
+    outstring[i] = instring[i];
+  }
+  outstring[n] = '\0'; // Terminate the outstring
+  //printf("i = %d input character = %c\n", n, instring[n]);
+  //printf("i = %d input character = %c\n\n", (n + 1), instring[n + 1]);
+
+  //for (i = 0; i < n; i = i + 1)
+  //{
+  //  printf("i = %d output character = %c\n", i, outstring[i]);
+  //}  
+  //printf("i = %d output character = %c\n", n, outstring[n]);
+  //printf("i = %d output character = %c\n", (n + 1), outstring[n + 1]);
+
+  //printf("outstring= -%s-, length = %d\n\n", outstring, strlen(outstring));
+}
+
+
+/***************************************************************************//**
  * @brief Checks to see if webcontrol exists in Portsdown Config file
  *
  * @param None
@@ -464,6 +504,22 @@ void CheckConfigFile()
     sprintf(shell_command, "echo remoterfgain=4 >> %s", PATH_CONFIG);
     system(shell_command);
     sprintf(shell_command, "echo remoteifgain=40 >> %s", PATH_CONFIG);
+    system(shell_command);
+  }
+
+  // Check for Location details
+  sprintf(shell_command, "grep -q 'rxname' %s", PATH_CONFIG);
+  fp = popen(shell_command, "r");
+  r = pclose(fp);
+
+  if (WEXITSTATUS(r) != 0)
+  {
+    printf("remoterfgain parameter not detected\n");
+    printf("Adding 2 parameters to config file\n");
+
+    sprintf(shell_command, "echo rxname=Not Defined >> %s", PATH_CONFIG);
+    system(shell_command);
+    sprintf(shell_command, "echo rxlatlong=Not Defined >> %s", PATH_CONFIG);
     system(shell_command);
   } 
 }
@@ -620,6 +676,9 @@ void ReadSavedParams()
   strcpy(response, "4");
   GetConfigParam(PATH_CONFIG, "remoteifgain", response);
   remoteIFgain = atoi(response);
+
+  GetConfigParam(PATH_CONFIG, "rxname", rxName);
+  GetConfigParam(PATH_CONFIG, "rxlatlong", rxLatLong);
 }
 
 
@@ -1174,7 +1233,7 @@ void Keyboard(char RequestText[64], char InitText[64], int MaxLength)
         DrawButton(ButtonNumber(41, token));
         //UpdateWindow();
 
-        if (strlen(EditText) < 23) // Don't let it overflow
+        if (strlen(EditText) < 27) // Don't let it overflow (was 23)
         {
         // Copy the text to the left of the insert point
         strncpy(PreCuttext, &EditText[0], CursorPos);
@@ -1858,18 +1917,20 @@ void UpdateWindow()    // Paint each defined button
   int first;
   int last;
 
-  if (markeron == false)
-  {
-    // Draw a black rectangle where the buttons are to erase them
-    rectangle(620, 0, 160, 480, 0, 0, 0);
-  }
-  else   // But don't erase the marker text
-  {
-    rectangle(620, 0, 160, 420, 0, 0, 0);
-  }
+  // Erase the current buttons unless in the keyboard
 
-  // Don't draw buttons if the Markers are being refreshed.  Wait here
-
+  if (CurrentMenu != 41)
+  {
+    if (markeron == false)
+    {
+      // Draw a black rectangle where the buttons are to erase them
+      rectangle(620, 0, 160, 480, 0, 0, 0);
+    }
+    else   // But don't erase the marker text
+    {
+      rectangle(620, 0, 160, 420, 0, 0, 0);
+    }
+  }
 
   // Draw each button in turn
   first = ButtonNumber(CurrentMenu, 0);
@@ -2614,7 +2675,45 @@ void SetStream(int button)
       SetConfigParam(PATH_CONFIG, "destination", destination);
       printf("Destination set to %s\n", destination); 
       break;
-    case 6:
+    case 6:                                          // Enter Name and Lat Long
+      // Define request string
+      strcpy(RequestText, "Enter the Receiver Location Name");
+
+      // Define initial value
+      strcpy(InitText, rxName);
+
+      // Ask for the new value
+      do
+      {
+        Keyboard(RequestText, InitText, 31);
+      }
+      while (strlen(KeyboardReturn) == 0);
+
+      strcpyn(rxName, KeyboardReturn, 31);
+      
+      // Store the new rxName
+      SetConfigParam(PATH_CONFIG, "rxname", rxName);
+      printf("Reciver Name set to %s\n", rxName);
+
+      // Define request string
+      strcpy(RequestText, "Enter the Receiver Lat Long as text");
+
+      // Define initial value
+      strcpy(InitText, rxLatLong);
+
+      // Ask for the new value
+      do
+      {
+        Keyboard(RequestText, InitText, 31);
+      }
+      while (strlen(KeyboardReturn) == 0);
+
+      strcpyn(rxLatLong, KeyboardReturn, 31);
+      
+      // Store the new rxLatLong
+      SetConfigParam(PATH_CONFIG, "rxlatlong", rxLatLong);
+      printf("Reciver Lat long set to %s\n", rxLatLong);
+
       break;
   }
 
@@ -3908,7 +4007,8 @@ void *WaitButtonEvent(void * arg)
           UpdateWeb();
           usleep (2000000);
           cleanexit(150);
-        case 6:                                            // 
+        case 6:                                            // Set Name and Lat Long
+          SetStream(i);
           UpdateWindow();
           break;
         case 7:                                            // Return to Main Menu
@@ -4782,8 +4882,8 @@ void Define_Menu15()                                          // More Waterfall 
   button = CreateButton(15, 5);
   AddButtonStatus(button, "Local^Display", &Blue);
 
-  //button = CreateButton(15, 6);
-  //AddButtonStatus(button, " ^ ", &Blue);
+  button = CreateButton(15, 6);
+  AddButtonStatus(button, "Name &^Lat Long", &Blue);
 
   button = CreateButton(15, 7);
   AddButtonStatus(button, "Return to^Main Menu", &DBlue);
@@ -5115,6 +5215,7 @@ void DrawEmptyScreen()
   }
 }
 
+
 void DrawTickMarks()
 {
     VertLine(140, 64, 5, 255, 255, 255);
@@ -5145,6 +5246,36 @@ void ShowRemoteCaption()
   TextMid2(350, 350, "No local display", &font_dejavu_sans_32);
   TextMid2(350, 275, "Streaming to Central Server", &font_dejavu_sans_32);
   TextMid2(350, 200, clientline, &font_dejavu_sans_32);
+}
+
+
+void ShowConnectFail()
+{
+  // Clear the background
+  rectangle(101, 71, 499, 399, 0, 0, 0);
+
+  // Write the caption
+  setForeColour(255, 255, 255);                    // White text
+  setBackColour(0, 0, 0);                          // on Black
+
+  TextMid2(350, 350, "Connection to server", &font_dejavu_sans_32);
+  TextMid2(350, 275, "dropped out.", &font_dejavu_sans_32);
+  TextMid2(350, 200, "Trying to reconnect", &font_dejavu_sans_32);
+}
+
+
+void ShowStartFail()
+{
+  // Clear the background
+  rectangle(101, 71, 499, 399, 0, 0, 0);
+
+  // Write the caption
+  setForeColour(255, 255, 255);                    // White text
+  setBackColour(0, 0, 0);                          // on Black
+
+  TextMid2(350, 350, "Unable to establish", &font_dejavu_sans_32);
+  TextMid2(350, 275, "connection to server", &font_dejavu_sans_32);
+  TextMid2(350, 200, "Re-trying", &font_dejavu_sans_32);
 }
 
 
