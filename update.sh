@@ -448,8 +448,8 @@ cd /home/pi/rpidatv/src/muntjac
 
 gcc  muntjacsdr_dvb.c  dvbs2neon.S  -mfpu=neon  -lpthread  -o  muntjacsdr_dvb
 
-cp muntjacsdr_dvb /home/pi/rpidatv/bin/             // Executable
-cp E46214B063533828.mjo /home/pi/rpidatv/bin/       // LO Suppression file
+cp muntjacsdr_dvb /home/pi/rpidatv/bin/             # Executable
+cp E46214B063533828.mjo /home/pi/rpidatv/bin/       # LO Suppression file
 
 cd /home/pi
 
