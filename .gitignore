@@ -87,5 +87,8 @@ bin/beacon
 bin/server
 bin/sdrplayview
 bin/rydemon
+bin/muntjacsdr_dvb
+bin/*.mjo
+
 
 
