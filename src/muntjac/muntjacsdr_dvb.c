@@ -1,4 +1,16 @@
-#define VERSIONX "muntjacsdr_dvb_0v2g"
+#define VERSIONX "muntjacsdr_dvb-0v2j"
+
+/*
+
+Change log
+
+2025-04-02	muntjacsdr_dvb_0v2j		remove power cap 15 (now 31)
+									remove PD power correction
+									correct LO calibration for power 15
+2025-03-28	muntjacsdr_dvb_0v2g		First release
+
+*/
+
 
 /*
 	G4EWJ October 2024
@@ -274,7 +286,7 @@ volatile	uint32						inputstarttime ;
 			int							hindex ;		
 
 			char						info				[4096] ;
-			uint32						localoscsettings 	[2] [31] [2] ;			// 2 bands, 31 power levels, I and Q
+			int32						localoscsettings 	[2] [32] [2] ;			// 2 bands, 31 power levels, I and Q
 
 			char						infoip				[256] ;
 			char						inputfilename 		[256] ;
@@ -728,7 +740,7 @@ int main (int argc, char *argv[])
 		{
 			argindex++ ;
 			temp = (int) (atof (argv[argindex]) * 100) ;
-			if (temp >= 100 || temp < -6)
+			if (temp > 31 || temp < 0)
 			{
 				if (otherband != -1)
 				{
@@ -925,26 +937,28 @@ int main (int argc, char *argv[])
 		myexit() ;
 	}
 
+/*
 	if (mjsettings.txon[0] == 0xc5)
 	{
-		if (mjsettings.carriers[0] != 1 && mjsettings.power[0] > 15)
+		if (mjsettings.carriers[0] != 1 && mjsettings.power[0] > 31)
 		{
-			mjsettings.power[0] = 15 ;
-			sprintf (info, "*Lowband power capped at 0.15* \r\n") ;
+			mjsettings.power[0] = 31 ;
+			sprintf (info, "*Lowband power capped at 0.31* \r\n") ;
 		}
 		else if (mjsettings.power[0] > 31)
 		{
-			mjsettings.power[0] = 15 ;
+			mjsettings.power[0] = 31 ;
 			sprintf (info, "*Lowband power capped at 0.31* \r\n") ;
 		}
 	}
+*/
 
 	if (mjsettings.txon[1] == 0xc5)
 	{
-		if (mjsettings.power[1] > 15)
+		if (mjsettings.power[1] > 31)
 		{
-			mjsettings.power[1] = 15 ;
-			sprintf (info, "*Highband power capped at 0.15* \r\n") ;
+			mjsettings.power[1] = 31 ;
+			sprintf (info, "*Highband power capped at 0.31* \r\n") ;
 		}
 	}
 
@@ -1014,6 +1028,7 @@ int main (int argc, char *argv[])
 		returncode |= ERROR_DVB ;
 	}
 
+/*
 // compensate for PD power modification
 
 	if (limeupsample == 1)
@@ -1021,6 +1036,7 @@ int main (int argc, char *argv[])
 		mjsettings.power [mainband] += 6 ;							
 		sprintf (info+strlen(info), "Power corrected to 0.%02d \r\n", mjsettings.power[mainband]) ;
 	}
+*/
 
 	if (strlen (temps))
 	{
@@ -1300,15 +1316,18 @@ int main (int argc, char *argv[])
 				}
 				if (temps[0])
 				{
-					sprintf (info+strlen(info), "Using %s LO suppression settings from muntjac.mjo \r\n", temps) ;	
 					tempu = mjsettings.power [x] ;
 					mjsettings.iloc [x] = localoscsettings [x] [tempu] [0] ;				
 					mjsettings.qloc [x] = localoscsettings [x] [tempu] [1] ;				
-					if (mjsettings.iloc[x] && -1 && mjsettings.qloc[x] == -1)				// in case settings are available only for power 0, 4, 8 . . .
+					if (mjsettings.iloc[x] == -1 && mjsettings.qloc[x] == -1)				// in case settings are available only for power 0, 4, 8 . . .
 					{
 						tempu &= ~3 ;
 						mjsettings.iloc [x] = localoscsettings [x] [tempu] [0] ;				
 						mjsettings.qloc [x] = localoscsettings [x] [tempu] [1] ;				
+					}
+					if (mjsettings.iloc[x] != -1 || mjsettings.qloc[x] != -1)				// in case settings are available only for power 0, 4, 8 . . .
+					{
+						sprintf (info+strlen(info), "Using %s LO suppression settings from muntjac.mjo \r\n", temps) ;	
 					}
 				}
 			}
@@ -1411,7 +1430,9 @@ int main (int argc, char *argv[])
 
 			strcpy (temps, "");
 			sprintf (temps+strlen(temps), " ================================================= \r\n") ;
-			sprintf (temps+strlen(temps), " PD:%s  SR%u  FEC%s  C%u\r\n", VERSIONX, mjsettings.symbolrate, fecs[mjsettings.fec], mjsettings.constellation * 4 + 4) ;
+			sprintf (temps+strlen(temps), " PD:%s \r\n", VERSIONX) ;
+			sprintf (temps+strlen(temps), " ---------------------- \r\n") ;
+			sprintf (temps+strlen(temps), " FR:%.3f  SR:%u  FEC:%s  C:%u  PWR:%d\r\n", (float)mjsettings.frequency[mainband] / 1000000, mjsettings.symbolrate, fecs[mjsettings.fec], mjsettings.constellation * 4 + 4, mjsettings.power[mainband]) ;
 			sprintf (temps+strlen(temps), " ------------------------------------------------- \r\n") ;
 			sprintf (temps+strlen(temps), " PacketsIn  PacketsOut  Frames  KbytesOut    Nulls \r\n") ;
 			sprintf (temps+strlen(temps), " ------------------------------------------------- \r\n") ;
@@ -1650,7 +1671,6 @@ void* output_routine (void* dummy)
 			lastrecord2time	= tempu ;
 			if (output_thread_status == 2)
 			{
-	printf ("***\r\n") ;
 				outputpointer = outputbuff ;
 				output_thread_status = 3 ;							// exit next time around the loop
 			}
