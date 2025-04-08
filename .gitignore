@@ -52,6 +52,8 @@ src/meteorbeacon/beacon
 src/meteorbeacon/server
 src/sdrplayview/sdrplayview
 src/rydemon/rydemon
+src/muntjac/muntjacsdr_dvb
+src/muntjac/mjcalib
 scripts/configs/Langstone.conf
 scripts/configs/Langstone_Lime.conf
 scripts/configs/Langstone_Pluto.conf

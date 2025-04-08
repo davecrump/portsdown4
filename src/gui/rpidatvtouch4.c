@@ -10546,7 +10546,7 @@ void ChangeBandDetails(int NoButton)
 
   // Muntjac Gain
   snprintf(Value, 30, "%d", TabBandMuntjacGain[band]);
-  while ((MuntjacGain < 1) || (MuntjacGain > 15))    // Do not allow zero or blank Lime Gain
+  while ((MuntjacGain < 1) || (MuntjacGain > 20))    // Do not allow zero or blank Muntjac Gain
   {
     snprintf(Prompt, 63, "Set the Muntjac Gain for the %s Band:", TabBandLabel[band]);
     Keyboard(Prompt, Value, 3);
@@ -11166,7 +11166,7 @@ void SetDeviceLevel()
   }
   else if (strcmp(CurrentModeOP, TabModeOP[11]) == 0) // Muntjac
   {
-    while ((MuntjacGain < 0) || (MuntjacGain > 15) || (strlen(KeyboardReturn) < 1))
+    while ((MuntjacGain < 0) || (MuntjacGain > 20) || (strlen(KeyboardReturn) < 1))
     {
       snprintf(Prompt, 62, "Set the Muntjac Gain for the %s Band:", TabBandLabel[CurrentBand]);
       snprintf(Value, 4, "%d", TabBandMuntjacGain[CurrentBand]);
@@ -21649,7 +21649,7 @@ void waituntil(int w,int h)
           printf("Jetson Lime\n");
           break;
         case 12:                              // Muntjac
-RegisterMuntjac();
+          RegisterMuntjac();
           SelectOP(i);
           printf("Muntjac\n");
           break;

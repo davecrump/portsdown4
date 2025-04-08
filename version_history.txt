@@ -1,3 +1,6 @@
+202504080
+Increase limit on Muntjac gain to 20
+
 202503310
 Add Muntjac SDR capability
 
