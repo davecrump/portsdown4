@@ -1,3 +1,6 @@
+202504210
+Correct Lime Mini update filepath in ssh menu
+
 202504080
 Increase limit on Muntjac gain to 20
 
