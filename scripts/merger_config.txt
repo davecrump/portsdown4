@@ -1,8 +1,9 @@
 freq=2395000
 socket=a
+lnbvolts=off
 call=CALL
 passkey=passkey
-region=eu
+region=test
 euurl=live.ariss.org
 usurl=live.ariss.org
 jpurl=live.ariss.org
@@ -12,4 +13,4 @@ euport=5678
 usport=5678
 jpport=5678
 auport=5678
-testport=6789
+testport=9978
