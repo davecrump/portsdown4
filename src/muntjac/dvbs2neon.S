@@ -1,7 +1,7 @@
 
-#define VERSION 0x0047 		@: v0.47
+#define VERSION 0x0058 		@: v0.58 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
-#define INFO_STRING			"dvbs2neon0v47 : TS to DVB-S2 encapsulator; GSE, multistream, dummy frames"
+#define INFO_STRING			"dvbs2neon0v58 : TS to DVB-S2 encapsulator; GSE, multistream, dummy frames"
 
 @:@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 @:
@@ -46,6 +46,12 @@
 @:
 @:	dvbs2neon versions:
 @:
+@:	2025-12-31	v0.58	Partly filled frame returned when dvbs2neon_packet param1 = 1
+@:	2025-12-07	v0.55	Added facility to return a partly filled
+@:	2025-12-06	v0.54	Added whole packet efficiency for n23 no pilots
+@:	2025-12-06	v0.53	Corrected internal version number
+@:	2025-11-23	v0.52	Put SYMBOLS_METADATA_OFFSET in the first short of a dummy frame
+@:	2025-11-14	v0.51	Put SYMBOLS_METADATA_OFFSET in the first short of a standard frame
 @:	2024-08-30	v0.47	Stepped to v0.47
 @:	2023-02-20	v0.43	Corrected problem where OUTPUT_FORMAT_BBFRAME was ignored
 @:	2023-02-19	v0.42	Added GSE
@@ -263,12 +269,12 @@
 @:		multistream	= MULTISTREAM_OFF ;	
 @:
 @:		dvbs2neon_control (stream, CONTROL_RESET_STREAM,   multistream,  datamode) ;		
-@:		dvbs2neon_control (stream, CONTROL_SET_PARAMETERS, (uint32)&fmt, 0) ;			
+@:		dvbs2neon_control (stream, CONTROL_SET_PARAMETERS, (uint32)&fmt, param1) ;			
 @:
 @:		while (1)
 @:		{
-@:			outbuffer = dvbs2neon_packet (stream, &packet188, 0) ;
-@:			if (outbuffer > 0)
+@:			outbuffer = dvbs2neon_packet (stream, &packet188, param1) ;
+@:			if (outbuffer > 0)					// if param1 = 1, return a partly filled frame	
 @:			{
 @:				p16 			= (uint16*) outbuffer ;
 @:				symbol_count 	= p16 [-1] ;		
@@ -348,7 +354,7 @@
 @:	
 @:	Calling from C:
 @:
-@:		char* dvbs2neon_packet 		(uint32 stream, (uint32)&packet188, 0) ;
+@:		char* dvbs2neon_packet 		(uint32 stream, (uint32)&packet188, param1) ;
 @:
 @:		char* dvbs2neon_gsedata		(uint32 stream, (uint32)&buffer, datalength) ;
 @:
@@ -481,6 +487,7 @@
 #define PILOTS_ON			1
 #define WHOLE_PACKETS_NO	0
 #define WHOLE_PACKETS_YES	1
+///#define DATAFIELD_ZERO		2
 #define RO_0_35				0
 #define RO_0_25				1
 #define RO_0_20				2
@@ -841,7 +848,7 @@ fec_frame_structure_n13:
 	.word	640827,0,0,0						@: efficiency for each constellation with pilots
 	.word	phqn13,0,0,0						@: PL header addresses for each constellation
 	.word	phqn13p,0,0,0						@: PL header addresses for each constellation with pilots
-	.word	0,0,0,0								@: efficiency for whole packets
+	.word	648076,0,0,0						@: efficiency for whole packets
 	.word	0,0,0,0								@: efficiency for whole packets with pilots
 
 fec_frame_structure_n25:
@@ -859,7 +866,7 @@ fec_frame_structure_n25:
 	.word	770627,0,0,0						@: efficiency for each constellation with pilots
 	.word	phqn25,0,0,0						@: PL header addresses for each constellation
 	.word	phqn25p,0,0,0						@: PL header addresses for each constellation with pilots
-	.word	0,0,0,0								@: efficiency for whole packets
+	.word	786950,0,0,0						@: efficiency for whole packets
 	.word	0,0,0,0								@: efficiency for whole packets with pilots
 
 fec_frame_structure_n12:
@@ -877,7 +884,7 @@ fec_frame_structure_n12:
 	.word	965327,0,0,0						@: efficiency for each constellation with pilots
 	.word	phqn12,0,0,0						@: PL header addresses for each constellation
 	.word	phqn12p,0,0,0						@: PL header addresses for each constellation with pilots
-	.word	0,0,0,0								@: efficiency for whole packets
+	.word	972114,0,0,0						@: efficiency for whole packets
 	.word	0,0,0,0								@: efficiency for whole packets with pilots
 
 fec_frame_structure_n35:
@@ -895,7 +902,7 @@ fec_frame_structure_n35:
 	.word	1160026,1739569,0,0					@: efficiency for each constellation with pilots
 	.word	phqn35,ph8n35,0,0					@: PL header addresses for each constellation
 	.word	phqn35p,ph8n35p,0,0					@: PL header addresses for each constellation with pilots
-	.word	0,0,0,0								@: efficiency for whole packets
+	.word	1157279,1733517,0,0					@: efficiency for whole packets
 	.word	0,0,0,0								@: efficiency for whole packets with pilots
 
 fec_frame_structure_n23:
@@ -913,7 +920,7 @@ fec_frame_structure_n23:
 	.word	1290788,1935658,2574613,0			@: efficiency for each constellation with pilots
 	.word	phqn23,ph8n23,ph16n23,0				@: PL header addresses for each constellation
 	.word	phqn23p,ph8n23p,ph16n23p,0			@: PL header addresses for each constellation with pilots
-	.word	0,0,0,0								@: efficiency for whole packets
+	.word	1296153,1941539,0,0					@: efficiency for whole packets
 	.word	0,0,0,0								@: efficiency for whole packets with pilots
 
 fec_frame_structure_n34:
@@ -931,7 +938,7 @@ fec_frame_structure_n34:
 	.word	1452076,2177525,2896320,3623332		@: efficiency for each constellation with pilots
 	.word	phqn34,ph8n34,ph16n34,ph32n34		@: PL header addresses for each constellation
 	.word	phqn34p,ph8n34p,ph16n34p,ph32n34p	@: PL header addresses for each constellation with pilots
-	.word	0,0,0,0								@: efficiency for whole packets
+	.word	1481317,2218902,0,0					@: efficiency for whole packets
 	.word	0,0,0,0								@: efficiency for whole packets with pilots
 
 fec_frame_structure_n45:
@@ -949,7 +956,7 @@ fec_frame_structure_n45:
 	.word	1549426,0,3090495,3866247			@: efficiency for each constellation with pilots
 	.word	phqn45,0,ph16n45,ph32n45			@: PL header addresses for each constellation
 	.word	phqn45p,0,ph16n45p,ph32n45p			@: PL header addresses for each constellation with pilots
-	.word	0,0,0,0								@: efficiency for whole packets
+	.word	1573900,0,0,0						@: efficiency for whole packets
 	.word	0,0,0,0								@: efficiency for whole packets with pilots
 
 fec_frame_structure_n56:
@@ -967,7 +974,7 @@ fec_frame_structure_n56:
 	.word	1615288,2422276,3221863,4030589		@: efficiency for each constellation with pilots
 	.word	phqn56,ph8n56,ph16n56,ph32n56		@: PL header addresses for each constellation
 	.word	phqn56p,ph8n56p,ph16n56p,ph32n56p	@: PL header addresses for each constellation with pilots
-	.word	0,0,0,0								@: efficiency for whole packets
+	.word	1620190,2426924,0,0					@: efficiency for whole packets
 	.word	0,0,0,0								@: efficiency for whole packets with pilots
 
 fec_frame_structure_n89:
@@ -985,7 +992,7 @@ fec_frame_structure_n89:
 	.word	1724416,2585924,3439530,4302894		@: efficiency for each constellation with pilots
 	.word	phqn89,ph8n89,ph16n89,ph32n89		@: PL header addresses for each constellation
 	.word	phqn89p,ph8n89p,ph16n89p,ph32n89p	@: PL header addresses for each constellation with pilots
-	.word	0,0,0,0								@: efficiency for whole packets
+	.word	1759064,2634946,0,0					@: efficiency for whole packets
 	.word	0,0,0,0								@: efficiency for whole packets with pilots
 
 fec_frame_structure_n910:
@@ -999,12 +1006,12 @@ fec_frame_structure_n910:
 	.word	ldpc_parameters_n910_neon4			@: LDPC parameters table
 	.word	ldpc_reformat_n910					@: puts the LDPC into the frame
 	.word	0
-	.word	1788612,2679207,3567342,4453027		@: efficiency for each constellation 
+	.word	1788611,2679207,3567342,4453027		@: efficiency for each constellation 
 	.word	1746049,2618365,3482680,4356875		@: efficiency for each constellation with pilots
 	.word	phqn910,ph8n910,ph16n910,ph32n910		@: PL header addresses for each constellation
 	.word	phqn910p,ph8n910p,ph16n910p,ph32n910p	@: PL header addresses for each constellation with pilots
-	.word	1759064,0,0,0						@: efficiency for whole packets
-	.word	0,0,0,0								@: efficiency for whole packets with pilots
+	.word	1759064,2634946,0,0						@: efficiency for whole packets
+	.word	0,0,0,0									@: efficiency for whole packets with pilots
 	
 fec_frame_structure_s14:
 	.word	1									@: frameindex, 0-1, Normal or Short
@@ -1109,7 +1116,7 @@ fec_frame_structure_s23:
     .word   1260693,1884959,2505223,0			@: efficiency for each constellation with pilots
 	.word	phqs23,ph8s23,ph16s23,0				@: PL header addresses for each constellation
 	.word	phqs23p,ph8s23p,ph16s23p,0			@: PL header addresses for each constellation with pilots
-	.word	0,0,0,0								@: efficiency for whole packets
+	.word	1,0,0,0								@: efficiency for whole packets
 	.word	0,0,0,0								@: efficiency for whole packets with pilots
 
 fec_frame_structure_s34:
@@ -1550,14 +1557,23 @@ control_set_fec:
 	ldr		r2,[r10,#MAGIC_MARKER_PAR]				@: get the magic marker to see if more parameters follow 
 	ldr		r3,=MAGIC_MARKER
 	teq		r2,r3
-	bne		csp94									@: no more parameters	
+	beq		csp6									@: more parameters	
+
+uuu:
+	mov		r3,#WHOLE_PACKETS_NO					@: set to default
+	str     r3,[r12,#DATAFIELD_SIZE_SELECT]			@: save the datafield setting in the stream structure
+	b		csp94
+
+csp6:
 
 control_set_datafield_size_select:
-	ldr		r2,[r10,#DATAFIELD_SIZE_SELECT_PAR]		@: get the magic marker to see if more parameters follow 
+	ldr		r2,[r10,#DATAFIELD_SIZE_SELECT_PAR]		@: datafield size select for only whole packets in a frame
 	teq		r2,#WHOLE_PACKETS_NO
 	beq		csds2
 	teq		r2,#WHOLE_PACKETS_YES
 	beq		csds2
+///	teq		r2,#DATAFIELD_ZERO
+///	beq		csds2
 	mov		r0,#ERROR_DATAFIELD_SIZE_SELECT_INVALID
 	b		csp98									@: error
 csds2:	
@@ -1571,6 +1587,8 @@ csp94:
 
 	ldr		r9,[r12,#PILOTS_ACTIVE]
 	ldr		r10,[r12,#DATAFIELD_SIZE_SELECT]
+///	teq		r10,#DATAFIELD_ZERO
+///	beq		csp96									@: datafield zero length
 	lsl		r10,#1
 	add		r9,r10
 	teq		r9,#0
@@ -1717,6 +1735,20 @@ cgdf16:
 	add		r5,#2									@: point to the start of the symbols
 
 @: store the metadata 
+
+jjj:
+	ldr		r5,[r12,#OUTBUFFER_ADDRESS]			@: get the buffer address
+
+	ldr		r0,=DUMMY_FRAME_METADATA_OFFSET
+	strh	r0,[r5]								@: save the symbol start offset into the start of the buffer
+
+	add		r5,r0								@: point to the start of the symbols
+
+	ldr		r0,=dummy_frame_qpsk_end		 	
+	ldr		r1,=dummy_frame_qpsk		 		
+	sub		r0,r1
+	sub		r0,#2								@: account for the 2 unused bytes
+	strh	r0,[r5,#METADATA_ITEMCOUNT]			@: save the symbol count
 	
 	ldr		r0,=OUTPUT_FORMAT_SYMBOLS
 	strh	r0,[r5,#METADATA_OUTPUTFORMAT]		@: output format
@@ -1822,11 +1854,14 @@ cscp4:
 	str		r9,[r12,#DATAFIELD_SIZE_BYTES_WHOLE]	@: save the datafield size
 
 	ldr		r10,[r12,#DATAFIELD_SIZE_SELECT]
-	teq		r10,#0
+	teq		r10,#WHOLE_PACKETS_NO
 	streq	r8,[r12,#DATAFIELD_SIZE_BYTES_SELECTED]	@: save the datafield size
-	strne	r9,[r12,#DATAFIELD_SIZE_BYTES_SELECTED]	@: save the datafield size
-
-jjj:
+	teq		r10,#WHOLE_PACKETS_YES
+	streq	r9,[r12,#DATAFIELD_SIZE_BYTES_SELECTED]	@: save the datafield size
+///	mov		r9,#0
+///	mov		r9,#188 ///////////
+///	teq		r10,#DATAFIELD_ZERO
+///	streq	r9,[r12,#DATAFIELD_SIZE_BYTES_SELECTED]	@: save the datafield size
 	
 	ldr		r10,[r12,#DATAFIELD_SIZE_BYTES]
 	add		r6,r10								@: datafield start pointer + datafield size
@@ -1860,6 +1895,9 @@ jjj:
 
 	ldr		r9,[r12,#PILOTS_ACTIVE]
 	ldr		r10,[r12,#DATAFIELD_SIZE_SELECT]
+	mov		r7,#0
+///	teq		r10,#DATAFIELD_ZERO
+///	beq		cscp6
 	lsl		r10,#1
 	add		r9,r10
 	teq		r9,#0
@@ -1872,6 +1910,7 @@ jjj:
 	ldreq	r10,=EFFICIENCIES_WHOLE_PILOTS
 	add		r8,r11,r10								@: r8 points to the list of efficiencies by constellation
 	ldr		r7,[r8,r5,lsl #2]						@: get the efficiency for this fec and constellation combination
+cscp6:
 	str		r7,[r12,#EFFICIENCY]
 	
 @: get the symbol count	   
@@ -2001,42 +2040,51 @@ gsd8:
 @:	Calling from C:
 @:		uchar* dvbs2neon_process_packet (uint32 stream, uchar *packet188, uint32 param1) ;
 @:
+@:		if param1 = 1, return a partly filled frame
+@:
 @:@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
 dvbs2neon_packet:
 	push	{r1-r12,r14}
 
-	mov		r5,r0									@: save the stream number
+	mov		r8,r0									@: save the stream number
 
 	ldr		r0,=ERROR_STREAM_INVALID				@: in case it is out of range
-	cmp		r5,#MAX_STREAMS
+	cmp		r8,#MAX_STREAMS
 	bhi		dap98									@: out of range
 
 	ldr		r4,=stream_structure_pointers
-	ldr		r12,[r4,r5,lsl #2]						@: get the pointer to the stream structure indicated by r0
+	ldr		r12,[r4,r8,lsl #2]						@: get the pointer to the stream structure indicated by r0
 													@: r12 is now the pointer to the stream structure	
 
-	ldr		r0,=ERROR_PACKET_SYNC_BYTE_MISSING		
-	ldrb	r5,[r1]
-	teq		r5,#0x47
-	bne		dap98									@: no sync byte
+	mov		r8,r2									@: save param1
+
+	ldr		r2,[r12,#DATAFIELD_CURRENT_POINTER]		@: current pointer into the datafield
 
 	ldr		r0,=ERROR_NOT_IN_TS_MODE				
 	ldr  	r4,[r12,#DATAMODE]
 	teq		r4,#DATAMODE_TS
 	bne		dap98									@: wrong mode
 
-	mov		r0,r1									@: move the packet address to r0
-	ldr		r2,[r12,#DATAFIELD_CURRENT_POINTER]		@: current pointer to the datafield
-	teq		r0,#0
+	ldr		r4,[r12,#DATAFIELD_SIZE_BYTES_SELECTED]	@: check for zero datafield size
+	teq		r4,#0
+	beq		dap1g
+
+	teq		r1,#0
 	beq		dap1g									@: packet pointer is null	
+
+	ldr		r0,=ERROR_PACKET_SYNC_BYTE_MISSING		
+	ldrb	r5,[r1]
+	teq		r5,#0x47
+	bne		dap98									@: no sync byte
+
+	mov		r0,r1									@: move the packet address to r0	
 
 	mov		r1,#187
 	add		r0,#1									@: process 187 bytes, but not the leading sync byte
 	bl		calculate_crc8_and_optionally_move		@: copy the packet into the datafield and return the CRC8
 	
-	ldr		r2,[r12,#DATAFIELD_CURRENT_POINTER]		@: current pointer to the datafield
-	add		r2,#187									@: 187 bytes have been added to the datafield	
+	add		r2,#187									@: 187 bytes have been added to the datafield - update current pointer
 	strb	r0,[r2],#1								@: add the returned CRC8 to the datafield and move to the next byte
 	str		r2,[r12,#DATAFIELD_CURRENT_POINTER]		@: save the updated datafield pointer
 
@@ -2045,14 +2093,23 @@ dap1g:
 	ldr		r4,[r12,#DATAFIELD_SIZE_BYTES_SELECTED]		
 	add		r3,r4									@: r3 points to start of overflow bytes 
 @:	ldr		r3,[r12,#BCH_POINTER]					@: overflow bytes will start here
-	mov		r0,#0									@: return zero if frame not ready
 	subs	r2,r3									@: datafield pointer minus end of datafield
-	blo		dap98									@: there is still room in the datafield - wait for next packet
+	bge		dap1j									@: packet has filled or overflowed the datafield
 
-													@: r2 contains the number of bytes overflowing the datafield	
+	mov		r0,#0									@: return zero if frame not ready
+	teq		r8,#1									@: param1 - see if a non full datafield is to be returned	
+	bne		dap98									@: no						
+
+	mov		r2,#0									@: zero overflow bytes
+
+dap1j:												@: r2 contains the number of bytes overflowing the datafield	
 	ldr		r4,[r12,#OVERFLOW_BUFFER_LENGTH]
 	str		r4,[r12,#PREVIOUS_OVERFLOW_LENGTH]		@: save the previous overflow length
 	str		r2,[r12,#OVERFLOW_BUFFER_LENGTH]		@: save the new overflow length 
+
+	ldr		r4,[r12,#DATAFIELD_CURRENT_POINTER]		@: subtract the number of overflow bytes from the datafield pointer
+	sub		r4,r2									@: so that it points just past the datafield
+	str		r4,[r12,#DATAFIELD_CURRENT_POINTER]		
 
 @:	datafield is full - move the overflow bytes to a temporary buffer
 
@@ -2152,13 +2209,16 @@ dap2r:
 
 	ldr		r4,[r12,#DATAFIELD_START_POINTER]		@: pointer to the start of the datafield
 	ldr		r5,[r12,#DATAFIELD_SIZE_BYTES_SELECTED]	@: allowable number of bytes in the datafield
+	teq		r5,#0
+	beq		dap14									@: datafield is zero length
+
 	ldr		r6,=0
-dap9:
+dap6:
 	str		r6,[r4],#1
 	adds	r5,#-1
-	bne		dap9 ///////////////////////////////////////
+	bne		dap6 
 
-@: clear the datafield /////////////////
+@: clear the datafield 
 
 	ldr		r4,[r12,#DATAFIELD_START_POINTER]		@: pointer to the start of the datafield
 	ldr		r5,[r12,#DATAFIELD_SIZE_BYTES]			@: allowable number of bytes in the datafield
@@ -2184,6 +2244,7 @@ dap3a:
 
 	str		r4,[r12,#DATAFIELD_CURRENT_POINTER]		@: save the current datafield pointer				
 
+dap14:
 	ldr		r3,[r12,#FRAME_COUNT]
 	add		r3,#1									@: count a frame
 	str		r3,[r12,#FRAME_COUNT]		
@@ -2226,10 +2287,11 @@ process_bbframe:
 	ldr		r0,[r12,#OUTBUFFER_ADDRESS]		@: generate symbols into the output buffer
     ldr     r2,[r12,#SYMBOL_GENERATION_ROUTINE]
     blx     r2                              @: generate the symbols
-
-        
+       
 	ldr		r0,[r12,#OUTBUFFER_ADDRESS]	
-	add		r0,#SYMBOLS_METADATA_OFFSET		@: symbols start 10 bytes in for symbol output
+	ldr		r1,=SYMBOLS_METADATA_OFFSET		@: symbols start at an offset
+	strh	r1,[r0]							@: store the offset to the symbols at the start of the buffer
+	add		r0,r1							@: pointer to the start of the symbols
 	str		r0,[r12,#OUTBUFFER_ADDRESS]		@: the symbols are in the outbuffer, so point to the symbols
 
 	pop		{r1-r11,r14}
@@ -2292,7 +2354,7 @@ add_bb_header:
 	ldr		r6,[r12,#DATAFIELD_START_POINTER]		@: pointer to the start of the datafield
 	subs	r5,r4,r6								@: r5 = r4 - r6 : datafield current length
 
-	ldr		r6,[r12,#DATAFIELD_SIZE_BYTES]			@: allowable number of bytes in the datafield
+	ldr		r6,[r12,#DATAFIELD_SIZE_BYTES_SELECTED]	@: allowable number of bytes in the datafield
 	cmp		r5,r6
 	movgt	r5,r6									@: too many - limit to the datafield size
 
@@ -2310,7 +2372,13 @@ abb2:
 // DFL
 
 abb4:
-	ldr		r5,[r12,#DATAFIELD_SIZE_BYTES_SELECTED]	@: number of bytes in the datafield
+///	ldr		r5,[r12,#DATAFIELD_SIZE_BYTES_SELECTED]	@: number of bytes in the datafield
+
+	ldr     r5,[r12,#DATAFIELD_CURRENT_POINTER]
+	ldr     r4,[r12,#DATAFIELD_START_POINTER]
+	sub		r5,r4									@: number of bytes in the datafield
+
+aaa:
 	lsl		r5,#3									@: convert to number of bits
 	mov		r4,r5,lsr #8							@: upper byte
 	strb	r4,[r3],#1
