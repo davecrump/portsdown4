@@ -1,3 +1,6 @@
+202603010
+Add support for Libre SDR with DL1JM/PA2JSA firmware
+
 202601020
 Update Muntjac to V1.0
 
