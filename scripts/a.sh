@@ -78,6 +78,7 @@ MODE_STARTUP=$(get_config_var startup $PCONFIGFILE)
 LKVUDP=$(get_config_var lkvudp $JCONFIGFILE)
 LKVPORT=$(get_config_var lkvport $JCONFIGFILE)
 PLUTOIP=$(get_config_var plutoip $PCONFIGFILE)
+LIBREIP=$(get_config_var libreip $PCONFIGFILE)
 
 OUTPUT_IP=""
 LIMETYPE=""
@@ -261,6 +262,27 @@ case "$MODE_OUTPUT" in
     else
       PLUTOCALL=",${CALL}"
     fi
+  ;;
+
+  LIBRESDR)
+    PLUTOPWR=$(get_config_var plutopwr $PCONFIGFILE)
+
+    # Add an extra / to the beginning of the Pluto call if required to cope with /P
+    echo $CALL | grep -q "/"
+    if [ $? == 0 ]; then
+      PLUTOCALL="/,${CALL}"
+    else
+      PLUTOCALL=",${CALL}"
+    fi
+
+    # Set the LibreSDR IP Address
+    if [ "$LIBREIP" == "dhcp" ]; then
+      PLUTOIP=libre
+    else
+      PLUTOIP=$LIBREIP
+    fi
+
+    MODE_OUTPUT=PLUTO
   ;;
 
   DATVEXPRESS)
