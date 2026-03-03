@@ -1,3 +1,6 @@
+202603030
+Bugfix LibreSDR IP Setting
+
 202603010
 Add support for Libre SDR with DL1JM/PA2JSA firmware
 
