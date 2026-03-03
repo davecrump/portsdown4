@@ -18378,6 +18378,7 @@ void ChangeLibreIP()
   char InitText[64];
   bool IsValid = FALSE;
   char LibreIPCopy[31];
+  char LibreIPCopy2[31];
 
   strcpyn(InitText, LibreIP, 17);
 
@@ -18387,14 +18388,16 @@ void ChangeLibreIP()
     Keyboard(RequestText, InitText, 17);
   
     strcpy(LibreIPCopy, KeyboardReturn);
-    if ((LibreIPCopy[0] = 'd') ||  (LibreIPCopy[0] = 'D'))
+    if ((LibreIPCopy[0] == 'd') ||  (LibreIPCopy[0] == 'D'))
     {
       strcpy(LibreIP, "dhcp");
       IsValid = TRUE;
     }
     else
     {
-      if(is_valid_ip(LibreIPCopy) == 1)
+      strcpy(LibreIPCopy2, LibreIPCopy);
+
+      if(is_valid_ip(LibreIPCopy2) == 1)
       {
         strcpy(LibreIP, LibreIPCopy);
         IsValid = TRUE;
