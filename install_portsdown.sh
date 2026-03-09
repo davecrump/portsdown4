@@ -104,6 +104,7 @@ sudo apt-get -y install libssl-dev                                      # For we
 sudo apt-get -y install libzstd-dev                                     # For libiio 202309040
 sudo apt-get -y install arp-scan                                        # For List Network Devices
 sudo apt-get -y install cppcheck                                        # For HamTV Merger Client
+sudo apt-get -y install dnsmasq                                         # For dhcp server
 
 # Install WiringPi
 cd /home/pi
