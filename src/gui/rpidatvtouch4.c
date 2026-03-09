@@ -105,6 +105,7 @@ color_t Blue  = {.r = 0  , .g = 0  , .b = 128};
 color_t LBlue = {.r = 64 , .g = 64 , .b = 192};
 color_t DBlue = {.r = 0  , .g = 0  , .b = 64 };
 color_t Grey  = {.r = 127, .g = 127, .b = 127};
+color_t DGrey  = {.r = 63, .g = 63, .b = 63};
 color_t Red   = {.r = 255, .g = 0  , .b = 0  };
 color_t Black = {.r = 0  , .g = 0  , .b = 0  };
 
@@ -436,6 +437,7 @@ void GetIPAddr2(char IPAddress[256]);
 void Get_wlan0_IPAddr(char IPAddress[255]);
 void GetSWVers(char SVersion[256]);
 void GetLatestVers(char LatestVersion[256]);
+int CheckPing(char *host_address);
 int CheckGoogle();
 int CheckJetson();
 int valid_digit(char *ip_str);
@@ -521,7 +523,6 @@ int GetPlutoXO();
 int GetPlutoAD();
 int GetPlutoCPU();
 void CheckPlutoReady();
-int CheckLibreConnect();
 void CheckLibreSDRReady();
 void CheckLimeReady();
 void LimeInfo();
@@ -695,6 +696,8 @@ void ChangePlutoCPU();
 void RebootPluto(int context);
 void CheckPlutoFirmware();
 void ChangeLibreIP();
+void ToggleDHCP(bool approved);
+int CheckDHCP();
 void UpdateLangstone(int version_number);
 void InstallLangstone(int NoButton);
 void ChangeADFRef(int NoButton);
@@ -1332,6 +1335,62 @@ void GetLatestVers(char LatestVersion[256])
   pclose(fp);
 }
 
+
+/***************************************************************************//**
+ * @brief Checks whether a ping to specified host works
+ *
+ * @param char* host_address (IPV4 or hostname)
+ *
+ * @return 0 if it pings OK, 1 if it doesn't
+*******************************************************************************/
+
+int CheckPing(char *host_address)
+{
+  FILE *fp;
+  char response[127];
+  char pingCommand[255];
+
+  strcpy(pingCommand, "timeout 0.1 ping ");
+
+  // Deal with special case for LibreSDR (dhcp = libre)
+  if (strcmp(host_address, "dhcp") == 0)
+  {
+    strcat(pingCommand, "libre");
+  }
+  else
+  {
+    strcat(pingCommand, host_address);
+  }
+  strcat(pingCommand, " -c1 | head -n 5 | tail -n 1 | grep -o \"1 received,\" | head -c 11");
+
+   //printf("Ping Command: -%s-\n", pingCommand);
+
+  /* Open the command for reading. */
+  fp = popen(pingCommand, "r");
+  if (fp == NULL) {
+    printf("Failed to run command\n" );
+    exit(1);
+  }
+
+  /* Read the output a line at a time - output it. */
+  while (fgets(response, 12, fp) != NULL)
+  {
+    //printf("ping Response in loop:%s\n", response);
+  }
+    //printf("ping Response after loop %s\n", response);
+  /* close */
+  pclose(fp);
+  if (strcmp (response, "1 received,") == 0)
+  {
+    return 0;
+  }
+  else
+  {
+    return 1;
+  }
+}
+
+
 /***************************************************************************//**
  * @brief Checks whether a ping to google on 8.8.4.4 works
  *
@@ -1369,6 +1428,7 @@ int CheckGoogle()
     return 1;
   }
 }
+
 
 /***************************************************************************//**
  * @brief Checks whether a ping to a connected Jetson works
@@ -5604,59 +5664,9 @@ void CheckPlutoReady()
 
 
 /***************************************************************************//**
- * @brief Checks whether a LibreSDR is connected on the IP address in the Config File
- *
- * @param 
- *
- * @return 0 if present, 1 if absent
-*******************************************************************************/
-
-int CheckLibreConnect()
-{
-  FILE *fp;
-  char response[127];
-  char libreping[127];
-
-  strcpy(libreping, "timeout 0.2 ping ");
-  if (strcmp(LibreIP, "dhcp") == 0)
-  {
-    strcat(libreping, "libre");
-  }
-  else
-  {
-    strcat(libreping, LibreIP);
-  }
-  strcat(libreping, " -c1 | head -n 5 | tail -n 1 | grep -o \"1 received,\" | head -c 11");
-
-  /* Open the command for reading. */
-  fp = popen(libreping, "r");
-  if (fp == NULL) {
-    printf("Failed to run command\n" );
-    exit(1);
-  }
-
-  /* Read the output a line at a time - output it. */
-  while (fgets(response, 12, fp) != NULL)
-  {
-    //printf("%s", response);
-  }
-
-  /* close */
-  pclose(fp);
-  if (strcmp (response, "1 received,") == 0)
-  {
-    return 0;
-  }
-  else
-  {
-    return 1;
-  }
-}
-
-
-/***************************************************************************//**
- * @brief Checks whether a Pluto is connected if selected on the IP address
- *        and displays error message if not
+ * @brief Checks whether a LibreSDR is connected on the saved address
+ *        and tries to find it if not.  If successful new address is used
+ *        if still unsuccessful, displays error message
  * @param 
  *
  * @return void
@@ -5664,12 +5674,79 @@ int CheckLibreConnect()
 
 void CheckLibreSDRReady()
 {
+  FILE *fp;
+  char response[255];
+  int i = 0;
+  char *last_word;
+  char IPforCheck[127];
+
   if (strcmp(CurrentModeOP, TabModeOP[6]) == 0)  // LibreSDR Output selected
   {
-    if (CheckLibreConnect() == 1)
+    if (CheckPing(LibreIP) != 0)                 // LibreSDR does not respond to ping on current address
     {
-      MsgBox4("No LibreSDR Detected", "Check Config and Connections", "or IP Address", "Touch Screen to Continue");
-      wait_touch();
+      // Open the command to find the libre host address
+      // response is like "libre.lan has address 192.168.2.221" or nothing
+      fp = popen("host libre | grep 'has address'", "r");
+
+      if (fp == NULL)
+      {
+        printf("Failed to run command\n" );
+        pclose(fp);
+        return;
+      }
+
+      // Read the output a line at a time
+      while (fgets(response, 255, fp) != NULL)
+      {
+        if (strlen(response) > 12)
+        {
+          printf("host command returned: %s\n", response);
+
+          while (response[i] != '\0')
+          {
+            if (response[i] <= 32 && response[i + 1] > 32)
+            {
+              last_word = &response[i + 1];
+            }
+            i++;
+          }
+          i = 0;
+          while (last_word && last_word[i] > 32)
+          {
+            write(1, &last_word[i], 1);
+            i++;
+          }
+          last_word[strlen(last_word) - 1] = '\0';
+
+          printf("IP Address is -%s- %d\n", last_word, strlen(last_word));
+
+          strcpy(IPforCheck, last_word);  // because is_valid_ip mangles parameter
+
+          if (is_valid_ip(IPforCheck) == 1)  // valid IP address, so check it can be pinged
+          {
+            // printf("It's a valid IP address\n");
+            if (CheckPing(last_word) == 0)
+            {
+              // So change the LibreIp in memory and the config file
+              strcpy(LibreIP, last_word);
+              SetConfigParam(PATH_PCONFIG, "libreip", LibreIP);
+            }
+            else
+            {
+              MsgBox4("No LibreSDR Detected", "Check Config and Connections", " ", "Touch Screen to Continue");
+              wait_touch();
+            }
+          }
+        }
+        else  // string length less than 12
+        {
+          MsgBox4("No LibreSDR Detected", "Check Config and Connections", " ", "Touch Screen to Continue");
+          wait_touch();
+        }
+      }
+
+      // close the command
+      pclose(fp);
     }
   }
 }
@@ -9939,6 +10016,7 @@ void GreyOut25()
 
 void GreyOutReset42()
 {
+  SetButtonStatus(ButtonNumber(CurrentMenu, 2), 0); // LibreSDR
   SetButtonStatus(ButtonNumber(CurrentMenu, 3), 0); // Lime Mini
   SetButtonStatus(ButtonNumber(CurrentMenu, 7), 0); // DATV Express
   SetButtonStatus(ButtonNumber(CurrentMenu, 8), 0); // Lime USB
@@ -9979,7 +10057,7 @@ void GreyOut42()
     SetButtonStatus(ButtonNumber(CurrentMenu, 14), 2); // Pluto
   }
   // Check LibreSDR
-  if (CheckLibreConnect() == 1)   // LibreSDR not connected, so GreyOut
+  if (CheckPing(LibreIP) != 0)   // LibreSDR not connected, so GreyOut
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 1), 2); // LibreSDR
   }
@@ -15389,6 +15467,24 @@ void YesNo(int i)  // i == 6 Yes, i == 8 No
   // First switch on what was calling the Yes/No question
   switch(CallingMenu)
   {
+  case 158:
+    printf("reached case 158\n");
+    switch (i)
+    {
+    case 6:     // Yes
+      MsgBox4("Reconfiguring and rebooting", " ", " ", " ");
+      ToggleDHCP(true);
+      CurrentMenu = 15;
+      Start_Highlights_Menu15();
+      UpdateWindow();
+      break;
+    case 8:    // No
+      CurrentMenu = 15;
+      Start_Highlights_Menu15();
+      UpdateWindow();
+      break;
+    }
+  break;
   case 414:         // Download ISS file??
     switch (i)
     {
@@ -18411,6 +18507,94 @@ void ChangeLibreIP()
 }
 
 
+/***************************************************************************//**
+ * @brief Toggles DHCP on or off.  Triggers reboot
+ *
+ * @param nil
+ *
+ * @return nil
+*******************************************************************************/
+
+void ToggleDHCP(bool approved)
+{
+  if (CheckDHCP() == 0)  // DHCP enabled, so disable it
+  {
+    if (approved == false)  // Ask first
+    {
+      // Display warning and exit clause
+      MsgBox4("Portsdown will disable DHCP,", "disconnect from LibreSDR and reboot", "Continue?", " ");
+    }
+    else                   // Just do it
+    {
+      printf("Disable DHCP\n");
+      system("sudo cp /home/pi/rpidatv/scripts/configs/dhcpcd.conf.off /etc/dhcpcd.conf");
+      system("sudo cp /home/pi/rpidatv/scripts/configs/dnsmasq.conf.off /etc/dnsmasq.conf");
+      system("sudo reboot now");
+      printf("reboot would be called\n");
+    }
+  }
+  else  // DHCP disabled, so enable it
+  {
+    if (approved == false)  // Ask first
+    {
+      // Display warning and exit clause
+      MsgBox4("Portsdown will enable DHCP,", "to enable LibreSDR and reboot", "Continue?", " ");
+    }
+    else                   // Just do it
+    {
+      printf("Enable DHCP\n");
+      system("sudo cp /home/pi/rpidatv/scripts/configs/dhcpcd.conf.svr /etc/dhcpcd.conf");
+      system("sudo cp /home/pi/rpidatv/scripts/configs/dnsmasq.conf.svr /etc/dnsmasq.conf");
+      system("sudo reboot now");
+      printf("reboot would be called\n");
+    }
+  }
+}
+
+
+/***************************************************************************//**
+ * @brief Checks whether DHCP is enabled by checking IP address
+ *
+ * @param nil
+ *
+ * @return 0 if it is enabled, 1 if it not enabled
+*******************************************************************************/
+
+int CheckDHCP()
+{
+  FILE *fp;
+  char response[127] = "";
+  char checkcommand[127];
+  
+  strcpy(checkcommand, "cat /etc/dnsmasq.conf | grep 192.168.10.");  // 192.168.10.* addresses used for fixed IP
+
+  /* Open the command for reading. */
+  fp = popen(checkcommand, "r");
+  if (fp == NULL)
+  {
+    printf("Failed to run command\n" );
+    exit(1);
+  }
+
+  /* Read the output a line at a time - output it. */
+  while (fgets(response, 120, fp) != NULL)
+  {
+    printf("%s", response);
+  }
+  //  printf("%s", response);
+  /* close */
+  pclose(fp);
+  if (strlen(response) > 5)
+  {
+    return 0;  // enabled
+  }
+  else
+  {
+    return 1;  // disabled
+  }
+}
+
+
 void UpdateLangstone(int version_number)
 {
   if (CheckGoogle() == 0)  // First check internet conection
@@ -21201,17 +21385,17 @@ void waituntil(int w,int h)
           Start_Highlights_Menu15();
           UpdateWindow();
           break;
-        case 6:                               // Enable 2nd Pluto CPU
-          if (GetButtonStatus(ButtonNumber(15, 6)) == 1)
-          {
-            system("/home/pi/rpidatv/scripts/pluto_set_cpu.sh");
-            MsgBox2("Pluto 2nd CPU enabled", "You must reboot the Pluto now");
-            wait_touch();
-            SetButtonStatus(ButtonNumber(15, 6), 0);
-          }
-          UpdateWindow();
-          break;
-        case 7:                               // Check Pluto Firmware
+//        case 6:                               // Enable 2nd Pluto CPU
+//          if (GetButtonStatus(ButtonNumber(15, 6)) == 1)
+//          {
+//            system("/home/pi/rpidatv/scripts/pluto_set_cpu.sh");
+//            MsgBox2("Pluto 2nd CPU enabled", "You must reboot the Pluto now");
+//            wait_touch();
+//            SetButtonStatus(ButtonNumber(15, 6), 0);
+//          }
+//          UpdateWindow();
+//          break;
+        case 6:                               // Check Pluto Firmware
           CheckPlutoFirmware();
           Start_Highlights_Menu15();
           UpdateWindow();
@@ -21226,12 +21410,18 @@ void waituntil(int w,int h)
 //          }
 //          UpdateWindow();
 //          break;
-        case 8:                               // Enter Pluto IP for Langstone
+        case 7:                               // Enter Pluto IP for Langstone
           ChangePlutoIPLangstone();
           setBackColour(0, 0, 0);
           clearScreen();
           Start_Highlights_Menu15();
           UpdateWindow();
+          break;
+        case 8:                               // Enable/disable DHCP for LibreSDR
+          ToggleDHCP(false);                  // ask user first
+          CurrentMenu = 38;
+          CallingMenu = 158;
+          printf("exit toggleDHCP, back in menu 15. i = %d\n", i);
           break;
         case 9:                               // Enter LibreSDR IP
           ChangeLibreIP();
@@ -21245,17 +21435,21 @@ void waituntil(int w,int h)
         }
         SelectInGroupOnMenu(CurrentMenu, 4, 4, 4, 0); // Reset cancel (even if not selected)
 
-        if (i != 4) // Stay in Menu 15 unless cancel pressed
-        {
-          printf("Staying in Menu 15\n");
-          CurrentMenu=15;
-          Start_Highlights_Menu15();
-        }
-        else
+        if (i == 4) // Stay in Menu 15 unless cancel or toggle DHCP pressed
         {
           printf("Returning to MENU 1 from Menu 15\n");
           CurrentMenu=1;
           Start_Highlights_Menu1();
+        }
+        else if (i == 8)
+        {
+          // Pass on through
+        }
+        else
+        {
+          printf("Staying in Menu 15\n");
+          CurrentMenu=15;
+          Start_Highlights_Menu15();
         }
         UpdateWindow();
         continue;   // Completed Menu 15 action, go and wait for touch
@@ -23812,7 +24006,7 @@ void Start_Highlights_Menu1()
   else if (strcmp(CurrentModeOPtext, "LibreSDR") == 0)
   {
     strcpy(Outputtext, "Output to^LibreSDR");
-    if (CheckLibreConnect() != 0)
+    if (CheckPing(LibreIP) != 0)
     {
       AmendButtonStatus(17, 1, Outputtext, &Grey);
     }
@@ -26062,28 +26256,43 @@ void Define_Menu15()
   button = CreateButton(15, 5);
   AddButtonStatus(button, "Check Pluto^CPUs", &Blue);
 
-  button = CreateButton(15, 6);
-  AddButtonStatus(button, " ", &Grey);
-  AddButtonStatus(button, "Enable 2nd^Pluto CPU", &Red);
+//  button = CreateButton(15, 6);
+//  AddButtonStatus(button, " ", &Grey);
+//  AddButtonStatus(button, "Enable 2nd^Pluto CPU", &Red);
 
-  button = CreateButton(15, 7);
+  button = CreateButton(15, 6);
   AddButtonStatus(button, "Check Pluto^Firmware", &Blue);
 
 //  button = CreateButton(15, 8);
 //  AddButtonStatus(button, " ", &Grey);
 //  AddButtonStatus(button, "Update Pluto^to AD9364", &Red);
 
-  button = CreateButton(15, 8);
+  button = CreateButton(15, 7);
   AddButtonStatus(button, "Set Pluto IP^for Langstone", &Blue);
+
+  button = CreateButton(15, 8);
+  AddButtonStatus(button, "DHCP Disabled^for LibreSDR", &Blue);
+  AddButtonStatus(button, "DHCP Enabled^for LibreSDR", &Red);
 
   button = CreateButton(15, 9);
   AddButtonStatus(button, "Set LibreSDR^IP Address", &Blue);
 
 }
 
+
 void Start_Highlights_Menu15()
 {
+  if (CheckDHCP() == 0)
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 8), 1);  // DHCP enabled
+  }
+  else
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 8), 0);  // DHCP not enabled
+  }
+
 }
+
 
 void Define_Menu16()
 {
@@ -28092,7 +28301,7 @@ void Define_Menu42()
   button = CreateButton(42, 1);                          // LibreSDR
   AddButtonStatus(button, TabModeOPtext[6], &Blue);
   AddButtonStatus(button, TabModeOPtext[6], &Green);
-  AddButtonStatus(button, TabModeOPtext[6], &Grey);
+  AddButtonStatus(button, TabModeOPtext[6], &DGrey);
 
   button = CreateButton(42, 2);                          // IPTS Out
   AddButtonStatus(button, TabModeOPtext[7], &Blue);  
