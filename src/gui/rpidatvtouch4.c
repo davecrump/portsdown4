@@ -356,6 +356,11 @@ char langstone_version[31] = "none";
 // LibreSDR
 char LibreIP[63];             // LibreSDR IP address (or text dhcp)
 
+// Fixed IP Configuration
+char static_ip[63] = "192.168.0.2";
+char static_router[63] = "192.168.0.1";
+char static_dns[63] = "192.168.0.1";
+
 // Touch display variables
 int Inversed=0;               //Display is inversed (Waveshare=1)
 int PresetStoreTrigger = 0;   //Set to 1 if awaiting preset being stored
@@ -698,6 +703,10 @@ void CheckPlutoFirmware();
 void ChangeLibreIP();
 void ToggleDHCP(bool approved);
 int CheckDHCP();
+int CheckFixedIP();
+void ToggleFixedIP();
+void EditFixedIP();
+void ReadDHCPConfig();
 void UpdateLangstone(int version_number);
 void InstallLangstone(int NoButton);
 void ChangeADFRef(int NoButton);
@@ -18595,6 +18604,291 @@ int CheckDHCP()
 }
 
 
+/***************************************************************************//**
+ * @brief Checks whether Fixed IP is selected and whether it matches desired IP
+ *
+ * @param nil
+ *
+ * @return 0 - dhcp in use
+ *         1 - fixed ip selected and matches dhcp server mode
+ *         2 - fixed IP is selected but does not match static_ip (should not happen)
+ *         3 - fixed ip selected and active
+*******************************************************************************/
+
+int CheckFixedIP()
+{
+  FILE *fp;
+  char response[127] = " ";
+  char checkcommand[255];
+  char IPcheck[63] = "0";
+  char etc_static_ip[63] = " ";
+
+  // Read /etc/dhcpcd.conf and return IP address or nothing (as there would be no match for static ip_address= at the beginning of the line)
+
+  strcpy(checkcommand, "cat /etc/dhcpcd.conf | grep \"^static ip_address=\" | cut -c 19- | rev | cut -c 4- | rev");  // static ip_address= at the beginning of a line
+  //printf("%s\n", checkcommand);
+  fp = popen(checkcommand, "r");
+  if (fp == NULL)
+  {
+    printf("Failed to run command\n" );
+    exit(1);
+  }
+  while (fgets(response, 120, fp) != NULL)
+  {
+    response[strlen(response) - 1] = '\0';  // Cut trailing CR
+    strcpy(IPcheck, response);
+    //printf("-%s-\n", IPcheck);
+    if (is_valid_ip(IPcheck) == 1)
+    {
+      strcpy(etc_static_ip, response);
+    }
+  }
+  pclose(fp);
+
+  //printf("etc_static_ip = -%s-, static_ip = -%s-\n", etc_static_ip, static_ip);
+
+  if (strlen(etc_static_ip) < 7)  // No fixed IP set, so dhcp in use
+  {
+    return 0;
+  }
+
+  if (strcmp(etc_static_ip, "192.168.10.50") == 0)  // DHCP server mode
+  {
+    return 1;
+  }
+
+  if (strcmp(etc_static_ip, static_ip) != 0)  // configured static IP does not match demanded static IP
+  {
+    return 2;
+  }
+  else  // fixed IP correctly set
+  {
+    return 3;
+  }
+}
+
+
+/***************************************************************************//**
+ * @brief Selects Fixed IP on or off
+ *
+ * @param nil
+ *
+ * @return null
+*******************************************************************************/
+
+void ToggleFixedIP()
+{
+  int IPstatus;
+  char Line2[127] = "Fixed IP Address: ";
+  char Line3[127]= "Router Address: ";
+  char Line4[127]= "DNS Server Address: ";
+
+
+  IPstatus = CheckFixedIP();
+
+  if (IPstatus == 0)  // Not fixed IP and fixed IP demanded
+  {
+    system("sudo cp /home/pi/rpidatv/scripts/configs/dhcpcd.conf.prep /etc/dhcpcd.conf");
+    strcat(Line2, static_ip);
+    strcat(Line3, static_router);
+    strcat(Line4, static_dns);
+    MsgBox4("Touch for reboot to apply settings:", Line2, Line3, Line4);
+    wait_touch();
+    system("sudo reboot now"); 
+  }
+
+  if (IPstatus == 3)  // Fixed IP and auto demanded
+  {
+    system("sudo cp /home/pi/rpidatv/scripts/configs/dhcpcd.conf.off /etc/dhcpcd.conf");
+    MsgBox4("Reverting to automatic IP allocation", "using external dhcp.  Touch for reboot.", " ", " ");
+    wait_touch();
+    system("sudo reboot now"); 
+  }
+
+  if (IPstatus == 1)  // Portsdown running its own DHCP server
+  {
+    MsgBox4("This Portsdown has a fixed IP of 192.168.10.50,", "but is also running its own dhcp server", "turn off the DHCP server", "before changing other settings");
+    wait_touch();
+  }
+
+  if (IPstatus == 2)  // IP does not match
+  {
+    MsgBox4("There has been an IP configuration error", "Please reboot which should cure it", " ", " ");
+    wait_touch();
+  }
+}
+
+
+/***************************************************************************//**
+ * @brief Edits the Fixed IP global parameters and prep file
+ *
+ * @param nil
+ *
+ * @return null
+*******************************************************************************/
+
+void EditFixedIP()
+{
+  char RequestText[64];
+  char InitText[64];
+  char IPcheck[63] = "0";
+  char Line2[127] = "Fixed IP Address: ";
+  char Line3[127]= "Router Address: ";
+  char Line4[127]= "DNS Server Address: ";
+  char Command1[127];
+  char Command2[127];
+  char Command3[127];
+
+  // Read addresses from file
+  ReadDHCPConfig();
+
+  // User entry of Fixed IP
+  snprintf(RequestText, 45, "Enter the desired Fixed IP address");
+  snprintf(InitText, 63, "%s", static_ip);
+  while (is_valid_ip(IPcheck) != 1)
+  {
+    Keyboard(RequestText, InitText, 15);
+    strcpy(IPcheck, KeyboardReturn);
+  }
+  strcpy(static_ip, KeyboardReturn);
+  printf("Static IP set to %s\n", static_ip);
+
+  // User entry of router address
+  snprintf(RequestText, 45, "Enter the router address");
+  snprintf(InitText, 63, "%s", static_router);
+  while (is_valid_ip(IPcheck) != 1)
+  {
+    Keyboard(RequestText, InitText, 15);
+    strcpy(IPcheck, KeyboardReturn);
+  }
+  strcpy(static_router, KeyboardReturn);
+  printf("Router IP set to %s\n", static_router);
+
+  // User entry of dns server
+  snprintf(RequestText, 45, "Enter the DNS Server address");
+  snprintf(InitText, 63, "%s", static_dns);
+  while (is_valid_ip(IPcheck) != 1)
+  {
+    Keyboard(RequestText, InitText, 15);
+    strcpy(IPcheck, KeyboardReturn);
+  }
+  strcpy(static_dns, KeyboardReturn);
+  printf("DNS Server IP set to %s\n", static_dns);
+
+  // Make a copy of the base config file (overwriting the previous config)
+  system("cp /home/pi/rpidatv/scripts/configs/dhcpcd.conf.base /home/pi/rpidatv/scripts/configs/dhcpcd.conf.prep");
+
+  // Write the static IP
+  strcpy(Command1, "sed -i \"s/static_ip/");
+  strcat(Command1, static_ip);
+  strcat(Command1, "/\" /home/pi/rpidatv/scripts/configs/dhcpcd.conf.prep");
+  //printf ("Command 1 : -%s-\n", Command1);
+  system(Command1);
+
+  // Write the router address
+  strcpy(Command2, "sed -i \"s/static_router/");
+  strcat(Command2, static_router);
+  strcat(Command2, "/\" /home/pi/rpidatv/scripts/configs/dhcpcd.conf.prep");
+  //printf ("Command 2 : -%s-\n", Command2);
+  system(Command2);
+
+  // Write the DNS Server address
+  strcpy(Command3, "sed -i \"s/static_dns/");
+  strcat(Command3, static_dns);
+  strcat(Command3, "/\" /home/pi/rpidatv/scripts/configs/dhcpcd.conf.prep");
+  //printf ("Command 3 : -%s-\n", Command3);
+  system(Command3);
+
+  // Display settings for user
+  strcat(Line2, static_ip);
+  strcat(Line3, static_router);
+  strcat(Line4, static_dns);
+  MsgBox4("These settings have been stored:", Line2, Line3, Line4);
+  wait_touch();
+}
+
+
+/***************************************************************************//**
+ * @brief Reads Static IP parameters from dhcpcd.conf.prep
+ * and sets global variables static_ip, static_router and static_dns
+ *
+ * @param nil
+ *
+ * @return null
+*******************************************************************************/
+
+void ReadDHCPConfig()
+{
+  FILE *fp;
+  char response[127] = "";
+  char checkcommand[255];
+  char IPcheck[63] = "0";
+
+  // Read the static IP address
+  strcpy(checkcommand, "cat /home/pi/rpidatv/scripts/configs/dhcpcd.conf.prep | grep \"^static ip_address=\" | cut -c 19- | rev | cut -c 4- | rev");  // static ip_address= at the beginning of a line
+  //printf("%s\n", checkcommand);
+  fp = popen(checkcommand, "r");
+  if (fp == NULL)
+  {
+    printf("Failed to run command\n" );
+    exit(1);
+  }
+  while (fgets(response, 120, fp) != NULL)
+  {
+    response[strlen(response) - 1] = '\0';  // Cut trailing CR
+    strcpy(IPcheck, response);
+    //printf("-%s-\n", IPcheck);
+    if (is_valid_ip(IPcheck) == 1)
+    {
+      strcpy(static_ip, response);
+    }
+  }
+  pclose(fp);
+
+  // Read the Router address
+  strcpy(checkcommand, "cat /home/pi/rpidatv/scripts/configs/dhcpcd.conf.prep | grep \"^static routers=\" | cut -c 16-");  // static routers= at the beginning of a line
+  //printf("%s\n", checkcommand);
+  fp = popen(checkcommand, "r");
+  if (fp == NULL)
+  {
+    printf("Failed to run command\n" );
+    exit(1);
+  }
+  while (fgets(response, 120, fp) != NULL)
+  {
+    response[strlen(response) - 1] = '\0';  // Cut trailing CR
+    strcpy(IPcheck, response);
+    //printf("-%s-\n", IPcheck);
+    if (is_valid_ip(IPcheck) == 1)
+    {
+      strcpy(static_router, response);
+    }
+  }
+  pclose(fp);
+
+  //Read the DNS Server address
+  strcpy(checkcommand, "cat /home/pi/rpidatv/scripts/configs/dhcpcd.conf.prep | grep \"^static domain_name_servers=\" | cut -c 28- | rev | cut -c 32- | rev");  // static domain_name_servers= at the beginning of a line
+  //printf("%s\n", checkcommand);
+  fp = popen(checkcommand, "r");
+  if (fp == NULL)
+  {
+    printf("Failed to run command\n" );
+    exit(1);
+  }
+  while (fgets(response, 120, fp) != NULL)
+  {
+    response[strlen(response) - 1] = '\0';  // Cut trailing CR
+    strcpy(IPcheck, response);
+    //printf("-%s-\n", IPcheck);
+    if (is_valid_ip(IPcheck) == 1)
+    {
+      strcpy(static_dns, response);
+    }
+  }
+  pclose(fp);
+}
+
+
 void UpdateLangstone(int version_number)
 {
   if (CheckGoogle() == 0)  // First check internet conection
@@ -20281,12 +20575,12 @@ void waituntil(int w,int h)
           Start_Highlights_Menu29();
           UpdateWindow();
           break;
-        case 19:                               // Set ADF Reference Frequency
-          printf("MENU 32 \n"); 
-          CurrentMenu=32;
+        case 19:                               // Network Config
+          printf("MENU 5 \n"); 
+          CurrentMenu = 5;
           setBackColour(0, 0, 0);
           clearScreen();
-          Start_Highlights_Menu32();
+          Start_Highlights_Menu5();
           UpdateWindow();
           break;
         case 20:                              // Not shown
@@ -20407,43 +20701,88 @@ void waituntil(int w,int h)
         continue;   // Completed Menu 4 action, go and wait for touch
       }
 
-      if (CurrentMenu == 5)  // Menu 5 LeanDVB
+      if (CurrentMenu == 5)  // Menu 5 Network Config
       {
         printf("Button Event %d, Entering Menu 5 Case Statement\n",i);
         CallingMenu = 5;
 
         switch (i)
         {
-        case 0:                              // Preset 1
-        case 1:                              // Preset 2
-        case 2:                              // Preset 3
-        case 3:                              // Preset 4
+        case 0:                               // Toggle Fixed IP on or off
+          ToggleFixedIP();
+          setBackColour(0, 0, 0);
+          clearScreen();
+          Start_Highlights_Menu5();
+          UpdateWindow();
           break;
-        case 4:                              // Store RX Preset
+        case 1:                               // Edit Fixed IP details
+          EditFixedIP();
+          setBackColour(0, 0, 0);
+          clearScreen();
+          Start_Highlights_Menu5();
+          UpdateWindow();
           break;
-        case 5:                              // Fastlock on/off
+        case 2:                               // Enable/disable DHCP Server
+          MsgBox4("Touch screen to reboot and apply new settings", " ", " ", " ");
+          wait_touch();
+          ToggleDHCP(true);                  // 
+          system("sudo reboot now");
           break;
-        case 7:                              // Audio on/off
+        case 3:
           break;
-        case 9:                              // SetRXLikeTX
+        case 4:
+          ClearMenuMessage(); 
+          printf("MENU 1 \n");
+          CurrentMenu = 1;
+          setBackColour(255, 255, 255);
+          clearScreen();
+          setBackColour(0, 0, 0);
+          Start_Highlights_Menu1();
+          UpdateWindow();
           break;
-        case 10:
+        case 5:                               // List Raspberry Pis on network
+          MsgBox4("Please wait", "Scanning Networks", ".....", " ");
+          ListNetPis();
+          Start_Highlights_Menu5();
+          UpdateWindow();
           break;
-        case 11:
+        case 6:                               // List Network Devices
+          MsgBox4("Please wait", "Scanning Networks", ".....", " ");
+          ListNetDevices();
+          Start_Highlights_Menu6();
+          UpdateWindow();
           break;
-        case 12:
+        case 7:
           break;
-        case 13:                       // Sample Rate
+        case 8:                               // Disable Wifi      was 3
+        case 10:                              // List Networks    was 9 (5)
+        case 11:                              // Set-up Network    was 6
+        case 12:                              // Check connection  was 7
+        case 13:                              // Enable Wifi       was 8
+        case 14:                              // Reset Wifi        was 5
+          SetButtonStatus(ButtonNumber(5, i), 1);  // Set button green while waiting
+          UpdateWindow();
+          WiFiConfig(i - 5);
+          SetButtonStatus(ButtonNumber(5, i), 0);
+          CurrentMenu = 5;
+          setBackColour(0, 0, 0);
+          clearScreen();
+          Start_Highlights_Menu5();
+          UpdateWindow();
           break;
-        case 14:                       // Gain
+        case 16:
           break;
-        case 16:                       // Encoding
+        case 17:
           break;
-        case 17:                       // SDR Selection
+        case 18:
           break;
-        case 18:                                            // Constellation on/off
+        case 19:                                            // Set RTL-SDR ppm offset
+          ChangeRTLppm();
+          setBackColour(0, 0, 0);
+          clearScreen();
+          Start_Highlights_Menu5();          // Refresh button labels
+          UpdateWindow();
           break;
-        case 19:                                            // Parameters on/off
           break;
         case 21:                       // RX
           break;
@@ -24263,8 +24602,7 @@ void Define_Menu3()
   AddButtonStatus(button, "Set Call,^Loc & PIDs", &Green);
 
   button = CreateButton(3, 19);
-  AddButtonStatus(button, "Set ADF^Ref Freq", &Blue);
-  AddButtonStatus(button, "Set ADF^Ref Freq", &Green);
+  AddButtonStatus(button, "Network^Config", &Blue);
 
   // Top of Menu 3
 
@@ -24429,27 +24767,141 @@ void Start_Highlights_Menu4()
 
 void Define_Menu5()
 {
-  // int button = 0;
+  int button = 0;
 
-  strcpy(MenuTitle[5], "Menu (5)"); 
+  strcpy(MenuTitle[5], "Network Config Menu (5)"); 
 
   // Menu 5
 
-  // 2nd Row, Menu 5.  
+  button = CreateButton(5, 0);
+  AddButtonStatus(button, "Auto IP^by DHCP", &Blue);
+  AddButtonStatus(button, "Fixed IP^", &Red);
+
+  button = CreateButton(5, 1);
+  AddButtonStatus(button, "Edit^Fixed IP", &Blue);
+
+  button = CreateButton(5, 2);
+  AddButtonStatus(button, "DHCP Server^Disabled", &Blue);
+  AddButtonStatus(button, "DHCP Server ^Enabled", &Red);
+
+  button = CreateButton(5, 4);
+  AddButtonStatus(button, "Exit", &DBlue);
+  AddButtonStatus(button, "Exit", &LBlue);
+
+  // 2nd Row, Menu 5
+
+  button = CreateButton(5, 5);
+  AddButtonStatus(button, "List Network^Raspberry Pis", &Blue);
+
+  button = CreateButton(5, 6);
+  AddButtonStatus(button, "List Network^Devices", &Blue);
+
+  button = CreateButton(5, 8);
+  AddButtonStatus(button, "Disable^WiFi", &Blue);
+  AddButtonStatus(button, "Disable^WiFi", &Green);
+  AddButtonStatus(button, "Disable^WiFi", &Grey);
 
   // 3rd line up Menu 5
 
+  button = CreateButton(5, 10);
+  AddButtonStatus(button, "List WiFi^Networks", &Blue);
+  AddButtonStatus(button, "List WiFi^Networks", &Green);
+  AddButtonStatus(button, "List WiFi^Networks", &Grey);
+
+  button = CreateButton(5, 11);
+  AddButtonStatus(button, "Set-up WiFi^Network", &Blue);
+  AddButtonStatus(button, "Set-up WiFi^Network", &Green);
+  AddButtonStatus(button, "Set-up WiFi^Network", &Grey);
+
+  button = CreateButton(5, 12);
+  AddButtonStatus(button, "Check WiFi^Status", &Blue);
+  AddButtonStatus(button, "Check WiFi^Status", &Green);
+  AddButtonStatus(button, "Check WiFi^Status", &Grey);
+
+  button = CreateButton(5, 13);
+  AddButtonStatus(button, "Enable^WiFi", &Blue);
+  AddButtonStatus(button, "Enable^WiFi", &Green);
+  AddButtonStatus(button, "Enable^WiFi", &Grey);
+
+  button = CreateButton(5, 14);
+  AddButtonStatus(button, "Reset^WiFi", &Blue);
+  AddButtonStatus(button, "Reset^WiFi", &Green);
+  AddButtonStatus(button, "Reset^WiFi", &Grey);
 
   // 4th line up Menu 5
-
+//  button = CreateButton(5, 19);
+//  AddButtonStatus(button, "RTL ppm", &Blue);
 
   // Top of Menu 5
 
 }
 
+
 void Start_Highlights_Menu5()
 {
+  char Buttext[31];
+  int IPstatus;
+  char short_static_ip [16];
+
+  IPstatus = CheckFixedIP();
+  strcpyn(short_static_ip, static_ip, 15);  // Put the static IP into a short string
+
+  if (IPstatus == 0)  // dhcp in use
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 0), 0);
+  }
+
+  if (IPstatus == 3)  // Fixed IP set
+  {
+    snprintf(Buttext, 30, "Fixed IP^%s", short_static_ip);
+    AmendButtonStatus(ButtonNumber(CurrentMenu, 0), 1, Buttext, &Red);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 0), 1);
+  }
+
+  if (IPstatus == 1)  // Fixed IP set with DHCP
+  {
+    snprintf(Buttext, 30, "IP & DHCP^%s", "192.168.10.50");
+    AmendButtonStatus(ButtonNumber(CurrentMenu, 0), 1, Buttext, &Grey);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 0), 1);
+  }
+
+  if (IPstatus == 2)  // Fixed IP set with DHCP
+  {
+    AmendButtonStatus(ButtonNumber(CurrentMenu, 0), 1, "IP Config^ Error", &Grey);
+    SetButtonStatus(ButtonNumber(CurrentMenu, 0), 1);
+  }
+
+  if (CheckDHCP() == 0)
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 2), 1);  // DHCP Server enabled
+  }
+  else
+  {
+    SetButtonStatus(ButtonNumber(CurrentMenu, 2), 0);  // DHCP Server not enabled
+  }
+
+  if (CheckWifiEnabled() == 1)  // Wifi not enabled
+  {
+    SetButtonStatus(ButtonNumber(5, 10), 2);  // Grey out the "List WiFi Networks" Button
+    SetButtonStatus(ButtonNumber(5, 11), 2);  // Grey out the "Set up WiFi Network" Button
+  }
+  else
+  {
+    if (GetButtonStatus(ButtonNumber(5, 10)) == 2) // "List WiFi Networks" is grey
+    {
+      SetButtonStatus(ButtonNumber(5, 10), 0);  // Set to Blue
+    }
+    if (GetButtonStatus(ButtonNumber(5, 11)) == 2) // "Set up WiFi Network" is grey
+    {
+      SetButtonStatus(ButtonNumber(5, 11), 0);  // Set to Blue
+    }
+  }
+
+  //snprintf(Buttext, 26, "RTL ppm^%d", RTLppm);
+  //AmendButtonStatus(ButtonNumber(5, 19), 0, Buttext, &Blue);
+
 }
+
 
 void Define_Menu6()
 {
@@ -29607,6 +30059,7 @@ int main(int argc, char **argv)
   ReadVLCVolume();
   ReadWebControl();  // this starts the web listener thread if required
   ReadMerger();
+  ReadDHCPConfig();
 
   SetAudioLevels();
 
@@ -29618,7 +30071,7 @@ int main(int argc, char **argv)
   Define_Menu2();
   Define_Menu3();
   Define_Menu4();
-  //Define_Menu5();
+  Define_Menu5();
   Define_Menu6();
   Define_Menu7();
   Define_Menu8();
@@ -29645,7 +30098,7 @@ int main(int argc, char **argv)
   Define_Menu29();
   Define_Menu30();
   Define_Menu31();
-  Define_Menu32();
+  //Define_Menu32();
   Define_Menu33();
   Define_Menu34();
   Define_Menu35();

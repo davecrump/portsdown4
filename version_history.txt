@@ -1,3 +1,6 @@
+202603110
+Add Network Menu and Fixed IP Entry
+
 202603090
 Install DHCP server for standalone LibreSDR
 
