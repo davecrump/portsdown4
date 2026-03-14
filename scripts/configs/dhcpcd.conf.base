@@ -42,7 +42,7 @@ slaac private
 
 # Example static IP configuration:
 interface eth0
-static ip_address=static_ip/24
+static ip_address=static_ip/static_mask
 #static ip6_address=fd51:42f8:caae:d92e::ff/64
 static routers=static_router
 static domain_name_servers=static_dns 8.8.8.8 fd51:42f8:caae:d92e::1
