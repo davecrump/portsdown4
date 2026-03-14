@@ -358,6 +358,7 @@ char LibreIP[63];             // LibreSDR IP address (or text dhcp)
 
 // Fixed IP Configuration
 char static_ip[63] = "192.168.0.2";
+char static_mask[7] = "24";
 char static_router[63] = "192.168.0.1";
 char static_dns[63] = "192.168.0.1";
 
@@ -18736,6 +18737,7 @@ void EditFixedIP()
   char Line3[127]= "Router Address: ";
   char Line4[127]= "DNS Server Address: ";
   char Command1[127];
+  char Command1a[127];
   char Command2[127];
   char Command3[127];
 
@@ -18753,9 +18755,21 @@ void EditFixedIP()
   strcpy(static_ip, KeyboardReturn);
   printf("Static IP set to %s\n", static_ip);
 
+  // User entry of net mask
+  snprintf(RequestText, 45, "Enter the desired subnet mask (default 24)");
+  snprintf(InitText, 63, "%s", static_mask);
+  strcpy(KeyboardReturn, "0");
+  while ((atoi(KeyboardReturn) < 8) || (atoi(KeyboardReturn) > 24))
+  {
+    Keyboard(RequestText, InitText, 15);
+  }
+  strcpy(static_mask, KeyboardReturn);
+  printf("static_mask set to %s\n", static_ip);
+
   // User entry of router address
   snprintf(RequestText, 45, "Enter the router address");
   snprintf(InitText, 63, "%s", static_router);
+  strcpy(IPcheck, "0");
   while (is_valid_ip(IPcheck) != 1)
   {
     Keyboard(RequestText, InitText, 15);
@@ -18767,6 +18781,7 @@ void EditFixedIP()
   // User entry of dns server
   snprintf(RequestText, 45, "Enter the DNS Server address");
   snprintf(InitText, 63, "%s", static_dns);
+  strcpy(IPcheck, "0");
   while (is_valid_ip(IPcheck) != 1)
   {
     Keyboard(RequestText, InitText, 15);
@@ -18785,6 +18800,13 @@ void EditFixedIP()
   //printf ("Command 1 : -%s-\n", Command1);
   system(Command1);
 
+  // Write the static net mask
+  strcpy(Command1a, "sed -i \"s/static_mask/");
+  strcat(Command1a, static_mask);
+  strcat(Command1a, "/\" /home/pi/rpidatv/scripts/configs/dhcpcd.conf.prep");
+  //printf ("Command 1a : -%s-\n", Command1a);
+  system(Command1a);
+
   // Write the router address
   strcpy(Command2, "sed -i \"s/static_router/");
   strcat(Command2, static_router);
@@ -18801,6 +18823,8 @@ void EditFixedIP()
 
   // Display settings for user
   strcat(Line2, static_ip);
+  strcat(Line2, "  /");
+  strcat(Line2, static_mask);
   strcat(Line3, static_router);
   strcat(Line4, static_dns);
   MsgBox4("These settings have been stored:", Line2, Line3, Line4);
@@ -18825,7 +18849,7 @@ void ReadDHCPConfig()
   char IPcheck[63] = "0";
 
   // Read the static IP address
-  strcpy(checkcommand, "cat /home/pi/rpidatv/scripts/configs/dhcpcd.conf.prep | grep \"^static ip_address=\" | cut -c 19- | rev | cut -c 4- | rev");  // static ip_address= at the beginning of a line
+  strcpy(checkcommand, "cat /home/pi/rpidatv/scripts/configs/dhcpcd.conf.prep | grep \"^static ip_address=\" | cut -c 19- | rev | cut -c 3- | rev");  // static ip_address= at the beginning of a line
   //printf("%s\n", checkcommand);
   fp = popen(checkcommand, "r");
   if (fp == NULL)
@@ -18836,11 +18860,38 @@ void ReadDHCPConfig()
   while (fgets(response, 120, fp) != NULL)
   {
     response[strlen(response) - 1] = '\0';  // Cut trailing CR
+    if (response[strlen(response) - 1] == '/')  // Only the last 2 characters are stripped from the line, so a mask of 24 will need the / stripped
+    {
+      response[strlen(response) - 1] = '\0';
+    }
     strcpy(IPcheck, response);
     //printf("-%s-\n", IPcheck);
     if (is_valid_ip(IPcheck) == 1)
     {
       strcpy(static_ip, response);
+    }
+  }
+  pclose(fp);
+
+  // Read the static IP address mask
+  strcpy(checkcommand, "cat /home/pi/rpidatv/scripts/configs/dhcpcd.conf.prep | grep \"^static ip_address=\" | tail -c 3");  // static ip_address= at the beginning of a line
+  //printf("%s\n", checkcommand);
+  fp = popen(checkcommand, "r");
+  if (fp == NULL)
+  {
+    printf("Failed to run command\n" );
+    exit(1);
+  }
+  while (fgets(response, 120, fp) != NULL)
+  {
+    response[strlen(response) - 1] = '\0';  // Cut trailing CR
+    if (response[0] == '/')  // response is either 24 or /8. so get rid of any slash
+    {
+      strcpy (response, response + 1);
+    }
+    if ((atoi(response) >= 8) && (atoi(response) <= 24))
+    {
+      strcpy(static_mask, response);
     }
   }
   pclose(fp);
@@ -24538,8 +24589,8 @@ void Define_Menu3()
   button = CreateButton(3, 1);
   AddButtonStatus(button, "System^Config", &Blue);
 
-  button = CreateButton(3, 2);
-  AddButtonStatus(button, "WiFi^Config", &Blue);
+  //button = CreateButton(3, 2);
+  //AddButtonStatus(button, "WiFi^Config", &Blue);
 
   button = CreateButton(3, 3);
   AddButtonStatus(button, "TS IP^Config", &Blue);
@@ -24602,7 +24653,7 @@ void Define_Menu3()
   AddButtonStatus(button, "Set Call,^Loc & PIDs", &Green);
 
   button = CreateButton(3, 19);
-  AddButtonStatus(button, "Network^Config", &Blue);
+  AddButtonStatus(button, "Network &^WiFi Config", &Blue);
 
   // Top of Menu 3
 
@@ -24769,7 +24820,7 @@ void Define_Menu5()
 {
   int button = 0;
 
-  strcpy(MenuTitle[5], "Network Config Menu (5)"); 
+  strcpy(MenuTitle[5], "Network and WiFi Config Menu (5)"); 
 
   // Menu 5
 

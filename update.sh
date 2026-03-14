@@ -189,6 +189,9 @@ cp -f -r "$PATHSCRIPT"/images "$PATHUBACKUP"/images
 # Make a safe copy of the HamTV Merger config
 cp -f -r "$PATHSCRIPT"/merger_config.txt "$PATHUBACKUP"/merger_config.txt
 
+# Make a safe copy of the potential Fixed IP config
+cp -f -r /home/pi/rpidatv/scripts/configs/dhcpcd.conf.prep "$PATHUBACKUP"/dhcpcd.conf.prep
+
 DisplayUpdateMsg "Step 4 of 10\nUpdating Software Package List\n\nXXXX------"
 
 # Amend the sources.list to legacy
@@ -865,6 +868,9 @@ fi
 
 # Restore the user's original HamTV Merger config
 cp -f -r "$PATHUBACKUP"/merger_config.txt "$PATHSCRIPT"/merger_config.txt
+
+# Restore the user's original potential Fixed IP config
+cp -f -r "$PATHUBACKUP"/dhcpcd.conf.prep /home/pi/rpidatv/scripts/configs/dhcpcd.conf.prep
 
 # Add Mic Gain parameter to config file if not included
 if ! grep -q micgain "$PATHSCRIPT"/portsdown_config.txt; then

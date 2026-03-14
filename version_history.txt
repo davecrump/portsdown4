@@ -1,3 +1,7 @@
+202603140
+Preserve network config through updates
+Enable fixed ip netmask to be set
+
 202603110
 Add Network Menu and Fixed IP Entry
 
