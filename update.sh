@@ -411,6 +411,7 @@ cp -f portsdown4-master/update_ryde.sh rpidatv/update_ryde.sh
 # Copy the recently added images into the user's back-up image folder
 cp portsdown4-master/scripts/images/web_not_enabled.png "$PATHUBACKUP"/images/web_not_enabled.png
 cp portsdown4-master/scripts/images/RX_overlay.png "$PATHUBACKUP"/images/RX_overlay.png
+cp portsdown4-master/scripts/images/tcf1080.jpg "$PATHUBACKUP"/images/tcf1080.jpg
 
 rm master.zip
 rm -rf portsdown4-master
