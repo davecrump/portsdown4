@@ -105,6 +105,7 @@ sudo apt-get -y install libzstd-dev                                     # For li
 sudo apt-get -y install arp-scan                                        # For List Network Devices
 sudo apt-get -y install cppcheck                                        # For HamTV Merger Client
 sudo apt-get -y install dnsmasq                                         # For dhcp server
+sudo apt-get -y install socat                                           # For debugging network issues
 
 # Install WiringPi
 cd /home/pi

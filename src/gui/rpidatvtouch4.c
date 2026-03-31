@@ -2119,18 +2119,14 @@ void ReadModeInput(char coding[256], char vsource[256])
     strcpy(CurrentEncoding, "H264");
     strcpy(CurrentSource, TabSource[6]); // Webcam
   }
-  else if (strcmp(ModeInput, "CARDH264") == 0)
+  else if (strcmp(ModeInput, "CARDH264") == 0)  // Allow all formats except 1080p
   {
     strcpy(coding, "H264");
     strcpy(vsource, "Static Test Card F");
     strcpy(CurrentEncoding, "H264");
-    if ((strcmp(CurrentFormat, "720p") == 0) || (strcmp(CurrentFormat, "1080p") == 0))  // Go 16:9
+    if (strcmp(CurrentFormat, "1080p") == 0)  // Go to 720p
     {
-      strcpy(CurrentFormat, "16:9");
-    }
-    if(strcmp(CurrentFormat, "16:9") != 0)  // Allow 16:9
-    {
-      strcpy(CurrentFormat, "4:3");
+      //strcpy(CurrentFormat, "720p");
     }
     SetConfigParam(PATH_PCONFIG, "format", CurrentFormat);
     strcpy(CurrentSource, TabSource[3]); // TestCard
@@ -8464,24 +8460,6 @@ void ApplyTXConfig()
     }
     else if (strcmp(CurrentEncoding, "H264") == 0)   // H264, so define definition by format (max 720p)
     {
-//      if (strcmp(CurrentFormat, "1080p") == 0)
-//      {
-//        strcpy(CurrentFormat, "720p");
-//      }
-//      if (strcmp(CurrentFormat, "720p") == 0)
-//      {
-//        if (CheckC920() == 1)
-//        {
-//          if (strcmp(CurrentSource, "C920") == 0)
-//          {
-//            strcpy(ModeInput, "C920HDH264");
-//          }
-//          else
-//          {
-//            strcpy(CurrentFormat, "16:9");
-//          }
-//        }
-//      }
       if (strcmp(CurrentFormat, "16:9") == 0)
       {
         if (strcmp(CurrentSource, "CompVid") == 0)
@@ -8500,10 +8478,6 @@ void ApplyTXConfig()
         {
           strcpy(ModeInput, "CAMH264");
         }
-        else
-        {
-//          strcpy(CurrentFormat, "4:3");
-        }        
       }
 //      if (strcmp(CurrentFormat, "4:3") == 0)
       {
@@ -23834,7 +23808,7 @@ void waituntil(int w,int h)
         continue;   // Completed Menu 47 action, go and wait for touch
       }
 
-      if (CurrentMenu == 48)  // Menu 48 Test Card Selection Menu
+      if (CurrentMenu == 48)  // Menu 48 HamTV Merger Client RX Menu
       {
         printf("Button Event %d, Entering Menu 48 Case Statement\n",i);
         CallingMenu = 48;

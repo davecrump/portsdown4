@@ -673,7 +673,22 @@ case "$MODE_INPUT" in
           -f flv \
           rtmp://$PLUTOIP:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,-$PLUTOPWR,nocalib,800,32,/$PLUTOCALL, &
 
-      else
+      elif [ "$AUDIO_PREF" == "bleeps" ]; then
+
+        ############### Pi Cam Pluto With Bleeps ######################
+
+        rpidatv/bin/ffmpeg -thread_queue_size 2048 \
+          -f v4l2 -input_format h264 -video_size "$VIDEO_WIDTH"x"$VIDEO_HEIGHT" \
+          -i $VID_PICAM \
+          \
+          -f lavfi -ac 1 \
+          -i "sine=frequency=500:beep_factor=4:sample_rate=44100:duration=0" \
+          \
+          -c:v h264_omx -b:v $BITRATE_VIDEO -g 25 \
+          -f flv \
+          rtmp://$PLUTOIP:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,-$PLUTOPWR,nocalib,800,32,/$PLUTOCALL, &
+
+       else
 
         ############### Pi Cam Pluto With Audio ######################
 
@@ -1408,7 +1423,35 @@ fi
 
     if [ "$MODE_OUTPUT" == "PLUTO" ] && [ "$MODE_INPUT" == "CARDH264" ] && [ "$MODULATION" != "DVB-T" ]; then
 
-      if [ "$FORMAT" == "16:9" ] || [ "$FORMAT" == "720p" ] || [ "$FORMAT" == "1080p" ]; then
+      if [ "$FORMAT" == "1080p" ]; then
+        VIDEO_WIDTH=1920
+        VIDEO_HEIGHT=1080
+        if [ "$CAPTIONON" == "on" ]; then
+          rm /home/pi/tmp/caption.png >/dev/null 2>/dev/null
+          rm /home/pi/tmp/tcf10802.jpg >/dev/null 2>/dev/null
+          convert -font "FreeSans" -size 1920x100 xc:transparent -fill white -gravity Center -pointsize 100 -annotate 0 $CALL /home/pi/tmp/caption.png
+          convert /home/pi/rpidatv/scripts/images/tcf1080.jpg /home/pi/tmp/caption.png -geometry +0+917 -composite /home/pi/tmp/tcf10802.jpg
+          IMAGEFILE="/home/pi/tmp/tcf10802.jpg"
+          sudo fbi -T 1 -noverbose -a /home/pi/tmp/tcf10802.jpg >/dev/null 2>/dev/null
+        else
+          IMAGEFILE="/home/pi/rpidatv/scripts/images/tcf1080.jpg"
+          sudo fbi -T 1 -noverbose -a /home/pi/rpidatv/scripts/images/tcf1080.jpg >/dev/null 2>/dev/null
+        fi
+      elif [ "$FORMAT" == "720p" ]; then
+        VIDEO_WIDTH=1280
+        VIDEO_HEIGHT=720
+        if [ "$CAPTIONON" == "on" ]; then
+          rm /home/pi/tmp/caption.png >/dev/null 2>/dev/null
+          rm /home/pi/tmp/tcfw2.jpg >/dev/null 2>/dev/null
+          convert -font "FreeSans" -size 1280x80 xc:transparent -fill white -gravity Center -pointsize 65 -annotate 0 $CALL /home/pi/tmp/caption.png
+          convert /home/pi/rpidatv/scripts/images/tcfw.jpg /home/pi/tmp/caption.png -geometry +0+604 -composite /home/pi/tmp/tcfw2.jpg
+          IMAGEFILE="/home/pi/tmp/tcfw2.jpg"
+          sudo fbi -T 1 -noverbose -a /home/pi/tmp/tcfw2.jpg >/dev/null 2>/dev/null
+        else
+          IMAGEFILE="/home/pi/rpidatv/scripts/images/tcfw.jpg"
+          sudo fbi -T 1 -noverbose -a /home/pi/rpidatv/scripts/images/tcfw16.jpg >/dev/null 2>/dev/null
+        fi
+      elif [ "$FORMAT" == "16:9" ]; then
         VIDEO_WIDTH=1024
         VIDEO_HEIGHT=576
         if [ "$CAPTIONON" == "on" ]; then
