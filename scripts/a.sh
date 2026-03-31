@@ -662,7 +662,8 @@ case "$MODE_INPUT" in
       v4l2-ctl -d $VID_PICAM --set-fmt-overlay=left=0,top=0,width=736,height=416 --overlay 1 # For 800x480 framebuffer
       v4l2-ctl -d $VID_PICAM -p $VIDEO_FPS
 
-      if [ "$AUDIO_CARD" == "0" ] && [ "$AUDIO_CHANNELS" == "0" ]; then
+      if ([ "$AUDIO_CARD" == "0" ] && [ "$AUDIO_CHANNELS" == "0" ]) \
+      || ([ "$AUDIO_CARD" == "0" ] && [ "$AUDIO_PREF" == "auto" ]); then
 
         ############### Pi Cam Pluto No Audio ######################
 
@@ -685,6 +686,7 @@ case "$MODE_INPUT" in
           -i "sine=frequency=500:beep_factor=4:sample_rate=44100:duration=0" \
           \
           -c:v h264_omx -b:v $BITRATE_VIDEO -g 25 \
+          -ar 22050 -ac $AUDIO_CHANNELS -ab 64k \
           -f flv \
           rtmp://$PLUTOIP:7272/,$FREQ_OUTPUT,$MODTYPE,$CONSTLN,$SYMBOLRATE_K,$PFEC,-$PLUTOPWR,nocalib,800,32,/$PLUTOCALL, &
 
