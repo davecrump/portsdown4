@@ -1,3 +1,7 @@
+202603310
+Enable Pluto Pi Cam with no audio device and auto selected
+Add HD test cards for Pluto
+
 202603140
 Preserve network config through updates
 Enable fixed ip netmask to be set
