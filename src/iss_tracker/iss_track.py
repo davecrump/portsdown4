@@ -280,10 +280,7 @@ def main():
             logging.info("Calculated Position az=%.1f el=%.1f", az, el)
 
             # Apply offsets here
-            print(args.offs_el)
-            #if args.offs_az != 0:
             az = az + args.offs_az
-            #if args.offs_el != 0:
             el = el + args.offs_el
 
             logging.info("After Offsets Pos   az=%.1f el=%.1f", az, el)
@@ -331,7 +328,6 @@ def main():
                     el=180.0-el
 
             logging.info("After Flip Pos      az=%.1f el=%.1f", az, el)
-            logging.info("--------------")
 
             # Check above horizon
             if el >= args.min_el and el <= (180 - args.min_el):
