@@ -198,8 +198,8 @@ def main():
 
     # Initialise half-flip state variables
     ascending = True
-    pre_zentih = False
-    post_zenth = False
+    pre_zenith = False
+    post_zenith = False
     descending = False
 
     # Start the Rotator Controller
