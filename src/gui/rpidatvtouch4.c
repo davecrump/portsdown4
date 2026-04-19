@@ -426,6 +426,8 @@ char G5500piAddress[31] = "192.168.2.140:8008";
 char HamLibDevice[31] = "/dev/ttyUSB2";
 char HamLibModel[31] = "603";
 char HamLibBaud[7] = "9600";
+bool ISS_thread_running = false;       // Used to prevent multiple threads
+
 
 // Threads for Touchscreen monitoring
 
@@ -438,6 +440,7 @@ pthread_t thrfe15;          //  Turns LimeRFE on after 15 seconds
 pthread_t thbuttonFileVLC;  //  Handles touches during VLC play from file
 pthread_t thbuttonIQPlay;   //  Handles touches to stop IQ player
 pthread_t thmouse;          //  Listens to the mouse
+pthread_t thiss;            //  Refreshes the ISS tracker position on Menu 51
 
 // ************** Function Prototypes **********************************//
 
@@ -742,6 +745,8 @@ void ChangeJetsonPW();
 void ChangeJetsonRPW();
 void ChangeHamTV(int NoButton);
 void ChangeTracker(int NoButton);
+void *TrackDisplay(void * arg);
+int check_ISStracking_status();
 void waituntil(int w,int h);
 void Define_Menu1();
 void Start_Highlights_Menu1();
@@ -3801,7 +3806,6 @@ int CheckLangstonePlutoIP()
 }
 
 
-
 /***************************************************************************//**
  * @brief Initialises all the GPIOs at startup
  *
@@ -3831,6 +3835,7 @@ void InitialiseGPIO()
   pinMode(GPIO_Tverter, OUTPUT);
   digitalWrite(GPIO_Tverter, LOW);
 }
+
 
 /***************************************************************************//**
  * @brief Reads the Presets from portsdown_presets.txt and formats them for
@@ -20160,7 +20165,7 @@ void ChangeTracker(int NoButton)
     IsValid = false;
     while (IsValid == false)
     {
-      strcpy(RequestText, "Enter the Park Position Azimuth (0 - 359");
+      strcpy(RequestText, "Enter the Park Position Azimuth (0 - 359)");
       snprintf(InitText, 31, "%.0f", AzPark);
       Keyboard(RequestText, InitText, 3);
   
@@ -20309,6 +20314,228 @@ void ChangeTracker(int NoButton)
       break;
     }
   }
+}
+
+
+void *TrackDisplay(void * arg)
+{
+  const font_t *font_ptr = &font_dejavu_sans_20;
+  FILE *fp;
+  char response[255] = "";
+  char line1[255];
+  char line2[255];
+  char line2a[255] = "Actual         azimuth       elevation        ";
+  int firstDP;
+  int secondDP;
+  int i;
+  int tracking_status = 0;
+
+  while(CurrentMenu == 51)
+  {
+    ISS_thread_running = true;
+    tracking_status = check_ISStracking_status();
+
+    // Read Demanded Position
+    fp = popen("cat /home/pi/tmp/demand.txt", "r");
+    if (fp == NULL)
+    {
+      printf("Failed to run command\n" );
+      exit(1);
+    }
+    while (fgets(response, 250, fp) != NULL)
+    {
+      if (strlen(response) > 5)  //
+      {
+        strcpy(line1, response);
+      }
+    }
+    pclose(fp);
+
+    // Read Actual Position
+    fp = popen("cat /home/pi/tmp/actual.txt", "r");
+    if (fp == NULL)
+    {
+      printf("Failed to run command\n" );
+      exit(1);
+    }
+    while (fgets(response, 250, fp) != NULL)
+    {
+      if (strlen(response) > 5)  //
+      {
+        strcpy(line2, response);
+      }
+    }
+    pclose(fp);
+
+    firstDP = 0;
+    secondDP = 0;
+    for (i = 0; i < strlen(line2); i++)
+    {
+      if ((line2[i] == '.') && (firstDP > 0))
+      {
+        secondDP = i;
+        break;
+      }
+
+      if ((line2[i] == '.') && (firstDP == 0))
+      {
+        firstDP = i;
+      }
+    }
+
+    switch (firstDP)
+    {
+      case 19:                                         // xxx.x
+        for (i = firstDP - 3; i < firstDP + 2; i++)
+        {
+          line2a[7 + i] = line2[i];
+        }
+        break;
+      case 18:                                         // xx.x
+        line2a[23] = ' ';
+        for (i = firstDP - 2; i < firstDP + 2; i++)
+        {
+          line2a[8 + i] = line2[i];
+        }
+        break;
+      case 17:                                         // x.x
+        line2a[23] = ' ';
+        line2a[24] = ' ';
+        for (i = firstDP - 1; i < firstDP + 2; i++)
+        {
+          line2a[9 + i] = line2[i];
+        }
+        break;
+    }
+
+    if(line2[secondDP - 4] == ' ')                     // xxx.x
+    {
+      for (i = secondDP - 3; i < secondDP + 2; i++)
+      {
+        line2a[15 + i] = line2[i];
+      }
+    }
+    if(line2[secondDP - 3] == ' ')                     // xx.x
+    {
+      line2a[16 + secondDP - 3] = ' ';
+      for (i = secondDP - 2; i < secondDP + 2; i++)
+      {
+        line2a[16 + i] = line2[i];
+      }
+    }
+    if(line2[secondDP - 2] == ' ')                     // x.x
+    {
+      line2a[17 + secondDP - 3] = ' ';
+      line2a[17 + secondDP - 2] = ' ';
+      for (i = secondDP - 1; i < secondDP + 2; i++)
+      {
+        line2a[17 + i] = line2[i];
+      }
+    }
+
+    // Paint to screen
+    rectangle(100, hscreen - 140, 450, 55, 0, 0, 0);
+    Text2(100, hscreen - 100, line1, font_ptr);
+    if ((tracking_status == 1) || (tracking_status == 2) || (tracking_status == 3))
+    {
+      Text2(100, hscreen - 130, line2a, font_ptr);
+    }
+    usleep(1000000);
+  }
+
+  ISS_thread_running = false;
+  return NULL;
+}
+
+
+/***************************************************************************//**
+ * @brief Checks current ISS tracking status
+ *        and starts position display thread
+ *
+ * @param None
+ *
+ * @return integer 0 = stop, 1 = moon, 2 = iss, 3 = sun, 4 = park
+*******************************************************************************/
+
+int check_ISStracking_status()
+{
+  FILE *fp;
+  char response[255] = "";
+  bool moon = false;
+  bool sun = false;
+  bool iss = false;
+
+  // Start position display thread 
+  if(ISS_thread_running == false)
+  {
+    pthread_create (&thiss, NULL, &TrackDisplay, NULL);
+  }
+
+  // Check for moon tracking
+  fp = popen("pgrep -a iss_track.py | grep 'moon'", "r");
+  if (fp == NULL)
+  {
+    printf("Failed to run command\n" );
+    exit(1);
+  }
+  while (fgets(response, 250, fp) != NULL)
+  {
+    if (strlen(response) > 10)  //
+    {
+      moon = true;
+    }
+  }
+  pclose(fp);
+
+  if (moon == true)
+  {
+    return 1;
+  }
+
+  // Check for sun tracking
+  fp = popen("pgrep -a iss_track.py | grep 'sun'", "r");
+  if (fp == NULL)
+  {
+    printf("Failed to run command\n" );
+    exit(1);
+  }
+  while (fgets(response, 250, fp) != NULL)
+  {
+    if (strlen(response) > 10)  //
+    {
+      sun = true;
+    }
+  }
+  pclose(fp);
+
+  if (sun == true)
+  {
+    return 3;
+  }
+
+  // Check for ISS tracking (sun and moon discounted, so must be ISS)
+  fp = popen("pgrep -a iss_track.py", "r");
+  if (fp == NULL)
+  {
+    printf("Failed to run command\n" );
+    exit(1);
+  }
+  while (fgets(response, 250, fp) != NULL)
+  {
+    if (strlen(response) > 10)  //
+    {
+      iss = true;
+    }
+  }
+  pclose(fp);
+
+  if (iss == true)
+  {
+    return 2;
+  }
+
+  // Not tracking, so must be stop (might also be parked)
+  return 0;
 }
 
 
@@ -30318,7 +30545,10 @@ void Define_Menu51()
 void Start_Highlights_Menu51()
 {
   char ButText[63];
+  int track_status;
 
+  track_status = check_ISStracking_status();
+ 
   if (strcmp(flip, "enabled") == 0)
   {
     SetButtonStatus(ButtonNumber(CurrentMenu, 0), 1);
@@ -30389,23 +30619,23 @@ void Start_Highlights_Menu51()
     SetButtonStatus(ButtonNumber(CurrentMenu, 12), 0);
   }
 
-  if (strcmp(TrackMode, "stop") == 0)
+  if ((strcmp(TrackMode, "stop") == 0) || ((track_status == 0) && (strcmp(TrackMode, "park") != 0)))
   {
      SelectInGroupOnMenu(CurrentMenu, 15, 19, 15, 1);
   }
-  else if (strcmp(TrackMode, "moon") == 0)
+  else if ((strcmp(TrackMode, "moon") == 0) && (track_status == 1))
   {
      SelectInGroupOnMenu(CurrentMenu, 15, 19, 16, 1);
   }
-  else if (strcmp(TrackMode, "iss") == 0)
+  else if ((strcmp(TrackMode, "iss") == 0) && (track_status == 2))
   {
      SelectInGroupOnMenu(CurrentMenu, 15, 19, 17, 1);
   }
-  else if (strcmp(TrackMode, "sun") == 0)
+  else if ((strcmp(TrackMode, "sun") == 0) && (track_status == 3))
   {
      SelectInGroupOnMenu(CurrentMenu, 15, 19, 18, 1);
   }
-  else if (strcmp(TrackMode, "park") == 0)
+  else if ((strcmp(TrackMode, "park") == 0) && (track_status == 0))
   {
      SelectInGroupOnMenu(CurrentMenu, 15, 19, 19, 1);
   }

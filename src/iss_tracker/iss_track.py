@@ -12,7 +12,7 @@ Options:
   --model INT       Hamlib rotator model number (default: 603  G6LVB EasycommII)
   --baud INT        Serial baud rate            (default: 9600)
   --min-el FLOAT    Minimum elevation to track  (default: 0)
-  --tle-cache STR   Path for cached TLE file    (default: /tmp/iss.tle)
+  --tmp-path STR    Path for RamDisk            (default: /home/pi/tmp/)
   --park-az FLOAT   Azimuth  to park at after each pass (default: 180.0  = North)
   --park-el FLOAT   Elevation to park at after each pass (default: 90.0 = Up)
   --no-park         Disable parking; just stop the rotator at LOS
@@ -56,7 +56,7 @@ def parse_args():
     p.add_argument("--model",     type=int,   default=603,            help="Hamlib model (603 use for LVB)")
     p.add_argument("--baud",      type=int,   default=9600,           help="default=9600")
     p.add_argument("--min-el",    type=float, default=5.0,            help="Min elevation to begin tracking")
-    p.add_argument("--tle-cache", type=str,   default="/tmp/iss.tle")
+    p.add_argument("--tmp-path",  type=str,   default="/home/pi/tmp/")
     p.add_argument("--park-az",   type=float, default=180.0,          help="Park azimuth  after pass (deg, default 0 = North)")
     p.add_argument("--park-el",   type=float, default=90.0,           help="Park elevation after pass (deg, default 0 = Horizon)")
     p.add_argument("--no-park",   action="store_true",                help="Disable auto-park; just stop at LOS")
@@ -154,6 +154,13 @@ def send_g5500pi(g55pi_ip, az, el, dry_run):
     else:
         subprocess.run(cmd, shell=True)
 
+# Query G5500 rotator position
+def check_g5500pi(g55pi_ip):
+    query_pos = "curl \"http://"+g55pi_ip+"/get_pos\""
+    print(query_pos)
+    position = subprocess.run(query_pos, shell=True, stdout=subprocess.PIPE).stdout.decode('utf-8')
+    return position.rstrip()
+
 # Stop rotator using rotctl     
 def stop_rotctl(proc):
     if proc is None:
@@ -229,6 +236,10 @@ def main():
             send_g5500pi(args.g55pi_ip, args.park_az, args.park_el, args.dry_run)
         else:
             send_position(proc, args.park_az, args.park_el, args.dry_run)
+        # Write desired position to file for display
+        file_write = "echo \"Demanded azimuth "+f"{args.park_az:.1f} elevation {args.park_el:.1f}\" > /home/pi/tmp/demand.txt"
+        subprocess.run(file_write, shell=True)
+
     elif (not args.stop):
         if args.no_park:
             logging.info("Auto-park disabled; rotator will stop at LOS.")
@@ -268,7 +279,8 @@ def main():
             else:
                 # Refresh ISS TLE once per day
                 if now - tle_time >= TLE_MAX_AGE:
-                    name, l1, l2 = fetch_tle(args.tle_cache)
+                    tle_file = args.tmp_path + "iss.tle"
+                    name, l1, l2 = fetch_tle(tle_file)
                     iss          = ephem.readtle(name, l1, l2)
                     tle_time     = now
                     logging.info("Loaded TLE: %s", name)
@@ -278,6 +290,10 @@ def main():
                 rng = iss.range / 1000         # km
 
             logging.info("Calculated Position az=%.1f el=%.1f", az, el)
+
+            # Write desired position to file for display
+            file_write = "echo \"Demanded azimuth "+f"{az:.1f} elevation {el:.1f}\" > /home/pi/tmp/demand.txt"
+            subprocess.run(file_write, shell=True)
 
             # Apply offsets here
             az = az + args.offs_az
@@ -297,13 +313,13 @@ def main():
                 # States below happen in sequence during a half-flip pass
                 # Two states are true in sequence during transitions
                 if ascending:
-                    if el > 80.0:
+                    if el > 85.0:
                         # Pre-zenith, so freeze azimuth, but track in elev
                         zenith_az=az
                         ascending = False
                         pre_zenith = True
                 if pre_zenith:
-                    if az>180.0:
+                    if az < 180.0:
                         # Post-zenith so flip elevation with frozen azimuth
                         pre_zenith = False
                         post_zenith = True
@@ -311,7 +327,7 @@ def main():
                         # Pre-zenith, so freeze azimuth, but track in elev
                         az=zenith_az
                 if post_zenith:
-                    if el < 80.0:
+                    if el < 85.0:
                         # Descending, so flip elevation and azimuth
                         post_zenith = False
                         descending = True
@@ -370,6 +386,15 @@ def main():
                             send_g5500pi(args.g55pi_ip, args.park_az, args.park_el, args.dry_run)
                 else:
                     logging.debug("ISS/Sun/Moon is underground: el=%.1f deg", el)
+
+            # Report actual position to ramdisk file
+            if args.g5500pi:
+                position = check_g5500pi(args.g55pi_ip)
+                file2_write = "echo \"Actual Position " + position + "\" > /home/pi/tmp/actual.txt"
+                subprocess.run(file2_write, shell=True)
+
+            else:
+                file2_write = "something else"
 
             # Refresh after 1 second
             time.sleep(1.0 / POLL_HZ)
