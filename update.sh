@@ -411,7 +411,7 @@ wget https://github.com/${GIT_SRC}/portsdown4/archive/master.zip -O master.zip
 unzip -o master.zip
 cp -f -r portsdown4-master/bin rpidatv
 cp -f -r portsdown4-master/scripts rpidatv
-cp -f -r portsdown4-master/src rpidatv
+cp -f -r -p portsdown4-master/src rpidatv
 rm -f rpidatv/video/*.jpg
 cp -f -r portsdown4-master/video rpidatv
 cp -f -r portsdown4-master/version_history.txt rpidatv/version_history.txt
