@@ -312,6 +312,7 @@ sudo apt-get -y install python3-pip                                     # For IS
 sudo apt-get -y install libhamlib-dev                                   # For ISS tracker
 sudo apt-get -y install libhamlib++-dev                                 # For ISS tracker
 sudo apt-get -y install libhamlib-utils                                 # For ISS tracker
+pip3 install ephem requests                                             # For ISS tracker
 
 # Install libwebsockets if required
 if [ ! -d  /home/pi/libwebsockets ]; then
