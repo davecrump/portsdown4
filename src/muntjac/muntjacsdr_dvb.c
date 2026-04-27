@@ -15,13 +15,27 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-// Muntjac-4 for Raspberry Pi
+// Muntjac4 for Raspberry Pi
 
-#define VERSIONX 		"muntjacsdr_dvb"
+#define VERSIONX 	"muntjacsdr_dvb"
+#define VERSIONX2	"1v0m"
 
-#define VERSIONX2		"1v720b"
-
-#define USESPI		0
+/*
+	ensure panic frames have at least 4 packets for MiniTioune 
+	prevent transmit routine from winding up a cpu
+	write all usb bytes at once
+	remove SR100
+	reset TEMPS before frequency band check
+	remove TESTCARD check in chinese mode
+	add LO calibration for tripling from 413.333 to 429.999
+	tidy up help output
+	correct -y error
+	put driver and pico versions into sdt
+	buffer 1.5s worth of frames before starting USB output
+	correct -x and use for mixer power
+	add new mixing ranges for 23cm
+	correct 2m mixing range
+*/
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -42,11 +56,6 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-#include <fcntl.h>				//Needed for SPI port
-#include <sys/ioctl.h>			//Needed for SPI port
-#include <linux/spi/spidev.h>	//Needed for SPI port
-
-
 typedef signed int          int32 ;
 typedef unsigned int        uint32 ;
 typedef unsigned short      uint16 ;
@@ -60,6 +69,18 @@ typedef int64_t             int64 ;
 #define TEST		0
 
 /*
+
+Change log
+
+2025-04-02	muntjacsdr_dvb_0v2j		remove power cap 15 (now 31)
+									remove PD power correction
+									correct LO calibration for power 15
+2025-03-28	muntjacsdr_dvb_0v2g		First release
+
+*/
+
+
+/*
 	G4EWJ October 2024
 
 	Converts a transport stream to DVB-S2 digital symbols 
@@ -68,7 +89,7 @@ typedef int64_t             int64 ;
 
 	QPSK is supported for SR 100, 125, 250, 333, 500, 1000
 	8PSK is supported for SR 100, 125, 250, 333, 500
-	Short frame and pilots are supported (with correct bitrate reported)
+Short frame and pilots are supported (with correct bitrate reported)
 	SR parameters -s 333000 and -s 333333 are supported
 	333333 is the native SR - 333000 will insert a null packet every 1000 packets
 
@@ -135,7 +156,7 @@ typedef int64_t             int64 ;
 #define CONTROL_GET_SYMBOLS_PER_FRAME   9
 #define CONTROL_GET_DUMMY_FRAME         10
 #define MAGIC_MARKER                    0x7388c542
-#define MARKERC5						0xc5
+
 
 // dvbs2neon errors
 
@@ -216,9 +237,8 @@ typedef int64_t             int64 ;
 // types > 0x80 all follow the common_record format
 
 #define     REBOOT_RECORD	       	0x81
-#define     DATV_RECORD 	   	    0x02
-#define     NARROWBAND_RECORD      	0x03
-#define 	PADDING_RECORD			0x7f
+#define     DATV_RECORD 	   	    2
+#define     NARROWBAND_RECORD      	3
 #define     EOF_RECORD          	0x84
 #define     STATUSREQUEST_RECORD   	0x86
 #define     BEGINFRAME_RECORD   	0x88
@@ -233,7 +253,7 @@ typedef int64_t             int64 ;
 #define		TCPCHECKTIME			1000
 #define		TCPLOSTTIME				5000
 #define		SDTINSERTIONTIME		300
-#define		SETTINGSREQUESTTIME		500
+#define		SETTINGSREQUESTTIME		250
 
 #define 	TIMENONE                0
 #define 	TIMEUTC                 1
@@ -289,8 +309,7 @@ typedef struct
 {
     uint8               special ;                       // ESCAPE indicates special data
     uint8               recordtype ;                    // 2 = DVB symbols, 3 = IQ data
-    uint8               bytesfollowing ;                // to allow unknown record types to be skipped
-	uint8				unused0 ;
+    uint16              bytesfollowing ;                // to allow unknown record types to be skipped
     uint8               dataversion ;                   // for variations of this record format
     uint8               stream ;                        // future use
     uint8               txon                [2] ;       // 0xc5 = on
@@ -323,25 +342,12 @@ typedef struct
 {
     uint8               special ;                       // ESCAPE indicates special data
     uint8               recordtype ;                    // 
-    uint8               bytesfollowing ;                // to allow unknown record types to be skipped
-	uint8				unused0 ;
+    uint16              bytesfollowing ;                // to allow unknown record types to be skipped
   	int32				spare0 ;
   	int32				spare1 ;
     char                magicmarker         [4] ;       // 'MJAC' to verify that this is a valid record
     uint32              crc ;                           // (currently unused)
 } common_record ;
-
-
-typedef struct
-{
-    uint8               special ;                       // ESCAPE indicates special data
-    uint8               recordtype ;                    // 0x7f
-    uint8               bytesfollowing ;                // to allow unknown record types to be skipped
-	uint8				unused0 ;
-	uint8				filler 				[116] ;		// initial length 128 - length will be variable 
-    char                magicmarker         [4] ;       // 'MJAC' to verify that this is a valid record
-    uint32              crc ;                           // (currently unused)
-} padding_record ;
 
 struct tdtx
 {
@@ -421,40 +427,6 @@ struct sdtx
     uint8               filler5 [171]       ;
 } ;
 
-typedef struct
-{
-    uint32              nextpointer ;           // for chaining
-    union
-    {
-        uint8           record [144] ;
-        struct
-        {
-            uint8       marker ;
-volatile    struct
-            {
-                uint8   payloadtype     :2 ;
-                uint8   sparebits       :3 ;
-                uint8	resend			:1 ;
-                uint8   bufferlow       :1 ;
-                uint8   busy            :1 ;
-            } ;
-            uint8       sparebytes      [3] ;
-			uint8 		sequence			;
-			uint8 		bufferlowcounter	;
-            uint8       payloadlength 		;
-            uint8		crc32a			[4] ;
-            uint8       payload         [128] ;
-            uint8		crc32b			[4] ;
-        } ;
-    } ;
-} spiblock_t ;
-
-			spiblock_t	spiblockout ;
-			spiblock_t	spiblockin ;
-
-#define		SPIDMABUFFSIZE				sizeof (spiblockout.record) ;
-#define		SPIDMAPAYLOADSIZE			(sizeof(spiblockout.payload)) 
-
 // global data
 
 			struct sdtx     			sdt ;    
@@ -470,13 +442,13 @@ volatile	int32						fhin ;
 			int32						fh ;
 volatile	int32						mjfd ;
 volatile	int32						mjfd2 ;
+			FILE						*mjfd3 ;
 volatile	int32						terminate ;	
 volatile	uint32						bytesout ;
 volatile	uint32						framecount ;
 volatile	uint						returncode ;
 			uint16						infoport ;
 			mjsettings_record			mjsettings ;		
-			padding_record				padding ;
 			common_record				statusrequest ;		
 			common_record				beginframe ;		
 			common_record				endframe ;		
@@ -505,9 +477,9 @@ volatile	uint32						inputstarttime ;
 			int							tindex ;		
 			int							zindex ;		
 			int							hindex ;		
-			int32						tripling ;
+
 			char						info				[65536] ;
-			int32						localoscsettings 	[3] [32] [2] ;			// 3 bands, 32 power levels, I and Q
+			int32						localoscsettings 	[3] [32] [2] ;			// 3 bands, 31 power levels, I and Q
 
 			char						infoip				[256] ;
 			char						inputfilename 		[256] ;
@@ -531,6 +503,7 @@ volatile	uint8						receivepacketsarray [MAXRECEIVEPACKETS] [188] ;
 			uint32						mjinbufflength ;
 			char						mjinbuff [65536] ;	// for reading status from MJ
 			uint8						emptyframe 		[36 * 1024] ;
+			uint8						emptyframe2		[36 * 1024] ;
 			uint8						nullpacketframe [36 * 1024] ;
 			uint8						dummyframe 		[36 * 1024] ;
 
@@ -541,8 +514,8 @@ volatile	int32						framesindexout ;
 
 // provides a divisor from 1000
 
-            enum                                       {SR0, SR100, SR125, SR250, SR333, SR500, SR1000} ;
-			uint32						txdivisors[] = {  0,    10,     8,     4,     3,     2,      1} ;
+            enum                                       {SR0, SR125, SR250, SR333, SR500, SR1000} ;
+			uint32						txdivisors[] = {  0,     8,     4,     3,     2,      1} ;
 			uint32						txdivisor ;
 
 #define RECEIVEBUFFSIZE					(188 * 8)
@@ -586,11 +559,11 @@ volatile	uint32						dropvideo ;
 volatile	uint32						dropaudio ;
 volatile	int32						transvertotherfreq ;
 volatile	int32						transvertmultiplier ;
-volatile	uint32						packetsinframe ;
-volatile	uint32						lastsettingssenttime ;
+volatile	int32						packetsinframe ;
+volatile	uint32						nullpacketsinsertedcount ;
+volatile	uint32						nullpacketsdeletedcount ;
 volatile	uint32						chinese ;
-volatile    int32						spifd ;
-volatile	struct spi_ioc_transfer 	spi ;
+			int32						mixerpower ;
 
     		uint16 						udpinport ; 
     		int32						insock ; 
@@ -614,7 +587,6 @@ volatile 	int64		lastvpts 			= 0 ;
 volatile 	int64		firstapts 			= 0 ;
 volatile 	int64		lastapts 			= 0 ;
 volatile 	int32		firstpacket 		= 0 ;
-volatile	int32		variablepower [2] ;
 
 
 // function prototypes
@@ -623,7 +595,6 @@ extern  	int32   	dvbs2neon_control	(uint32, uint32, uint32, uint32) ;
 extern  	int32   	dvbs2neon_packet    (uint32, uint32, uint32) ;
 			uint32		monotime_ms			(void) ;
 			void		sig_handler			(int32) ;
-			void		sigusr_handler		(int32) ;
 			void*		receive_routine		(void*) ;
 			void*		framing_routine		(void*) ;
 			void*		transmit_routine	(void*) ;
@@ -636,10 +607,6 @@ extern  	int32   	dvbs2neon_packet    (uint32, uint32, uint32) ;
 			uint32 		calculateCRC32 		(uint8*, uint32) ;
         	uint32  	juliandate          (struct tm*) ;
 			void 		sdt_setup			(void) ;         	
-			int32 		write_output		(uint8*, uint32) ;
-			int32 		write_output_spi	(uint8*, uint32) ;
-			int32 		write_output_usb	(uint8*, uint32) ;
-
          					
 int main (int argc, char *argv[])
 {
@@ -671,8 +638,6 @@ int main (int argc, char *argv[])
     signal (SIGTERM, sig_handler) ;
     signal (SIGHUP,  sig_handler) ;
     signal (SIGPIPE, sig_handler) ;
-    signal (SIGUSR1, sigusr_handler) ;
-    signal (SIGUSR2, sigusr_handler) ;
 
 /*
 	system ("cat /home/pi/videots > /home/pi/videots.ts") ;
@@ -751,22 +716,21 @@ int main (int argc, char *argv[])
 	lastrealtime			= 0 ;
 	udpinport				= DEFAULTUDPINPORT ;
 	packetsinframe			= 0 ;
-	lastsettingssenttime	= 0 ;
-	tripling				= 0 ;
+	nullpacketsinsertedcount = 0 ;
+	nullpacketsdeletedcount  = 0 ;
 	chinese					= 0 ; 
-	
+
+	mixerpower 				= 26 ;
 
 	memset ((void*) &mjinforeceived, 0, sizeof(mjinforeceived)) ;			 
-	memset (&savedpcrpacket, 	0, 		sizeof(savedpcrpacket)) ;			 
-	memset (&neonsettings, 		0, 		sizeof(neonsettings)) ;				
-	memset (callsign, 			0, 		sizeof(callsign)) ;				
-	memset (provider, 			0, 		sizeof(provider)) ;				
-	memset (callsign2, 			0, 		sizeof(callsign2)) ;				
-	memset (provider2, 			0, 		sizeof(provider2)) ;				
-	memset (modeinput, 			0, 		sizeof(modeinput)) ;				
-	memset (&localoscsettings, 	0xff, 	sizeof(localoscsettings)) ;				
-	memset (&spiblockout,		0, 		sizeof (spiblockout)) ;
-	memset (&spiblockin,		0, 		sizeof (spiblockin)) ;
+	memset (&savedpcrpacket, 	0, sizeof(savedpcrpacket)) ;			 
+	memset (&neonsettings, 		0, sizeof(neonsettings)) ;				
+	memset (callsign, 			0, sizeof(callsign)) ;				
+	memset (provider, 			0, sizeof(provider)) ;				
+	memset (callsign2, 			0, sizeof(callsign2)) ;				
+	memset (provider2, 			0, sizeof(provider2)) ;				
+	memset (modeinput, 			0, sizeof(modeinput)) ;				
+	memset (&localoscsettings, 	0xff, sizeof(localoscsettings)) ;				
 
 	mjsettings.iloc[0]			= -1 ;
 	mjsettings.qloc[0]			= -1 ;
@@ -895,19 +859,13 @@ int main (int argc, char *argv[])
 			
 			argindex++ ;													// skip over the frequency parameter, as it was processed above
 
-			if (tempu >= 1240e6 && tempu <= 1325.003e6 && (tempu % 10000) == 3000)		// tripling
-			{
-				tempu = (tempu - 3000) / 3 ;						
-				tripling = 1 ;
-			}
-			
 			if ((tempu >= 389.5e6 && tempu <= 510e6) || (tempu >= 770e6 && tempu <= 1030e6))
 			{
 				if (mainband == -1)
 				{
 					mainband = 0 ;
 					mjsettings.frequency [0] = tempu ;
-					mjsettings.txon		 [0] = MARKERC5 ;						// must be set to this value to transmit				
+					mjsettings.txon		 [0] = 0xc5 ;						// must be set to this value to transmit				
 				}
 				else if (otherband == -1)
 				{
@@ -920,7 +878,7 @@ int main (int argc, char *argv[])
 					if (mjsettings.frequency[0] == 0)
 					{					
 						mjsettings.frequency [0] = tempu ;
-						mjsettings.txon		 [0] = MARKERC5 ;						// must be set to this value to transmit				
+						mjsettings.txon		 [0] = 0xc5 ;						// must be set to this value to transmit				
 					}					
 					else
 					{
@@ -935,8 +893,8 @@ int main (int argc, char *argv[])
 				(tempu >= 3400e6 && tempu <= 3410.001e6) || 
 				(tempu >= 2390e6 && tempu <= 2490.001e6) || 
 				(tempu >= 1300e6 && tempu <= 1305.001e6) ||
-				(tempu >= 1275e6 && tempu <= 1280.001e6) ||
-				(tempu >= 1240e6 && tempu <= 1325.003e6) ||
+				(tempu >= 1270e6 && tempu <= 1280.001e6) ||
+				(tempu >= 1244e6 && tempu <= 1250.001e6) ||
 				(tempu >= 144e6 && tempu <= 147.001e6)   ||
 				(tempu >= 70.5e6 && tempu <= 71.501e6)   ||
 				(tempu >= 50e6 && tempu <= 54.001e6)     ||  
@@ -967,15 +925,15 @@ int main (int argc, char *argv[])
 					transvertmultiplier = -3 ;
 					tempu 				= tempu - transvertmultiplier * transvertotherfreq ;
 				}
-				else if (tempu >= 1275e6 && tempu <= 1280.001e6)
+				else if (tempu >= 1244e6 && tempu <= 1250.001e6)
 				{
-					transvertotherfreq 	= 403e6 ;
+					transvertotherfreq 	= 390e6 ;
 					transvertmultiplier = -3 ;
 					tempu 				= tempu - transvertmultiplier * transvertotherfreq ;
 				}
-				else if (tempu >= 1240e6 && tempu <= 1250.001e6)
+				else if (tempu >= 1270e6 && tempu <= 1280.001e6)
 				{
-					transvertotherfreq 	= 390e6 ;
+					transvertotherfreq 	= 404e6 ;
 					transvertmultiplier = -3 ;
 					tempu 				= tempu - transvertmultiplier * transvertotherfreq ;
 				}
@@ -996,7 +954,7 @@ int main (int argc, char *argv[])
 				{
 					mainband = 1 ;
 					mjsettings.frequency [1] = tempu ;
-					mjsettings.txon		 [1] = MARKERC5 ;						// must be set to this value to transmit				
+					mjsettings.txon		 [1] = 0xc5 ;						// must be set to this value to transmit				
 				}
 				else if (otherband == -1)
 				{
@@ -1008,7 +966,7 @@ int main (int argc, char *argv[])
 					if (mjsettings.frequency[1] == 0)
 					{					
 						mjsettings.frequency [1] = tempu ;
-						mjsettings.txon		 [1] = MARKERC5 ;						// must be set to this value to transmit				
+						mjsettings.txon		 [1] = 0xc5 ;						// must be set to this value to transmit				
 					}					
 					else
 					{
@@ -1045,10 +1003,10 @@ int main (int argc, char *argv[])
 			}
 			else 
 			{
+				nullmodify = 0 ;
 				switch (tempu)
 				{
-					case  333000:	txdivisor = SR333  ; nullmodify = -999 ; break ; 
-					case  100000:	txdivisor = SR100  ; break ;
+					case  333000:	txdivisor = SR333  ; mjsettings.symbolrate = 333 ; nullmodify = 999 ; break ;
 					case  125000:	txdivisor = SR125  ; break ;
 					case  250000:	txdivisor = SR250  ; break ;
 					case  333333:	txdivisor = SR333  ; break ;
@@ -1275,21 +1233,26 @@ int main (int argc, char *argv[])
             temp   = atoi (argv[argindex]) ;
             tempiloc = temp / 100 ;
             tempqloc = temp % 100 ;
+
+            temp   = atoi (argv[argindex]) ;
+            tempiloc = temp / 100 ;
+            tempqloc = temp % 100 ;
             sprintf (temps, "%04d\r\n", temp) ;
-			if 
-			(
-				   temp < 0 
-				|| strlen(argv[argindex]) != 4 
-				|| strncmp(argv[argindex], temps, 4)
-				|| (tempiloc > 63 && tempiloc != 99)
-				|| (tempqloc > 63 && tempqloc != 99)
-			)
-			{
-				tempiloc = -2 ;
-				tempqloc = -2 ;
-				sprintf (info+strlen(info), "*LO settings error* \r\n") ;
-				returncode |= ERROR_LO ;			
-			}
+
+            if
+            (
+                   temp < 0
+                || strlen(argv[argindex]) != 4
+                || strncmp(argv[argindex], temps, 4)
+                || (tempiloc > 63 && tempiloc != 99)
+                || (tempqloc > 63 && tempqloc != 99)
+            )
+            {
+                tempiloc = -2 ;
+                tempqloc = -2 ;
+                sprintf (info+strlen(info), "*LO settings error* \r\n") ;
+                returncode |= ERROR_LO ;
+            }
 
             if (mainband == -1)
             {
@@ -1331,6 +1294,16 @@ int main (int argc, char *argv[])
 		else if (strcmp (argv[argindex], "-x") == 0)							
 		{																
 			argindex++ ;
+			temp = (int) (atof (argv[argindex]) * 100) ;
+			if (temp > 31 || temp < 0)
+			{
+				sprintf (info+strlen(info), "*Mixer power invalid* \r\n") ;
+				returncode |= ERROR_POWER ;
+			}
+			else
+			{
+				mixerpower = temp ;
+			}
 		}
 		else if (strcmp (argv[argindex], "-e") == 0)							
 		{																
@@ -1381,7 +1354,7 @@ int main (int argc, char *argv[])
 	{
 		for (x = 0 ; x < 2 ; x++)
 		{
-			if (mjsettings.txon[x] == MARKERC5 && mjsettings.carriers[x] == 0)
+			if (mjsettings.txon[x] == 0xc5 && mjsettings.carriers[x] == 0)
 			{
 				mjsettings.power[x] += 2 ;
 				if (mjsettings.power[x] > 31)
@@ -1448,7 +1421,7 @@ int main (int argc, char *argv[])
 	}
 
 /*
-	if (mjsettings.txon[0] == MARKERC5)
+	if (mjsettings.txon[0] == 0xc5)
 	{
 		if (mjsettings.carriers[0] != 1 && mjsettings.power[0] > 31)
 		{
@@ -1463,7 +1436,7 @@ int main (int argc, char *argv[])
 	}
 */
 
-	if (mjsettings.txon[1] == MARKERC5)
+	if (mjsettings.txon[1] == 0xc5)
 	{
 		if (mjsettings.power[1] > 31)
 		{
@@ -1506,7 +1479,7 @@ int main (int argc, char *argv[])
 		otherband = mainband ^ 1 ;
 		mjsettings.power[otherband] = 10 ;
 		mjsettings.frequency[otherband] = 437000000 ;
-		mjsettings.txon[otherband] = MARKERC5 ;
+		mjsettings.txon[otherband] = 0xc5 ;
 	}
 #endif
 
@@ -1515,24 +1488,9 @@ int main (int argc, char *argv[])
 		myexit() ;
 	}
 
-// if nullmodify (null packet modification factor) has not been entered,
-// check for filename ending with #, which means do not insert nulls at SR333
-
-	if (nullmodify < 0)
-	{
-		if (strstr(inputfilename, "#.ts"))
-		{
-			nullmodify = 0 ;
-		}
-		else
-		{
-			nullmodify = -nullmodify ;
-		}					
-	}
-
 // check for defaults
 
-	if (inputfilename[0] == 0 && chinese == 0)
+	if (inputfilename[0] == 0)
 	{
 		strcpy (inputfilename, "/dev/stdin") ;								// default
 		sprintf (info+strlen(info), "Default: -i %s  \r\n", inputfilename) ;
@@ -1672,20 +1630,10 @@ int main (int argc, char *argv[])
 
 		if (strstr (modeinput,"CARDH264") || strstr (modeinput,"CONTEST") || strstr (modeinput,"DESKTOP"))
 		{
-			chinese &= ~1 ;
+///			chinese &= ~1 ;
 		}
 	}
 
-	if (modeinput[0])								// config file was found
-	{
-		if (provider[0] == 0)						// not set from command line
-		{
-			strcpy (provider, "Portsdown4") ;
-		}
-	}
-	
-	sdt_setup() ;
-	
 	if (chinese & 1)
 	{
 		if (strstr(inputfilename, ".ts"))
@@ -1694,10 +1642,6 @@ int main (int argc, char *argv[])
 		}
 	}
 
-	if (chinese & 1)
-	{
-		sprintf (info + strlen(info), "UDP input from port %d \r\n", udpinport) ;
-	}
 	
 // copy the settings for dvbs2neon
 
@@ -1706,6 +1650,11 @@ int main (int argc, char *argv[])
 	neonsettings.rolloff 			= mjsettings.rolloff ;
 	neonsettings.constellation 		= mjsettings.constellation ;
 	neonsettings.pilots 			= mjsettings.pilots ;
+
+///	neonsettings.magic				= MAGIC_MARKER ;							// enable extra parameters
+///	neonsettings.datafield_size		= 1 ;
+
+
 /*
 	neonsettings.magic				= 0x7388c542 ;							// enable extra parameters
 	if (chinese & 1)
@@ -1786,12 +1735,6 @@ int main (int argc, char *argv[])
 	eof.magicmarker	[3]					= 'C' ; 				
 	eof.crc								= 0 ;									// not used yet	
 
-// set up padding record
-
-	padding.special 						= ESCAPE ;							// signify an embedded record
-	padding.recordtype						= PADDING_RECORD ;					// record type
-	padding.bytesfollowing	 				= sizeof (padding) - 3 ;			// changed on the fly
-
 // set up TDT packet
 
     memset (&tdt, 0, sizeof(tdt)) ;
@@ -1850,8 +1793,18 @@ int main (int argc, char *argv[])
 
 // get an empty frame and a dummy frame
 
+		status = dvbs2neon_control (STREAM0, CONTROL_SET_OUTPUT_BUFFER, (uint32) &emptyframe2, 0) ;			// set buffer address
+		for (x = 0 ; x < 4 ; x++)
+		{
+			status = dvbs2neon_packet  (STREAM0, (uint32)&nullpacket, 0) ;			
+		}
+		status = dvbs2neon_packet  (STREAM0, 0, 1) ;	// parameter = 1, returns a frame even if not full
 		status = dvbs2neon_control (STREAM0, CONTROL_SET_OUTPUT_BUFFER, (uint32) &emptyframe, 0) ;			// set buffer address
-		status = dvbs2neon_packet  (STREAM0, 0, 1) ;														// parameter = 1, returns a frame even if not full
+		for (x = 0 ; x < 4 ; x++)
+		{
+			status = dvbs2neon_packet  (STREAM0, (uint32)&nullpacket, 0) ;			
+		}
+		status = dvbs2neon_packet  (STREAM0, 0, 1) ;	// parameter = 1, returns a frame even if not full
 		status = dvbs2neon_control (STREAM0, CONTROL_GET_DUMMY_FRAME,   (uint32) &dummyframe, 0) ;			// set buffer address
 	}
 
@@ -1898,7 +1851,7 @@ int main (int argc, char *argv[])
 		{
 			if ((returncode & (0xff000000 + ERROR_DVB)) == 0)
 			{
-				sprintf (info, "Net TS input bitrate should be %d \r\n", pdbitrate) ;
+				sprintf (info, "Net TS input bitrate should be %d", pdbitrate) ;
 			}
 			returncode = 0 ; 
 			myexit() ;
@@ -1913,10 +1866,13 @@ int main (int argc, char *argv[])
 	errors = 0 ;
 	if (chinese & 1)
 	{
+		sprintf (temps, "Opening UDP port %d for input", udpinport) ;
+		netprint (temps) ;
+
 	 	status = socket (AF_INET,SOCK_DGRAM,IPPROTO_UDP) ; 
     	if (status < 0) 
 	    {	
-	        sprintf (temps, "Cannot create socket for port %d \r\n", udpinport) ;
+	        sprintf (temps, "Cannot create socket for port %d ", udpinport) ;
 			netprint (temps) ;
 	    }
 	    else
@@ -1954,21 +1910,19 @@ int main (int argc, char *argv[])
 	        netprint (temps) ;
 	    }	
 	}
-	else
+
+	fhin = open (inputfilename, O_RDONLY | O_NONBLOCK) ;
+	if (fhin < 0)
 	{
-		fhin = open (inputfilename, O_RDONLY | O_NONBLOCK) ;
-		if (fhin < 0)
-		{
-			sprintf (temps, "*Cannot open input file %s* \r\n", inputfilename) ;
-			netprint(temps) ;
-			returncode |= ERROR_INPUT ;
-		}
+		sprintf (temps, "*Cannot open input file %s* \r\n", inputfilename) ;
+		netprint(temps) ;
+		returncode |= ERROR_INPUT ;
 	}
-	
+
     mjfd = open (outputfilename, O_RDWR | O_NONBLOCK) ;
 	if (mjfd < 0) 
 	{
-        sprintf (temps, "*Cannot open output file %s for writing (%d)* \r\n", outputfilename, errno) ;
+        sprintf (temps, "*Cannot open output file %s for writing (%d)*", outputfilename, errno) ;
 		netprint (temps) ;
 		returncode |= ERROR_OUTPUT ;
 	}
@@ -1977,7 +1931,7 @@ int main (int argc, char *argv[])
 		status = flock (mjfd, LOCK_EX | LOCK_NB) ;		// lock the output file
     	if (status < 0)
 	    {
-    	    sprintf (temps, "*Cannot lock output file %s (%d)* \r\n", outputfilename, errno) ;
+    	    sprintf (temps, "*Cannot lock output file %s (%d)*", outputfilename, errno) ;
 			netprint (temps) ;
 			returncode |= ERROR_OUTPUT ;
     	}
@@ -1987,15 +1941,24 @@ int main (int argc, char *argv[])
     		{
 	    		sprintf (temps, "stty -F %s raw -echo > /dev/null",  outputfilename) ;
         		system (temps) ;
-				
-				mjfd2 = open (outputfilename, O_RDONLY | O_NONBLOCK) ;
-				if (mjfd2 < 0)
-				{
-	        		sprintf (temps, "*Cannot open output file %s for reading (%d)* \r\n", outputfilename, errno) ;
-					netprint (temps) ;
-		            returncode |= ERROR_OUTPUT ;
-		        }
+    		}
+
+			mjfd2 = open (outputfilename, O_RDONLY | O_NONBLOCK) ;
+			if (mjfd2 < 0)
+			{
+        		sprintf (temps, "*Cannot open output file %s for reading (%d)*", outputfilename, errno) ;
+				netprint (temps) ;
+	            returncode |= ERROR_OUTPUT ;
             }     
+
+			mjfd3 = fopen (outputfilename, "r") ;
+			if (mjfd3 == 0)
+			{
+        		sprintf (temps, "*Cannot open output file %s for reading (%d)*", outputfilename, errno) ;
+				netprint (temps) ;
+	            returncode |= ERROR_OUTPUT ;
+            }
+
 		}
     }
 
@@ -2004,151 +1967,63 @@ int main (int argc, char *argv[])
 		myexit() ;
 	}
 
-#if USESPI
-
-	uint32						counter ;
-	char						spiname [64] ;
-	
-	uint8						spi_mode ;
-	uint8						spi_bitsperword ;
-	uint32						spi_speed ;
-	uint32						spi_leaveCSlow ;
-
-	char						buffout [128] ;
-	char						buffin  [128] ;
-
-    spi_mode 			= SPI_MODE_1 ;
-    spi_bitsperword 	= 8 ;
-    spi_speed 			= 12000000 ;
-	spi_leaveCSlow		= 0 ;
-
-	strcpy (spiname, "/dev/spidev0.0") ;
-
-   	spifd = open (spiname, O_RDWR) ;
-	if (spifd < 0)
-	{
-		printf ("Cannot open %s \r\n", spiname) ;
-		exit (1) ;
-	}
-
-    status = ioctl (spifd, SPI_IOC_WR_MODE, &spi_mode);
-    if (status < 0)
-    {
-        perror("Could not set SPIMode (WR)...ioctl fail") ;
-        exit (1) ;
-    }
-
-    status = ioctl (spifd, SPI_IOC_RD_MODE, &spi_mode) ;
-    if (status < 0)
-    {
-      perror ("Could not set SPIMode (RD)...ioctl fail") ;
-      exit (1) ;
-    }
-
-    status = ioctl (spifd, SPI_IOC_WR_BITS_PER_WORD, &spi_bitsperword) ;
-    if (status < 0)
-    {
-      perror ("Could not set SPI bitsPerWord (WR)...ioctl fail") ;
-      exit (1) ;
-    }
-
-    status = ioctl (spifd, SPI_IOC_RD_BITS_PER_WORD, &spi_bitsperword) ;
-    if (status < 0)
-    {
-      perror ("Could not set SPI bitsPerWord(RD)...ioctl fail");
-      exit(1) ;
-    }
-
-    status = ioctl (spifd, SPI_IOC_WR_MAX_SPEED_HZ, &spi_speed) ;
-    if (status < 0)
-    {
-      perror ("Could not set SPI speed (WR)...ioctl fail") ;
-      exit (1) ;
-    }
-
-    status = ioctl (spifd, SPI_IOC_RD_MAX_SPEED_HZ, &spi_speed) ;
-    if (status < 0)
-    {
-      perror ("Could not set SPI speed (RD)...ioctl fail") ;
-      exit (1) ;
-    }
-
-	system ("raspi-gpio set 9 a0") ;
-
-	spi.tx_buf 			= (uint64) ((uint32)&buffout) ;
-	spi.rx_buf 			= (uint64) ((uint32)&buffin) ;
-	spi.len 			= sizeof (buffout) ;
-	spi.delay_usecs		= 0;
-	spi.speed_hz 		= spi_speed ;
-	spi.bits_per_word 	= spi_bitsperword ;
-	spi.cs_change 		= spi_leaveCSlow ;						//0=Set CS high after a transfer, 1=leave CS set low
-
-#endif 	// USESPI
-
 
 // request Muntjac identification
 
 	memset (muntjacpicoversion, 0, sizeof(muntjacpicoversion)) ;
 	memset (muntjacpicoserial,  0, sizeof(muntjacpicoserial)) ;
 
-	if (mjfd2 >= 0)
+	for (x = 5 ; x > 0 ; x--)
 	{
-		for (x = 3 ; x > 0 ; x--)
+		write (mjfd, (void*) &statusrequest, sizeof(statusrequest)) ;	// send the status request record
+		usleep (100000) ;												// wait 100ms
+		memset (temps, 0, sizeof(temps)) ;
+		status = read (mjfd2, temps, sizeof(mjinbuff) - 1) ;
+		pos = (strstr(temps, "[Muntjac4-")) ;
+		if (pos)
 		{
-			write_output ((void*) &statusrequest, sizeof(statusrequest)) ;	// send the status request record
-			usleep (100000) ;												// wait 100ms
-			memset (temps, 0, sizeof(temps)) ;
-			status = read (mjfd2, temps, sizeof(mjinbuff) - 1) ;
-			pos = (strstr(temps, "[Muntjac4-")) ;
-			if (pos)
+			pos += strlen ("[Muntjac4-") ;
+			pos2 = strchr (pos, ':') ;
+			if (pos2)
 			{
-				pos += strlen ("[Muntjac4-") ;
-				pos2 = strchr (pos, ':') ;
+				*pos2 = 0 ;
+				strcpy (muntjacpicoversion, pos) ;
+				pos = pos2 + 1 ;
+				pos2 = strchr (pos, ' ') ;
 				if (pos2)
 				{
 					*pos2 = 0 ;
-					strcpy (muntjacpicoversion, pos) ;
-					pos = pos2 + 1 ;
-					pos2 = strchr (pos, ' ') ;
-					if (pos2)
-					{
-						*pos2 = 0 ;
-						strcpy (muntjacpicoserial, pos) ;
-						break ;
-					}
+					strcpy (muntjacpicoserial, pos) ;
+					break ;
 				}
 			}
 		}
-		if (x == 0)
-		{
-			netprint ("Muntjac-4 not detected \r\n") ;
-		}
-		else
-		{
-			sprintf (temps, "Muntjac4 Pico firmware version: %s \r\n", muntjacpicoversion) ;
-			netprint (temps) ;
-			sprintf (temps, "Muntjac4 Pico serial number:    %s \r\n", muntjacpicoserial) ;
-			netprint (temps) ;
-			if (provider[0] == 0)
-			{
-	///			sprintf (provider, " Muntjac4-%s-%s", muntjacpicoversion, VERSIONX2) ;
-				sprintf (provider, " ") ;
-			}
-		}
 	}
-	
-// set carrier on low band for transverting
-
-	if (transvertotherfreq)
+	if (x == 0)
 	{
-		otherband 							= 0 ;
-		mjsettings.frequency 	[otherband]	= transvertotherfreq ;
-		mjsettings.power 		[otherband]	= 26 ;
-		mjsettings.carriers		[otherband]	= 1 ;
-		mjsettings.txon  		[otherband] = MARKERC5 ;
+		netprint ("Muntjac4 not detected") ;
 	}
-
-/////	sdt_setup() ;
+	else
+	{
+		sprintf (temps, "Muntjac4 Pico firmware version: %s", muntjacpicoversion) ;
+		netprint (temps) ;
+		sprintf (temps, "Muntjac4 Pico serial number:    %s", muntjacpicoserial) ;
+		netprint (temps) ;
+		if (provider[0] == 0)
+		{
+			if (limeband >= 0)				// came from PD4
+			{
+				strcpy (provider, "PD4-") ;
+			}
+			else
+			{
+				strcpy (provider, "") ;
+			}
+			sprintf (provider+strlen(provider), "Muntjac4-%s-%s", muntjacpicoversion, VERSIONX2) ;
+			sdt_setup() ;
+			sprintf (provider, " ") ;
+		}
+	}
 	
 // apply local oscillator suppression settings from muntjac.mjo, if available
 
@@ -2161,14 +2036,26 @@ int main (int argc, char *argv[])
 		sprintf (temps2, "./%s.mjo", muntjacpicoserial) ;
 		ip = fopen (temps2, "r") ;
 	}
+
+// set carrier on low band for transverting
+
+	if (transvertotherfreq)
+	{
+		otherband 							= 0 ;
+		mjsettings.frequency 	[otherband]	= transvertotherfreq ;
+		mjsettings.power 		[otherband]	= mixerpower ;
+		mjsettings.carriers		[otherband]	= 1 ;
+		mjsettings.txon  		[otherband] = 0xc5 ;
+	}
+
 	if (ip == 0)
 	{
-		sprintf (temps, "%s.mjo LO suppression settings file not found \r\n", muntjacpicoserial) ;
+		sprintf (temps, "%s.mjo LO suppression settings file not found", muntjacpicoserial) ;
 		netprint (temps) ;
 	}
 	else
 	{
-		sprintf (temps, "Using LO suppression settings from %s \r\n", temps2) ;
+		sprintf (temps, "Using LO suppression settings from %s", temps2) ;
 		netprint (temps) ;
 		while (!feof(ip)) 
 		{
@@ -2180,11 +2067,11 @@ int main (int argc, char *argv[])
 				{
 					x = 0 ;
 				}
-				else if (p0 == 1300) 
+				else if (p0 == 2400) 
 				{
 					x = 1 ;
 				}
-				else if (p0 == 2400) 
+				else if (p0 == 1300) 
 				{
 					x = 2 ;
 				}
@@ -2212,19 +2099,20 @@ int main (int argc, char *argv[])
 
 		for (x = 0 ; x < 2 ; x++)
 		{
+			strcmp (temps, "") ;
 			if (mjsettings.iloc[x] == -1 && mjsettings.qloc[x] == -1)
 			{
-				if (mjsettings.frequency[x] >= 2390e6 && mjsettings.frequency[x] <= 2490e6)
+				if (mjsettings.frequency[x] >= 430e6 && mjsettings.frequency[x] <= 450e6)
+				{
+					strcpy (temps, "LOWBAND") ;
+				}
+				else if (mjsettings.frequency[x] >= 2390e6 && mjsettings.frequency[x] <= 2490e6)
 				{
 					strcpy (temps, "HIGHBAND") ;
 				}
-				if (tripling)
+				else if (mjsettings.frequency[x] >= 413.333e6 && mjsettings.frequency[x] < 430e6)
 				{
-					strcpy (temps, "LOWBAND") ;
-				}
-				else if (mjsettings.frequency[x] >= 430e6 && mjsettings.frequency[x] <= 450e6)
-				{
-					strcpy (temps, "LOWBAND") ;
+					strcpy (temps, "TRIPLING") ;
 				}
 				else
 				{
@@ -2233,31 +2121,31 @@ int main (int argc, char *argv[])
 
 				if (temps[0])
 				{
-///					printf ("%s\r\n", temps) ;
-					tempu = mjsettings.power [x] ;
-					if (tripling)
+					if (strcmp (temps, "TRIPLING") == 0)
 					{
-						y = 1 ;
+						y = 2 ;
 					}
 					else
 					{
-						y = x * 2 ;
+						y = x ;
 					}
+					tempu = mjsettings.power [x] ;
 					mjsettings.iloc [x] = localoscsettings [y] [tempu] [0] ;				
 					mjsettings.qloc [x] = localoscsettings [y] [tempu] [1] ;				
-					if (mjsettings.iloc[x] == -1 && mjsettings.qloc[y] == -1)				// in case settings are available only for power 0, 4, 8 . . .
+					if (mjsettings.iloc[x] == -1 && mjsettings.qloc[x] == -1)				// in case settings are available only for power 0, 4, 8 . . .
 					{
 						tempu &= ~3 ;
 						mjsettings.iloc [x] = localoscsettings [y] [tempu] [0] ;				
 						mjsettings.qloc [x] = localoscsettings [y] [tempu] [1] ;				
 					}
+					netprint (temps) ;
 				}
 			}
 		}
 	}	
 
 
-// if no local oscillator settings have been applied, change them to 99 for AT86RF215 default
+// if no local oscillator settings have been applied, change them to zero for AT86RF215 default
 
 	if (mjsettings.iloc[0] == -1 && mjsettings.qloc[0] == -1)
 	{
@@ -2306,38 +2194,38 @@ int main (int argc, char *argv[])
 			status = pthread_create (&input_thread_handle, 0, receive_routine, 0) ; 
 			if (status != 0) 
 			{
-				netprint ("*Cannot create input process thread* \r\n") ;
+				netprint ("*Cannot create input process thread*") ;
 				myexit() ;
 			}
 			else
 			{
-				netprint ("Input process thread created \r\n") ;
+				netprint ("Input process thread created") ;
 			}
 
 			status = pthread_create (&framing_thread_handle, 0, framing_routine, 0) ; 
 			if (status != 0) 
 			{
-				netprint ("*Cannot create framing process thread* \r\n") ;
+				netprint ("*Cannot create framing process thread*") ;
 				myexit() ;
 			}
 			else
 			{
-				netprint ("Framing process thread created \r\n") ;
+				netprint ("Framing process thread created") ;
 			}
 		}
 				
 		status = pthread_create (&output_thread_handle, 0, transmit_routine, 0) ; 
 		if (status != 0) 
 		{
-			netprint ("*Cannot create output process thread* \r\n") ;
+			netprint ("*Cannot create output process thread*") ;
 			myexit() ;
 		}
 		else
 		{
-			netprint ("Output process thread created \r\n") ;
+			netprint ("Output process thread created") ;
 		}
 
-		netprint ("Main loop is starting \r\n") ;
+		netprint ("Main loop is starting") ;
 
 		lastinfodisplaytime = 0 ;
 		lasttcpchecktime 	= 0 ;
@@ -2374,6 +2262,20 @@ int main (int argc, char *argv[])
 				framing_thread_status = 1 ;							// start the framing thread
 			}
 		}
+
+// buffer 1.5s worth of frames before starting the USB output routine
+
+		utemp = packetspersecond / packetsperframe ;				// frames per second
+		utemp = utemp * 3 / 2 ;
+
+		do
+		{
+			temp = framesindexin - framesindexout ;
+			if (temp < 0)
+			{
+				temp += MAXFRAMES ;
+			}
+		} while (terminate == 0 && temp < utemp) ;
 					
 		if (terminate == 0 && returncode == 0)
 		{
@@ -2434,8 +2336,8 @@ int main (int argc, char *argv[])
 			if (monotime_ms() - lastsettingsrequesttime >= SETTINGSREQUESTTIME)
 			{
 				lastsettingsrequesttime = monotime_ms() ;
-///				mjsettings.recordsequence++ ;					
-///				settingsrequestcountin++ ;
+				mjsettings.recordsequence++ ;					
+				settingsrequestcountin++ ;
 			}
 			
 			tempu = monotime_ms() ;
@@ -2449,10 +2351,10 @@ int main (int argc, char *argv[])
 					temp += MAXFRAMES ;
 				}
 
-				strcpy (temps, "\r\n");
-				sprintf (temps+strlen(temps), " ======================================== \r\n") ;
+				strcpy (temps, "");
+				sprintf (temps+strlen(temps), " ====================================== \r\n") ;
 				sprintf (temps+strlen(temps), " muntjacsdr_dvb-%s   \r\n", VERSIONX2) ;
-				sprintf (temps+strlen(temps), " Muntjac4_pico-%s    \r\n", muntjacpicoversion) ;
+				sprintf (temps+strlen(temps), " muntjac4_pico-%s    \r\n", muntjacpicoversion) ;
 				if (chinese == 0)
 				{
 					sprintf (temps+strlen(temps), " In:  %s             \r\n", inputfilename) ;
@@ -2462,7 +2364,7 @@ int main (int argc, char *argv[])
 					sprintf (temps+strlen(temps), " In:  :%d            \r\n", udpinport) ;
 				}
 				sprintf (temps+strlen(temps), " Out: %s             \r\n", outputfilename) ;
-				sprintf (temps+strlen(temps), " ---------------------------------------- \r\n") ;
+				sprintf (temps+strlen(temps), " ------------------- \r\n") ;
 				sprintf (temps+strlen(temps), " FR:%-8.3f PWR:%-2u ", (double) mjsettings.frequency [mainband] / 1000000, mjsettings.power[mainband]) ;
 				{
 					if (mjsettings.carriers[mainband] == 1)
@@ -2475,19 +2377,10 @@ int main (int argc, char *argv[])
 					}
 					else
 					{
-						sprintf (temps+strlen(temps), "S:%u FEC:%s C:%u", mjsettings.symbolrate, fecs[mjsettings.fec], mjsettings.constellation * 4 + 4) ;
-						if (mjsettings.frametype)
-						{
-							sprintf (temps+strlen(temps), "S") ;
-						}
-						if (mjsettings.pilots)
-						{
-							sprintf (temps+strlen(temps), "P") ;
-						}
+						sprintf (temps+strlen(temps), "S:%u FEC:%s C:%u ", mjsettings.symbolrate, fecs[mjsettings.fec], mjsettings.constellation * 4 + 4) ;
 					}
 					sprintf (temps+strlen(temps), "\r\n") ;					
 				}
-	
 				if (otherband >= 0)
 				{
 					sprintf (temps+strlen(temps), " FR:%-8.3f PWR:%-2u ", (double) mjsettings.frequency [otherband] / 1000000, mjsettings.power[otherband]) ;
@@ -2511,16 +2404,6 @@ int main (int argc, char *argv[])
 						(double) transvertmultiplier * mjsettings.frequency [otherband]) / 1000000
 					) ;
 				}
-				else if (tripling)
-				{
-					sprintf 
-					(
-						temps+strlen(temps), 
-						" FT:%-8.3f \r\n", 
-						(double) mjsettings.frequency [mainband] * 3 / 1000000
-					) ;
-				}
-
 				if (packetsin < 10000000)
 				{
 					sprintf (temps2, "%7u", packetsin) ;
@@ -2529,22 +2412,12 @@ int main (int argc, char *argv[])
 				{
 					sprintf (temps2, "%6uk", packetsin / 1000) ;
 				}
-				sprintf (temps+strlen(temps), " ---------------------------------------- \r\n") ;
-				sprintf (temps+strlen(temps), " Packets   Frames   Panic   Nulls      MJ \r\n") ;
-				sprintf (temps+strlen(temps), "      In      Out  Frames   SR333  Errors \r\n") ;
-				sprintf (temps+strlen(temps), " ---------------------------------------- \r\n") ;
-				sprintf (temps+strlen(temps), " %7s   %6u  %6u  %6u  %6u\r\n", temps2, framecount, framerequestcountin, nullmodcount, mjerrorcount) ;			
-				sprintf (temps+strlen(temps), " ======================================== \r\n") ;
-
-#if USESPI
-				sprintf 
-				(
-					temps+strlen(temps), "%d %d %d \r\n", 
-					spiblockin.sparebytes[0], spiblockin.sparebytes[1],spiblockin.sparebytes[2]
-				) ;
-#endif
-
-				sprintf (temps+strlen(temps), "\r\n") ;
+				sprintf (temps+strlen(temps), " -------------------------------------- \r\n") ;
+				sprintf (temps+strlen(temps), " Packets  Frames   Panic  Nulls      MJ \r\n") ;
+				sprintf (temps+strlen(temps), "      In     Out  Frames  SR333  Errors \r\n") ;
+				sprintf (temps+strlen(temps), " -------------------------------------- \r\n") ;
+				sprintf (temps+strlen(temps), " %7s  %6u %7u  %5u  %6u\r\n", temps2, framecount, framerequestcountin, nullmodcount, mjerrorcount) ;			
+				sprintf (temps+strlen(temps), " ====================================== \r\n") ;
 				netprint (temps) ;
 			}
 
@@ -2558,10 +2431,10 @@ int main (int argc, char *argv[])
 			}
 		}
 
-// inner main loop end here - clean up and exit =============================================================================================
+// inner main loop end there - clean up and exit =============================================================================================
 
-		netprint ("\r\n") ;
-		sprintf (temps, "Main loop is stopping (%d %08X) \r\n", terminate, returncode) ;
+		netprint ("") ;
+		sprintf (temps, "Main loop is stopping (%d %08X) ", terminate, returncode) ;
 		netprint (temps) ;			
 
 		mjsettings.txon[0] 		= 0 ;
@@ -2580,9 +2453,7 @@ int main (int argc, char *argv[])
 					if (mjinfoindexin != mjinfoindexout)
 					{
 						utemp = mjinfoindexout ;
-                        temp = outputfilename [strlen(outputfilename)-1] ;
-						sprintf (temps, " MJ%c: %s", temp, (char*) mjinforeceived[utemp]) ;
-						netprint (temps) ;
+						netprint ((char*) mjinforeceived[utemp]) ;
 						utemp++ ;
 						if (utemp >= MAXMJINFOS)
 						{
@@ -2612,23 +2483,16 @@ int main (int argc, char *argv[])
 
 void netprint (char *string)
 {
-	char	temps  [65536] ;
-	char	temps2 [65536] ;
+	char	temps [4096] ;
 
-	strcpy (temps2, string) ;
-
-	if (strstr (outputfilename, "/dev/stdout") == 0)
-	{
-		printf ("%s", temps2) ;
-	}
-	if (strlen(temps2) >= 2)
-	{
-		temps2 [strlen(temps2) - 2] = 0 ;
-	}
 	if (string[0])
 	{
-		sprintf (temps, "echo '%s' | netcat -uw0 %s", temps2, infoip) ;
+		sprintf (temps, "echo '%s' | netcat -uw0 %s", string, infoip) ;
 		system (temps) ;			
+	}
+	if (strstr (outputfilename, "/dev/stdout") == 0)
+	{
+		printf ("%s\r\n", string) ;
 	}
 }
 
@@ -2679,7 +2543,7 @@ void* receive_routine (void* dummy)
 
 	if (input_thread_status == 1)
 	{
-		netprint ("Input thread is starting \r\n") ;
+		netprint ("Input thread is starting") ;
 	}
 	
 // clear out any previous packets lurking 
@@ -2753,12 +2617,10 @@ void* receive_routine (void* dummy)
 		}
 		else if ((status != bytestoread) && strstr (inputfilename, ".ts") != 0)
 		{
-            lseek (fhin, 0, SEEK_SET) ;
 			receivebufflength 	= 0 ;
 			receivesynchronised = 0 ;
-       	    status 				= 0 ;
-       	    firstpcr 			= 0 ;
-       	    continue ;
+            lseek (fhin, 0, SEEK_SET) ;
+       	    status = 0 ;
         }
 		else 
 		{
@@ -2788,7 +2650,7 @@ void* receive_routine (void* dummy)
 			}
 			else 									// synchronised 
 			{
-				netprint ("Input Synced \r\n") ;
+				netprint ("Input Synced ") ;
 				inputstarttime 		= monotime_ms() ;
 				memmove ((void*) receivebuff, (void*) (receivebuff + x), receivebufflength - x) ;
 				receivebufflength  -= x ;
@@ -2829,6 +2691,15 @@ void* receive_routine (void* dummy)
 			packet = receivebuff + x * 188 ;
 			pid = ((packet[1] & 0x1f) * 256) + packet [2] ; 
 
+			if (nullpacketsinsertedcount != nullpacketsdeletedcount)
+			{
+				if (pid == 0x1fff)
+				{		
+					nullpacketsdeletedcount++ ;
+					continue ;
+				}
+			}
+
 			vpts = 0 ;
 			apts = 0 ;
 			pcr  = 0 ;
@@ -2858,8 +2729,8 @@ void* receive_routine (void* dummy)
 		                    pcr = pcr * 256 ;
 		                    pcr += pcrp [y] ;
 		                }
-		                pcr  = pcr >> 7 ;						// 90kHz units
-		                pcr  = pcr * 300 ;						// 27MHz units
+		                pcr  = pcr >> 7 ;									// 90kHz units
+		                pcr  = pcr * 300 ;									// 27MHz units
 						pcr += (pcrp [4] & 1) * 256 ;  
 						pcr += pcrp [5] ;
 						
@@ -2867,7 +2738,6 @@ void* receive_routine (void* dummy)
 						firstpcr 	= pcr ;
 						currentpcr 	= pcr ;
 						firstpacket = packetsin ;
-						packet [5] |= 0x80 ;					// set discontinuity flag
 					}
 				}
 				modifyandstorepacket (packet) ;
@@ -3103,7 +2973,7 @@ void* receive_routine (void* dummy)
 		receivebufflength -= receivepacketstoprocess * 188 ;
 	}
 
-	netprint ( "Input thread is stopping \r\n") ;
+	netprint ( "Input thread is stopping") ;
 	input_thread_status = 4 ;
 }
 
@@ -3137,10 +3007,10 @@ void* framing_routine (void* dummy)
 	{
 		usleep (1000) ;
 	}
-
+	
 	if (framing_thread_status == 1)
 	{
-		netprint ("Framing thread is starting \r\n") ;
+		netprint ("Framing thread is starting") ;
 	}
 	
 	while (framing_thread_status == 1)								// continue while thread enabled
@@ -3150,6 +3020,9 @@ void* framing_routine (void* dummy)
 			usleep (1000) ;
 			continue ;
 		}
+
+		packetpointer = 0 ;
+		partfilledframe = 0 ;
 
 		if 
 		(
@@ -3161,9 +3034,6 @@ void* framing_routine (void* dummy)
 			continue ;
 		}
 		
-		packetpointer = 0 ;
-		partfilledframe = 0 ;
-
 		temp = framesindexin - framesindexout ;			
 		if (temp < 0)
 		{
@@ -3203,12 +3073,28 @@ void* framing_routine (void* dummy)
 		{
 			continue ;
 		}
-		
+
 		if (packetsinframe == 0)
 		{
 	       	status = dvbs2neon_control (STREAM0, CONTROL_SET_OUTPUT_BUFFER, (uint32) framesarray [framesindexin], 0) ;	// set buffer address
 		}
+///www
 
+		if (partfilledframe)
+		{
+			temp = 4 - packetsinframe ;
+			if (temp > 0)
+			{
+				nullpacketsinsertedcount += temp ;
+				packetsinframe += temp ;
+				for (x = 0 ; x < temp ; x++)
+				{
+					status = dvbs2neon_packet (STREAM0, (uint32) nullpacket, 0) ;
+				}
+			}
+			packetpointer = 0 ;
+		}
+		
 		status = dvbs2neon_packet (STREAM0, (uint32) packetpointer, partfilledframe) ;
 		packetsout++ ;
 		packetsinframe++ ;	
@@ -3233,7 +3119,7 @@ void* framing_routine (void* dummy)
 		}
 	}
 	
-	netprint ( "Framing thread is stopping \r\n") ;
+	netprint ( "Framing thread is stopping") ;
 	framing_thread_status++ ;
 }
 
@@ -3263,7 +3149,7 @@ void* transmit_routine (void* dummy)
 	lastrecord2time	= 0 ;
 	bufferlowflag 	= 0 ;
 	mjinbufflength 	= 0 ;
-	
+
 	while (output_thread_status == 0)								// wait for thread to be enabled
 	{
 		usleep (1000) ;
@@ -3271,7 +3157,7 @@ void* transmit_routine (void* dummy)
 
 	if (output_thread_status == 1)
 	{
-		netprint ("Output thread is starting \r\n") ;
+		netprint ("Output thread is starting") ;
 	}
 
 	while (output_thread_status < 4)								// continue while thread enabled
@@ -3287,19 +3173,15 @@ void* transmit_routine (void* dummy)
 		if (settingsrequestcountin != settingsrequestcountout)
 		{
 			settingsrequestcountout++ ;
-			lastsettingsrequesttime = monotime_ms() ;
-		}
-		
-		if (output_thread_status == 2)
-		{
-			memcpy (outputpointer, &eof, sizeof (eof)) ;				// send an EOF record		            
-            outputpointer += sizeof (eof) ;
-			output_thread_status = 3 ;
 
-			mjsettings.recordsequence++ ;
-			memcpy (outputpointer, &mjsettings, sizeof (mjsettings)) ;	// send a settings record	
-			outputpointer += sizeof (mjsettings) ;	
-			lastsettingssenttime = monotime_ms() ;			
+			if (output_thread_status == 2)
+			{
+				memcpy (outputpointer, &eof, sizeof (eof)) ;				// send an EOF record		            
+	            outputpointer += sizeof (eof) ;
+				output_thread_status = 3 ;
+			}
+			memcpy (outputpointer, &mjsettings, sizeof (mjsettings)) ;		
+			outputpointer += sizeof (mjsettings) ;
 		}
 
 		if (output_thread_status == 1)
@@ -3308,11 +3190,7 @@ void* transmit_routine (void* dummy)
 
 			if (framepointer == 0)
 			{
-				if (USESPI == 0)
-				{
-					spiblockin.busy = 0 ;
-				}				
-				if (framesindexout != framesindexin && spiblockin.busy == 0)
+				if (framesindexout != framesindexin)
 				{
 					framepointer = (uint8*) (framesarray [framesindexout]) ;	
 					utemp = framesindexout ;
@@ -3325,29 +3203,14 @@ void* transmit_routine (void* dummy)
 				}
 			}
 
-			if (framepointer == 0)
+			if (framepointer)
 			{
-				if (lastsettingssenttime - monotime_ms() >= SETTINGSREQUESTTIME)
-				{
-					mjsettings.recordsequence++ ;
-					memcpy (outputpointer, &mjsettings, sizeof (mjsettings)) ;	// send a settings record	
-					outputpointer += sizeof (mjsettings) ;	
-					lastsettingssenttime = monotime_ms() ;
-				}
-			}
-			else
-			{			
+
 				bufferlowflag = 0 ;
 				framecount++ ;
 
-				lastsettingssenttime = monotime_ms() ;					
-				mjsettings.recordsequence++ ;
-
-				memcpy (outputpointer, &mjsettings, sizeof (mjsettings)) ;		
-				outputpointer += sizeof (mjsettings) ;					// send settings record
-
 				memcpy (outputpointer, &beginframe, sizeof (beginframe)) ;		
-				outputpointer += sizeof (beginframe) ;					// send begin frame record
+				outputpointer += sizeof (beginframe) ;
 						
 				symbolpointer  = framepointer ;							// initially point to the start of the frame data
 				symbolpointer += ((uint16*) symbolpointer)  [0] ;		// the first short is the offset to the symbols
@@ -3364,10 +3227,7 @@ void* transmit_routine (void* dummy)
 						{
 							tempu <<= 2 ;
 							tempu |= symbolpointer [x + y] ;
-						}	
-
-///	if (tempu == 0xc4) tempu = 0x77 ;
-
+						}
 						if (tempu == ESCAPE || tempu == '#')
 						{
 							*outputpointer++ = ESCAPE ;					// stuff a zero when a zero symbol byte is output					
@@ -3381,7 +3241,7 @@ void* transmit_routine (void* dummy)
 						tempu <<= 2 ;
 						tempu  |= symbolpointer [x++] ;					// second left over symbol
 						tempu <<= 4 ;									// move the 2 symbols to the upper nybble
-						tempu  |= 0 ;									// record type 0 indication
+						tempu  |= 0 ;									// record type 1 indication
 						*outputpointer++ = ESCAPE ;						// stuff an escape byte to indicate embedded data
 						*outputpointer++ = tempu ;						
 					}
@@ -3411,249 +3271,112 @@ void* transmit_routine (void* dummy)
 		}
 		
 		bytestosend = outputpointer - usbtxbuff ;
-
-		if (bytestosend)
+		if (bytestosend && holdoffactive == 0)
 		{
-			write_output (usbtxbuff, bytestosend) ;
-		}
-
-// process any status info from muntjac
-
-		if (mjfd2 >= 0)
-		{
-			status = read (mjfd2, mjinbuff + mjinbufflength, sizeof(mjinbuff) - mjinbufflength) ;
-			if (status > 0)
+////			printf ("<%d>\r\n", bytestosend) ;
+#if TEST
+			fh = open ("/home/pi/test1.mjd", O_WRONLY | O_APPEND) ;
+            status = write (fh, usbtxbuff, bytestosend) ;
+			close (fh) ;			
+			printf ("<%d>\r\n", status) ;
+#endif
+			outputpointer = usbtxbuff ;
+			while (bytestosend > 0)
 			{
-				mjinbufflength += status ;
-				do
+/*
+				if (bytestosend < 8192)
 				{
-					pos = strstr (mjinbuff, "\r\n") ;
-					if (pos)
-					{
-						*pos = 0 ;
-						pos += 2 ;
-						utemp = mjinfoindexin ;
-						sprintf ((char*)mjinforeceived[utemp], "%s\r\n", mjinbuff) ;
-						utemp++ ;
-						if (utemp >= MAXMJINFOS)
-						{
-							utemp = 0 ;
-						}
-						mjinfoindexin = utemp ;
+					utemp = bytestosend ;
+				}
+				else
+				{
+					utemp = 8192 ;
+	            }
+*/
+	            status = write (mjfd, outputpointer, bytestosend) ;
+	            if (status >= 0)
+	            {
+	            	outputpointer += status ;
+					bytestosend -= status ;
+	            }
+	            else if (errno == EAGAIN)
+	            {
+	            	usleep (1000) ;
+	            }
+	            else
+	            {
+					sprintf (temps, "Output error (%d) ", errno) ;
+					netprint (temps) ;
+					returncode |= ERROR_OUTPUTWRITE ;
+					output_thread_status = 4 ;
+					break ;
+	            }
+			}
 
-						if (strstr(mjinbuff, "(BUFFER_LOW:"))
-						{
-							framerequestcountin++ ;							// request a panic frame 
-							bufferlowflag = 1 ;
-						}
-						else if (strstr(mjinbuff, "HOLDOFF_ACTIVE")) 
-						{
-///							holdoffactive = 1 ;
-						}
-						else if (strstr(mjinbuff, "HOLDOFF_EXPIRED")) 
-						{
-///							holdoffactive = 0 ;
-						}
-					}
-					else if (mjinbufflength == sizeof(mjinbuff))
-					{	
-						pos = mjinbuff + sizeof(mjinbuff) ;
-					}
-					else
-					{
-						pos = 0 ;
-					}	
-					if (pos)
-					{
-						memmove (mjinbuff, pos, mjinbufflength - (pos - mjinbuff)) ;
-						mjinbufflength -= (pos - mjinbuff) ;
-					}
-	///			} while (pos && (bufferlowflag == 0)) ;
-				} while (pos) ;
+			if (output_thread_status == 4)
+			{
+////				continue ;
 			}
 		}
+		
+// process any status info from muntjac
+
+		status = read (mjfd2, mjinbuff + mjinbufflength, sizeof(mjinbuff) - mjinbufflength) ;
+		if (status > 0)
+		{
+			mjinbufflength += status ;
+			do
+			{
+				pos = strstr (mjinbuff, "\r\n") ;
+				if (pos)
+				{
+					*pos = 0 ;
+					pos += 2 ;
+					utemp = mjinfoindexin ;
+					strcpy ((char*)mjinforeceived[utemp], mjinbuff) ;
+					utemp++ ;
+					if (utemp >= MAXMJINFOS)
+					{
+						utemp = 0 ;
+					}
+					mjinfoindexin = utemp ;
+
+					if (strstr(mjinbuff, "(BUFFER_LOW:"))
+					{
+						framerequestcountin++ ;							// request a panic frame 
+						bufferlowflag = 1 ;
+					}
+					else if (strstr(mjinbuff, "HOLDOFF_ACTIVE")) 
+					{
+						holdoffactive = 1 ;
+					}
+					else if (strstr(mjinbuff, "HOLDOFF_EXPIRED")) 
+					{
+						holdoffactive = 0 ;
+					}
+				}
+				else if (mjinbufflength == sizeof(mjinbuff))
+				{	
+					pos = mjinbuff + sizeof(mjinbuff) ;
+				}
+				else
+				{
+					pos = 0 ;
+				}	
+				if (pos)
+				{
+					memmove (mjinbuff, pos, mjinbufflength - (pos - mjinbuff)) ;
+					mjinbufflength -= (pos - mjinbuff) ;
+				}
+///			} while (pos && (bufferlowflag == 0)) ;
+			} while (pos) ;
+		}
 	}
-	
-	netprint ("Output thread is stopping \r\n") ;
+
+	netprint ("Output thread is stopping") ;
 	usleep (100000) ;
 	
 	output_thread_status = 5 ;
-}
-
-int32 write_output (uint8* buffer, uint32 length)
-{
-	int32		status ;
-
-	
-	if (USESPI)
-	{
-		status = write_output_spi (buffer, length) ;
-	}
-	else
-	{
-		status = write_output_usb (buffer, length) ;
-	}
-	return (status) ;
-}
-
-///www
-
-int32 write_output_usb (uint8* buffer, uint32 length)
-{
-    uint32      bytestosend ;
-    uint32      utemp ;
-    int32       status ;
-    uint8       *outputpointer ;
-    uint8       *pos ;
-    char        temps [256] ;
-    uint8       localbuffer [384] ;
-
-
-	outputpointer 	= buffer ;
-	bytestosend		= length ;
-
-    if (bytestosend)
-    {
-
-        fh = open ("/dev/shm/xxx", O_WRONLY | O_APPEND) ;
-        status = write (fh, outputpointer, bytestosend) ;
-        close (fh) ;
-
-        while (bytestosend > 0)
-        {
-            status = write (mjfd, outputpointer, bytestosend) ;
-            if (status >= 0)
-            {
-                outputpointer  += status ;
-                bytestosend    -= status ;
-                status          = 0 ;
-            }
-            else if (errno == EAGAIN)
-            {
-                usleep (1000) ;
-            }
-            else
-            {
-                sprintf (temps, "Output error (%d) ", errno) ;
-                netprint (temps) ;
-                returncode |= ERROR_OUTPUTWRITE ;
-                output_thread_status = 4 ;
-                break ;
-            }
-        }
-    }
-
-    return (status) ;
-}
-
-int32 write_output_spi (uint8* buffer, uint32 length)
-{
-	uint32		bytestosend ;
-	uint32		utemp ;
-	int32		status ;
-	uint8		*outputpointer ;
-	uint8		*pos ;
-	char		temps [256] ;
-
-static	uint8	bufferlowcounter ;
-
-	outputpointer 	= buffer ;
-	bytestosend 	= length ;
-	status = 0 ;
-
-	if (bytestosend)
-	{
-        while (bytestosend > 0)
-        {
-			if (bytestosend > SPIDMAPAYLOADSIZE)
-			{
-				utemp = SPIDMAPAYLOADSIZE ;
-			}
-			else
-			{
-				utemp = bytestosend ;
-			}
-
-			if (spiblockin.busy)
-			{
-				spiblockout.busy		= 1 ;
-				spiblockout.payloadtype = 0 ;
-	usleep (5000) ; /////////
-			}
-			else
-			{
-				spiblockout.busy		= 0 ;
-				spiblockout.payloadtype = 1 ;
-			}
-
-			memcpy (spiblockout.payload, outputpointer, utemp) ;
-			spiblockout.payloadlength 	= utemp ;
-			spiblockout.marker 	 		= MARKERC5 ;
-			
-			spi.tx_buf 			= (uint64) ((uint32) spiblockout.record) ;
-			spi.rx_buf 			= (uint64) ((uint32) spiblockin.record) ;
-			spi.len 			= SPIDMABUFFSIZE ;
-        
-        	status = ioctl (spifd, SPI_IOC_MESSAGE(1), &spi) ;
-			if (spiblockout.busy == 0)
-			{
-	            outputpointer  += utemp ;
-    	        bytestosend    -= utemp ;
-        	}
-        	if (bufferlowcounter != spiblockin.bufferlowcounter)
-        	{
-				framerequestcountin++ ;							// request a panic frame 
-				bufferlowcounter = spiblockin.bufferlowcounter ;
-        	}
-        	if (spiblockin.marker == MARKERC5 && spiblockin.payloadtype == 2)
-        	{
-        		sprintf (temps, "%s", spiblockin.payload) ;
-
-				utemp = mjinfoindexin ;
-				strcpy ((char*)mjinforeceived[utemp], temps) ;
-				utemp++ ;
-				if (utemp >= MAXMJINFOS)
-				{
-					utemp = 0 ;
-				}
-				mjinfoindexin = utemp ;
-
-				if (strstr(spiblockin.payload, "BUFFER_LOW"))
-				{
-					framerequestcountin++ ;
-				}
-				spiblockin.payloadtype = 0 ;
-        	}
-       	    status	 			= 0 ;
-		} ;
-		
-/*
-        while (bytestosend > 0)
-        {
-            status = write (mjfd, outputpointer, bytestosend) ;
-            if (status >= 0)
-            {
-                outputpointer  += status ;
-                bytestosend    -= status ;
-                status 			= 0 ;
-            }
-            else if (errno == EAGAIN)
-            {
-                usleep (1000) ;
-            }
-            else
-            {
-                sprintf (temps, "Output error (%d) ", errno) ;
-                netprint (temps) ;
-                returncode |= ERROR_OUTPUTWRITE ;
-                output_thread_status = 4 ;
-                break ;
-            }
-        }
-*/
-	}
-
-	return (status) ;
 }
 
 uint32 monotime_ms() 
@@ -3675,52 +3398,8 @@ uint32 monotime_ms()
                                                             
 void sig_handler (int32 signo)
 {
-	printf ("\r\nSignal %d received \r\n", signo) ;
-	{
-    	terminate = signo ;
-    	returncode |= ERROR_SIGNAL ;
-    }
-}
-     
-     
-void sigusr_handler (int32 signo)
-{
-	if (signo == SIGUSR1)
-	{
-		printf ("%s: Decrease power signal received \r\n", VERSIONX) ;
-		if (mjsettings.txon[1] == MARKERC5 && mjsettings.carriers[1] == 0)
-		{
-			if (mjsettings.power[1] > 0)
-			{
-				mjsettings.power[1]-- ;
-			}
-		}
-		else if (mjsettings.txon[0] == MARKERC5 && mjsettings.carriers[0] == 0)
-		{
-			if (mjsettings.power[0] > 0)
-			{
-				mjsettings.power[0]-- ;
-			}
-		}
-	}
-	else if (signo == SIGUSR2)
-	{
-		printf ("%s: Increase power signal received \r\n", VERSIONX) ;
-		if (mjsettings.txon[1] == MARKERC5 && mjsettings.carriers[1] == 0)
-		{
-			if (mjsettings.power[1] < 20)
-			{
-				mjsettings.power[1]++ ;
-			}
-		}
-		else if (mjsettings.txon[0] == MARKERC5 && mjsettings.carriers[0] == 0)
-		{
-			if (mjsettings.power[0] < 20)
-			{
-				mjsettings.power[0]++ ;
-			}
-		}
-	}
+    terminate = signo ;
+    returncode |= ERROR_SIGNAL ;
 }
 
 void myexit()
@@ -4049,6 +3728,10 @@ uint8* modifyandstorepacket2 (uint8* packet)
 // calculate the current pcr
 
 	utempl = packetsin - firstpacket ;			// number of packets since start
+
+	utempl += nullpacketsinsertedcount ;
+	utempl -= nullpacketsdeletedcount ;
+
 	utempl = utempl * 1504 ;					// bits since start
 	utempl = utempl * 27000000 ;				// units of 27MHz
 	utempl = utempl / realbitrate ;				// divide by TS bits per second to give number of seconds
@@ -4237,8 +3920,8 @@ void display_help()
 	sprintf (info+strlen(info),"-d  print bit rate     exits after printing (value is correct for frame type and pilots) \r\n") ;
 	sprintf (info+strlen(info),"-f  FEC                1/4, 1/3, 2/5, 1/2, 3/5, 2/3, 3/4, 4/5, 5/6, 8/9, 9/10, carrier, sidebands \r\n") ;  
 	sprintf (info+strlen(info),"                       (alternating sidebands for LO and sideband suppression test) \r\n") ;				
-	sprintf (info+strlen(info),"-g  power              0.00 - 0.31 \r\n") ;
-	sprintf (info+strlen(info),"                       0.31 gives a nominal +14dBm maximum, with 1dB steps \r\n") ;
+	sprintf (info+strlen(info),"-g  power              0.00 - 0.20 for DATV, 0.00-0.31 for carriers and sideband test \r\n") ;
+	sprintf (info+strlen(info),"                       the data sheet range is 0.00-0.31, giving a nominal +14dBm maximum in 1dB steps \r\n") ;
 	sprintf (info+strlen(info),"                       shoulders start to be visible above 0.10 \r\n") ;
 	sprintf (info+strlen(info),"                       note that 0.3 is power level 30! \r\n") ;
 	sprintf (info+strlen(info),"-h  this help file     exits after printing \r\n") ;
@@ -4249,7 +3932,7 @@ void display_help()
 	sprintf (info+strlen(info),"-n  null deletion      removes a null packet for multiples of the specified value, for testing only \r\n") ;
 	sprintf (info+strlen(info),"-o  output file        (default: /dev/ttyMJ0) \r\n") ;
 	sprintf (info+strlen(info),"-p  pilots on          no parameter \r\n") ;
-	sprintf (info+strlen(info),"-s  symbol rate        100000, 125000, 250000, 333000, 333333, 500000, 1000000 \r\n") ;
+	sprintf (info+strlen(info),"-s  symbol rate        125000, 250000, 333000, 333333, 500000, 1000000 \r\n") ;
 	sprintf (info+strlen(info),"                       (native SR is 333333 - for 333000, a null packet is inserted every 999 packets) \r\n") ;
 	sprintf (info+strlen(info),"-t  frequency          389.5e6-510e6, 770e6-1030e6, 2390e6-2490e6 \r\n") ;
 	sprintf (info+strlen(info),"                       note that the data sheet ranges are 779.0-1020.0, 2400.0-2483.5 \r\n") ;
@@ -4257,11 +3940,11 @@ void display_help()
 	sprintf (info+strlen(info),"-u  UDP debug output   (default: 127.0.0.1:9979, nc -kluv 9979 to view) \r\n") ;
 	sprintf (info+strlen(info),"-v  short frames on    no parameter \r\n") ;
 	sprintf (info+strlen(info),"                       (DVBS2 does not support FEC 9/10 for short frames) \r\n") ;
-	sprintf (info+strlen(info),"-w  provider           adds Muntjac firmware and driver versions to the provider name in the SDT \r\n") ;
-	sprintf (info+strlen(info),"-x  mixer              specify mixer type (future use \r\n") ;
+	sprintf (info+strlen(info),"-w  provider           sets the provider name in the SDT \r\n") ;
+	sprintf (info+strlen(info),"-x  mixer power        0.00 - 0.31 \r\n") ;
 	sprintf (info+strlen(info),"-y  LO suppression     iiqq (0000 to 6363) use 9999 for AT86RF215 internal value \r\n") ;
-	sprintf (info+strlen(info),"                       (if not set, looks for file SERIALNUMBER.mjo) \r\n") ;
-	sprintf (info+strlen(info),"                       (first in /home/pi/rpidatv/bin and then in the current directory \r\n") ;
+	sprintf (info+strlen(info),"                       (if not set, looks for a .mjo file for this Muntjac) \r\n") ;
+	sprintf (info+strlen(info),"                       (first in /home/pi/rpidatv/bin and then in the current directory) \r\n") ;
 	sprintf (info+strlen(info),"-z  secondary band     no parameter \r\n") ;
 	sprintf (info+strlen(info),"                       set -t, -g to transmit same data as main band \r\n") ;
 	sprintf (info+strlen(info),"                       optionally set -y, -f carrier \r\n") ;
@@ -4274,31 +3957,4 @@ void display_help()
 }
 
 
-/*
-            outputpointer = usbtxbuff ;
-            while (bytestosend > 0)
-            {
-                if (bytestosend < 8192)
-                {
-                    utemp = bytestosend ;
-                }
-                else
-                {
-                    utemp = 8192 ;
-                }
-                status = write (mjfd, outputpointer, utemp) ;
-                if (status >= 0)
-                {
-                    outputpointer += status ;
-                    bytestosend -= status ;
-                }
-                else if (errno != EAGAIN)
-                {
-                    sprintf (temps, "Output error (%d) ", errno) ;
-                    netprint (temps) ;
-                    returncode |= ERROR_OUTPUTWRITE ;
-                    output_thread_status = 4 ;
-                    break ;
-                }
-*/
 
