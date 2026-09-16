@@ -353,7 +353,7 @@ fi
 
 if [[ "$WIRINGPI_UPDATE_REQUIRED" == "YES" ]]; then
   # Purge and install latest version
-  sudo apt purge wiringpi
+  sudo apt -y purge wiringpi
 
   # Clone latest version
   cd ~
