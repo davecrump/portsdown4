@@ -351,7 +351,7 @@ if gpio -v | grep -q 'version: 2.50'; then
   WIRINGPI_UPDATE_REQUIRED="YES"
 fi
 
-if [[ "$WIRINGPI_UPDATE_REQUIRED" != "YES" ]]; then
+if [[ "$WIRINGPI_UPDATE_REQUIRED" == "YES" ]]; then
   # Purge and install latest version
   sudo apt purge wiringpi
 
