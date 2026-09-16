@@ -339,6 +339,35 @@ if grep -q 'ts.tv_sec = target_us / 1000000' /home/pi/libwebsockets/lib/core-net
   cd /home/pi
 fi
 
+# Repair WiringPi if required 20260916
+gpio readall
+if [[ "$?" != "0" ]]; then
+  # readall failed, so purge and install latest version
+  sudo apt purge wiringpi
+
+  # Clone latest version
+  cd ~
+  rm -rf ~/WiringPi
+  git clone https://github.com/WiringPi/WiringPi.git
+  cd WiringPi
+
+  # Modify so that it installs on 32-bit buster
+  cd wiringPi
+  sed -i -e 's/\(\[\[gnu::packed\]\]\)//g' bcm_registers.h
+  sed -i -e 's/\(\[\[gnu::packed\]\]\)//g' rp1_registers.h
+  cd ~/WiringPi
+
+  # Build it
+  ./build debian
+
+  # Read latest WiringPi version number and install it
+  vMaj=`cut -d. -f1 VERSION`
+  vMin=`cut -d. -f2 VERSION`
+  mv debian-template/wiringpi_"$vMaj"."$vMin"_armhf.deb .
+  sudo apt install ./wiringpi_"$vMaj"."$vMin"_armhf.deb
+  cd ~
+fi
+
 # Delete any old master files
 rm /home/pi/master.zip >/dev/null 2>/dev/null
 
@@ -900,7 +929,7 @@ cp -f -r "$PATHUBACKUP"/merger_config.txt "$PATHSCRIPT"/merger_config.txt
 cp -f -r "$PATHUBACKUP"/tracker_config.txt "$PATHSCRIPT"/tracker_config.txt
 
 # Restore the user's original Muntjac cal files
-cp -f -r "$PATHUBACKUP"/*.mjo /home/pi/rpidatv/bin/
+cp -f -r "$PATHUBACKUP"/*.mjo /home/pi/rpidatv/bin/  >/dev/null 2>/dev/null
 
 # Restore the user's original potential Fixed IP config
 cp -f -r "$PATHUBACKUP"/dhcpcd.conf.prep /home/pi/rpidatv/scripts/configs/dhcpcd.conf.prep
