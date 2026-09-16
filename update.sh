@@ -339,10 +339,20 @@ if grep -q 'ts.tv_sec = target_us / 1000000' /home/pi/libwebsockets/lib/core-net
   cd /home/pi
 fi
 
-# Repair WiringPi if required 20260916
+
+# Check if WiringPi update required (2 failure cases) 20260916
+WIRINGPI_UPDATE_REQUIRED="NO"
 gpio readall
 if [[ "$?" != "0" ]]; then
-  # readall failed, so purge and install latest version
+  WIRINGPI_UPDATE_REQUIRED="YES"
+fi
+
+if gpio -v | grep -q 'version: 2.50'; then
+  WIRINGPI_UPDATE_REQUIRED="YES"
+fi
+
+if [[ "$WIRINGPI_UPDATE_REQUIRED" != "YES" ]]; then
+  # Purge and install latest version
   sudo apt purge wiringpi
 
   # Clone latest version
