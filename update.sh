@@ -558,6 +558,16 @@ sudo cp datvexpressraw16.rbf /lib/firmware/datvexpress/datvexpressraw16.rbf
 cd /home/pi
 
 echo
+echo "---------------------------------"
+echo "----- Updating dvb_t2_stack -----"
+echo "---------------------------------"
+cd /home/pi/rpidatv/src/dvb_t2_stack
+make clean
+make -j $(nproc) PI4=1 dvb_t2_stack
+cp dvb_t2_stack /home/pi/rpidatv/bin/dvb_t2_stack
+cd /home/pi
+
+echo
 echo "-------------------------------------"
 echo "----- Updating the H264 Encoder -----"
 echo "-------------------------------------"
