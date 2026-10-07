@@ -65,6 +65,7 @@ bin/nf_meter
 bin/pluto_nf_meter
 bin/dvb2iq
 bin/dvb_t_stack
+bin/dvb_t2_stack
 bin/keyedtx
 bin/keyedtxtouch
 bin/limesdr_dump

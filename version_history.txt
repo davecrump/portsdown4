@@ -1,3 +1,6 @@
+202610070
+Add DVB-T2 Transmit Capability
+
 202609300
 Enable MeteorViewer Local Mode with no internet
 
