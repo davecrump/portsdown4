@@ -28,10 +28,10 @@ DTV_OBJS = $(patsubst %.cc,%.o,$(wildcard src/dvb/*.cc) $(wildcard src/dvbt2/*.c
 all: t2mod dvb_t2_stack
 
 t2mod: t2mod.o t2core.o $(DTV_OBJS)
-	$(CXX) -pthread -o $@ $^ $(LDFLAGS) -lfftw3f
+	$(CXX) -pthread -o $@ $^ $(LDFLAGS) -lfftw3f -latomic
 
 dvb_t2_stack: dvb_t2_stack.o t2core.o $(DTV_OBJS) $(RADIO_OBJS)
-	$(CXX) -pthread -o $@ $^ $(LDFLAGS) -lfftw3f $(RADIO_LIBS)
+	$(CXX) -pthread -o $@ $^ $(LDFLAGS) -lfftw3f $(RADIO_LIBS) -latomic
 
 %.o: %.cc
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -c $< -o $@
