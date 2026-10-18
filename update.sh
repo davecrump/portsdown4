@@ -540,7 +540,7 @@ cp muntjacsdr_dvb /home/pi/rpidatv/bin/             # Executable
 cd /home/pi
 
 
-DisplayUpdateMsg "Step 7 of 10\nCompiling Portsdown SW\nDVB-T Transmitter\nXXXXXX----"
+DisplayUpdateMsg "Step 7 of 10\nCompiling Portsdown SW\nDVB-T/T2 Transmitter\nXXXXXX----"
 
 echo
 echo "--------------------------------"
