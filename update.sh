@@ -688,7 +688,7 @@ if [ ! -f  /usr/local/include/sdrplay_api.h ]; then
   touch /home/pi/rpidatv/.post-install_actions
   cd /home/pi
 
-else            # api is intalled, so try to compile SDRplay apps
+else            # api is installed, so try to compile SDRplay apps
   echo
   echo "----------------------------------"
   echo "----- Compiling MeteorViewer -----"

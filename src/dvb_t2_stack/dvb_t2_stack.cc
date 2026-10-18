@@ -1,3 +1,5 @@
+#include "t2interp.h"
+#include <cstdlib>
 /*
  * dvb_t2_stack - narrowband DVB-T2 transmitter for the BATC Portsdown.
  * Drop-in companion to dvb_t_stack (same command line): takes the encoder's
@@ -96,6 +98,7 @@ int main(int argc, char** argv)
 
     DVBTFormat fmt{};
     fmt.tx_sample_rate = (uint32_t)(core.fs + 0.5);
+    int interp_L = 1;
     fmt.freq = freq;
     fmt.port = (uint16_t)port;
     snprintf(fmt.n_addr, sizeof fmt.n_addr, "%s", naddr.c_str());
@@ -112,6 +115,16 @@ int main(int argc, char** argv)
 #ifdef __USE_LIME__
     else if (radio == "lime") {
         fmt.radio = R_LIME;
+        // Software interpolation: moves the sample-rate images well away from the signal.
+        // Aim for an output rate of at least 4.5 MS/s.
+        interp_L = (int)std::ceil(4.5e6 / core.fs);
+        if (interp_L < 1) interp_L = 1;
+        if (const char* e = getenv("T2_INTERP")) { int v = atoi(e); if (v >= 1 && v <= 16) interp_L = v; }
+        if (interp_L > 1) {
+            fmt.tx_sample_rate = (uint32_t)(core.fs * interp_L + 0.5);
+            fmt.chan_bw_hz = 0;                  // no Lime GFIR when we filter in software
+            fprintf(stderr, "T2 software interpolation x%d: Lime sample rate %u\n", interp_L, fmt.tx_sample_rate);
+        }
         fmt.level = (float)(level == -999 ? 0.8 : level);
         if (lime_open(&fmt) != 0) { fprintf(stderr, "LimeSDR not opened\n"); return 1; }
         tx = [](scmplx* s, int n) { lime_transmit_samples(s, n); };
@@ -124,7 +137,9 @@ int main(int argc, char** argv)
         fmt.level = (float)(level == -999 ? -10 : level);
         if (pluto_open(&fmt, 32768 + 8192) < 0) return 1;
         if (fmt.tx_sample_rate > 3000000) pluto_set_tx_sample_rate(fmt.tx_sample_rate);
-        else { pluto_set_tx_sample_rate(fmt.tx_sample_rate * 8); pluto_configure_x8_int_dec(fmt.tx_sample_rate); }
+        else { pluto_set_tx_sample_rate(fmt.tx_sample_rate * 8); }
+//        else { pluto_set_tx_sample_rate(fmt.tx_sample_rate * 8); pluto_configure_x8_int_dec(fmt.tx_sample_rate); }
+	pluto_configure_x8_int_dec(fmt.tx_sample_rate);
         pluto_set_tx_frequency((long long)fmt.freq);
         if (fmt.level <= 0 && fmt.level > -89.75) pluto_set_tx_level(fmt.level);
         pluto_start_tx_stream();
@@ -137,6 +152,8 @@ int main(int argc, char** argv)
     signal(SIGINT, on_signal);
     signal(SIGTERM, on_signal);
 
+    T2Interp t2ip(interp_L);
+    std::vector<std::complex<float>> ipin, ipout;
     LiveTS lts;
     lts.set_channel_rate(core.ch_rate);
     int sock = lts.open_udp(port);
@@ -181,6 +198,23 @@ int main(int argc, char** argv)
                 nout += n;
                 auto due = t0 + std::chrono::duration<double>(nout / core.fs - 1.0);
                 std::this_thread::sleep_until(due);
+                return (bool)g_run;
+            }
+            if (interp_L > 1) {
+                // Interpolate in chunks of at most sbuf.size()/interp_L input samples
+                const size_t chunk = sbuf.size() / interp_L;
+                for (size_t k = 0; k < n && g_run; k += chunk) {
+                    size_t m = std::min(chunk, n - k);
+                    ipin.resize(m);
+                    for (size_t j = 0; j < m; j++) ipin[j] = std::complex<float>(p[k + j].real(), p[k + j].imag());
+                    t2ip.process(ipin.data(), m, ipout);
+                    for (size_t j = 0; j < ipout.size(); j++) {
+                        float re = ipout[j].real() * 32767.0f, im = ipout[j].imag() * 32767.0f;
+                        sbuf[j].re = (short)std::max(-32767.0f, std::min(32767.0f, re));
+                        sbuf[j].im = (short)std::max(-32767.0f, std::min(32767.0f, im));
+                    }
+                    tx(sbuf.data(), (int)ipout.size());
+                }
                 return (bool)g_run;
             }
             for (size_t k = 0; k < n && g_run; k += sbuf.size()) {
