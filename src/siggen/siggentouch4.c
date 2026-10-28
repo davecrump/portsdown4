@@ -141,6 +141,9 @@ char ref_freq_4153[63] = "20000000";        // read on startup from siggenconfig
 int refin4153 = 20000000;                   // adf4153/SLO ref_freq
 char ref_freq_9850[63] = "64000000";        // read on startup from siggenconfig.txt
 int refin9850 = 64000000;                   // ad9850 DDS ref_freq
+char ref_freq_2119[63] = "26000000";        // read on startup from siggenconfig.txt
+int refin2119 = 26000000;                   // cmt2119a ref_freq
+double refOsc = 26.0;                       // Ref freq used (as extern) in cmt2119a calcs
 
 uint64_t SourceUpperFreq = 13600000000;     // set every time an oscillator is selected
 uint64_t SourceLowerFreq = 54000000;        // set every time an oscillator is selected
@@ -803,6 +806,11 @@ void ReadSavedState()
   // ref_freq_9850 is initialised to 120000000 and stays as a string
   GetConfigParam(PATH_SGCONFIG,"ad9850ref", ref_freq_9850);
   refin9850 = atoi(ref_freq_9850);
+
+  // ref_freq_2119 is initialised to 26000000 and stays as a string
+  GetConfigParam(PATH_SGCONFIG,"cmt2119aref", ref_freq_2119);
+  refin2119 = atoi(ref_freq_2119);
+  refOsc = (double)(refin2119)/1000000.0;
 
   // Read Pluto IP from Portsdown Config file
   GetConfigParam(PATH_PCONFIG,"plutoip", PlutoIP);
@@ -6199,6 +6207,28 @@ void ChangeADFRef(int NoButton)
     refin9850 = atoi(ref_freq_9850);
     ImposeBounds();  // recalculate frequency limits
     break;
+  case 8:
+    snprintf(RequestText, 50, "Enter new CMT2119A Reference Frequency in Hz");
+    strcpyn(InitText, ref_freq_2119, 10);
+    while (Spaces >= 1)
+    {
+      Keyboard(RequestText, InitText, 8);
+  
+      // Check that there are no spaces or other characters
+      Spaces = 0;
+      for (j = 0; j < strlen(KeyboardReturn); j = j + 1)
+      {
+        if ( !(isdigit(KeyboardReturn[j])) )
+        {
+          Spaces = Spaces + 1;
+        }
+      }
+    }
+    strcpy(ref_freq_2119, KeyboardReturn);
+    SetConfigParam(PATH_SGCONFIG, "cmt2119aref", KeyboardReturn);
+    refin2119 = atoi(ref_freq_2119);
+    refOsc = (double)(refin2119)/1000000.0;
+    break;
   default:
     break;
   }
@@ -6206,6 +6236,7 @@ void ChangeADFRef(int NoButton)
   printf("ADF5355 Ref set to: %s\n", ref_freq_5355);
   printf("ADF4153/SLO Ref set to: %s\n", ref_freq_4153);
   printf("AD9850 Ref set to: %s\n", ref_freq_9850);
+  printf("CMT2119A Ref set to: %s\n", ref_freq_2119);
 }
 
 
@@ -6404,7 +6435,6 @@ void waituntil(int w, int h)
         case 1:                               // Set ADF5355 Ref
         case 2:                               // Set ADF4153/SLO Ref
         case 3:                               // Set AD9850 Osc
-        case 8:                               // Set CMT2119A ref
           printf("Changing ADFRef\n");
           ChangeADFRef(i);
           Start_Highlights_Menu4();
@@ -6422,6 +6452,22 @@ void waituntil(int w, int h)
           break;
         case 7:                               // Check Pluto Expansion
           ChangePlutoAD();
+          Start_Highlights_Menu4();
+          UpdateWindow();
+          break;
+        case 8:                               // Set CMT2119A Ref or Perform Pluto Expansion
+          if ((GetButtonStatus(ButtonNumber(4, 8)) == 1) && (strcmp(osc, "pluto") == 0))  // Pluto selected
+          {
+            system("/home/pi/rpidatv/scripts/pluto_set_ad.sh");
+            MsgBox2("Pluto expanded to AD9364 status", "You must reboot the Pluto now");
+            wait_touch();
+            SetButtonStatus(ButtonNumber(4, 8), 0);
+          }
+          if (strcmp(osc, "cmt2119a") == 0)
+          {
+            printf("Changing CMT2119A Ref\n");
+            ChangeADFRef(i);
+          }
           Start_Highlights_Menu4();
           UpdateWindow();
           break;
@@ -6886,16 +6932,31 @@ void Define_Menu4()
   button = CreateButton(4, 7);
   AddButtonStatus(button, "Check Pluto^AD9364", &Blue);
 
-  button = CreateButton(4, 8);  
-  AddButtonStatus(button, "Set Ref^ADF4351", &Blue);
+  button = CreateButton(4, 8);
+  AddButtonStatus(button, " ", &Grey);
+  AddButtonStatus(button, "Update Pluto^to AD9364", &Red);
+  AddButtonStatus(button, "Set Ref^CMT2119A", &Blue);
 
   button = CreateButton(4, 9);
   AddButtonStatus(button, "Set Ref^Pluto", &Blue);
 }
 
+
 void Start_Highlights_Menu4()
 {
+  if (strcmp(osc, "cmt2119a") == 0)
+  {
+    SetButtonStatus(ButtonNumber(4, 8), 2);
+  }
+  if (strcmp(osc, "pluto") == 0)  // Pluto selected
+  {
+    if (GetButtonStatus(ButtonNumber(4, 8)) != 1) // So not trying to extend Pluto
+    {
+      SetButtonStatus(ButtonNumber(4, 8), 0);     // Grey out button
+    }
+  }
 }
+
 
 void Define_Menu11()  // Control Panel
 {
