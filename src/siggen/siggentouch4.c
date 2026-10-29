@@ -7058,6 +7058,7 @@ void Start_Highlights_Menu11()
     {
       AmendButtonStatus(ButtonNumber(11, 32), 0, "Program^EEPROM", &Blue);
     }
+    SetButtonStatus(ButtonNumber(11, 32), 0);
   }
   else
   {
